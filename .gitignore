@@ -1,0 +1,26 @@
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+venv/
+env/
+.coverage
+coverage.xml
+htmlcov/
+build/
+dist/
+*.egg-info/
+
+# Local environment
+.env
+
+# Local sqlite fallback
+*.db
+
+# Runtime-uploaded datasets
+.uploaded_datasets/
+
+# OS files
+.DS_Store
+Thumbs.db

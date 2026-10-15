@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>HEDIS CSV to FHIR Pipeline</title>
+  <link rel="stylesheet" href="/ui/styles.css" />
+</head>
+<body>
+  <header class="hero">
+    <h1>HEDIS CSV to FHIR R4 Pipeline</h1>
+    <p>CSV Input -> Mapping -> FHIR Generation -> Validation -> PostgreSQL Storage</p>
+  </header>
+
+  <main class="layout">
+    <section class="card">
+      <h2>Input Selection</h2>
+      <label for="inputDir">Input folder</label>
+      <input id="inputDir" type="text" placeholder="C:/path/to/synthea/export" />
+      <input id="folderPicker" type="file" webkitdirectory directory multiple hidden />
+      <input id="zipPicker" type="file" accept=".zip" hidden />
+      <div class="row">
+        <button id="pickFolderBtn">Select Local Folder</button>
+        <button id="uploadFolderBtn">Upload Selected Folder</button>
+      </div>
+      <div class="row">
+        <button id="pickZipBtn">Select ZIP File</button>
+        <button id="uploadZipBtn">Upload ZIP</button>
+      </div>
+      <div class="row">
+        <button id="inspectBtn">Inspect CSV Files</button>
+        <button id="startBtn">Start Conversion</button>
+      </div>
+      <pre id="inspectResult" class="mono"></pre>
+    </section>
+
+    <section class="card">
+      <h2>Conversion Controls</h2>
+      <label for="jobId">Job ID</label>
+      <input id="jobId" type="text" readonly />
+      <div class="row">
+        <button id="refreshBtn">Refresh Status</button>
+        <button id="persistBtn">Store Validated Resources</button>
+      </div>
+      <ul id="stages"></ul>
+    </section>
+
+    <section class="card">
+      <h2>Summary Dashboard</h2>
+      <pre id="summary" class="mono"></pre>
+    </section>
+
+    <section class="card">
+      <h2>Resource Explorer</h2>
+      <div class="row">
+        <select id="patientSelect"></select>
+        <button id="loadPatientBtn">Load Patient Resources</button>
+      </div>
+      <pre id="patientResources" class="mono"></pre>
+    </section>
+
+    <section class="card">
+      <h2>Error and Job History</h2>
+      <button id="jobsBtn">Load Jobs</button>
+      <pre id="jobsResult" class="mono"></pre>
+      <button id="issuesBtn">Load Validation Issues</button>
+      <pre id="issuesResult" class="mono"></pre>
+    </section>
+  </main>
+
+  <script src="/ui/app.js"></script>
+</body>
+</html>

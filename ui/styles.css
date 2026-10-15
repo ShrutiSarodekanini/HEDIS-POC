@@ -1,0 +1,102 @@
+:root {
+  --bg: #f2eee7;
+  --panel: #fffdfa;
+  --ink: #1e293b;
+  --accent: #b45309;
+  --muted: #64748b;
+  --ok: #166534;
+  --warn: #92400e;
+  --fail: #991b1b;
+  --shadow: 0 10px 24px rgba(30, 41, 59, 0.1);
+}
+
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+  color: var(--ink);
+  background: radial-gradient(circle at 20% 0%, #fff8eb 0%, var(--bg) 45%, #efe7dc 100%);
+}
+.hero {
+  padding: 2rem 1.2rem 1rem;
+  text-align: center;
+}
+.hero h1 {
+  margin: 0;
+  letter-spacing: 0.04em;
+  color: #7c2d12;
+}
+.hero p {
+  margin-top: 0.6rem;
+  color: var(--muted);
+}
+.layout {
+  max-width: 1200px;
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 1rem;
+  padding: 1rem;
+}
+.card {
+  background: var(--panel);
+  border: 1px solid #f1e7d8;
+  border-radius: 14px;
+  box-shadow: var(--shadow);
+  padding: 1rem;
+}
+.card h2 { margin-top: 0; }
+label {
+  display: block;
+  margin-bottom: 0.25rem;
+  color: var(--muted);
+}
+input, select, button {
+  width: 100%;
+  padding: 0.6rem 0.7rem;
+  border-radius: 8px;
+  border: 1px solid #d6c8b6;
+  font-size: 0.95rem;
+}
+button {
+  cursor: pointer;
+  border: none;
+  background: linear-gradient(130deg, #d97706, #b45309);
+  color: #fff;
+  font-weight: 600;
+  transition: transform 0.12s ease, box-shadow 0.12s ease;
+}
+button:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 8px 16px rgba(180, 83, 9, 0.25);
+}
+.row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.6rem;
+  margin: 0.6rem 0;
+}
+.mono {
+  min-height: 90px;
+  white-space: pre-wrap;
+  background: #f7f4ee;
+  border: 1px dashed #dbc9ad;
+  border-radius: 8px;
+  padding: 0.6rem;
+  font-family: Consolas, monospace;
+  font-size: 0.85rem;
+}
+#stages {
+  padding-left: 1rem;
+}
+#stages li {
+  margin-bottom: 0.25rem;
+}
+.status-completed { color: var(--ok); }
+.status-running { color: #1d4ed8; }
+.status-partially_completed { color: var(--warn); }
+.status-failed { color: var(--fail); }
+
+@media (max-width: 640px) {
+  .row { grid-template-columns: 1fr; }
+}
