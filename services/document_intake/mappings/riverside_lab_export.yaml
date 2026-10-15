@@ -1,0 +1,45 @@
+# Riverside lab export (CSV). Recognised by its exact header list; header order does not matter.
+name: riverside_lab_export
+version: 1
+record_type: lab_result
+match:
+  - Patient ID
+  - Patient Name
+  - DOB
+  - Test Name
+  - Result
+  - Units
+  - Collected
+  - Ordering Provider
+columns:
+  Patient ID: member_id
+  Patient Name: member_name
+  DOB: birth_date
+  Test Name: test_name
+  Result: value
+  Units: unit
+  Collected: observed_on
+  Ordering Provider: provider
+date_formats:
+  - "%m/%d/%Y"
+value_maps:
+  # Keys are test names as they appear in the file (matched ignoring case and extra spaces).
+  test_name:
+    Hemoglobin A1c: &hba1c
+      code: "4548-4"
+      code_system: LOINC
+      description: Hemoglobin A1c
+      allowed_units: ["%"]
+    HbA1c: *hba1c
+    A1C: *hba1c
+    eGFR: &egfr
+      code: "33914-3"
+      code_system: LOINC
+      description: eGFR
+      allowed_units: ["mL/min/1.73m2"]
+    LDL Cholesterol: &ldl
+      code: "13457-7"
+      code_system: LOINC
+      description: LDL Cholesterol
+      allowed_units: ["mg/dL"]
+free_text_columns: []
