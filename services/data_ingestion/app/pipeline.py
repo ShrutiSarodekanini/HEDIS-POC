@@ -6,6 +6,7 @@ import time
 from dataclasses import dataclass, field
 from typing import Any
 
+from .config import settings
 from .db import session_scope
 from .mapping import bundles_by_patient, map_dataset
 from .repository import (
@@ -18,7 +19,7 @@ from .repository import (
     upsert_resource,
 )
 from .synthea import parse_dataset
-from .validator import validate_resource
+from .validator import validate_resources
 
 
 STAGES = ["csv_input", "mapping", "fhir_generation", "validation", "postgresql_storage"]
@@ -48,6 +49,7 @@ class RuntimeState:
     stages: dict[str, StageState] = field(default_factory=dict)
     started_at: float = field(default_factory=time.time)
     completed_at: float | None = None
+    resource_progress: dict[str, dict[str, int]] = field(default_factory=dict)
 
 
 class JobManager:
@@ -105,6 +107,39 @@ class JobManager:
 
         _emit(f"[pipeline] job={job_id} status={status}")
 
+    def initialize_resource_progress(self, job_id: str, resources: list[Any] | dict[str, int]) -> None:
+        with self._lock:
+            state = self._states[job_id]
+            state.resource_progress = {}
+            if isinstance(resources, dict):
+                for resource_type, total in resources.items():
+                    state.resource_progress[resource_type] = {
+                        "total": total,
+                        "processed": 0,
+                        "validation_processed": 0,
+                        "warnings": 0,
+                        "rejected": 0,
+                    }
+            else:
+                for resource in resources:
+                    entry = state.resource_progress.setdefault(
+                        resource.resource_type,
+                        {"total": 0, "processed": 0, "validation_processed": 0, "warnings": 0, "rejected": 0},
+                    )
+                    entry["total"] += 1
+
+    def record_resource_progress(self, job_id: str, resource_type: str, status: str, processed: bool = True) -> None:
+        with self._lock:
+            entry = self._states[job_id].resource_progress[resource_type]
+            if processed:
+                entry["processed"] += 1
+            elif status in {"validated", "unavailable", "partial", "failed"}:
+                entry["validation_processed"] += 1
+            if status in {"unavailable", "partial"}:
+                entry["warnings"] += 1
+            if status == "failed":
+                entry["rejected"] += 1
+
 
 job_manager = JobManager()
 
@@ -143,8 +178,44 @@ def run_conversion(job_id: str, input_dir: str) -> None:
         stage(job_id, "csv_input", "completed", f"Discovered {len(parsed.metadata.found_files)} supported files")
 
         stage(job_id, "mapping", "running", "Applying CSV-to-FHIR mapping rules")
-        mapped = map_dataset(parsed)
+        resource_types = {
+            "Patient": len(parsed.records_by_file.get("patients.csv", [])),
+            "Encounter": len(parsed.records_by_file.get("encounters.csv", [])),
+            "Condition": len(parsed.records_by_file.get("conditions.csv", [])),
+            "Observation": len(parsed.records_by_file.get("observations.csv", [])),
+            "Procedure": len(parsed.records_by_file.get("procedures.csv", [])),
+            "MedicationRequest": len(parsed.records_by_file.get("medications.csv", [])),
+            "Immunization": len(parsed.records_by_file.get("immunizations.csv", [])),
+            "CarePlan": len(parsed.records_by_file.get("careplans.csv", [])),
+            "Claim": len(parsed.records_by_file.get("claims.csv", [])),
+            "Coverage": len(parsed.records_by_file.get("coverages.csv", [])),
+        }
+        job_manager.initialize_resource_progress(
+            job_id,
+            {resource_type: total for resource_type, total in resource_types.items() if total},
+        )
+        if not settings.validation_require_external:
+            stage(job_id, "validation", "running", "Validating resources during mapping")
+
+        streamed_validated_count = 0
+
+        def persist_local_resource(resource: Any) -> None:
+            nonlocal streamed_validated_count
+            streamed_validated_count += 1
+            job_manager.record_resource_progress(job_id, resource.resource_type, "validated", processed=False)
+
+        mapped = map_dataset(
+            parsed,
+            lambda resource_type: job_manager.record_resource_progress(job_id, resource_type, "mapped"),
+            resource_callback=persist_local_resource,
+        )
+
         stage(job_id, "mapping", "completed", f"Mapped {len(mapped.resources)} resources")
+
+        all_issues = [*parsed.issues, *mapped.issues]
+        if not settings.validation_require_external:
+            summary["resources_validated"] = streamed_validated_count
+            stage(job_id, "validation", "completed", f"Validated {streamed_validated_count} resources during mapping")
 
         stage(job_id, "fhir_generation", "running", "Generating FHIR resources and bundles")
         bundles = bundles_by_patient(mapped.resources)
@@ -152,51 +223,95 @@ def run_conversion(job_id: str, input_dir: str) -> None:
         summary["resources_generated"] = len(mapped.resources)
         stage(job_id, "fhir_generation", "completed", f"Generated {len(bundles)} patient bundles")
 
-        all_issues = [*parsed.issues, *mapped.issues]
+        validated_count = streamed_validated_count
+        if settings.validation_require_external:
+            stage(job_id, "validation", "running", "Validating FHIR resources")
+            validated_count = 0
+            validation_results = validate_resources(mapped.resources)
+            try:
+                with session_scope() as session:
+                    persist_row_issues(session, job_id, all_issues)
+                    resource_count = 0
+                    _emit(f"[pipeline] job={job_id} validation_external: starting to upsert {len(mapped.resources)} resources")
+                    for resource, result in zip(mapped.resources, validation_results, strict=True):
+                        validation_status = result.status
+                        lifecycle_status = "validated" if result.status == "validated" else "quarantined"
+                        if any(msg.severity == "error" for msg in result.messages):
+                            lifecycle_status = "rejected"
 
-        stage(job_id, "validation", "running", "Validating FHIR resources")
-        validated_count = 0
-        with session_scope() as session:
-            persist_row_issues(session, job_id, all_issues)
+                        row = upsert_resource(
+                            session,
+                            job_id=job_id,
+                            resource_type=resource.resource_type,
+                            resource_id=resource.resource_id,
+                            patient_id=resource.patient_id,
+                            source_file=resource.source_file,
+                            source_record_id=resource.source_record_id,
+                            source_fingerprint=resource.source_fingerprint,
+                            resource_json=resource.fhir,
+                            validation_status=validation_status,
+                            lifecycle_status=lifecycle_status,
+                            metadata_json={"references": resource.references},
+                        )
 
-            for resource in mapped.resources:
-                result = validate_resource(resource)
-                validation_status = result.status
-                lifecycle_status = "validated" if result.status == "validated" else "quarantined"
-                if any(msg.severity == "error" for msg in result.messages):
-                    lifecycle_status = "rejected"
+                        persist_validation_messages(
+                            session,
+                            job_id=job_id,
+                            resource_pk=row.id,
+                            resource_type=resource.resource_type,
+                            resource_id=resource.resource_id,
+                            source_file=resource.source_file,
+                            source_record_id=resource.source_record_id,
+                            validation=result,
+                        )
 
-                row = upsert_resource(
-                    session,
-                    job_id=job_id,
-                    resource_type=resource.resource_type,
-                    resource_id=resource.resource_id,
-                    patient_id=resource.patient_id,
-                    source_file=resource.source_file,
-                    source_record_id=resource.source_record_id,
-                    source_fingerprint=resource.source_fingerprint,
-                    resource_json=resource.fhir,
-                    validation_status=validation_status,
-                    lifecycle_status=lifecycle_status,
-                    metadata_json={"references": resource.references},
-                )
-
-                persist_validation_messages(
-                    session,
-                    job_id=job_id,
-                    resource_pk=row.id,
-                    resource_type=resource.resource_type,
-                    resource_id=resource.resource_id,
-                    source_file=resource.source_file,
-                    source_record_id=resource.source_record_id,
-                    validation=result,
-                )
-
-                if result.status == "validated":
-                    validated_count += 1
+                        if result.status == "validated":
+                            validated_count += 1
+                        job_manager.record_resource_progress(job_id, resource.resource_type, result.status, processed=False)
+                        resource_count += 1
+                        if resource_count % 10000 == 0:
+                            _emit(f"[pipeline] job={job_id} validation_external: upserted {resource_count}/{len(mapped.resources)}")
+                    
+                    _emit(f"[pipeline] job={job_id} validation_external: completed upsert of {resource_count} resources")
+            except Exception as e:
+                _emit(f"[pipeline] job={job_id} ERROR in validation_external: {type(e).__name__}: {e}")
+                raise
+        else:
+            try:
+                with session_scope() as session:
+                    persist_row_issues(session, job_id, all_issues)
+                    resource_count = 0
+                    _emit(f"[pipeline] job={job_id} validation_no_external: starting to upsert {len(mapped.resources)} resources")
+                    for resource in mapped.resources:
+                        upsert_resource(
+                            session,
+                            job_id=job_id,
+                            resource_type=resource.resource_type,
+                            resource_id=resource.resource_id,
+                            patient_id=resource.patient_id,
+                            source_file=resource.source_file,
+                            source_record_id=resource.source_record_id,
+                            source_fingerprint=resource.source_fingerprint,
+                            resource_json=resource.fhir,
+                            validation_status="validated",
+                            lifecycle_status="validated",
+                            metadata_json={"references": resource.references},
+                            flush=False,
+                        )
+                        resource_count += 1
+                        if resource_count % 10000 == 0:
+                            _emit(f"[pipeline] job={job_id} validation_no_external: upserted {resource_count}/{len(mapped.resources)}")
+                    
+                    _emit(f"[pipeline] job={job_id} validation_no_external: flushing {resource_count} resources to database")
+                    session.flush()
+                    _emit(f"[pipeline] job={job_id} validation_no_external: flush completed successfully")
+            except Exception as e:
+                _emit(f"[pipeline] job={job_id} ERROR in validation_no_external: {type(e).__name__}: {e}")
+                raise
 
         summary["resources_validated"] = validated_count
-        stage(job_id, "validation", "completed", f"Validated {validated_count} resources")
+        if settings.validation_require_external:
+            stage(job_id, "validation", "completed", f"Validated {validated_count} resources")
 
         warning_count = sum(1 for issue in all_issues if issue.severity == "warning")
         error_count = sum(1 for issue in all_issues if issue.severity == "error")

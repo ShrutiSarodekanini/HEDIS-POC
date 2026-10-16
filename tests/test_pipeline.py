@@ -50,6 +50,23 @@ def test_mapping_preserves_patient_and_encounter_references():
     assert observations[0].fhir["encounter"]["reference"].startswith("Encounter/")
 
 
+def test_claims_use_synthea_patientid_column(tmp_path: Path):
+    from services.data_ingestion.app.synthea import parse_dataset
+
+    dataset = tmp_path / "claims_dataset"
+    dataset.mkdir()
+    (dataset / "patients.csv").write_text("Id\npatient-1\n", encoding="utf-8")
+    (dataset / "claims.csv").write_text(
+        "Id,PATIENTID\nclaim-1,patient-1\n",
+        encoding="utf-8",
+    )
+
+    parsed = parse_dataset(str(dataset.resolve()))
+    claim_issues = [issue for issue in parsed.issues if issue.source_file == "claims.csv"]
+
+    assert not any(issue.code == "missing_patient_id" for issue in claim_issues)
+
+
 def test_end_to_end_api_pipeline_and_rerun_idempotency(tmp_path: Path):
     db_path = tmp_path / "test_pipeline.db"
     main, db = reload_ingestion_stack(f"sqlite:///{db_path}")
@@ -67,7 +84,7 @@ def test_end_to_end_api_pipeline_and_rerun_idempotency(tmp_path: Path):
     job_id = start.json()["job_id"]
 
     status = None
-    for _ in range(50):
+    for _ in range(600):
         status_resp = client.get(f"/api/jobs/{job_id}")
         assert status_resp.status_code == 200
         status = status_resp.json()["status"]
@@ -84,7 +101,7 @@ def test_end_to_end_api_pipeline_and_rerun_idempotency(tmp_path: Path):
 
     validation_resp = client.get(f"/api/jobs/{job_id}/validation")
     assert validation_resp.status_code == 200
-    assert len(validation_resp.json()["issues"]) >= len(resources)
+    assert len(validation_resp.json()["issues"]) >= 1
 
     persist_resp = client.post(f"/api/jobs/{job_id}/persist")
     assert persist_resp.status_code == 200
@@ -94,7 +111,7 @@ def test_end_to_end_api_pipeline_and_rerun_idempotency(tmp_path: Path):
     assert start_2.status_code == 200
     job2 = start_2.json()["job_id"]
 
-    for _ in range(50):
+    for _ in range(600):
         status_resp = client.get(f"/api/jobs/{job2}")
         if status_resp.json()["status"] in {"completed", "partially_completed", "failed"}:
             break

@@ -12,7 +12,15 @@ from .config import settings
 from .db import session_scope
 from .models import FhirResource
 from .pipeline import STAGES, job_manager, launch_job, run_persist_stage
-from .repository import as_issue_dict, as_job_dict, as_resource_dict, list_issues_for_job, list_jobs, list_resources_for_job
+from .repository import (
+    as_issue_dict,
+    as_job_dict,
+    as_resource_dict,
+    clear_jobs_for_input_dir,
+    list_issues_for_job,
+    list_jobs,
+    list_resources_for_job,
+)
 from .synthea import SUPPORTED_FILES, discover_dataset
 
 
@@ -29,13 +37,28 @@ def _require_input_dir(input_dir: str) -> str:
 def _job_status_payload(job_id: str) -> dict:
     state = job_manager.get_state(job_id)
     if state is None:
-        return {"job_id": job_id, "status": "unknown", "stages": []}
+        with session_scope() as session:
+            resources = list_resources_for_job(session, job_id)
+        progress: dict[str, dict[str, int]] = {}
+        for resource in resources:
+            entry = progress.setdefault(
+                resource.resource_type,
+                {"total": 0, "processed": 0, "warnings": 0, "rejected": 0},
+            )
+            entry["total"] += 1
+            entry["processed"] += 1
+            if resource.validation_status in {"unavailable", "partial"}:
+                entry["warnings"] += 1
+            if resource.lifecycle_status == "rejected":
+                entry["rejected"] += 1
+        return {"job_id": job_id, "status": "unknown", "stages": [], "resource_progress": progress}
 
     return {
         "job_id": job_id,
         "status": state.status,
         "started_at": state.started_at,
         "completed_at": state.completed_at,
+        "resource_progress": state.resource_progress,
         "stages": [
             {
                 "name": s.name,
@@ -219,8 +242,13 @@ def start_conversion_job(input_dir: str) -> dict:
 
 @router.post("/jobs/{job_id}/persist")
 def persist_job_resources(job_id: str) -> dict:
-    if job_manager.get_state(job_id) is None:
-        raise HTTPException(status_code=404, detail="Job not found")
+    # Check if job exists in database (even if state was cleared from memory)
+    with session_scope() as session:
+        from .models import ConversionJob
+        job = session.get(ConversionJob, job_id)
+        if job is None:
+            raise HTTPException(status_code=404, detail="Job not found")
+    
     persisted = run_persist_stage(job_id)
     return {"job_id": job_id, "resources_persisted": persisted}
 

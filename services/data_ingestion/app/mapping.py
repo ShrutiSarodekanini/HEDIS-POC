@@ -2,15 +2,34 @@ from __future__ import annotations
 
 import datetime as dt
 import hashlib
+import json
 import uuid
 from dataclasses import dataclass, field
 from decimal import Decimal, InvalidOperation
-from typing import Any
+from typing import Any, Callable
+
+from pydantic import ValidationError
 
 from .synthea import ParsedDataset, RowIssue, SourceRecord
 
 
 FHIR_NAMESPACE = uuid.UUID("44f46614-c2f4-42d0-8d47-f4f57a0535e0")
+
+FHIR_MODEL_MAP = {
+    "Patient": "fhir.resources.patient.Patient",
+    "Encounter": "fhir.resources.encounter.Encounter",
+    "Condition": "fhir.resources.condition.Condition",
+    "Observation": "fhir.resources.observation.Observation",
+    "Procedure": "fhir.resources.procedure.Procedure",
+    "MedicationRequest": "fhir.resources.medicationrequest.MedicationRequest",
+    "Immunization": "fhir.resources.immunization.Immunization",
+    "CarePlan": "fhir.resources.careplan.CarePlan",
+    "Claim": "fhir.resources.claim.Claim",
+    "Coverage": "fhir.resources.coverage.Coverage",
+}
+
+# Cache for loaded FHIR models to avoid repeated expensive imports
+_MODEL_CACHE: dict[str, type] = {}
 
 
 @dataclass
@@ -38,6 +57,21 @@ class MappingResult:
 def deterministic_id(resource_type: str, source_file: str, source_record_id: str) -> str:
     key = f"{resource_type}:{source_file}:{source_record_id}"
     return str(uuid.uuid5(FHIR_NAMESPACE, key))
+
+
+def _load_model(resource_type: str):
+    # Check cache first to avoid expensive repeated imports
+    if resource_type in _MODEL_CACHE:
+        return _MODEL_CACHE[resource_type]
+    
+    dotted = FHIR_MODEL_MAP.get(resource_type)
+    if dotted is None:
+        raise ValueError(f"No FHIR model mapped for resource type {resource_type}.")
+    module_name, class_name = dotted.rsplit(".", 1)
+    module = __import__(module_name, fromlist=[class_name])
+    model = getattr(module, class_name)
+    _MODEL_CACHE[resource_type] = model
+    return model
 
 
 def to_iso_date(value: str | None) -> str | None:
@@ -99,17 +133,25 @@ def encounter_ref(encounter_id: str | None) -> dict[str, str] | None:
     return {"reference": f"Encounter/{fhir_id}", "display": encounter_id}
 
 
-def map_dataset(parsed: ParsedDataset) -> MappingResult:
+def map_dataset(
+    parsed: ParsedDataset,
+    progress_callback: Callable[[str], None] | None = None,
+    resource_callback: Callable[[ResourceEnvelope], None] | None = None,
+) -> MappingResult:
     resources: list[ResourceEnvelope] = []
     issues: list[RowIssue] = []
 
     records = parsed.records_by_file
 
     for record in records.get("patients.csv", []):
-        item, item_issues = map_patient(record)
+        item, item_issues = _map_record(record, map_patient)
         issues.extend(item_issues)
         if item:
             resources.append(item)
+            if resource_callback:
+                resource_callback(item)
+        if progress_callback:
+            progress_callback("Patient")
 
     for filename, mapper in (
         ("encounters.csv", map_encounter),
@@ -123,10 +165,26 @@ def map_dataset(parsed: ParsedDataset) -> MappingResult:
         ("coverages.csv", map_coverage),
     ):
         for record in records.get(filename, []):
-            item, item_issues = mapper(record)
+            item, item_issues = _map_record(record, mapper)
             issues.extend(item_issues)
             if item:
                 resources.append(item)
+                if resource_callback:
+                    resource_callback(item)
+            if progress_callback:
+                progress_callback(
+                    {
+                        "encounters.csv": "Encounter",
+                        "conditions.csv": "Condition",
+                        "observations.csv": "Observation",
+                        "procedures.csv": "Procedure",
+                        "medications.csv": "MedicationRequest",
+                        "immunizations.csv": "Immunization",
+                        "careplans.csv": "CarePlan",
+                        "claims.csv": "Claim",
+                        "coverages.csv": "Coverage",
+                    }[filename]
+                )
 
     return MappingResult(resources=resources, issues=issues)
 
@@ -386,7 +444,35 @@ def issue_invalid(record: SourceRecord, code: str, message: str) -> RowIssue:
     )
 
 
+def _map_record(
+    record: SourceRecord,
+    mapper: Callable[[SourceRecord], tuple[ResourceEnvelope | None, list[RowIssue]]],
+) -> tuple[ResourceEnvelope | None, list[RowIssue]]:
+    try:
+        return mapper(record)
+    except ValidationError as exc:
+        details = "; ".join(
+            f"{'.'.join(str(part) for part in error.get('loc', []))}: {error.get('msg', 'FHIR validation error')}"
+            for error in exc.errors()
+        )
+        return None, [
+            issue_invalid(
+                record,
+                "fhir_model_validation_error",
+                f"Mapped {record.source_file} row failed FHIR model validation: {details}",
+            )
+        ]
+
+
 def envelope(record: SourceRecord, resource_type: str, resource_id: str, fhir: dict[str, Any]) -> ResourceEnvelope:
+    model = _load_model(resource_type)
+    if hasattr(model, "model_validate"):
+        validated = model.model_validate(fhir)
+        normalized_fhir = validated.model_dump(exclude_none=True, by_alias=True, mode="json")
+    else:
+        validated = model.parse_obj(fhir)
+        normalized_fhir = json.loads(validated.json(exclude_none=True, by_alias=True))
+
     refs = []
     if record.patient_id:
         refs.append(f"Patient/{deterministic_id('Patient', 'patients.csv', record.patient_id)}")
@@ -399,7 +485,7 @@ def envelope(record: SourceRecord, resource_type: str, resource_id: str, fhir: d
         patient_id=record.patient_id,
         source_file=record.source_file,
         source_record_id=record.source_record_id,
-        fhir=fhir,
+        fhir=normalized_fhir,
         references=refs,
     )
 

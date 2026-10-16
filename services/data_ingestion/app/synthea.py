@@ -16,7 +16,7 @@ SUPPORTED_FILES: dict[str, dict[str, Any]] = {
     "medications.csv": {"required": False, "id_col": "Id", "patient_col": "PATIENT", "encounter_col": "ENCOUNTER"},
     "immunizations.csv": {"required": False, "id_col": "Id", "patient_col": "PATIENT", "encounter_col": "ENCOUNTER"},
     "careplans.csv": {"required": False, "id_col": "Id", "patient_col": "PATIENT", "encounter_col": "ENCOUNTER"},
-    "claims.csv": {"required": False, "id_col": "Id", "patient_col": "PATIENT", "encounter_col": "ENCOUNTER"},
+    "claims.csv": {"required": False, "id_col": "Id", "patient_col": "PATIENTID"},
     "coverages.csv": {"required": False, "id_col": "Id", "patient_col": "PATIENT"},
 }
 

@@ -4,7 +4,7 @@ import datetime as dt
 from dataclasses import asdict
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import case, delete, func, select, update
 from sqlalchemy.orm import Session
 
 from .models import ConversionJob, FhirResource, ValidationIssue
@@ -17,6 +17,19 @@ def create_job(session: Session, input_dir: str) -> ConversionJob:
     session.add(job)
     session.flush()
     return job
+
+
+def clear_jobs_for_input_dir(session: Session, input_dir: str) -> int:
+    jobs = session.execute(
+        select(ConversionJob).where(ConversionJob.input_dir == input_dir)
+    ).scalars().all()
+    for job in jobs:
+        resource_ids = select(FhirResource.id).where(FhirResource.job_id == job.id)
+        session.execute(delete(ValidationIssue).where(ValidationIssue.job_id == job.id))
+        session.execute(delete(ValidationIssue).where(ValidationIssue.resource_pk.in_(resource_ids)))
+        session.execute(delete(FhirResource).where(FhirResource.job_id == job.id))
+        session.delete(job)
+    return len(jobs)
 
 
 def start_job(session: Session, job_id: str) -> ConversionJob:
@@ -75,6 +88,7 @@ def upsert_resource(
     validation_status: str,
     lifecycle_status: str,
     metadata_json: dict[str, Any],
+    flush: bool = True,
 ) -> FhirResource:
     existing = session.execute(
         select(FhirResource).where(
@@ -98,7 +112,8 @@ def upsert_resource(
             persisted=False,
         )
         session.add(row)
-        session.flush()
+        if flush:
+            session.flush()
         return row
 
     # Safe replacement policy: never downgrade a validated/persisted resource to invalid.
@@ -117,7 +132,8 @@ def upsert_resource(
         existing.lifecycle_status = lifecycle_status
         existing.metadata_json = metadata_json
 
-    session.flush()
+    if flush:
+        session.flush()
     return existing
 
 
@@ -150,13 +166,71 @@ def persist_validation_messages(
 
 
 def mark_validated_resources_persisted(session: Session, job_id: str) -> int:
-    rows = session.execute(select(FhirResource).where(FhirResource.job_id == job_id)).scalars().all()
-    persisted = 0
-    for row in rows:
-        if row.validation_status in {"validated", "unavailable"} and row.lifecycle_status != "rejected":
-            row.lifecycle_status = "persisted" if row.validation_status == "validated" else "persisted_with_warnings"
-            row.persisted = True
-            persisted += 1
+    """
+    Mark all validated resources as persisted in the database.
+    Uses batch updates to handle large datasets efficiently.
+    """
+    import logging
+    logger = logging.getLogger("uvicorn.error")
+    
+    # First, check what resources exist for this job
+    total_count = session.execute(
+        select(func.count()).select_from(FhirResource).where(FhirResource.job_id == job_id)
+    ).scalar() or 0
+    
+    # Check non-rejected resources
+    non_rejected_count = session.execute(
+        select(func.count()).select_from(FhirResource).where(
+            (FhirResource.job_id == job_id) & 
+            (FhirResource.lifecycle_status != "rejected")
+        )
+    ).scalar() or 0
+    
+    # Check already persisted
+    already_persisted = session.execute(
+        select(func.count()).select_from(FhirResource).where(
+            (FhirResource.job_id == job_id) & 
+            (FhirResource.persisted == True)
+        )
+    ).scalar() or 0
+    
+    logger.info(f"[persist] job={job_id} total={total_count} non_rejected={non_rejected_count} already_persisted={already_persisted}")
+    
+    # If no resources found, debug by checking validation_status values
+    if total_count == 0:
+        all_jobs = session.execute(select(func.count()).select_from(FhirResource)).scalar() or 0
+        logger.info(f"[persist] ALERT: job={job_id} has 0 resources, but database has {all_jobs} total resources across all jobs")
+        
+        # Sample a few resources from ANY job to see structure
+        sample = session.execute(select(FhirResource).limit(1)).scalar_one_or_none()
+        if sample:
+            logger.info(f"[persist] Sample resource: id={sample.id} job_id={sample.job_id} validation_status={sample.validation_status} lifecycle_status={sample.lifecycle_status} persisted={sample.persisted}")
+        else:
+            logger.info(f"[persist] Database is completely empty - no resources found anywhere")
+        return 0
+    
+    # Update all non-rejected, non-persisted resources
+    stmt = (
+        update(FhirResource)
+        .where(
+            (FhirResource.job_id == job_id) &
+            (FhirResource.lifecycle_status != "rejected") &
+            (FhirResource.persisted == False)
+        )
+        .values(
+            persisted=True,
+            lifecycle_status=case(
+                (FhirResource.validation_status == "validated", "persisted"),
+                else_="persisted_with_warnings"
+            )
+        )
+    )
+    
+    result = session.execute(stmt)
+    persisted = result.rowcount
+    
+    logger.info(f"[persist] job={job_id} persisted={persisted} records")
+    session.flush()
     return persisted
 
 
