@@ -1,0 +1,82 @@
+[
+  {
+    "file": "riverside_lab_export_2026-10.csv",
+    "row": 1,
+    "expect": "load",
+    "reason": null,
+    "closes": "G-0039",
+    "note": null
+  },
+  {
+    "file": "riverside_lab_export_2026-10.csv",
+    "row": 2,
+    "expect": "load",
+    "reason": null,
+    "closes": null,
+    "note": null
+  },
+  {
+    "file": "riverside_lab_export_2026-10.csv",
+    "row": 3,
+    "expect": "load",
+    "reason": null,
+    "closes": null,
+    "note": null
+  },
+  {
+    "file": "riverside_lab_export_2026-10.csv",
+    "row": 4,
+    "expect": "reject",
+    "reason": "unit mg/dL is not valid for HbA1c",
+    "closes": null,
+    "note": null
+  },
+  {
+    "file": "riverside_lab_export_2026-10.csv",
+    "row": 5,
+    "expect": "reject",
+    "reason": "missing collection date",
+    "closes": null,
+    "note": null
+  },
+  {
+    "file": "riverside_lab_export_2026-10.csv",
+    "row": 6,
+    "expect": "reject",
+    "reason": "member not found",
+    "closes": null,
+    "note": null
+  },
+  {
+    "file": "lakeside_vitals_2026Q3.xlsx",
+    "row": 1,
+    "expect": "load",
+    "reason": null,
+    "closes": "G-0040",
+    "note": null
+  },
+  {
+    "file": "lakeside_vitals_2026Q3.xlsx",
+    "row": 2,
+    "expect": "reject",
+    "reason": "systolic missing",
+    "closes": null,
+    "note": null
+  },
+  {
+    "file": "lakeside_vitals_2026Q3.xlsx",
+    "row": 3,
+    "expect": "free_text_to_ai",
+    "reason": "notes column goes to AI extraction; approximate home readings are a trap",
+    "closes": null,
+    "note": null
+  },
+  {
+    "file": "lakeside_vitals_2026Q3.xlsx",
+    "row": 4,
+    "expect": "load",
+    "reason": null,
+    "closes": null,
+    "note": "Loads but does not close G-0027 (diastolic 90)."
+  }
+]

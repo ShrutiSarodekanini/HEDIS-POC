@@ -1,0 +1,4 @@
+Gynecology Visit 2026-02-02
+Patient: Karen White  DOB: 05/30/1981  Member ID: M-004
+Surgical history: supracervical hysterectomy 2015 for fibroids, cervix retained.
+Pap smear 03/2024, NILM. Next cervical screening due 2027.
