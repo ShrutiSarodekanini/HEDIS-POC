@@ -15,3 +15,6 @@ venv/
 .idea/
 Thumbs.db
 .DS_Store
+
+# Uploaded originals and page images (contain patient data)
+data/intake_store/
