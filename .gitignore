@@ -2,6 +2,11 @@ node_modules/
 build/
 debug/
 .vscode
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+venv/
 **/.DS_Store
 services/measure_calc/engine/node_modules/
 services/measure_calc/engine/build/

@@ -1,2 +1,13 @@
 # Kept for HEDIS-POC compatibility.
-# Core implementation in this workspace uses Node.js/TypeScript.
+# Core measure-calculation implementation in this workspace uses Node.js/TypeScript,
+# while data-ingestion APIs use the Python stack below.
+fastapi>=0.116,<1.0
+uvicorn>=0.32,<1.0
+sqlalchemy>=2.0.36,<3.0
+psycopg[binary]>=3.2,<4.0
+fhir.resources>=8.0,<9.0
+pydantic>=2.7,<3.0
+python-dotenv>=1.0,<2.0
+pytest>=8.4,<9.0
+httpx>=0.28,<1.0
+python-multipart>=0.0.10,<1.0
