@@ -1,0 +1,49 @@
+{
+  "resourceType": "Bundle",
+  "type": "collection",
+  "entry": [
+    {
+      "resource": {
+        "resourceType": "Patient",
+        "id": "p-ked-negative",
+        "birthDate": "1970-02-03"
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Condition",
+        "id": "dm-negative",
+        "subject": {"reference": "Patient/p-ked-negative"},
+        "code": {
+          "coding": [
+            {"system": "http://snomed.info/sct", "code": "44054006", "display": "Diabetes mellitus type 2"}
+          ]
+        }
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Encounter",
+        "id": "enc-negative",
+        "subject": {"reference": "Patient/p-ked-negative"},
+        "status": "finished",
+        "period": {"start": "2026-03-18T14:00:00Z", "end": "2026-03-18T14:20:00Z"}
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Observation",
+        "id": "egfr-negative",
+        "subject": {"reference": "Patient/p-ked-negative"},
+        "status": "final",
+        "code": {
+          "coding": [
+            {"system": "http://loinc.org", "code": "48642-3", "display": "Glomerular filtration rate/1.73 sq M.predicted among non-blacks [Volume Rate/Area] in Serum, Plasma or Blood by Creatinine-based formula (MDRD)"}
+          ]
+        },
+        "effectiveDateTime": "2026-08-05T08:30:00Z",
+        "valueQuantity": {"value": 58.0, "unit": "mL/min/{1.73_m2}", "system": "http://unitsofmeasure.org", "code": "mL/min/{1.73_m2}"}
+      }
+    }
+  ]
+}

@@ -1,0 +1,4 @@
+HEDIS-POC compatibility folder.
+
+Use this folder for automation scripts that orchestrate services.
+Current runnable commands are defined in package.json scripts.

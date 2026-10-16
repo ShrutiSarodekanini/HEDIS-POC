@@ -1,0 +1,41 @@
+{
+  "resourceType": "Bundle",
+  "type": "collection",
+  "entry": [
+    {
+      "resource": {
+        "resourceType": "Patient",
+        "id": "p-bcse-positive",
+        "birthDate": "1968-01-01",
+        "gender": "female"
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Encounter",
+        "id": "enc-bcse-positive",
+        "subject": {"reference": "Patient/p-bcse-positive"},
+        "status": "finished",
+        "period": {"start": "2026-05-10T09:00:00Z", "end": "2026-05-10T09:30:00Z"}
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Procedure",
+        "id": "mammo-bcse-positive",
+        "subject": {"reference": "Patient/p-bcse-positive"},
+        "status": "completed",
+        "code": {
+          "coding": [
+            {
+              "system": "http://www.ama-assn.org/go/cpt",
+              "code": "77063",
+              "display": "Screening mammography"
+            }
+          ]
+        },
+        "performedDateTime": "2026-06-01T00:00:00Z"
+      }
+    }
+  ]
+}

@@ -1,0 +1,2 @@
+# Kept for HEDIS-POC compatibility.
+# Core implementation in this workspace uses Node.js/TypeScript.

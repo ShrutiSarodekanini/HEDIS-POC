@@ -1,0 +1,6 @@
+HEDIS-POC compatibility folder.
+
+Real UI implementation is in frontend/.
+Use:
+- npm run frontend:install
+- npm run frontend:dev
