@@ -83,7 +83,7 @@ raise LookupError("no member matches this file; it is waiting in the member-matc
   protected database) and describe the action with codes. No names, birth dates, excerpts, page text or file names.
 
 ```python
-audit(conn, "evidence", str(candidate_id), "evidence.rejected", {"reason_code": "outside_window", "gap_id": gap_id})
+audit(conn, "evidence", str(evidence_id), "evidence.rejected", {"reason_code": "outside_window", "gap_id": gap_id})
 ```
 
 When text output for people must show a value, mask it: name as initials (`R. H.`), member ID or MRN as the last 3

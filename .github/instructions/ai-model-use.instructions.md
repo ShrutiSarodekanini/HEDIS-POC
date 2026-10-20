@@ -36,7 +36,7 @@ before the first real document is sent.
 
 - Every finding passes `validator.py` before it is saved: the quote is on the page word for word, the date is
   supported by the page and inside the measure window, the value meets the threshold.
-- Findings that pass are saved as `PROPOSED`; only an abstractor accepts or rejects them.
+- Findings that pass are saved as `proposed` evidence; only an abstractor confirms or rejects them.
 - The model's `reason` is shown to reviewers as the model's explanation, not as fact.
 - Validator rules come from the measure row (windows, thresholds, allowed types), never hard-coded per measure.
 
