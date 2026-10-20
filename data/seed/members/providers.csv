@@ -1,0 +1,12 @@
+id,name,org_id,specialty
+PRV-001,Dr. Anita Patel,ORG-RFC,Family Medicine
+PRV-002,Dr. Marcus Reed,ORG-LIM,Internal Medicine
+PRV-003,Dr. Helen Cho,ORG-NEN,Endocrinology
+PRV-004,Dr. Laura Benson,ORG-WHA,Obstetrics and Gynecology
+PRV-005,Dr. Samuel Ortiz,ORG-ECH,Family Medicine
+PRV-006,Dr. Kevin Liu,ORG-VUC,Urgent Care
+PRV-007,"Dr. Priya Nair, OD",ORG-CEA,Optometry
+PRV-008,Dr. Daniel Xu,ORG-CGI,Gastroenterology
+PRV-009,Dr. Rachel Stone,ORG-CHO,Emergency Medicine
+PRV-010,Dr. Omar Haddad,ORG-MDC,Nephrology
+PRV-011,Dr. Grace Kim,ORG-SIM,Radiology

@@ -1,0 +1,17 @@
+id,name,kind,city,state,closure_rate
+ORG-RFC,Riverside Family Clinic,pcp,Springfield,MA,0.72
+ORG-LIM,Lakeside Internal Medicine,pcp,Worcester,MA,0.65
+ORG-NEN,Northside Endocrinology,specialist,Lowell,MA,0.58
+ORG-WHA,Women's Health Associates,pcp,Springfield,MA,0.7
+ORG-ECH,Eastside Community Health,pcp,Brockton,MA,0.35
+ORG-VUC,Valley Urgent Care,urgent_care,Worcester,MA,
+ORG-CEA,Clearview Eye Associates,specialist,Lowell,MA,
+ORG-CGI,Central Gastroenterology,specialist,Worcester,MA,
+ORG-CHO,County General Hospital,hospital,Springfield,MA,
+ORG-MDC,Metro Dialysis Center,dialysis,Worcester,MA,
+ORG-SIM,Springfield Imaging Center,specialist,Springfield,MA,
+ORG-LAB,Commonwealth Reference Laboratory,lab,Boston,MA,
+ORG-SDX,Stool DNA Diagnostics Lab,lab,Boston,MA,
+ORG-HIE,State Health Information Exchange,hie,Boston,MA,
+ORG-PRT,Member Portal,portal,,,
+ORG-HOS,Comfort Hospice Services,hospice,Brockton,MA,

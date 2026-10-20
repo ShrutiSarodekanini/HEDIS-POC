@@ -1,0 +1,4 @@
+Progress Note 2026-05-28
+Patient: David Wilson  DOB: 12/19/1978  Member ID: M-012
+Med list: metformin 1000 mg twice daily; atorvastatin 20 mg daily (patient states he is not taking it).
+Statin therapy recommended; patient declined.

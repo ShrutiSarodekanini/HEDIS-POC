@@ -1,0 +1,3 @@
+Pediatric Visit 2025-12-15
+Patient: Ethan Price  DOB: 05/11/2017  Member ID: M-022
+Acute bronchiolitis. Also left acute otitis media on exam. Amoxicillin started.
