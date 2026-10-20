@@ -28,7 +28,7 @@ from .converters import converter_for
 from .db import audit
 from .detect import ALLOWED_KINDS, detect_kind, mime_for
 from .document_service import save_conversion
-from .member_match import MATCHED, NEEDS_MATCH, match_member
+from .member_match import MATCHED, NEEDS_MATCH, MatchResult, match_member
 from .models import FAILED
 
 log = logging.getLogger(__name__)
@@ -43,9 +43,10 @@ ARCHIVE_EXPANSION_LIMIT = 4    # total unpacked size may be this many times the 
 
 NOT_STORED = "not_stored"      # stored_path for a file whose bytes were refused (infected, scan failed)
 
-FILE_COLUMNS = ("id, sha256, original_name, stored_path, detected_type, detected_kind, size_bytes, received_at, "
-                "source_org_id, member_id, match_status, processing_status, processing_note, encrypted, "
-                "parent_file_id, scan_result")
+FILE_COLUMNS = ("f.id, f.sha256, f.original_name, f.stored_path, f.detected_type, f.detected_kind, f.size_bytes, "
+                "f.received_at, f.source_org_id, f.patient_id, p.mrn, f.match_status, f.processing_status, "
+                "f.processing_note, f.encrypted, f.parent_file_id, f.scan_result")
+FILE_FROM = "source_files f LEFT JOIN patient p ON p.patient_id = f.patient_id"
 
 
 # ---------------------------------------------------------------------------------------------------------------
@@ -55,7 +56,7 @@ FILE_COLUMNS = ("id, sha256, original_name, stored_path, detected_type, detected
 def get_file(conn: psycopg.Connection, source_file_id: int) -> dict | None:
     """One source_files row (no bytes), or None."""
     with conn.cursor(row_factory=dict_row) as cur:
-        return cur.execute(f"SELECT {FILE_COLUMNS} FROM source_files WHERE id = %s", (source_file_id,)).fetchone()
+        return cur.execute(f"SELECT {FILE_COLUMNS} FROM {FILE_FROM} WHERE f.id = %s", (source_file_id,)).fetchone()
 
 
 def list_files(conn: psycopg.Connection, status: str | None = None, match_status: str | None = None,
@@ -63,9 +64,9 @@ def list_files(conn: psycopg.Connection, status: str | None = None, match_status
     """source_files rows, newest id last, optionally filtered by processing_status and match_status."""
     with conn.cursor(row_factory=dict_row) as cur:
         return cur.execute(
-            f"""SELECT {FILE_COLUMNS} FROM source_files
-                WHERE (%s::text IS NULL OR processing_status = %s) AND (%s::text IS NULL OR match_status = %s)
-                ORDER BY id LIMIT %s OFFSET %s""",
+            f"""SELECT {FILE_COLUMNS} FROM {FILE_FROM}
+                WHERE (%s::text IS NULL OR f.processing_status = %s) AND (%s::text IS NULL OR f.match_status = %s)
+                ORDER BY f.id LIMIT %s OFFSET %s""",
             (status, status, match_status, match_status, limit, offset)).fetchall()
 
 
@@ -81,17 +82,21 @@ def get_documents(conn: psycopg.Connection, document_ids: list[str]) -> list[dic
     Two queries however many ids are asked for. Unknown ids are left out."""
     with conn.cursor(row_factory=dict_row) as cur:
         docs = cur.execute(
-            """SELECT id, source_file_id, member_id, doc_type, document_date, source_org_id, near_duplicate_of,
-                      page_count, conversion_status, conversion_note FROM documents WHERE id = ANY(%s)""",
+            """SELECT r.document_reference_id AS id, c.source_file_id, r.patient_id, p.mrn, r.type_code AS doc_type,
+                      (r.doc_date AT TIME ZONE 'UTC')::date AS document_date, c.source_org_id, c.near_duplicate_of,
+                      c.page_count, c.conversion_status, c.conversion_note
+               FROM document_reference r JOIN document_conversion c USING (document_reference_id)
+               LEFT JOIN patient p ON p.patient_id = r.patient_id
+               WHERE r.document_reference_id = ANY(%s)""",
             (document_ids,)).fetchall()
         pages = cur.execute(
-            """SELECT document_id, page_no, method, confidence, handwritten, low_confidence, text, image_path,
+            """SELECT document_reference_id, page_no, method, confidence, handwritten, low_confidence, text, image_path,
                       ocr_engine
-               FROM document_pages WHERE document_id = ANY(%s) ORDER BY document_id, page_no""",
+               FROM document_pages WHERE document_reference_id = ANY(%s) ORDER BY document_reference_id, page_no""",
             (document_ids,)).fetchall()
     by_id = {doc["id"]: {**doc, "pages": []} for doc in docs}
     for page in pages:
-        by_id[page.pop("document_id")]["pages"].append(page)
+        by_id[page.pop("document_reference_id")]["pages"].append(page)
     return [by_id[i] for i in document_ids if i in by_id]
 
 
@@ -101,12 +106,13 @@ def match_queue(conn: psycopg.Connection) -> list[dict]:
     for f in list_files(conn, match_status=NEEDS_MATCH):
         if f["processing_status"] == "rejected":
             continue
-        doc = conn.execute("SELECT id FROM documents WHERE source_file_id = %s ORDER BY id LIMIT 1",
-                           (f["id"],)).fetchone()
+        doc = conn.execute("SELECT document_reference_id FROM document_conversion WHERE source_file_id = %s "
+            "ORDER BY document_reference_id LIMIT 1", (f["id"],)).fetchone()
         text = ""
         if doc:
             text = "\n".join(r[0] for r in conn.execute(
-                "SELECT text FROM document_pages WHERE document_id = %s ORDER BY page_no", (doc[0],)).fetchall())
+                "SELECT text FROM document_pages WHERE document_reference_id = %s ORDER BY page_no",
+                (doc[0],)).fetchall())
         items.append({"file": f, "document_id": doc[0] if doc else None, "text_preview": text[:1000],
                       "candidates": match_member(conn, text).candidates})
     return items
@@ -134,7 +140,7 @@ def receive_file(conn: psycopg.Connection, data: bytes, filename: str, source_or
         audit(conn, "upload", name, "file.rejected", {"reason": "file_too_large", "size_bytes": len(data),
                                                       "limit_bytes": limit, "parent_file_id": parent_file_id})
         return {"status": "too_large", "filename": name, "reason": "file_too_large", "message": message}
-    _check_references(conn, source_org_id, member_id)
+    patient_id = _check_references(conn, source_org_id, member_id)
 
     digest = storage.sha256_hex(data)
     existing = conn.execute("SELECT id FROM source_files WHERE sha256 = %s", (digest,)).fetchone()
@@ -149,15 +155,15 @@ def receive_file(conn: psycopg.Connection, data: bytes, filename: str, source_or
     else:
         stored_path, encrypted = storage.save_original(data)
 
-    keeps_member = member_id is not None or kind in CONTAINER_KINDS or kind in STRUCTURED_KINDS
+    keeps_member = patient_id is not None or kind in CONTAINER_KINDS or kind in STRUCTURED_KINDS
     match_status = "unmatched" if reason else ("matched" if keeps_member else NEEDS_MATCH)
     row = conn.execute(
         """INSERT INTO source_files (sha256, original_name, stored_path, detected_type, detected_kind, size_bytes,
-               source_org_id, member_id, match_status, processing_status, processing_note, encrypted, parent_file_id,
+               source_org_id, patient_id, match_status, processing_status, processing_note, encrypted, parent_file_id,
                scan_result)
            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
            ON CONFLICT (sha256) DO NOTHING RETURNING id""",
-        (digest, name, stored_path, mime_for(kind), kind, len(data), source_org_id, member_id, match_status,
+        (digest, name, stored_path, mime_for(kind), kind, len(data), source_org_id, patient_id, match_status,
          "rejected" if reason else "pending", note, encrypted, parent_file_id, scan_result)).fetchone()
     if row is None:  # another upload of the same bytes won the race
         existing = conn.execute("SELECT id FROM source_files WHERE sha256 = %s", (digest,)).fetchone()
@@ -169,7 +175,7 @@ def receive_file(conn: psycopg.Connection, data: bytes, filename: str, source_or
         "name": name, "sha256": digest, "size_bytes": len(data), "detected_kind": kind, "detected_type": mime_for(kind),
         "claimed_type": claimed, "extension_mismatch": bool(claimed and claimed != mime_for(kind)),
         "encrypted": encrypted, "parent_file_id": parent_file_id, "source_org_id": source_org_id,
-        "member_id": member_id})
+        "member_id": member_id, "patient_id": patient_id})
     audit(conn, "source_file", str(file_id), "file.scanned", {"result": scan_result})
 
     if reason:
@@ -196,11 +202,18 @@ def _duplicate(conn: psycopg.Connection, existing_id: int, name: str, parent_fil
             "message": f"The same file was received before (file {existing_id}). Nothing new was recorded."}
 
 
-def _check_references(conn: psycopg.Connection, source_org_id: str | None, member_id: str | None) -> None:
-    if source_org_id and not conn.execute("SELECT 1 FROM organizations WHERE id = %s", (source_org_id,)).fetchone():
+def _check_references(conn: psycopg.Connection, source_org_id: str | None, member_id: str | None) -> str | None:
+    """Raise ValueError for an unknown organization or member ID. Returns the patient_id of the member ID."""
+    if source_org_id and not conn.execute("SELECT 1 FROM organization WHERE organization_id = %s",
+                                          (source_org_id,)).fetchone():
         raise ValueError(f"unknown source_org_id {source_org_id}")
-    if member_id and not conn.execute("SELECT 1 FROM members WHERE member_id = %s", (member_id,)).fetchone():
+    if not member_id:
+        return None
+    patient = conn.execute("SELECT patient_id FROM patient WHERE mrn = %s ORDER BY patient_id LIMIT 1",
+                           (member_id,)).fetchone()
+    if patient is None:
         raise ValueError(f"unknown member_id {member_id}")
+    return patient[0]
 
 
 def _clean_name(filename: str) -> str:
@@ -290,30 +303,39 @@ def _convert(conn: psycopg.Connection, row: dict, data: bytes, kind: str) -> tup
     result = converter_for(kind)(data, row["original_name"])
     text = "\n".join(p.text for p in result.pages)
 
-    member_id = row["member_id"]
-    if member_id is None:
+    patient_id = row["patient_id"]
+    if patient_id is None:
         match = match_member(conn, text)
         if match.status == MATCHED:
-            member_id = match.member_id
-            conn.execute("UPDATE source_files SET member_id = %s, match_status = 'matched' WHERE id = %s",
-                         (member_id, file_id))
+            patient_id = match.patient_id
+            conn.execute("UPDATE source_files SET patient_id = %s, match_status = 'matched' WHERE id = %s",
+                         (patient_id, file_id))
+            member_id = match.mrn
             audit(conn, "source_file", str(file_id), "file.member_matched",
-                  {"member_id": member_id, "method": match.method})
+                  {"member_id": member_id, "patient_id": patient_id, "method": match.method})
         else:
             conn.execute("UPDATE source_files SET match_status = 'needs_match' WHERE id = %s", (file_id,))
             audit(conn, "source_file", str(file_id), "file.needs_match",
-                  {"candidates": [c["member_id"] for c in match.candidates]})
+                  {"candidates": [c["patient_id"] for c in match.candidates]})
 
-    doc = conn.execute("SELECT id, member_id FROM documents WHERE source_file_id = %s ORDER BY created_at, id LIMIT 1",
-                       (file_id,)).fetchone()
+    doc = conn.execute(
+        """SELECT c.document_reference_id, r.patient_id FROM document_conversion c
+           JOIN document_reference r USING (document_reference_id)
+           WHERE c.source_file_id = %s ORDER BY c.created_at, c.document_reference_id LIMIT 1""",
+        (file_id,)).fetchone()
     if doc is None:
         doc_id = f"U-{file_id}"
-        conn.execute("INSERT INTO documents (id, source_file_id, member_id, source_org_id) VALUES (%s, %s, %s, %s)",
-                     (doc_id, file_id, member_id, row["source_org_id"]))
+        conn.execute(
+            """INSERT INTO document_reference (document_reference_id, patient_id, status, content_type)
+               VALUES (%s, %s, 'current', %s)""", (doc_id, patient_id, mime_for(kind)))
+        conn.execute(
+            """INSERT INTO document_conversion (document_reference_id, source_file_id, source_org_id)
+               VALUES (%s, %s, %s)""", (doc_id, file_id, row["source_org_id"]))
     else:
         doc_id = doc[0]
-        if member_id and doc[1] is None:
-            conn.execute("UPDATE documents SET member_id = %s WHERE id = %s", (member_id, doc_id))
+        if patient_id and doc[1] is None:
+            conn.execute("UPDATE document_reference SET patient_id = %s WHERE document_reference_id = %s",
+                         (patient_id, doc_id))
 
     save_conversion(conn, doc_id, result)
     if result.status == FAILED:
@@ -328,16 +350,16 @@ def _convert(conn: psycopg.Connection, row: dict, data: bytes, kind: str) -> tup
 def _unpack(conn: psycopg.Connection, row: dict, data: bytes, kind: str) -> list[dict]:
     if _depth(conn, row["id"]) >= MAX_ARCHIVE_DEPTH:
         raise ValueError(f"archives nested more than {MAX_ARCHIVE_DEPTH} levels deep are not unpacked")
-    member_id = row["member_id"]
+    member_id = row["mrn"]
     if kind == "zip":
         entries = _zip_entries(data)
     else:
-        entries, mail_member = _eml_entries(conn, data)
-        if member_id is None and mail_member:
-            member_id = mail_member
-            conn.execute("UPDATE source_files SET member_id = %s WHERE id = %s", (member_id, row["id"]))
+        entries, mail_match = _eml_entries(conn, data)
+        if row["patient_id"] is None and mail_match:
+            member_id = mail_match.mrn
+            conn.execute("UPDATE source_files SET patient_id = %s WHERE id = %s", (mail_match.patient_id, row["id"]))
             audit(conn, "source_file", str(row["id"]), "file.member_matched",
-                  {"member_id": member_id, "method": "email_text"})
+                  {"member_id": member_id, "patient_id": mail_match.patient_id, "method": "email_text"})
 
     results = []
     for name, payload in entries:
@@ -388,8 +410,8 @@ def _zip_entries(data: bytes) -> list[tuple[str, bytes | Exception]]:
         return out
 
 
-def _eml_entries(conn: psycopg.Connection, data: bytes) -> tuple[list[tuple[str, bytes | Exception]], str | None]:
-    """Attachments of an email, plus a member found in its subject and body (or None)."""
+def _eml_entries(conn: psycopg.Connection, data: bytes) -> tuple[list[tuple[str, bytes | Exception]], MatchResult | None]:
+    """Attachments of an email, plus the match for a member found in its subject and body (or None)."""
     msg = email.message_from_bytes(data, policy=email.policy.default)
     out: list[tuple[str, bytes | Exception]] = []
     for n, part in enumerate(msg.iter_attachments(), start=1):
@@ -407,7 +429,7 @@ def _eml_entries(conn: psycopg.Connection, data: bytes) -> tuple[list[tuple[str,
         except (LookupError, ValueError):
             log.warning("email body could not be decoded for member matching")
     match = match_member(conn, text)
-    return out, match.member_id if match.status == MATCHED else None
+    return out, match if match.status == MATCHED else None
 
 
 # ---------------------------------------------------------------------------------------------------------------
@@ -439,7 +461,8 @@ def process_pending(conn: psycopg.Connection, limit: int | None = None) -> dict:
 def _summary(conn: psycopg.Connection, file_id: int, children: list[dict] | None = None,
              skipped: bool = False) -> dict:
     row = get_file(conn, file_id)
-    doc = conn.execute("SELECT id FROM documents WHERE source_file_id = %s ORDER BY id LIMIT 1", (file_id,)).fetchone()
+    doc = conn.execute("SELECT document_reference_id FROM document_conversion WHERE source_file_id = %s "
+                       "ORDER BY document_reference_id LIMIT 1", (file_id,)).fetchone()
     return {
         "source_file_id": file_id,
         "filename": row["original_name"],
@@ -447,7 +470,8 @@ def _summary(conn: psycopg.Connection, file_id: int, children: list[dict] | None
         "processing_status": row["processing_status"],
         "processing_note": row["processing_note"],
         "match_status": row["match_status"],
-        "member_id": row["member_id"],
+        "patient_id": row["patient_id"],
+        "mrn": row["mrn"],
         "scan_result": row["scan_result"],
         "document_id": doc[0] if doc else None,
         "children": children or [],

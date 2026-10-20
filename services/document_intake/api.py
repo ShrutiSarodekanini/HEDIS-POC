@@ -43,7 +43,8 @@ class FileOut(BaseModel):
     size_bytes: int | None
     received_at: datetime
     source_org_id: str | None
-    member_id: str | None
+    patient_id: str | None
+    mrn: str | None
     match_status: str
     processing_status: str
     processing_note: str | None
@@ -66,7 +67,8 @@ class PageOut(BaseModel):
 class DocumentOut(BaseModel):
     id: str
     source_file_id: int
-    member_id: str | None
+    patient_id: str | None
+    mrn: str | None
     doc_type: str | None
     document_date: date | None
     source_org_id: str | None
@@ -124,7 +126,7 @@ def get_document(document_id: str, conn: psycopg.Connection = Depends(get_conn))
 @app.get("/api/documents/{document_id}/pages/{page_no}/image")
 def get_page_image(document_id: str, page_no: int, conn: psycopg.Connection = Depends(get_conn)):
     """The rendered PNG of one page, for the review screen."""
-    row = conn.execute("SELECT image_path FROM document_pages WHERE document_id = %s AND page_no = %s",
+    row = conn.execute("SELECT image_path FROM document_pages WHERE document_reference_id = %s AND page_no = %s",
                        (document_id, page_no)).fetchone()
     if row is None:
         raise HTTPException(status_code=404, detail=f"page {page_no} of document {document_id} not found")

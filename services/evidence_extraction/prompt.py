@@ -1,6 +1,6 @@
 """Turns one gap into the prompts sent to the model: the gap's facts, its measure rule and the member's pages.
 
-The header holds age and sex only, never the member's name, birth date, address or member ID. Pages are never
+The header holds age and sex only, never the patient's name, birth date, address, member ID (mrn) or patient_id. Pages are never
 dropped or cut to fit the token budget; a large chart becomes several prompts that share the same header.
 """
 
@@ -8,6 +8,7 @@ import json
 import math
 from collections.abc import Sequence
 from typing import Any
+from uuid import UUID
 
 import psycopg
 from psycopg.rows import dict_row
@@ -42,7 +43,7 @@ Rules:
 
 #: Where each prompt_template placeholder comes from: ("gap", name) is worked out from the gap,
 #: ("window", evidence_type, "from" or "to") is that end of the measure window for the evidence type,
-#: ("threshold", key) is measures.thresholds[key].
+#: ("threshold", key) is measure_rule.thresholds[key].
 PLACEHOLDER_SOURCES: dict[str, tuple[str, ...]] = {
     "measurement_year": ("gap", "measurement_year"),
     "prior_year": ("gap", "prior_year"),
@@ -73,14 +74,24 @@ SEX_WORDS = {"M": "male", "F": "female"}
 
 
 def load_gap_context(conn: psycopg.Connection, gap_id: str) -> GapContext:
-    """The gap with the member's age and sex. The birth date is read only to work out the age and goes no further."""
+    """The gap with the patient's age and sex. `gap_id` is the care_gap uuid or a seed code such as 'G-0040'.
+    The birth date is read only to work out the age and goes no further."""
+    try:
+        key = str(UUID(gap_id))
+        where = "g.gap_id = %s::uuid"
+    except ValueError:
+        key = gap_id
+        where = "d.seed_code = %s"
     with conn.cursor(row_factory=dict_row) as cur:
         cur.execute(
-            """SELECT g.gap_id, g.member_id, g.measure_code, g.measurement_year, g.gap_type, g.missing_element,
-                      g.last_event, g.exclusion_check, g.episode, g.deadline, m.sex, m.birth_date
-               FROM gaps g JOIN members m ON m.member_id = g.member_id
-               WHERE g.gap_id = %s""",
-            (gap_id,))
+            f"""SELECT g.gap_id::text AS gap_id, g.patient_id, g.measure_id AS measure_code, g.measurement_year,
+                       d.gap_type, g.missing_element, d.last_event, d.exclusion_check, d.episode,
+                       g.deadline_date AS deadline, p.birth_sex AS sex, p.birth_date, d.seed_code
+                FROM care_gap g
+                JOIN care_gap_detail d ON d.gap_id = g.gap_id
+                JOIN patient p ON p.patient_id = g.patient_id
+                WHERE {where}""",
+            (key,))
         row = cur.fetchone()
     if row is None:
         raise LookupError(f"Gap {gap_id} not found")
@@ -90,25 +101,30 @@ def load_gap_context(conn: psycopg.Connection, gap_id: str) -> GapContext:
 
 
 def load_measure(conn: psycopg.Connection, code: str, measurement_year: int) -> dict[str, Any]:
-    """The measure row; its windows, thresholds and allowed types drive both the prompt and the validator."""
+    """The measure rule; its windows, thresholds and allowed types drive both the prompt and the validator.
+    `code` is the measure_id."""
     with conn.cursor(row_factory=dict_row) as cur:
-        cur.execute("SELECT * FROM measures WHERE code = %s AND measurement_year = %s", (code, measurement_year))
+        cur.execute("SELECT * FROM measure_rule WHERE measure_id = %s AND measurement_year = %s",
+                    (code, measurement_year))
         row = cur.fetchone()
     if row is None:
         raise LookupError(f"Measure {code} for {measurement_year} not found")
-    return row
+    return {**row, "code": row["measure_id"]}
 
 
 def select_pages(conn: psycopg.Connection, gap: GapContext) -> list[PageRef]:
-    """The member's readable pages, newest first. Near-duplicates are skipped: they only repeat evidence."""
+    """The patient's readable pages, newest first. Near-duplicates are skipped: they only repeat evidence."""
     with conn.cursor(row_factory=dict_row) as cur:
         cur.execute(
-            """SELECT p.document_id, p.page_no, d.doc_type, d.document_date, d.source_org_id, p.method,
-                      p.handwritten, p.low_confidence, p.text
-               FROM documents d JOIN document_pages p ON p.document_id = d.id
-               WHERE d.member_id = %s AND d.conversion_status = 'converted' AND d.near_duplicate_of IS NULL
-               ORDER BY d.document_date DESC NULLS LAST, d.id, p.page_no""",
-            (gap.member_id,))
+            """SELECT p.document_reference_id AS document_id, p.page_no, r.type_code AS doc_type,
+                      r.doc_date::date AS document_date, c.source_org_id, p.method, p.handwritten,
+                      p.low_confidence, p.text
+               FROM document_reference r
+               JOIN document_conversion c ON c.document_reference_id = r.document_reference_id
+               JOIN document_pages p ON p.document_reference_id = r.document_reference_id
+               WHERE r.patient_id = %s AND c.conversion_status = 'converted' AND c.near_duplicate_of IS NULL
+               ORDER BY r.doc_date::date DESC NULLS LAST, r.document_reference_id, p.page_no""",
+            (gap.patient_id,))
         return [PageRef(**row) for row in cur if row["text"].strip()]
 
 
@@ -127,10 +143,10 @@ def build_prompts(gap: GapContext, measure: dict[str, Any], pages: Sequence[Page
 
 
 def build_header(gap: GapContext, measure: dict[str, Any]) -> str:
-    """Everything before the pages. Age and sex only: no name, birth date, address or member ID."""
+    """Everything before the pages. Age and sex only: no name, birth date, address, member ID (mrn) or patient_id."""
     last = gap.last_event
     lines = [
-        f"Gap ID: {gap.gap_id}",
+        f"Gap ID: {gap.seed_code or gap.gap_id}",
         f"Measure: {measure['code']} ({measure['name']})",
         f"Measurement year: {gap.measurement_year}",
         f"Member: age {gap.age}, {SEX_WORDS[gap.sex]}",

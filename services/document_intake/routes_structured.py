@@ -18,10 +18,11 @@ def list_rows(source_file_id: int, status: str | None = None) -> list[dict]:
     with connect() as conn:
         _require_file(conn, source_file_id)
         cur = conn.execute(
-            """SELECT row_number, member_id, record_type, code_system, code, description, value_text, value_num,
-                      unit, observed_on, status, reject_reason, raw
-               FROM structured_records WHERE source_file_id = %s AND (%s::text IS NULL OR status = %s)
-               ORDER BY row_number""", (source_file_id, status, status))
+            """SELECT s.row_number, s.patient_id, p.mrn, s.record_type, s.code_system, s.code, s.description,
+                      s.value_text, s.value_num, s.unit, s.observed_on, s.status, s.reject_reason, s.raw
+               FROM structured_records s LEFT JOIN patient p ON p.patient_id = s.patient_id
+               WHERE s.source_file_id = %s AND (%s::text IS NULL OR s.status = %s)
+               ORDER BY s.row_number""", (source_file_id, status, status))
         names = [d.name for d in cur.description]
         return [dict(zip(names, r)) for r in cur.fetchall()]
 

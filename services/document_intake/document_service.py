@@ -1,7 +1,7 @@
 """The page store (US-02 T2): the only place converted pages and words are written.
 
-Every converter returns a ConversionResult; save_conversion() writes it to documents, document_pages and
-page_words, stores page images, classifies the document and links near-duplicates.
+Every converter returns a ConversionResult; save_conversion() writes it to document_conversion,
+document_reference (type), document_pages and page_words, stores page images, classifies the document and links near-duplicates.
 """
 
 import re
@@ -60,21 +60,21 @@ def save_conversion(conn: psycopg.Connection, document_id: str, result: Conversi
     point at exact page text and offsets.
     """
     has_candidates = conn.execute(
-        "SELECT 1 FROM evidence_candidates WHERE document_id = %s LIMIT 1", (document_id,)).fetchone()
+        "SELECT 1 FROM evidence_proposal_detail WHERE document_reference_id = %s LIMIT 1", (document_id,)).fetchone()
     if has_candidates:
-        raise RuntimeError(f"document {document_id} already has evidence candidates; pages cannot be replaced")
+        raise RuntimeError(f"document {document_id} already has evidence proposals; pages cannot be replaced")
 
     for page in result.pages:
         _validate_page(page)
 
-    conn.execute("DELETE FROM page_words WHERE page_id IN (SELECT id FROM document_pages WHERE document_id = %s)",
+    conn.execute("DELETE FROM page_words WHERE page_id IN (SELECT id FROM document_pages WHERE document_reference_id = %s)",
                  (document_id,))
-    conn.execute("DELETE FROM document_pages WHERE document_id = %s", (document_id,))
+    conn.execute("DELETE FROM document_pages WHERE document_reference_id = %s", (document_id,))
 
     for page in sorted(result.pages, key=lambda p: p.page_no):
         image_path = save_page_image(document_id, page.page_no, page.image_png) if page.image_png else None
         page_id = conn.execute(
-            """INSERT INTO document_pages (document_id, page_no, text, method, confidence, image_path, handwritten,
+            """INSERT INTO document_pages (document_reference_id, page_no, text, method, confidence, image_path, handwritten,
                    low_confidence, ocr_engine)
                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING id""",
             (document_id, page.page_no, page.text, page.method, page.confidence, image_path, page.handwritten,
@@ -89,10 +89,13 @@ def save_conversion(conn: psycopg.Connection, document_id: str, result: Conversi
 
     first_text = result.pages[0].text if result.pages else ""
     conn.execute(
-        """UPDATE documents SET page_count = %s, conversion_status = %s, conversion_note = %s,
-               doc_type = CASE WHEN %s OR doc_type IS NULL THEN %s ELSE doc_type END
-           WHERE id = %s""",
-        (len(result.pages), result.status, result.note, set_doc_type, classify(first_text), document_id))
+        """UPDATE document_conversion SET page_count = %s, conversion_status = %s, conversion_note = %s
+           WHERE document_reference_id = %s""",
+        (len(result.pages), result.status, result.note, document_id))
+    conn.execute(
+        """UPDATE document_reference SET type_code = CASE WHEN %s OR type_code IS NULL THEN %s ELSE type_code END
+           WHERE document_reference_id = %s""",
+        (set_doc_type, classify(first_text), document_id))
 
     audit(conn, "document", document_id, "document.converted", {
         "status": result.status, "pages": len(result.pages),
@@ -107,24 +110,30 @@ def save_conversion(conn: psycopg.Connection, document_id: str, result: Conversi
 
 
 def link_near_duplicate(conn: psycopg.Connection, document_id: str) -> str | None:
-    """Link this document to an earlier converted document of the same member with near-identical text.
+    """Link this document to an earlier converted document of the same patient with near-identical text.
 
     Returns the id it was linked to, or None. Documents already linked are left alone.
     """
-    row = conn.execute("SELECT member_id, near_duplicate_of FROM documents WHERE id = %s", (document_id,)).fetchone()
+    row = conn.execute(
+        """SELECT r.patient_id, c.near_duplicate_of FROM document_conversion c
+           JOIN document_reference r USING (document_reference_id) WHERE c.document_reference_id = %s""",
+        (document_id,)).fetchone()
     if row is None or row[0] is None or row[1] is not None:
         return None
     mine = normalize(_document_text(conn, document_id))
     if not mine:
         return None
     others = conn.execute(
-        """SELECT id FROM documents WHERE member_id = %s AND id <> %s AND conversion_status = %s
-               AND near_duplicate_of IS NULL ORDER BY created_at, id""",
+        """SELECT c.document_reference_id FROM document_conversion c
+           JOIN document_reference r USING (document_reference_id)
+           WHERE r.patient_id = %s AND c.document_reference_id <> %s AND c.conversion_status = %s
+               AND c.near_duplicate_of IS NULL ORDER BY c.created_at, c.document_reference_id""",
         (row[0], document_id, CONVERTED)).fetchall()
     for (other_id,) in others:
         theirs = normalize(_document_text(conn, other_id))
         if theirs and is_near_duplicate(mine, theirs):
-            conn.execute("UPDATE documents SET near_duplicate_of = %s WHERE id = %s", (other_id, document_id))
+            conn.execute("UPDATE document_conversion SET near_duplicate_of = %s WHERE document_reference_id = %s",
+                         (other_id, document_id))
             audit(conn, "document", document_id, "document.near_duplicate_linked", {"duplicate_of": other_id})
             return other_id
     return None
@@ -146,6 +155,6 @@ def is_near_duplicate(a: str, b: str) -> bool:
 
 
 def _document_text(conn: psycopg.Connection, document_id: str) -> str:
-    rows = conn.execute("SELECT text FROM document_pages WHERE document_id = %s ORDER BY page_no",
+    rows = conn.execute("SELECT text FROM document_pages WHERE document_reference_id = %s ORDER BY page_no",
                         (document_id,)).fetchall()
     return "\n".join(r[0] for r in rows)

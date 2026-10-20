@@ -16,7 +16,7 @@ import csv
 import io
 import re
 from dataclasses import dataclass, field
-from datetime import date, datetime
+from datetime import date, datetime, time, timezone
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from typing import Any
@@ -465,14 +465,14 @@ def _to_date(value: Any, formats: tuple[str, ...]) -> date:
     raise ValueError(f"'{text}' is not a valid date")
 
 
-def _check_member_and_date(values: Row, mapping: Mapping, members: set[str], out: _Outcome) -> None:
+def _check_member_and_date(values: Row, mapping: Mapping, members: dict[str, str], out: _Outcome) -> None:
     member = values.get("member_id")
     if member is None:
         out.reasons.append("missing member id")
     else:
         member = str(member).strip()
         if member in members:
-            out.fields["member_id"] = member
+            out.fields["patient_id"] = members[member]
         else:
             out.reasons.append(f"member {member} not found")
     label = DATE_LABEL[mapping.record_type]
@@ -539,7 +539,7 @@ def _check_vital(values: Row, out: _Outcome) -> None:
                           code_system=BP_SYSTEM, description=BP_DESCRIPTION, unit=BP_UNIT)
 
 
-def _check_row(row: Row, mapping: Mapping, members: set[str]) -> _Outcome:
+def _check_row(row: Row, mapping: Mapping, members: dict[str, str]) -> _Outcome:
     """Validate one row against its mapping and decide loaded, rejected or free_text_to_ai."""
     values = {field_name: row.get(header) for header, field_name in mapping.columns.items()}
     out = _Outcome("loaded", fields={"record_type": mapping.record_type})
@@ -573,17 +573,21 @@ def _clear_previous_load(conn: psycopg.Connection, source_file_id: int) -> dict:
     small documents, reloading would break that trail, so it is refused.
     """
     doc_ids = [r[0] for r in conn.execute(
-        "SELECT id FROM documents WHERE source_file_id = %s AND id LIKE %s",
+        "SELECT document_reference_id FROM document_conversion "
+        "WHERE source_file_id = %s AND document_reference_id LIKE %s",
         (source_file_id, f"S-{source_file_id}-%")).fetchall()]
     if doc_ids:
-        for table in ("evidence_candidates", "supplemental_records"):
-            if conn.execute(f"SELECT 1 FROM {table} WHERE document_id = ANY(%s) LIMIT 1", (doc_ids,)).fetchone():
+        for table, column in (("evidence_proposal_detail", "document_reference_id"),
+                              ("supplemental_records", "document_reference_id")):
+            if conn.execute(f"SELECT 1 FROM {table} WHERE {column} = ANY(%s) LIMIT 1", (doc_ids,)).fetchone():
                 raise RuntimeError(f"file {source_file_id} was already used for evidence; it cannot be reloaded")
-        conn.execute("UPDATE documents SET near_duplicate_of = NULL WHERE near_duplicate_of = ANY(%s)", (doc_ids,))
+        conn.execute("UPDATE document_conversion SET near_duplicate_of = NULL WHERE near_duplicate_of = ANY(%s)",
+                     (doc_ids,))
         conn.execute("DELETE FROM page_words WHERE page_id IN "
-                     "(SELECT id FROM document_pages WHERE document_id = ANY(%s))", (doc_ids,))
-        conn.execute("DELETE FROM document_pages WHERE document_id = ANY(%s)", (doc_ids,))
-        conn.execute("DELETE FROM documents WHERE id = ANY(%s)", (doc_ids,))
+                     "(SELECT id FROM document_pages WHERE document_reference_id = ANY(%s))", (doc_ids,))
+        conn.execute("DELETE FROM document_pages WHERE document_reference_id = ANY(%s)", (doc_ids,))
+        conn.execute("DELETE FROM document_conversion WHERE document_reference_id = ANY(%s)", (doc_ids,))
+        conn.execute("DELETE FROM document_reference WHERE document_reference_id = ANY(%s)", (doc_ids,))
     removed = conn.execute("DELETE FROM structured_records WHERE source_file_id = %s", (source_file_id,)).rowcount
     return {"records": removed, "documents": len(doc_ids)}
 
@@ -591,10 +595,10 @@ def _clear_previous_load(conn: psycopg.Connection, source_file_id: int) -> dict:
 def _insert_record(conn: psycopg.Connection, source_file_id: int, row_number: int, row: Row, out: _Outcome) -> None:
     f = out.fields
     conn.execute(
-        """INSERT INTO structured_records (source_file_id, row_number, member_id, record_type, code_system, code,
+        """INSERT INTO structured_records (source_file_id, row_number, patient_id, record_type, code_system, code,
                description, value_text, value_num, unit, observed_on, status, reject_reason, raw)
            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""",
-        (source_file_id, row_number, f.get("member_id"), f.get("record_type"), f.get("code_system"), f.get("code"),
+        (source_file_id, row_number, f.get("patient_id"), f.get("record_type"), f.get("code_system"), f.get("code"),
          f.get("description"), f.get("value_text"), f.get("value_num"), f.get("unit"), f.get("observed_on"),
          out.status, "; ".join(out.reasons) if out.reasons else None, Jsonb(row)))
 
@@ -602,10 +606,15 @@ def _insert_record(conn: psycopg.Connection, source_file_id: int, row_number: in
 def _create_free_text_document(conn: psycopg.Connection, source_file_id: int, row_number: int, out: _Outcome) -> None:
     """A one-page text document for the AI extraction step, from a row's free-text content."""
     doc_id = f"S-{source_file_id}-{row_number}"
+    observed = out.fields.get("observed_on")
     conn.execute(
-        """INSERT INTO documents (id, source_file_id, member_id, doc_type, document_date, source_org_id)
-           SELECT %s, id, %s, %s, %s, source_org_id FROM source_files WHERE id = %s""",
-        (doc_id, out.fields.get("member_id"), FREE_TEXT_DOC_TYPE, out.fields.get("observed_on"), source_file_id))
+        """INSERT INTO document_reference (document_reference_id, patient_id, status, type_code, doc_date)
+           VALUES (%s, %s, 'current', %s, %s)""",
+        (doc_id, out.fields.get("patient_id"), FREE_TEXT_DOC_TYPE,
+         datetime.combine(observed, time(0), tzinfo=timezone.utc) if observed else None))
+    conn.execute(
+        """INSERT INTO document_conversion (document_reference_id, source_file_id, source_org_id)
+           SELECT %s, id, source_org_id FROM source_files WHERE id = %s""", (doc_id, source_file_id))
     save_conversion(conn, doc_id, ConversionResult(pages=[Page(page_no=1, text=out.free_text or "",
                                                                method=PLAIN_TEXT)]))
 
@@ -641,8 +650,8 @@ def load_structured_file(conn: psycopg.Connection, source_file_id: int, data: by
     replaced = _clear_previous_load(conn, source_file_id)
     id_header = mapping.header_for("member_id")
     ids = {str(r[id_header]).strip() for r in rows if r.get(id_header) is not None}
-    members = {r[0] for r in conn.execute("SELECT member_id FROM members WHERE member_id = ANY(%s)",
-                                          (sorted(ids),)).fetchall()}
+    members = dict(conn.execute("SELECT mrn, min(patient_id) FROM patient WHERE mrn = ANY(%s) GROUP BY mrn",
+                                (sorted(ids),)).fetchall())
 
     counts = {"loaded": 0, "rejected": 0, "free_text_to_ai": 0}
     errors: list[dict] = []

@@ -51,7 +51,7 @@ def cmd_ingest(path: str, org: str | None, member: str | None) -> int:
 def _flatten(result: dict, depth: int = 0) -> list[list]:
     pad = "  " * depth
     rows = [[pad + str(result.get("filename") or ""), result["status"], result.get("processing_status"),
-             result.get("match_status"), result.get("member_id"),
+             result.get("match_status"), result.get("mrn"),
              (result.get("processing_note") or result.get("message") or "")[:60]]]
     for child in result.get("children", []):
         rows.extend(_flatten(child, depth + 1))
@@ -67,7 +67,7 @@ def cmd_queue() -> int:
     rows = []
     for item in items:
         f = item["file"]
-        cands = "; ".join(f"{c['member_id']} {c['name']}" for c in item["candidates"][:3]) or "(none)"
+        cands = "; ".join(f"{c['mrn']} {c['name']}" for c in item["candidates"][:3]) or "(none)"
         rows.append([f["id"], f["original_name"], f["processing_status"], cands])
     print(_table(["id", "file", "status", "top candidates"], rows))
     print(f"\n{len(items)} file(s) waiting for a member match")

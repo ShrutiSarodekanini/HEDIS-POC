@@ -48,8 +48,8 @@ OUTPUT_SCHEMA: dict[str, Any] = {
 @dataclass(frozen=True)
 class GapContext:
     """One gap with what the prompt and the validator need. No name, birth date or address: age and sex only."""
-    gap_id: str
-    member_id: str
+    gap_id: str                   # the care_gap uuid as a string
+    patient_id: str
     measure_code: str
     measurement_year: int
     age: int                      # on 31 December of the measurement year
@@ -60,6 +60,7 @@ class GapContext:
     exclusion_check: dict | None  # engine's note on whether age-based exclusions can apply
     episode: dict | None          # AAB visit details for episode gaps
     deadline: date
+    seed_code: str | None = None  # care_gap_detail.seed_code, for example 'G-0040'; shown in the header
 
 
 @dataclass(frozen=True)

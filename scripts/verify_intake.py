@@ -32,10 +32,11 @@ def main() -> int:
         q = lambda sql, *a: conn.execute(sql, a).fetchall()  # noqa: E731
 
         print("Files by processing status:", dict(q("SELECT processing_status, count(*) FROM source_files GROUP BY 1")))
-        print("Documents by conversion status:", dict(q("SELECT conversion_status, count(*) FROM documents GROUP BY 1")))
+        print("Documents by conversion status:", dict(q("SELECT conversion_status, count(*) FROM document_conversion GROUP BY 1")))
         print("Pages by method:", dict(q("SELECT method, count(*) FROM document_pages GROUP BY 1")))
-        flagged = q("""SELECT d.id, p.page_no, p.handwritten, p.low_confidence, round(p.confidence, 2), p.ocr_engine
-                       FROM document_pages p JOIN documents d ON d.id = p.document_id
+        flagged = q("""SELECT p.document_reference_id, p.page_no, p.handwritten, p.low_confidence, round(p.confidence, 2),
+                              p.ocr_engine
+                       FROM document_pages p
                        WHERE p.handwritten OR p.low_confidence ORDER BY 1, 2""")
         print("\nHandwritten or low-confidence pages:")
         for row in flagged:
@@ -43,15 +44,17 @@ def main() -> int:
         print("\nFailed or manual-review items:")
         for row in q("""SELECT 'file', original_name, processing_status, processing_note FROM source_files
                          WHERE processing_status IN ('failed','rejected')
-                        UNION ALL SELECT 'document', id, conversion_status, conversion_note FROM documents
+                        UNION ALL SELECT 'document', document_reference_id, conversion_status, conversion_note
+                          FROM document_conversion
                          WHERE conversion_status IN ('failed','manual_review')"""):
             print("  ", row)
         print("\nMember-match queue:")
-        for row in q("""SELECT f.original_name, f.match_status, d.member_id FROM source_files f
-                        LEFT JOIN documents d ON d.source_file_id = f.id WHERE f.match_status <> 'matched'
+        for row in q("""SELECT f.original_name, f.match_status, p.mrn FROM source_files f
+                        LEFT JOIN patient p ON p.patient_id = f.patient_id WHERE f.match_status <> 'matched'
                         OR f.original_name IN ('D-502.jpg', 'D-9001.jpg') ORDER BY 1"""):
             print("  ", row)
-        print("\nNear-duplicate links:", q("SELECT id, near_duplicate_of FROM documents WHERE near_duplicate_of IS NOT NULL"))
+        print("\nNear-duplicate links:", q("SELECT document_reference_id, near_duplicate_of FROM document_conversion "
+                                           "WHERE near_duplicate_of IS NOT NULL"))
 
         print("\nStructured rows:")
         rows = {(r[0], r[1]): (r[2], r[3]) for r in q(
@@ -67,7 +70,8 @@ def main() -> int:
 
         print("\nEvidence quotes present in converted page text:")
         page_text = {}
-        for doc_id, text in q("SELECT document_id, string_agg(text, ' ' ORDER BY page_no) FROM document_pages GROUP BY 1"):
+        for doc_id, text in q("SELECT document_reference_id, string_agg(text, ' ' ORDER BY page_no) FROM document_pages "
+                           "GROUP BY 1"):
             page_text[doc_id] = norm(text)
         found = total = 0
         for gap in expected:
