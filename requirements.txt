@@ -1,0 +1,30 @@
+# Runtime dependencies. Seed data generation has its own list: scripts/seed/requirements-seed.txt
+# External tools: PostgreSQL 18, Tesseract OCR 5.x (handwriting also uses a local Ollama vision model).
+
+# Database
+psycopg[binary]
+SQLAlchemy
+alembic
+python-dotenv
+PyYAML
+
+# API
+fastapi
+uvicorn
+python-multipart
+pydantic
+httpx
+
+# Document intake and conversion (US-02)
+cryptography      # encrypted storage of uploaded files
+pypdfium2         # PDF text with character positions, page rendering
+pypdf
+python-docx
+openpyxl
+Pillow
+pillow-heif       # iPhone HEIC photos
+numpy
+pytesseract       # Tesseract OCR wrapper
+
+# Tests
+pytest
