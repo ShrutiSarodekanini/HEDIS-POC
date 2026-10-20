@@ -117,13 +117,13 @@ def select_pages(conn: psycopg.Connection, gap: GapContext) -> list[PageRef]:
     with conn.cursor(row_factory=dict_row) as cur:
         cur.execute(
             """SELECT p.document_reference_id AS document_id, p.page_no, r.type_code AS doc_type,
-                      r.doc_date::date AS document_date, c.source_org_id, p.method, p.handwritten,
+                      (r.doc_date AT TIME ZONE 'UTC')::date AS document_date, c.source_org_id, p.method, p.handwritten,
                       p.low_confidence, p.text
                FROM document_reference r
                JOIN document_conversion c ON c.document_reference_id = r.document_reference_id
                JOIN document_pages p ON p.document_reference_id = r.document_reference_id
                WHERE r.patient_id = %s AND c.conversion_status = 'converted' AND c.near_duplicate_of IS NULL
-               ORDER BY r.doc_date::date DESC NULLS LAST, r.document_reference_id, p.page_no""",
+               ORDER BY (r.doc_date AT TIME ZONE 'UTC')::date DESC NULLS LAST, r.document_reference_id, p.page_no""",
             (gap.patient_id,))
         return [PageRef(**row) for row in cur if row["text"].strip()]
 
