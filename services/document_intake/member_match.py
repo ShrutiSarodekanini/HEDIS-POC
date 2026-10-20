@@ -1,7 +1,7 @@
 """Match a document to a member from its text, and link files to members by hand.
 
 Rules, in order:
-1. An explicit member ID (M-123) that exists in members wins.
+1. An explicit member ID (M-123) that exists as a patient's mrn wins.
 2. Otherwise the name and date of birth found in the text must match exactly one member (first and last name,
    case-insensitive, and the same birth date).
 3. Anything else needs a person: the result lists candidate members with the reason each one is offered.
@@ -30,15 +30,17 @@ _DOB = re.compile(
 @dataclass
 class MatchResult:
     """Outcome of matching text to a member."""
-    member_id: str | None
+    patient_id: str | None
     status: str                                   # matched | needs_match
-    candidates: list[dict] = field(default_factory=list)   # {member_id, name, birth_date, reason}
+    candidates: list[dict] = field(default_factory=list)   # {patient_id, mrn, name, birth_date, reason}
     method: str | None = None                     # member_id | name_dob when matched
+    mrn: str | None = None                        # the member ID (patient.mrn) of the matched patient
 
 
 @dataclass(frozen=True)
 class _Member:
-    member_id: str
+    patient_id: str
+    mrn: str
     first: str
     last: str
     birth_date: date
@@ -49,15 +51,21 @@ class _Member:
 
 
 def match_member(conn: psycopg.Connection, text: str) -> MatchResult:
-    """Find the member a document belongs to. Returns matched with a member_id, or needs_match with candidates."""
-    members = [_Member(r[0], r[1], r[2], r[3]) for r in conn.execute(
-        "SELECT member_id, first_name, last_name, birth_date FROM members").fetchall()]
-    by_id = {m.member_id: m for m in members}
+    """Find the patient a document belongs to. Returns matched with a patient_id, or needs_match with candidates.
+
+    Names are not in the patient table: they come from the FHIR Patient record kept in fhir_resource_raw.
+    """
+    members = [_Member(r[0], r[1], r[2], r[3], r[4]) for r in conn.execute(
+        """SELECT p.patient_id, p.mrn, r.raw->'name'->0->'given'->>0, r.raw->'name'->0->>'family', p.birth_date
+           FROM patient p JOIN fhir_resource_raw r ON r.resource_type = 'Patient' AND r.resource_id = p.patient_id
+           WHERE p.mrn IS NOT NULL AND p.birth_date IS NOT NULL
+             AND r.raw->'name'->0->'given'->>0 IS NOT NULL AND r.raw->'name'->0->>'family' IS NOT NULL""").fetchall()]
+    by_id = {m.mrn: m for m in members}
 
     ids = list(dict.fromkeys(m.group(0).upper() for m in _MEMBER_ID.finditer(text)))
     known = [by_id[i] for i in ids if i in by_id]
     if len(known) == 1:
-        return MatchResult(known[0].member_id, MATCHED, [], "member_id")
+        return MatchResult(known[0].patient_id, MATCHED, [], "member_id", known[0].mrn)
     if len(known) > 1:
         return MatchResult(None, NEEDS_MATCH,
                            [_candidate(m, "member ID appears in the text, but so do other member IDs")
@@ -68,29 +76,36 @@ def match_member(conn: psycopg.Connection, text: str) -> MatchResult:
 
     exact = [m for m in members for first, last in names
              if m.first.lower() == first.lower() and m.last.lower() == last.lower() and m.birth_date in dobs]
-    exact = list({m.member_id: m for m in exact}.values())
+    exact = list({m.patient_id: m for m in exact}.values())
     if len(exact) == 1:
-        return MatchResult(exact[0].member_id, MATCHED, [], "name_dob")
+        return MatchResult(exact[0].patient_id, MATCHED, [], "name_dob", exact[0].mrn)
     return MatchResult(None, NEEDS_MATCH, _candidates(members, names, dobs, exact))
 
 
 def link_file(conn: psycopg.Connection, source_file_id: int, member_id: str, actor: str) -> None:
-    """Manually link a file to a member (from the match queue). Raises LookupError for an unknown file or member."""
-    row = conn.execute("SELECT member_id, match_status FROM source_files WHERE id = %s", (source_file_id,)).fetchone()
+    """Manually link a file to a member ID (patient.mrn), from the match queue.
+
+    Raises LookupError for an unknown file or member."""
+    row = conn.execute("SELECT patient_id, match_status FROM source_files WHERE id = %s", (source_file_id,)).fetchone()
     if row is None:
         raise LookupError(f"file {source_file_id} not found")
-    if conn.execute("SELECT 1 FROM members WHERE member_id = %s", (member_id,)).fetchone() is None:
+    patient = conn.execute("SELECT patient_id FROM patient WHERE mrn = %s ORDER BY patient_id LIMIT 1",
+                           (member_id,)).fetchone()
+    if patient is None:
         raise LookupError(f"member {member_id} not found")
-    conn.execute("UPDATE source_files SET member_id = %s, match_status = 'matched' WHERE id = %s",
-                 (member_id, source_file_id))
-    conn.execute("UPDATE documents SET member_id = %s WHERE source_file_id = %s", (member_id, source_file_id))
+    conn.execute("UPDATE source_files SET patient_id = %s, match_status = 'matched' WHERE id = %s",
+                 (patient[0], source_file_id))
+    conn.execute(
+        """UPDATE document_reference SET patient_id = %s WHERE document_reference_id IN
+               (SELECT document_reference_id FROM document_conversion WHERE source_file_id = %s)""",
+        (patient[0], source_file_id))
     audit(conn, "source_file", str(source_file_id), "file.member_linked",
-          {"member_id": member_id, "previous_member_id": row[0], "previous_match_status": row[1], "manual": True},
-          actor=actor)
+          {"member_id": member_id, "patient_id": patient[0], "previous_patient_id": row[0],
+           "previous_match_status": row[1], "manual": True}, actor=actor)
 
 
 def _candidate(member: _Member, reason: str) -> dict:
-    return {"member_id": member.member_id, "name": member.name, "birth_date": member.birth_date.isoformat(),
+    return {"patient_id": member.patient_id, "mrn": member.mrn, "name": member.name, "birth_date": member.birth_date.isoformat(),
             "reason": reason}
 
 
@@ -100,10 +115,10 @@ def _candidates(members: list[_Member], names: list[tuple[str, str]], dobs: set[
     rank: dict[str, int] = {}
 
     def offer(m: _Member, reason: str, score: int) -> None:
-        reasons.setdefault(m.member_id, [])
-        if reason not in reasons[m.member_id]:
-            reasons[m.member_id].append(reason)
-        rank[m.member_id] = min(rank.get(m.member_id, 9), score)
+        reasons.setdefault(m.patient_id, [])
+        if reason not in reasons[m.patient_id]:
+            reasons[m.patient_id].append(reason)
+        rank[m.patient_id] = min(rank.get(m.patient_id, 9), score)
 
     for m in members:
         for first, last in names:
@@ -118,10 +133,10 @@ def _candidates(members: list[_Member], names: list[tuple[str, str]], dobs: set[
                 offer(m, "last name and first initial match", 2)
             else:
                 offer(m, "same last name", 3)
-        if m.birth_date in dobs and m.member_id not in reasons:
+        if m.birth_date in dobs and m.patient_id not in reasons:
             offer(m, "same date of birth", 4)
-    ordered = sorted(reasons, key=lambda mid: (rank[mid], mid))[:MAX_CANDIDATES]
-    by_id = {m.member_id: m for m in members}
+    by_id = {m.patient_id: m for m in members}
+    ordered = sorted(reasons, key=lambda mid: (rank[mid], by_id[mid].mrn))[:MAX_CANDIDATES]
     return [_candidate(by_id[mid], "; ".join(reasons[mid])) for mid in ordered]
 
 

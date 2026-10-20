@@ -19,7 +19,7 @@ More detailed rules load automatically from `.github/instructions/` for the file
    names, birth dates and other dates tied to a person (except the year), addresses, phone, email, member IDs,
    MRNs, upload file names, and any document or page text. Log internal record IDs instead
    (`source_file_id=52`, `document_id=D-601`, `gap_id=...`).
-2. **The model only proposes.** AI output is validated, saved as `PROPOSED`, and decided by a person. No code
+2. **The model only proposes.** AI output is validated, saved as `proposed` evidence, and decided by a person. No code
    written by a model or by extraction may approve evidence, create supplemental data or close a gap.
 3. **Synthetic data only to hosted models such as OpenRouter.** Real patient documents only go to a model under a
    signed business associate agreement (BAA) or one that runs locally.

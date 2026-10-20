@@ -18,7 +18,7 @@ python scripts/seed/gen_all.py
 | `synthea/csv/` | Synthea 3.x format patient data (patients, encounters, conditions, observations, procedures, medications, payers, payer_transitions, organizations, providers). 426 people: 26 scenario members and 400 background members | Engine services (`measure_calc`, `gap_identifier`) |
 | `engine/engine_run_MY2026.json` | What the engine should output for MY 2026: run metadata, per-measure totals and 330 gaps | Gap import (US-01 T3) |
 | `measures/measures.yaml` | The 10 measure rules, windows, thresholds and prompt templates (SME review pending) | Measure library (US-01 T4), AI prompts |
-| `measures/star_cut_points.json` | Star weights. Cut points are empty until US-05 | Priority and impact (US-05) |
+| `measures/star_cut_points.json` | Star weights and the final 2027 cut points (CMS 2027 Technical Notes), used as the prior-year proxy for MY 2026 | Priority and impact (US-05) |
 | `members/` | Members, organizations (with practice closure rates), providers, engagement (next visit, last contact) | App database, prioritization |
 | `documents/` | 41 evidence documents in 8 formats plus `manifest.json` with the true text of each | Intake and conversion (US-02), AI extraction (US-03) |
 | `documents/samples/` | Intake test files: mixed PDF, ZIP bundle, email with attachment, JPEG disguised as PDF, exact duplicate | File intake tests (US-02 T1) |
@@ -53,8 +53,19 @@ python -m pytest tests/db -q
 python scripts/db/load_seed.py            # add --reset to empty and reload
 ```
 
+The loader fills the team schema (see `docs/design/schema-alignment.md`):
+
+| Seed file | Tables |
+|---|---|
+| `members/members.csv` | `patient` (member ID in `mrn`), `fhir_resource_raw` (names), `coverage` |
+| `members/organizations.csv`, `providers.csv` | `organization` + `organization_quality`, `practitioner` |
+| `members/engagement.csv` | `encounter` (planned visit, last contact) |
+| `measures/` | `measure_definition` + `measure_rule`, `measure_star_weight`, `star_cutpoint` |
+| `engine/engine_run_MY2026.json` | `engine_runs`, `measure_result` (one row per patient per measure), `care_gap` + `care_gap_detail` (seed code such as `G-0001`) |
+| `documents/manifest.json`, `structured/` | `source_files`, `document_reference` + `document_conversion` |
+
 Documents and structured files load as received files with status `pending`. Converting them to pages
-is the job of the US-02 converters.
+is the job of the US-02 converters: `python -m services.document_intake.cli process-pending`.
 
 ## Known limits
 

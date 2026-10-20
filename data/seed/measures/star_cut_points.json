@@ -2,66 +2,189 @@
   "star_year": 2027,
   "data_measurement_year": 2025,
   "label": "Prior-year cut points, CMS Star Ratings Technical Notes",
-  "status": "PARTIAL: star weights filled in; cut points are empty until US-05 (rate and star impact). Do not use for star projections yet.",
-  "cut_points_todo": "Fill cut_points and min_rate_for_star from the 2027 Technical Notes during US-05 T3, or replace with clearly labelled illustrative values if exact thresholds are not needed for the demo.",
+  "status": "Cut points are the final 2027 values from the CMS 2027 Star Ratings Technical Notes (updated 2026-09-30), used as the prior-year proxy for MY2026.",
+  "cut_points_todo": "Cut points are the final 2027 values from the CMS 2027 Star Ratings Technical Notes (updated 2026-09-30), used as the prior-year proxy for MY2026.",
   "weights_source": "Measure research on 2026-10-13 that read the 2026 and 2027 Star Ratings Technical Notes and the 2027 Measures and Weights list. Re-check against the PDFs when cut points are filled in.",
   "sources": [
-    {"title": "Medicare 2027 Part C & D Star Ratings Technical Notes", "url": "https://www.cms.gov/files/document/2027-tech-notes-2026-09-30.pdf", "updated": "2026-09-30"},
-    {"title": "2027 Star Ratings Measures and Weights", "url": "https://www.cms.gov/files/document/2027-star-ratings-measures.pdf", "updated": null}
+    {
+      "title": "Medicare 2027 Part C & D Star Ratings Technical Notes",
+      "url": "https://www.cms.gov/files/document/2027-tech-notes-2026-09-30.pdf",
+      "updated": "2026-09-30"
+    },
+    {
+      "title": "2027 Star Ratings Measures and Weights",
+      "url": "https://www.cms.gov/files/document/2027-star-ratings-measures.pdf",
+      "updated": null
+    }
   ],
   "measures": [
     {
-      "star_measure_id": "C01", "name": "Breast Cancer Screening", "hedis_code": "BCS-E",
-      "weight": 1, "measure_type": "process", "higher_is_better": true,
+      "star_measure_id": "C01",
+      "name": "Breast Cancer Screening",
+      "hedis_code": "BCS-E",
+      "weight": 1,
+      "measure_type": "process",
+      "higher_is_better": true,
       "scoring_note": "Star Ratings score only the 52 to 74 age band, although the measure counts ages 42 to 74.",
-      "cut_points": {"1": null, "2": null, "3": null, "4": null, "5": null},
-      "min_rate_for_star": {"2": null, "3": null, "4": null, "5": null},
-      "source_ref": null, "confidence": "weight: medium; cut points: none", "notes": null
+      "cut_points": {
+        "1": 0,
+        "2": 63,
+        "3": 70,
+        "4": 77,
+        "5": 83
+      },
+      "min_rate_for_star": {
+        "2": 63,
+        "3": 70,
+        "4": 77,
+        "5": 83
+      },
+      "source_ref": "https://www.cms.gov/files/document/2027-tech-notes-2026-09-30.pdf",
+      "confidence": "weight: medium; cut points: high (CMS 2027 Technical Notes)",
+      "notes": null
     },
     {
-      "star_measure_id": "C02", "name": "Colorectal Cancer Screening", "hedis_code": "COL-E",
-      "weight": 1, "measure_type": "process", "higher_is_better": true,
+      "star_measure_id": "C02",
+      "name": "Colorectal Cancer Screening",
+      "hedis_code": "COL-E",
+      "weight": 1,
+      "measure_type": "process",
+      "higher_is_better": true,
       "scoring_note": "The respecified COL-E enters the 2027 Stars as a new measure.",
-      "cut_points": {"1": null, "2": null, "3": null, "4": null, "5": null},
-      "min_rate_for_star": {"2": null, "3": null, "4": null, "5": null},
-      "source_ref": null, "confidence": "weight: medium; cut points: none", "notes": null
+      "cut_points": {
+        "1": 0,
+        "2": 59,
+        "3": 68,
+        "4": 75,
+        "5": 82
+      },
+      "min_rate_for_star": {
+        "2": 59,
+        "3": 68,
+        "4": 75,
+        "5": 82
+      },
+      "source_ref": "https://www.cms.gov/files/document/2027-tech-notes-2026-09-30.pdf",
+      "confidence": "weight: medium; cut points: high (CMS 2027 Technical Notes)",
+      "notes": null
     },
     {
-      "star_measure_id": "C11", "name": "Diabetes Care, Eye Exam", "hedis_code": "EED",
-      "weight": 1, "measure_type": "process", "higher_is_better": true, "scoring_note": null,
-      "cut_points": {"1": null, "2": null, "3": null, "4": null, "5": null},
-      "min_rate_for_star": {"2": null, "3": null, "4": null, "5": null},
-      "source_ref": null, "confidence": "weight: medium; cut points: none", "notes": null
+      "star_measure_id": "C11",
+      "name": "Diabetes Care, Eye Exam",
+      "hedis_code": "EED",
+      "weight": 1,
+      "measure_type": "process",
+      "higher_is_better": true,
+      "scoring_note": null,
+      "cut_points": {
+        "1": 0,
+        "2": 61,
+        "3": 72,
+        "4": 79,
+        "5": 86
+      },
+      "min_rate_for_star": {
+        "2": 61,
+        "3": 72,
+        "4": 79,
+        "5": 86
+      },
+      "source_ref": "https://www.cms.gov/files/document/2027-tech-notes-2026-09-30.pdf",
+      "confidence": "weight: medium; cut points: high (CMS 2027 Technical Notes)",
+      "notes": null
     },
     {
-      "star_measure_id": "C12", "name": "Diabetes Care, Blood Sugar Controlled", "hedis_code": "GSD",
-      "weight": 3, "measure_type": "intermediate_outcome", "higher_is_better": true,
+      "star_measure_id": "C12",
+      "name": "Diabetes Care, Blood Sugar Controlled",
+      "hedis_code": "GSD",
+      "weight": 3,
+      "measure_type": "intermediate_outcome",
+      "higher_is_better": true,
       "scoring_note": "Based on the over-9.0% poor control indicator, reverse scored (plan score is 100 minus the poor control rate). It does not use the under-8.0% indicator.",
-      "cut_points": {"1": null, "2": null, "3": null, "4": null, "5": null},
-      "min_rate_for_star": {"2": null, "3": null, "4": null, "5": null},
-      "source_ref": null, "confidence": "weight: medium; cut points: none", "notes": null
+      "cut_points": {
+        "1": 0,
+        "2": 59,
+        "3": 82,
+        "4": 89,
+        "5": 92
+      },
+      "min_rate_for_star": {
+        "2": 59,
+        "3": 82,
+        "4": 89,
+        "5": 92
+      },
+      "source_ref": "https://www.cms.gov/files/document/2027-tech-notes-2026-09-30.pdf",
+      "confidence": "weight: medium; cut points: high (CMS 2027 Technical Notes)",
+      "notes": null
     },
     {
-      "star_measure_id": "C13", "name": "Kidney Health Evaluation for Patients with Diabetes", "hedis_code": "KED",
-      "weight": 1, "measure_type": "process", "higher_is_better": true,
+      "star_measure_id": "C13",
+      "name": "Kidney Health Evaluation for Patients with Diabetes",
+      "hedis_code": "KED",
+      "weight": 1,
+      "measure_type": "process",
+      "higher_is_better": true,
       "scoring_note": "Added in the 2026 Stars.",
-      "cut_points": {"1": null, "2": null, "3": null, "4": null, "5": null},
-      "min_rate_for_star": {"2": null, "3": null, "4": null, "5": null},
-      "source_ref": null, "confidence": "weight: medium; cut points: none", "notes": null
+      "cut_points": {
+        "1": 0,
+        "2": 46,
+        "3": 63,
+        "4": 72,
+        "5": 83
+      },
+      "min_rate_for_star": {
+        "2": 46,
+        "3": 63,
+        "4": 72,
+        "5": 83
+      },
+      "source_ref": "https://www.cms.gov/files/document/2027-tech-notes-2026-09-30.pdf",
+      "confidence": "weight: medium; cut points: high (CMS 2027 Technical Notes)",
+      "notes": null
     },
     {
-      "star_measure_id": "C14", "name": "Controlling Blood Pressure", "hedis_code": "CBP",
-      "weight": 3, "measure_type": "intermediate_outcome", "higher_is_better": true, "scoring_note": null,
-      "cut_points": {"1": null, "2": null, "3": null, "4": null, "5": null},
-      "min_rate_for_star": {"2": null, "3": null, "4": null, "5": null},
-      "source_ref": null, "confidence": "weight: medium; cut points: none",
+      "star_measure_id": "C14",
+      "name": "Controlling Blood Pressure",
+      "hedis_code": "CBP",
+      "weight": 3,
+      "measure_type": "intermediate_outcome",
+      "higher_is_better": true,
+      "scoring_note": null,
+      "cut_points": {
+        "1": 0,
+        "2": 72,
+        "3": 79,
+        "4": 84,
+        "5": 90
+      },
+      "min_rate_for_star": {
+        "2": 72,
+        "3": 79,
+        "4": 84,
+        "5": 90
+      },
+      "source_ref": "https://www.cms.gov/files/document/2027-tech-notes-2026-09-30.pdf",
+      "confidence": "weight: medium; cut points: high (CMS 2027 Technical Notes)",
       "notes": "One search result suggested the 2027 notes may number this measure C16. Check the ID when cut points are filled in."
     }
   ],
   "not_star_measures": [
-    {"hedis_code": "BPD", "reason": "Not a Part C Star Ratings measure; rate only."},
-    {"hedis_code": "CCS-E", "reason": "Not a Part C Star Ratings measure; rate only."},
-    {"hedis_code": "SPD", "reason": "Not a Star measure. Part D SUPD is a different measure; rate only."},
-    {"hedis_code": "AAB", "reason": "Not a Part C Star Ratings measure; rate only."}
+    {
+      "hedis_code": "BPD",
+      "reason": "Not a Part C Star Ratings measure; rate only."
+    },
+    {
+      "hedis_code": "CCS-E",
+      "reason": "Not a Part C Star Ratings measure; rate only."
+    },
+    {
+      "hedis_code": "SPD",
+      "reason": "Not a Star measure. Part D SUPD is a different measure; rate only."
+    },
+    {
+      "hedis_code": "AAB",
+      "reason": "Not a Part C Star Ratings measure; rate only."
+    }
   ]
 }
