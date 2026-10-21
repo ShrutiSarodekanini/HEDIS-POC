@@ -58,3 +58,25 @@ fhir-*.bundle.json
 services/measure_calc/engine/examples/_tmp_fqm_synthea_runs/
 services/measure_calc/engine/examples/**/_tmp_compile_check/
 services/measure_calc/engine/examples/**/patients/*.json
+
+# Star rating app
+*.pyc
+*.pyo
+*.pyd
+generated_evidence/
+data/
+API_TESTING_GUIDE.md
+tests/
+env/
+ENV/
+.mypy_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+htmlcov/
+dist/
+*.egg-info/
+ui/node_modules/
+ui/dist/
+*.log
+.vscode/.history/

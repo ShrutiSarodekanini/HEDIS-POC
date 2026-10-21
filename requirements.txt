@@ -29,5 +29,8 @@ pillow-heif       # iPhone HEIC photos
 numpy
 pytesseract       # Tesseract OCR wrapper
 
+# Star rating and mock evidence documents (Pradeep)
+reportlab
+
 # Tests
 pytest

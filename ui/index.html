@@ -1,80 +1,12 @@
 <!doctype html>
 <html lang="en">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>HEDIS CSV to FHIR Pipeline</title>
-  <link rel="stylesheet" href="/ui/styles.css" />
-</head>
-<body>
-  <div class="app-shell">
-    <aside class="sidebar">
-      <div class="brand"><span class="brand-mark">+</span><span>HEDIS Ops</span></div>
-      <nav aria-label="Main navigation">
-        <a href="#" class="nav-item"><span class="nav-icon">⌂</span>Dashboard</a>
-        <a href="#run" class="nav-item active"><span class="nav-icon">↻</span>Run Ingestion</a>
-        <a href="#calculation" class="nav-item"><span class="nav-icon">◉</span>Run Gap Calculation</a>
-        <a href="#priority" class="nav-item"><span class="nav-icon">≡</span>Prioritization</a>
-        <a href="#evidence" class="nav-item"><span class="nav-icon">▣</span>Evidence Review</a>
-      </nav>
-      <div class="sidebar-footer">Layer 1 of 8<br /><span>CSV to FHIR data pipeline</span></div>
-    </aside>
-
-    <main class="main-content" id="run">
-      <header class="page-header">
-        <div>
-          <p class="eyebrow">Layer 1 of 8</p>
-          <h1>Run Ingestion</h1>
-          <p class="subtitle">Load a Synthea FHIR export and normalize it into the Layer 1 data model</p>
-        </div>
-        <div class="header-status"><span class="status-dot"></span>Pipeline ready</div>
-      </header>
-
-      <div class="workspace-grid">
-        <section class="panel new-run">
-          <div class="panel-heading"><div><p class="eyebrow">New ingestion run</p><h2>Configure source</h2></div><span class="step-chip">01 / 08</span></div>
-          <label for="inputDir">Source system</label>
-          <select id="sourceSystem"><option>Synthea</option><option>FHIR R4 bundle</option></select>
-          <label for="inputDir">Source description</label>
-          <input id="sourceDescription" type="text" value="Synthea - 30 California seed=1234" />
-          <label for="inputDir">Input path</label>
-          <input id="inputDir" type="text" placeholder="/data/synthea/output/fhir" />
-          <input id="folderPicker" type="file" webkitdirectory directory multiple hidden />
-          <div class="drop-zone"><span class="upload-icon">↑</span><strong>Select a Synthea CSV folder or <button id="pickFolderBtn" class="inline-button" type="button">browse</button></strong><small>Upload starts automatically · Synthea CSV export only</small></div>
-          <div class="action-row"><button id="startBtn" class="primary-button" type="button">Run ingestion</button><button id="inspectBtn" class="secondary-button" type="button">Inspect dataset</button></div>
-          <p class="helper-text">For large local datasets, enter the folder path above and run ingestion directly to skip browser upload. Otherwise select a folder and wait for the upload to finish.</p>
-          <pre id="inspectResult" class="mono"></pre>
-        </section>
-
-        <section class="panel live-status">
-          <div class="panel-heading"><div><p class="eyebrow">Live run status</p><h2 id="liveJobTitle">Waiting for a run</h2></div><span class="running-badge" id="runBadge">Ready</span></div>
-          <input id="jobId" type="text" readonly aria-label="Job ID" placeholder="Job ID appears after starting a run" />
-          <div class="pipeline-section-label">Pipeline stages</div>
-          <ul id="pipelineStages" class="pipeline-stage-table"></ul>
-          <div class="resource-table-header"><span>Resource type</span><span>Loaded</span><span>Status</span></div>
-          <ul id="stages" class="stage-table"></ul>
-          <div class="progress-track"><span></span></div>
-          <div class="progress-meta"><span id="progressText">0 resources processed</span><span id="progressRate">-- resources/sec</span></div>
-          <div class="action-row compact"><button id="refreshBtn" class="secondary-button" type="button">Refresh status</button><button id="waitValidationBtn" class="secondary-button" type="button">Wait for validation</button><button id="persistBtn" class="secondary-button" type="button">Store validated</button></div>
-        </section>
-      </div>
-
-      <section class="panel completeness-panel">
-        <div class="panel-heading"><div><p class="eyebrow">Feed completeness scorecard</p><h2>Latest completed batch</h2></div><span class="muted-label">10 resource types</span></div>
-        <div class="scorecard" id="scorecard"><div class="score-head"><span>Resource type</span><span>Record count</span><span>Distinct patients</span><span>Measure-relevant</span></div><div class="score-row"><span>Run ingestion to populate this scorecard</span><span>--</span><span>--</span><span><span class="pill neutral">Pending</span></span></div></div>
-        <pre id="summary" class="mono compact-output"></pre>
-      </section>
-
-      <section class="alert-banner"><div class="alert-icon">!</div><div><strong>Last failed run</strong><span id="failureMessage">No failed runs recorded. Validation errors and job history will appear here after a run.</span></div><button id="issuesBtn" class="alert-action" type="button">View issues</button></section>
-
-      <section class="panel lower-panel" id="evidence">
-        <div class="panel-heading"><div><p class="eyebrow">Patient resource explorer</p><h2>Evidence review</h2></div><div class="explorer-actions"><select id="patientSelect"><option value="">Select a patient</option></select><button id="loadPatientBtn" class="secondary-button" type="button">Load resources</button></div></div>
-        <pre id="patientResources" class="mono"></pre>
-        <div class="history-actions"><button id="jobsBtn" class="text-button" type="button">Load job history</button><pre id="jobsResult" class="mono"></pre></div>
-      </section>
-    </main>
-  </div>
-
-  <script src="/ui/app.js"></script>
-</body>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>HEDIS React UI</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
 </html>
