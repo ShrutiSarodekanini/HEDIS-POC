@@ -1,0 +1,240 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Gap Priority Demo</title>
+<style>
+/* Layout: star status strip on top, then the ranked work list on the left and the selected gap's score breakdown on the right. */
+:root {
+  --bg: #f3f6f7; --surface: #ffffff; --sunk: #f7f9fa; --ink: #15232c; --muted: #586a75; --line: #d6dfe3;
+  --accent: #0b6870; --accent-soft: #e0eff0;
+  --high: #b42318; --high-soft: #fdecea; --med: #8a5a00; --med-soft: #fbf0d9; --low: #475467; --low-soft: #eef1f4;
+  --good: #1f7a3d; --good-soft: #e3f3e8;
+  --font: "Segoe UI", system-ui, -apple-system, sans-serif; --mono: "Cascadia Mono", Consolas, ui-monospace, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0e161b; --surface: #152027; --sunk: #111b21; --ink: #e2eaee; --muted: #9aaeb8; --line: #263741;
+    --accent: #5cc3c9; --accent-soft: #15343a;
+    --high: #f19a90; --high-soft: #3a1714; --med: #e8bf6a; --med-soft: #33290f; --low: #b8c4cc; --low-soft: #1d2a31;
+    --good: #7fd39a; --good-soft: #17321f; color-scheme: dark;
+  }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 14px/1.5 var(--font); }
+header { display: flex; flex-wrap: wrap; gap: 10px 18px; align-items: center; padding: 12px 20px; background: var(--surface); border-bottom: 1px solid var(--line); }
+header h1 { font-size: 1.1rem; margin: 0; }
+.chip { font: 0.76rem var(--mono); padding: 2px 9px; border-radius: 999px; border: 1px solid var(--line); background: var(--sunk); }
+.run { margin-left: auto; display: flex; gap: 8px; align-items: center; }
+button, select, input[type=date] { font: inherit; font-size: 0.85rem; border-radius: 6px; padding: 5px 10px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); }
+button.primary { background: var(--accent); border-color: var(--accent); color: var(--surface); font-weight: 600; cursor: pointer; }
+button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.wrap { padding: 16px 20px; display: grid; gap: 16px; }
+.cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; display: grid; gap: 2px; }
+.card .m { font-weight: 600; } .card .s { font-size: 1.15rem; font-weight: 600; } .card .n { font-size: 0.8rem; color: var(--muted); }
+.card.key { border-color: var(--high); } .card.protect { border-color: var(--med); }
+.bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.bar .lbl { color: var(--muted); font-size: 0.85rem; }
+.seg button { border-radius: 0; margin-left: -1px; cursor: pointer; }
+.seg button:first-child { border-radius: 6px 0 0 6px; } .seg button:last-child { border-radius: 0 6px 6px 0; }
+.seg button[aria-pressed="true"] { background: var(--accent-soft); color: var(--accent); border-color: var(--accent); position: relative; }
+.main { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: 16px; align-items: start; }
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; min-width: 0; }
+.list { max-height: 640px; overflow: auto; }
+table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+th, td { text-align: left; padding: 7px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { position: sticky; top: 0; background: var(--sunk); font-weight: 600; color: var(--muted); font-size: 0.78rem; }
+td.num { font-variant-numeric: tabular-nums; font-family: var(--mono); font-size: 0.8rem; }
+tr.row { cursor: pointer; } tr.row:hover { background: var(--accent-soft); } tr.row[aria-selected="true"] { background: var(--accent-soft); box-shadow: inset 3px 0 0 var(--accent); }
+.pill { font-size: 0.75rem; padding: 1px 8px; border-radius: 999px; font-weight: 600; }
+.high { background: var(--high-soft); color: var(--high); } .medium { background: var(--med-soft); color: var(--med); } .low { background: var(--low-soft); color: var(--low); }
+.reason { color: var(--muted); font-size: 0.8rem; }
+.detail { padding: 14px 16px; display: grid; gap: 14px; }
+.detail h2 { margin: 0; font-size: 1rem; }
+.detail h3 { margin: 0 0 4px; font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
+.calc { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 12px; font-size: 0.85rem; }
+.calc .v { font-family: var(--mono); text-align: right; }
+.calc .tot { border-top: 1px solid var(--line); padding-top: 3px; font-weight: 600; }
+.plus { color: var(--good); } .minus { color: var(--high); }
+.note { font-size: 0.8rem; color: var(--muted); }
+.formula { background: var(--sunk); border: 1px solid var(--line); border-radius: 6px; padding: 8px 10px; font: 0.82rem var(--mono); }
+.empty { padding: 30px; color: var(--muted); text-align: center; }
+details { border: 1px solid var(--line); border-radius: 6px; background: var(--sunk); margin-top: 6px; min-width: 0; }
+summary { cursor: pointer; padding: 5px 9px; font-size: 0.82rem; }
+details pre { margin: 0; padding: 8px 10px; border-top: 1px solid var(--line); font: 0.76rem/1.45 var(--mono); white-space: pre-wrap; overflow-wrap: anywhere; max-height: 360px; overflow-y: auto; }
+.found { border-radius: 6px; padding: 7px 9px; margin-top: 6px; font-size: 0.85rem; display: grid; gap: 2px; }
+.found.kept { background: var(--good-soft); } .found.dropped { background: var(--high-soft); }
+#ev button { margin-top: 6px; }
+.toast { font-size: 0.82rem; color: var(--muted); }
+@media (max-width: 900px) { .main { grid-template-columns: minmax(0, 1fr); } .run { margin-left: 0; } }
+</style>
+</head>
+<body>
+<header>
+  <h1>Gap Priority Demo</h1>
+  <span class="chip" id="rules">rules …</span>
+  <span class="chip" id="last">last run …</span>
+  <div class="run">
+    <label for="asof" class="toast">Run date</label>
+    <input type="date" id="asof" value="2026-10-20">
+    <button class="primary" id="go">Run scoring</button>
+    <span class="toast" id="toast" role="status" aria-live="polite"></span>
+  </div>
+</header>
+<div class="wrap">
+  <div class="cards" id="cards"></div>
+  <div class="bar">
+    <span class="lbl">Work list for</span>
+    <div class="seg" id="roles"></div>
+    <span class="lbl">Tier</span>
+    <div class="seg" id="tiers"></div>
+    <label class="lbl" for="measure">Measure</label>
+    <select id="measure"><option value="">All</option></select>
+    <span class="toast" id="count"></span>
+  </div>
+  <div class="main">
+    <div class="panel list"><table><thead><tr><th>Tier</th><th>Gap</th><th>Measure</th><th>Composite</th><th>Likely</th><th>Value</th><th>Engaged</th><th>Next action / why</th></tr></thead><tbody id="rows"></tbody></table></div>
+    <div class="panel" id="detail"><p class="empty">Click a gap to see how its score was built.</p></div>
+  </div>
+</div>
+
+<script>
+const $ = (tag, attrs = {}, ...kids) => { const el = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs)) k === "class" ? el.className = v : k.startsWith("on") ? el.addEventListener(k.slice(2), v) : el.setAttribute(k, v);
+  for (const c of kids.flat()) if (c != null) el.append(c); return el; };
+const f = (n, d = 2) => n == null ? "–" : Number(n).toFixed(d);
+const CH = { abstractor_review: "Approve the evidence", chart_review: "Check the chart", point_of_care_alert: "Remind the doctor at the visit",
+  mailed_fit_kit: "Mail a FIT kit", member_outreach_call: "Call the member", provider_gap_list: "Doctor's gap list" };
+const state = { role: "", tier: "", measure: "", selected: null };
+
+function seg(id, options, key) {
+  const box = document.getElementById(id);
+  box.replaceChildren(...options.map(([value, label]) => $("button", { type: "button", "aria-pressed": String(state[key] === value),
+    onclick: () => { state[key] = value; [...box.children].forEach((b, i) => b.setAttribute("aria-pressed", String(options[i][0] === value))); loadRows(); } }, label)));
+}
+
+async function loadSummary() {
+  const s = await (await fetch("/api/summary?as_of=" + document.getElementById("asof").value)).json();
+  document.getElementById("rules").textContent = "rules " + s.rules_version;
+  document.getElementById("last").textContent = s.last_scored_at ? "last run " + s.last_scored_at.slice(0, 19).replace("T", " ") : "not scored yet";
+  document.getElementById("cards").replaceChildren(...s.measures.map(m => {
+    const star = m.stars != null;
+    const cls = "card" + (m.value_reason.startsWith("Worth a whole") ? " key" : m.value_reason.startsWith("Protects") ? " protect" : "");
+    return $("div", { class: cls },
+      $("span", { class: "m" }, m.measure + (m.weight ? ` · weight ${m.weight}` : "")),
+      $("span", { class: "s" }, star ? `${m.stars} ★ · ${f(m.rate, 1)}%` : `${f(m.rate, 1)}% · not in Stars`),
+      $("span", { class: "n" }, m.value_reason),
+      $("span", { class: "n" }, `value ${f(m.value, 3)} · ${m.open_gaps} open gaps`));
+  }));
+  const sel = document.getElementById("measure");
+  if (sel.options.length === 1) s.measures.forEach(m => sel.append($("option", { value: m.measure }, m.measure)));
+  seg("tiers", [["", `All (${Object.values(s.tiers).reduce((a, b) => a + b, 0)})`], ["high", `High (${s.tiers.high || 0})`], ["medium", `Medium (${s.tiers.medium || 0})`], ["low", `Low (${s.tiers.low || 0})`]], "tier");
+}
+
+async function loadRows() {
+  const q = new URLSearchParams({ ...(state.role && { role: state.role }), ...(state.tier && { tier: state.tier }), ...(state.measure && { measure: state.measure }) });
+  const rows = await (await fetch("/api/gaps?" + q)).json();
+  document.getElementById("count").textContent = `${rows.length} gaps`;
+  document.getElementById("rows").replaceChildren(...rows.map(r => $("tr", { class: "row", tabindex: "0", "aria-selected": String(state.selected === r.key),
+      onclick: () => select(r.key), onkeydown: e => e.key === "Enter" && select(r.key) },
+    $("td", {}, $("span", { class: "pill " + r.tier }, r.tier)), $("td", {}, r.key), $("td", {}, r.measure),
+    $("td", { class: "num" }, f(r.composite, 3)), $("td", { class: "num" }, f(r.likelihood)), $("td", { class: "num" }, f(r.value, 3)),
+    $("td", { class: "num" }, f(r.engagement, 1)),
+    $("td", {}, CH[r.channel] || r.channel, $("div", { class: "reason" }, (r.reasons || []).join(" · "))))));
+  if (!rows.length) document.getElementById("rows").replaceChildren($("tr", {}, $("td", { colspan: "8", class: "empty" }, "No gaps match. Run scoring first, or change the filters.")));
+}
+
+function calc(steps, total, label, extra) {
+  return $("div", { class: "calc" }, ...steps.flatMap((s, i) => [$("span", {}, s.label),
+    $("span", { class: "v " + (i === 0 ? "" : s.change >= 0 ? "plus" : "minus") }, (i === 0 ? "" : s.change >= 0 ? "+" : "") + f(s.change))]),
+    extra || null, $("span", { class: "tot" }, label), $("span", { class: "v tot" }, f(total)));
+}
+
+async function select(key) {
+  state.selected = key;
+  document.querySelectorAll("tr.row").forEach(tr => tr.setAttribute("aria-selected", String(tr.children[1].textContent === key)));
+  const res = await fetch(`/api/gaps/${encodeURIComponent(key)}/breakdown?as_of=` + document.getElementById("asof").value);
+  const d = await res.json(); const box = document.getElementById("detail");
+  if (!res.ok) { box.replaceChildren($("p", { class: "empty" }, d.detail || "Could not load the breakdown.")); return; }
+  const L = d.likelihood, E = d.engagement, V = d.value;
+  const clamp = L.raw !== L.result ? [$("span", { class: "note" }, `kept between ${L.min} and ${L.max}`), $("span", { class: "v note" }, f(L.raw))] : [];
+  const valueBody = V.weight
+    ? [$("div", { class: "calc" },
+        $("span", {}, "Done / eligible"), $("span", { class: "v" }, `${V.numerator} / ${V.denominator}`),
+        $("span", {}, "Rate (CMS rounds to a whole %)"), $("span", { class: "v" }, `${f(V.rate)}% → ${V.rounded}%`),
+        $("span", {}, "Stars now"), $("span", { class: "v" }, V.stars + " ★"),
+        ...(V.next_cut != null ? [$("span", {}, `Next star needs ${V.next_cut}% (from ${V.next_cut - 0.5}%)`), $("span", { class: "v" }, `${V.target} done`)] : []),
+        $("span", {}, "Measure weight"), $("span", { class: "v" }, V.weight)),
+       $("div", { class: "formula" }, V.reason.startsWith("Protects")
+         ? `${V.reason}: counted as 1 closure → ${V.weight} ÷ 1 ÷ ${V.divisor} = ${f(V.result, 3)}`
+         : `${V.reason} → ${V.weight} ÷ ${V.needed} ÷ ${V.divisor} = ${f(V.result, 3)}`)]
+    : [$("div", { class: "formula" }, `${V.reason} → fixed small value ${f(V.non_star_value)}`)];
+  box.replaceChildren($("div", { class: "detail" },
+    $("h2", {}, `${d.key} · ${d.measure}`),
+    $("div", {}, $("h3", {}, "1 · How likely it closes"), calc(L.steps, L.result, "closure_likelihood_score", clamp.length ? clamp : null)),
+    $("div", {}, $("h3", {}, "2 · How much it helps the stars"), ...valueBody),
+    $("div", {}, $("h3", {}, "3 · Priority"), $("div", { class: "formula" }, `composite = ${f(L.result)} × ${f(V.result, 3)} = ${f(d.composite, 4)}`),
+      $("p", { class: "note" }, "Tier comes from the rank of this number among all gaps: top 20% High, next 30% Medium, rest Low; evidence waiting is never below Medium.")),
+    $("div", {}, $("h3", {}, "4 · How reachable"), calc(E.steps, E.result, "engagement_score (max 1.0)")),
+    $("div", {}, $("h3", {}, "5 · Next action"), $("p", {}, CH[d.channel] || d.channel)),
+    $("div", { id: "ev" }, $("h3", {}, "6 · Evidence (AI)"),
+      $("p", { class: "note" }, "Sends this member's pages and the measure rule to the model on OpenRouter (1 of 50 free calls a day). Nothing is saved until you choose to."),
+      $("button", { type: "button", class: "primary", onclick: () => runExtract(d.key) }, "Find evidence with AI"),
+      $("div", { id: "evout" }))));
+}
+
+const block = (label, text, open) => $("details", open ? { open: "" } : {}, $("summary", {}, label), $("pre", {}, text));
+
+async function runExtract(key) {
+  const out = document.getElementById("evout");
+  out.replaceChildren($("p", { class: "note" }, "Asking the model… usually 5 to 30 seconds."));
+  const res = await fetch(`/api/gaps/${encodeURIComponent(key)}/extract`, { method: "POST" });
+  const r = await res.json();
+  if (!res.ok) { out.replaceChildren($("p", { class: "note" }, r.detail || "Extraction failed.")); return; }
+  if (r.note) { out.replaceChildren($("p", { class: "note" }, r.note)); return; }
+  const kids = [
+    $("p", { class: "note" }, `${r.pages.length} page(s) sent: ` + r.pages.map(p => `${p.document_id} p${p.page_no} (${p.doc_type || "?"}, ${p.method}${p.handwritten ? ", handwritten" : ""})`).join(" · ")),
+    ...r.calls.flatMap((c, i) => [
+      block(`Call ${i + 1}: user prompt sent`, c.request ? c.request.messages[1].content : "", false),
+      block(`Call ${i + 1}: system prompt`, c.request ? c.request.messages[0].content : "", false),
+      block(`Call ${i + 1}: raw response (HTTP ${c.status ?? "?"}, ${c.seconds ?? "?"}s)`, JSON.stringify(c.response, null, 2), false),
+      c.error ? $("p", { class: "note" }, "Failed: " + c.error) : block(`Call ${i + 1}: the model's answer`, (() => { try { return JSON.stringify(JSON.parse(c.answer), null, 2); } catch (_) { return c.answer; } })(), true)]),
+    $("h3", { style: "margin-top:10px" }, `Validator: ${r.kept.length} kept, ${r.dropped.length} dropped`),
+    ...r.kept.map(k => $("div", { class: "found kept" }, $("b", {}, `Kept · ${k.evidence_kind} · ${k.evidence_type} · ${k.service_date_raw} · ${k.document_id} p${k.page_no}`),
+      $("div", {}, `“${k.excerpt}”`), $("div", { class: "note" }, `characters ${k.char_start} to ${k.char_end} · confidence ${k.confidence} · ${k.reason}`))),
+    ...r.dropped.map(x => $("div", { class: "found dropped" }, $("b", {}, `Dropped · ${x.evidence_type || "?"} · ${x.document_id || "?"}`),
+      $("div", {}, `“${x.excerpt}”`), $("div", { class: "note" }, "Reason: " + x.reason))),
+  ];
+  if (!r.kept.length && !r.dropped.length) kids.push($("p", { class: "note" }, "The model found no evidence."));
+  if (r.kept.length) kids.push($("button", { type: "button", onclick: () => saveEvidence(key) }, "Save as proposed evidence and re-score"),
+    $("span", { class: "note", id: "savemsg" }));
+  out.replaceChildren(...kids);
+}
+
+async function saveEvidence(key) {
+  const msg = document.getElementById("savemsg"); msg.textContent = " Saving and re-scoring…";
+  const res = await fetch(`/api/gaps/${encodeURIComponent(key)}/save`, { method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ as_of: document.getElementById("asof").value }) });
+  const r = await res.json();
+  if (!res.ok) { msg.textContent = " " + (r.detail || "Save failed"); return; }
+  msg.textContent = ` Saved ${r.saved}${r.skipped_already_saved ? `, ${r.skipped_already_saved} already saved` : ""}. Re-scored: ${r.tiers.high} high, ${r.tiers.medium} medium, ${r.tiers.low} low.`;
+  await loadSummary(); await loadRows();
+  const sel = state.selected; const keep = document.getElementById("evout").innerHTML;
+  await select(sel); document.getElementById("evout").innerHTML = keep;
+}
+
+document.getElementById("go").addEventListener("click", async () => {
+  const t = document.getElementById("toast"); t.textContent = "Scoring…";
+  const res = await fetch("/api/score", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ as_of: document.getElementById("asof").value }) });
+  const r = await res.json();
+  t.textContent = res.ok ? `Scored ${r.gaps_scored} gaps: ${r.tiers.high} high, ${r.tiers.medium} medium, ${r.tiers.low} low` : "Scoring failed";
+  await loadSummary(); await loadRows(); if (state.selected) select(state.selected);
+});
+document.getElementById("measure").addEventListener("change", e => { state.measure = e.target.value; loadRows(); });
+seg("roles", [["", "Everyone"], ["reviewer", "Reviewer"], ["outreach", "Outreach team"], ["doctor", "Doctor's office"]], "role");
+loadSummary().then(loadRows);
+</script>
+</body>
+</html>

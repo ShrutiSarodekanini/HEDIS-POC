@@ -1,0 +1,69 @@
+# Gap priority rules (US-05), read by services/gap_priority/config.py. Design: docs/design/us05-gap-prioritization.md
+# Initial assumptions, to be recalibrated once a measurement year of real closures exists.
+# Change `version` whenever a value changes: every run records the version it used in its audit event.
+
+version: us05-v1
+
+likelihood:
+  # A practice with no closure-rate track record starts at the midpoint: no evidence either way.
+  default_closure_rate: 0.50
+  # The smallest round number larger than the spread between the best and worst practice closure rates in the data
+  # (0.72 - 0.35 = 0.37), so "proof already found" always ranks above "nothing done yet" regardless of practice.
+  # Initial assumption; recalibrate from real closures.
+  evidence_waiting: 0.40
+  # Visit booked soon: helps, but less than proof found (the test may still not be done): about half.
+  visit_soon: 0.20
+  # Recent contact and an attributed practice: smaller, ordered by how close each signal is to closure.
+  recent_contact: 0.10
+  attributed_practice: 0.05
+  # Penalties for being unreachable or out of time, smaller than the strongest positive signal.
+  no_contact: -0.15
+  out_of_time: -0.10
+  # Never certain either way.
+  min: 0.02
+  max: 0.98
+
+windows:  # whole days, counted from the run date
+  # A visit this close can close the gap at the point of care (likelihood bonus, point-of-care alert).
+  visit_soon_days: 30
+  # A quarter: contact within it is recent (likelihood bonus, top engagement level).
+  recent_contact_days: 90
+  # A measurement year: no contact for longer is unreachable (likelihood penalty, outreach call, middle engagement).
+  no_contact_days: 365
+  # Fewer days than this to the deadline with no visit before it: out of time (likelihood penalty).
+  deadline_days: 30
+
+engagement:
+  # Contacted within a quarter, within a measurement year, or longer ago or never: evenly spaced levels.
+  recent: 1.0
+  within_year: 0.6
+  other: 0.2
+  # A booked visit moves the member one level up.
+  visit_booked: 0.2
+  # A score between 0 and 1.
+  cap: 1.0
+
+value:
+  # Scales so a weight-3 measure one closure from its next star scores 1.0.
+  divisor: 3
+  # A score between 0 and 1.
+  cap: 1.0
+  # Measures not in Stars, and Star measures at 5 stars not on a cut point: small so they rank lower, not zero
+  # because they count for NCQA ratings.
+  non_star: 0.05
+  # The Star year whose weights (measure_star_weight.star_year) apply to the gaps' measurement year.
+  star_year: 2027
+
+tiers:
+  # Shares of the ranked list: top 20% high, next 30% medium, the rest low. Keeps the High list short and doable
+  # whatever the score scale.
+  high_share: 0.20
+  medium_share: 0.30
+  # Evidence waiting for review is the cheapest closure there is, so such a gap is never below this tier.
+  evidence_floor: medium
+
+channels:
+  # AAB changes only when an exclusion is found in the chart.
+  chart_review_measures: [AAB]
+  # Colorectal screening can be done at home with a FIT kit when no visit is coming.
+  mailed_fit_kit_measures: [COL-E]

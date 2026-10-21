@@ -190,12 +190,27 @@ GAPS = [
     {"gap_id": "G-0011", "member_id": "M-008", "measure": "GSD", "missing": "Most recent HbA1c or GMI in 2026 is not under 8.0%",
      "last_event": {"type": "lab_result", "date": "2026-03-11", "value": "9.2%", "code": "LOINC 4548-4", "source": "lab_feed"}, "exclusion_check": True,
      "expected": {"status": "Closed", "find": [{"doc": "D-801", "quote": "Hemoglobin A1c: 7.6 %", "kind": "numerator"}],
-                  "optional": [{"doc": "D-803", "quote": "Advanced Alzheimer dementia", "kind": "exclusion"}],
-                  "traps": ["around 7"], "note": "D-805 is a near-duplicate of D-801 from the HIE and should be linked, not extracted twice."}},
+                  "optional": [{"doc": "D-803", "quote": "Uses a walker, two falls this year", "kind": "exclusion"},
+                               {"doc": "D-803", "quote": "Advanced Alzheimer dementia", "kind": "exclusion"}],
+                  "traps": ["around 7"],
+                  "note": "D-805 is a near-duplicate of D-801 from the HIE and should be linked, not extracted twice. "
+                          "Age 71 with frailty and advanced illness (D-803) also meets the GSD exclusion; either outcome is "
+                          "acceptable for review."}},
     {"gap_id": "G-0012", "member_id": "M-008", "measure": "EED", "missing": "No retinal eye exam on record", "last_event": None,
-     "expected": {"status": "Closed", "find": [{"doc": "D-804", "quote": "No diabetic retinopathy", "kind": "numerator"}], "traps": []}},
+     "expected": {"status": "Closed", "find": [{"doc": "D-804", "quote": "No diabetic retinopathy", "kind": "numerator"}],
+                  "optional": [{"doc": "D-803", "quote": "Uses a walker, two falls this year", "kind": "exclusion"},
+                               {"doc": "D-803", "quote": "Advanced Alzheimer dementia", "kind": "exclusion"}],
+                  "traps": [],
+                  "note": "Age 71 with frailty and advanced illness (D-803) also meets the EED exclusion; either outcome is "
+                          "acceptable for review."}},
     {"gap_id": "G-0013", "member_id": "M-008", "measure": "KED", "missing": "No eGFR and uACR in 2026", "last_event": None,
-     "expected": {"status": "Open", "find": [], "traps": [], "note": "No documents for this gap."}},
+     "expected": {"status": "Excluded",
+                  "find": [{"doc": "D-803", "quote": "Uses a walker, two falls this year", "kind": "exclusion"},
+                           {"doc": "D-803", "quote": "Advanced Alzheimer dementia", "kind": "exclusion"}],
+                  "traps": ["A1c ordered today", "around 7"],
+                  "note": "No kidney test on record. Age 71 (66 to 80) with frailty (walker, falls) and advanced illness "
+                          "(advanced Alzheimer dementia) in D-803 meets the KED exclusion. Corrected 2026-10-21: it was "
+                          "first marked Open with no documents."}},
     {"gap_id": "G-0014", "member_id": "M-009", "measure": "KED", "missing": "No eGFR and uACR in 2026", "last_event": None,
      "expected": {"status": "Partially evidenced", "find": [{"doc": "D-901", "quote": "eGFR 68", "kind": "numerator"}],
                   "traps": ["Urine albumin 12 mg/L", "Urine creatinine 110 mg/dL"],
