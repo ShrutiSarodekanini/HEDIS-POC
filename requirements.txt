@@ -1,11 +1,31 @@
-fastapi==0.116.1
-uvicorn==0.35.0
-reportlab==4.4.3
-python-docx==1.2.0
-Pillow==11.3.0
-pytest==8.4.2
-httpx==0.28.1
-psycopg[binary]==3.2.10
-SQLAlchemy==2.0.44
-alembic==1.17.0
-python-dotenv==1.1.1
+# Runtime dependencies. Seed data generation has its own list: scripts/seed/requirements-seed.txt
+# External tools: PostgreSQL 18, Tesseract OCR 5.x (handwriting also uses a local Ollama vision model).
+
+# Database
+psycopg[binary]
+SQLAlchemy
+alembic
+python-dotenv
+PyYAML
+
+# API
+fastapi
+uvicorn
+python-multipart
+pydantic
+httpx
+
+# Document intake and conversion (US-02)
+cryptography
+pypdfium2
+pypdf
+python-docx
+openpyxl
+Pillow
+pillow-heif
+numpy
+pytesseract
+reportlab
+
+# Tests
+pytest

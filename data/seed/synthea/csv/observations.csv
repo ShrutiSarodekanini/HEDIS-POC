@@ -1,0 +1,1060 @@
+DATE,PATIENT,ENCOUNTER,CATEGORY,CODE,DESCRIPTION,VALUE,UNITS,TYPE
+2022-10-30T12:28:00Z,52ff0ff7-5552-5637-93f8-c6e4147bd717,4c8419ba-4472-5de4-8bfc-1c7bf007f0a8,laboratory,21440-3,High risk HPV DNA [Presence] in Cervix,Negative,,text
+2026-03-11T13:21:00Z,a9c42a4d-7f42-5ba9-a5bc-fdc7c4879630,4dbcc728-48ba-527b-b6e9-acc771fba298,laboratory,4548-4,Hemoglobin A1c,9.2,%,numeric
+2026-05-27T15:36:00Z,a9c42a4d-7f42-5ba9-a5bc-fdc7c4879630,42e46bc9-dc5a-5257-b48c-301f3cab7074,vital-signs,8480-6,Systolic Blood Pressure,140,mm[Hg],numeric
+2026-05-27T15:36:00Z,a9c42a4d-7f42-5ba9-a5bc-fdc7c4879630,42e46bc9-dc5a-5257-b48c-301f3cab7074,vital-signs,8462-4,Diastolic Blood Pressure,78,mm[Hg],numeric
+2026-07-07T13:13:00Z,a9c42a4d-7f42-5ba9-a5bc-fdc7c4879630,7d6cc1af-d08e-5442-a311-59d6c636c478,vital-signs,8480-6,Systolic Blood Pressure,116,mm[Hg],numeric
+2026-07-07T13:13:00Z,a9c42a4d-7f42-5ba9-a5bc-fdc7c4879630,7d6cc1af-d08e-5442-a311-59d6c636c478,vital-signs,8462-4,Diastolic Blood Pressure,79,mm[Hg],numeric
+2026-01-29T15:16:00Z,e9dc18fe-2a6c-5ba9-8510-c067b64c6361,d17e3582-0a78-5056-b336-5df4ab59b03e,laboratory,57905-2,Hemoglobin.gastrointestinal [Presence] in Stool by Immunoassay,Negative,,text
+2026-05-10T09:29:00Z,e9dc18fe-2a6c-5ba9-8510-c067b64c6361,faf00803-ea1c-5556-930e-f300a55ae203,laboratory,4548-4,Hemoglobin A1c,7.2,%,numeric
+2026-06-12T13:23:00Z,e9dc18fe-2a6c-5ba9-8510-c067b64c6361,7c7f220e-45fc-5e51-b69d-dcdc1e3c700e,vital-signs,8480-6,Systolic Blood Pressure,142,mm[Hg],numeric
+2026-06-12T13:23:00Z,e9dc18fe-2a6c-5ba9-8510-c067b64c6361,7c7f220e-45fc-5e51-b69d-dcdc1e3c700e,vital-signs,8462-4,Diastolic Blood Pressure,86,mm[Hg],numeric
+2026-02-02T10:36:00Z,33c5f657-4c13-5e3c-a44f-4a76bd88522b,f56f9f29-2df2-5118-881a-95cabf781ff6,laboratory,4548-4,Hemoglobin A1c,8.9,%,numeric
+2026-09-18T09:15:00Z,33c5f657-4c13-5e3c-a44f-4a76bd88522b,63bd1484-301d-5e99-981f-bbbce370d6a3,vital-signs,8480-6,Systolic Blood Pressure,128,mm[Hg],numeric
+2026-09-18T09:15:00Z,33c5f657-4c13-5e3c-a44f-4a76bd88522b,63bd1484-301d-5e99-981f-bbbce370d6a3,vital-signs,8462-4,Diastolic Blood Pressure,80,mm[Hg],numeric
+2026-04-12T16:35:00Z,bc739ed7-07ac-5f78-ab40-52a6b1caeb3a,88c5dd41-d261-5eb0-9250-bba85a60fee9,laboratory,4548-4,Hemoglobin A1c,7.0,%,numeric
+2026-05-28T15:30:00Z,bc739ed7-07ac-5f78-ab40-52a6b1caeb3a,2aa480f4-36c6-5382-b6d8-ad41cb8f4799,laboratory,33914-3,Glomerular filtration rate/1.73 sq M.predicted,56,mL/min/{1.73_m2},numeric
+2026-05-28T15:30:00Z,bc739ed7-07ac-5f78-ab40-52a6b1caeb3a,2aa480f4-36c6-5382-b6d8-ad41cb8f4799,laboratory,14959-1,Albumin/Creatinine [Mass Ratio] in Urine,29,mg/g,numeric
+2026-07-02T12:59:00Z,bc739ed7-07ac-5f78-ab40-52a6b1caeb3a,311a3abd-4bee-5189-acf7-6dcefe95473b,vital-signs,8480-6,Systolic Blood Pressure,146,mm[Hg],numeric
+2026-07-02T12:59:00Z,bc739ed7-07ac-5f78-ab40-52a6b1caeb3a,311a3abd-4bee-5189-acf7-6dcefe95473b,vital-signs,8462-4,Diastolic Blood Pressure,88,mm[Hg],numeric
+2026-02-19T15:34:00Z,897a3ada-b1e2-5a55-9c30-a97e64cb9b26,ba7705b5-cb1c-5a92-b63e-88f4cf31fd9f,laboratory,14959-1,Albumin/Creatinine [Mass Ratio] in Urine,12,mg/g,numeric
+2026-05-19T11:45:00Z,897a3ada-b1e2-5a55-9c30-a97e64cb9b26,d5d61128-0dd8-563a-8f19-c6b880c034e1,vital-signs,8480-6,Systolic Blood Pressure,121,mm[Hg],numeric
+2026-05-19T11:45:00Z,897a3ada-b1e2-5a55-9c30-a97e64cb9b26,d5d61128-0dd8-563a-8f19-c6b880c034e1,vital-signs,8462-4,Diastolic Blood Pressure,64,mm[Hg],numeric
+2026-05-28T13:22:00Z,897a3ada-b1e2-5a55-9c30-a97e64cb9b26,2acf4ed8-a948-5e70-93af-3f30723d3b95,laboratory,4548-4,Hemoglobin A1c,7.4,%,numeric
+2026-08-29T14:08:00Z,897a3ada-b1e2-5a55-9c30-a97e64cb9b26,45586308-8614-5759-b391-83ecacf042a7,laboratory,33914-3,Glomerular filtration rate/1.73 sq M.predicted,56,mL/min/{1.73_m2},numeric
+2026-01-01T15:52:00Z,c0e5d15d-aa14-5abd-9d8b-20cc1e304d44,dc1f64c0-6b07-57cd-a9f0-6b282bb15e26,laboratory,33914-3,Glomerular filtration rate/1.73 sq M.predicted,93,mL/min/{1.73_m2},numeric
+2026-01-01T15:52:00Z,c0e5d15d-aa14-5abd-9d8b-20cc1e304d44,dc1f64c0-6b07-57cd-a9f0-6b282bb15e26,laboratory,14959-1,Albumin/Creatinine [Mass Ratio] in Urine,50,mg/g,numeric
+2026-06-03T14:09:00Z,c0e5d15d-aa14-5abd-9d8b-20cc1e304d44,156b1350-dac1-5429-bd69-740db516089a,laboratory,4548-4,Hemoglobin A1c,6.9,%,numeric
+2026-07-11T08:04:00Z,c0e5d15d-aa14-5abd-9d8b-20cc1e304d44,76b0f7a1-7c24-537e-b145-5d256833ce4a,vital-signs,8480-6,Systolic Blood Pressure,143,mm[Hg],numeric
+2026-07-11T08:04:00Z,c0e5d15d-aa14-5abd-9d8b-20cc1e304d44,76b0f7a1-7c24-537e-b145-5d256833ce4a,vital-signs,8462-4,Diastolic Blood Pressure,85,mm[Hg],numeric
+2026-07-16T10:27:00Z,c0e5d15d-aa14-5abd-9d8b-20cc1e304d44,515c799c-a695-557f-bd4c-3c7021cc8a05,vital-signs,8480-6,Systolic Blood Pressure,110,mm[Hg],numeric
+2026-07-16T10:27:00Z,c0e5d15d-aa14-5abd-9d8b-20cc1e304d44,515c799c-a695-557f-bd4c-3c7021cc8a05,vital-signs,8462-4,Diastolic Blood Pressure,86,mm[Hg],numeric
+2026-05-20T12:22:00Z,c45f6002-771a-5032-8b06-ab50d01a3343,dd2e7232-bb01-5c20-83fc-6d729693265b,vital-signs,8480-6,Systolic Blood Pressure,148,mm[Hg],numeric
+2026-05-20T12:22:00Z,c45f6002-771a-5032-8b06-ab50d01a3343,dd2e7232-bb01-5c20-83fc-6d729693265b,vital-signs,8462-4,Diastolic Blood Pressure,90,mm[Hg],numeric
+2026-04-02T09:11:00Z,0c0798c2-e493-5731-aec5-c9077a9fbf21,1f9a9ec7-e4e4-5d90-b225-e9cf44b0ff45,vital-signs,8480-6,Systolic Blood Pressure,152,mm[Hg],numeric
+2026-04-02T09:11:00Z,0c0798c2-e493-5731-aec5-c9077a9fbf21,1f9a9ec7-e4e4-5d90-b225-e9cf44b0ff45,vital-signs,8462-4,Diastolic Blood Pressure,84,mm[Hg],numeric
+2026-03-15T12:07:00Z,66b39acc-efb3-5a62-8a66-4c2cc7b095a1,977fead4-3c95-57d6-8f40-8e16f04d959e,vital-signs,8480-6,Systolic Blood Pressure,150,mm[Hg],numeric
+2026-03-15T12:07:00Z,66b39acc-efb3-5a62-8a66-4c2cc7b095a1,977fead4-3c95-57d6-8f40-8e16f04d959e,vital-signs,8462-4,Diastolic Blood Pressure,92,mm[Hg],numeric
+2026-02-20T09:40:00Z,26535d29-b26f-5c0e-a5bb-9567486f3de6,64f71dc7-12ba-5e70-bcf7-f90d703797fc,vital-signs,8480-6,Systolic Blood Pressure,144,mm[Hg],numeric
+2026-02-20T09:40:00Z,26535d29-b26f-5c0e-a5bb-9567486f3de6,64f71dc7-12ba-5e70-bcf7-f90d703797fc,vital-signs,8462-4,Diastolic Blood Pressure,92,mm[Hg],numeric
+2025-11-03T09:53:00Z,cea8e9aa-ff8e-52ae-87aa-25c30f33852f,b5f8d120-05a3-52ac-b225-32fe638cd994,laboratory,4548-4,Hemoglobin A1c,9.6,%,numeric
+2026-01-13T13:11:00Z,dec7ac09-ea66-5682-8fc0-2a3fb4f60d31,6cda4407-aabd-53fc-8bcf-44d1cbf127b5,laboratory,57905-2,Hemoglobin.gastrointestinal [Presence] in Stool by Immunoassay,Negative,,text
+2026-01-26T12:34:00Z,dec7ac09-ea66-5682-8fc0-2a3fb4f60d31,9b818c88-2d2e-5520-b538-52895d58b313,vital-signs,8480-6,Systolic Blood Pressure,129,mm[Hg],numeric
+2026-01-26T12:34:00Z,dec7ac09-ea66-5682-8fc0-2a3fb4f60d31,9b818c88-2d2e-5520-b538-52895d58b313,vital-signs,8462-4,Diastolic Blood Pressure,76,mm[Hg],numeric
+2026-02-24T08:26:00Z,dec7ac09-ea66-5682-8fc0-2a3fb4f60d31,5db2b713-cfc7-5d4a-ba87-496fa23a27a2,laboratory,33914-3,Glomerular filtration rate/1.73 sq M.predicted,84,mL/min/{1.73_m2},numeric
+2026-03-01T08:28:00Z,dec7ac09-ea66-5682-8fc0-2a3fb4f60d31,c4260818-21dd-5900-9492-a14869de30d5,laboratory,4548-4,Hemoglobin A1c,8.3,%,numeric
+2026-04-25T13:52:00Z,dec7ac09-ea66-5682-8fc0-2a3fb4f60d31,89f5f380-b560-527c-8921-b5da24fb5b1e,laboratory,14959-1,Albumin/Creatinine [Mass Ratio] in Urine,33,mg/g,numeric
+2026-07-05T09:52:00Z,dec7ac09-ea66-5682-8fc0-2a3fb4f60d31,9d9b51b1-06b2-5ada-a993-2800252fd306,vital-signs,8480-6,Systolic Blood Pressure,112,mm[Hg],numeric
+2026-07-05T09:52:00Z,dec7ac09-ea66-5682-8fc0-2a3fb4f60d31,9d9b51b1-06b2-5ada-a993-2800252fd306,vital-signs,8462-4,Diastolic Blood Pressure,82,mm[Hg],numeric
+2026-04-15T11:11:00Z,34900f5c-8f12-5b52-83f8-553d6f2bc4c8,b14a4bff-ed73-596a-bc83-c4a088365afc,vital-signs,8480-6,Systolic Blood Pressure,145,mm[Hg],numeric
+2026-04-15T11:11:00Z,34900f5c-8f12-5b52-83f8-553d6f2bc4c8,b14a4bff-ed73-596a-bc83-c4a088365afc,vital-signs,8462-4,Diastolic Blood Pressure,91,mm[Hg],numeric
+2026-03-27T14:32:00Z,b99e04cf-ed2e-5f66-be2d-dfe029220a35,f702671d-6f3c-5be2-bfc2-36937c4919ce,vital-signs,8480-6,Systolic Blood Pressure,123,mm[Hg],numeric
+2026-03-27T14:32:00Z,b99e04cf-ed2e-5f66-be2d-dfe029220a35,f702671d-6f3c-5be2-bfc2-36937c4919ce,vital-signs,8462-4,Diastolic Blood Pressure,72,mm[Hg],numeric
+2026-04-02T12:42:00Z,b99e04cf-ed2e-5f66-be2d-dfe029220a35,1e43708d-9cd1-59fb-baab-310abada0116,vital-signs,8480-6,Systolic Blood Pressure,129,mm[Hg],numeric
+2026-04-02T12:42:00Z,b99e04cf-ed2e-5f66-be2d-dfe029220a35,1e43708d-9cd1-59fb-baab-310abada0116,vital-signs,8462-4,Diastolic Blood Pressure,79,mm[Hg],numeric
+2026-08-14T16:22:00Z,b99e04cf-ed2e-5f66-be2d-dfe029220a35,aedeab49-c715-5537-b9ef-21965cd1326e,laboratory,57905-2,Hemoglobin.gastrointestinal [Presence] in Stool by Immunoassay,Negative,,text
+2026-08-25T11:49:00Z,b99e04cf-ed2e-5f66-be2d-dfe029220a35,8c579f41-d988-55fa-8a7d-548861bdfda9,vital-signs,8480-6,Systolic Blood Pressure,109,mm[Hg],numeric
+2026-08-25T11:49:00Z,b99e04cf-ed2e-5f66-be2d-dfe029220a35,8c579f41-d988-55fa-8a7d-548861bdfda9,vital-signs,8462-4,Diastolic Blood Pressure,75,mm[Hg],numeric
+2026-05-10T16:18:00Z,7d198c3c-7423-59ea-9975-025fdd8f6ccf,45086992-e54a-5a4b-b93c-a1d2501f2488,vital-signs,8480-6,Systolic Blood Pressure,121,mm[Hg],numeric
+2026-05-10T16:18:00Z,7d198c3c-7423-59ea-9975-025fdd8f6ccf,45086992-e54a-5a4b-b93c-a1d2501f2488,vital-signs,8462-4,Diastolic Blood Pressure,76,mm[Hg],numeric
+2026-08-25T11:59:00Z,7d198c3c-7423-59ea-9975-025fdd8f6ccf,b5de1ebb-09fa-53c0-a8c5-f35cc773da6c,vital-signs,8480-6,Systolic Blood Pressure,111,mm[Hg],numeric
+2026-08-25T11:59:00Z,7d198c3c-7423-59ea-9975-025fdd8f6ccf,b5de1ebb-09fa-53c0-a8c5-f35cc773da6c,vital-signs,8462-4,Diastolic Blood Pressure,82,mm[Hg],numeric
+2025-01-23T13:01:00Z,67e62a24-9dcc-531a-afe2-48839a063834,189c27b4-09df-55db-ad4e-13a42deff7af,laboratory,21440-3,High risk HPV DNA [Presence] in Cervix,Negative,,text
+2023-02-11T10:47:00Z,d5de263b-0ac7-5bdc-9e97-2408b9cb8f76,ec905f44-869e-580a-ad95-6756dfae6b29,laboratory,21440-3,High risk HPV DNA [Presence] in Cervix,Negative,,text
+2026-07-16T14:29:00Z,d5de263b-0ac7-5bdc-9e97-2408b9cb8f76,4d8ee872-a355-5e00-a995-5f6c31c51a5a,vital-signs,8480-6,Systolic Blood Pressure,129,mm[Hg],numeric
+2026-07-16T14:29:00Z,d5de263b-0ac7-5bdc-9e97-2408b9cb8f76,4d8ee872-a355-5e00-a995-5f6c31c51a5a,vital-signs,8462-4,Diastolic Blood Pressure,68,mm[Hg],numeric
+2026-07-19T09:42:00Z,d5de263b-0ac7-5bdc-9e97-2408b9cb8f76,908569a5-43da-5e4a-92e4-eee4488d88f8,vital-signs,8480-6,Systolic Blood Pressure,134,mm[Hg],numeric
+2026-07-19T09:42:00Z,d5de263b-0ac7-5bdc-9e97-2408b9cb8f76,908569a5-43da-5e4a-92e4-eee4488d88f8,vital-signs,8462-4,Diastolic Blood Pressure,63,mm[Hg],numeric
+2026-06-10T09:16:00Z,608ed1be-2de5-57be-be37-4a97fc064a21,f5ca4f91-a3be-57a5-8408-33705b170e78,vital-signs,8480-6,Systolic Blood Pressure,113,mm[Hg],numeric
+2026-06-10T09:16:00Z,608ed1be-2de5-57be-be37-4a97fc064a21,f5ca4f91-a3be-57a5-8408-33705b170e78,vital-signs,8462-4,Diastolic Blood Pressure,73,mm[Hg],numeric
+2023-04-04T11:03:00Z,ea253a3b-70ad-5365-aef6-87d592a7d70f,d3d61cf1-34d3-59ed-b873-58278d5f9756,laboratory,21440-3,High risk HPV DNA [Presence] in Cervix,Negative,,text
+2025-05-10T16:37:00Z,ea253a3b-70ad-5365-aef6-87d592a7d70f,44137978-d912-533d-9ceb-91e88813edb4,vital-signs,8480-6,Systolic Blood Pressure,120,mm[Hg],numeric
+2025-05-10T16:37:00Z,ea253a3b-70ad-5365-aef6-87d592a7d70f,44137978-d912-533d-9ceb-91e88813edb4,vital-signs,8462-4,Diastolic Blood Pressure,91,mm[Hg],numeric
+2026-09-04T11:49:00Z,ea253a3b-70ad-5365-aef6-87d592a7d70f,549702f0-afcd-561b-af63-d0e004af05d9,laboratory,57905-2,Hemoglobin.gastrointestinal [Presence] in Stool by Immunoassay,Negative,,text
+2026-06-03T16:50:00Z,c7b380ce-6c45-539e-b2a6-e7a6e1fb4550,871e9993-f9a7-5658-8b99-5f66aae78a16,vital-signs,8480-6,Systolic Blood Pressure,127,mm[Hg],numeric
+2026-06-03T16:50:00Z,c7b380ce-6c45-539e-b2a6-e7a6e1fb4550,871e9993-f9a7-5658-8b99-5f66aae78a16,vital-signs,8462-4,Diastolic Blood Pressure,83,mm[Hg],numeric
+2026-05-10T15:10:00Z,53b97a0a-3c30-59b2-b5c3-a4c102ecea5c,fa786663-5b03-53ec-86d4-c917c7c20974,vital-signs,8480-6,Systolic Blood Pressure,146,mm[Hg],numeric
+2026-05-10T15:10:00Z,53b97a0a-3c30-59b2-b5c3-a4c102ecea5c,fa786663-5b03-53ec-86d4-c917c7c20974,vital-signs,8462-4,Diastolic Blood Pressure,96,mm[Hg],numeric
+2026-07-26T13:14:00Z,53b97a0a-3c30-59b2-b5c3-a4c102ecea5c,46bbf89e-f6c4-56ee-882c-66f820b2eaca,vital-signs,8480-6,Systolic Blood Pressure,118,mm[Hg],numeric
+2026-07-26T13:14:00Z,53b97a0a-3c30-59b2-b5c3-a4c102ecea5c,46bbf89e-f6c4-56ee-882c-66f820b2eaca,vital-signs,8462-4,Diastolic Blood Pressure,80,mm[Hg],numeric
+2026-08-13T12:55:00Z,53b97a0a-3c30-59b2-b5c3-a4c102ecea5c,813314bc-eb5a-5196-8626-e63af2e13fc9,laboratory,57905-2,Hemoglobin.gastrointestinal [Presence] in Stool by Immunoassay,Negative,,text
+2026-09-21T14:36:00Z,53b97a0a-3c30-59b2-b5c3-a4c102ecea5c,d1fa7314-c90e-50bf-8a91-d60a5d06d84e,vital-signs,8480-6,Systolic Blood Pressure,131,mm[Hg],numeric
+2026-09-21T14:36:00Z,53b97a0a-3c30-59b2-b5c3-a4c102ecea5c,d1fa7314-c90e-50bf-8a91-d60a5d06d84e,vital-signs,8462-4,Diastolic Blood Pressure,72,mm[Hg],numeric
+2026-06-04T15:50:00Z,faa41d1e-5410-59fc-830c-fd48b8eac00b,da4b7b24-184a-5518-b546-11bcdf620229,laboratory,33914-3,Glomerular filtration rate/1.73 sq M.predicted,77,mL/min/{1.73_m2},numeric
+2026-06-04T15:50:00Z,faa41d1e-5410-59fc-830c-fd48b8eac00b,da4b7b24-184a-5518-b546-11bcdf620229,laboratory,14959-1,Albumin/Creatinine [Mass Ratio] in Urine,10,mg/g,numeric
+2026-06-15T15:19:00Z,faa41d1e-5410-59fc-830c-fd48b8eac00b,367bad86-480b-57c9-8d50-c8b4ef25e7f9,laboratory,4548-4,Hemoglobin A1c,7.1,%,numeric
+2026-06-29T09:19:00Z,faa41d1e-5410-59fc-830c-fd48b8eac00b,25afab66-536a-58d4-bc1d-022dd9294e5d,vital-signs,8480-6,Systolic Blood Pressure,134,mm[Hg],numeric
+2026-06-29T09:19:00Z,faa41d1e-5410-59fc-830c-fd48b8eac00b,25afab66-536a-58d4-bc1d-022dd9294e5d,vital-signs,8462-4,Diastolic Blood Pressure,85,mm[Hg],numeric
+2026-09-29T08:24:00Z,faa41d1e-5410-59fc-830c-fd48b8eac00b,97beff02-051b-58b0-b28e-394be59f55b0,vital-signs,8480-6,Systolic Blood Pressure,130,mm[Hg],numeric
+2026-09-29T08:24:00Z,faa41d1e-5410-59fc-830c-fd48b8eac00b,97beff02-051b-58b0-b28e-394be59f55b0,vital-signs,8462-4,Diastolic Blood Pressure,81,mm[Hg],numeric
+2026-03-06T08:53:00Z,6a8d26c8-b734-56f8-b3a9-35535ab18fed,ed2b4aaa-9c10-5b97-8e09-4dacce94feb5,laboratory,4548-4,Hemoglobin A1c,9.6,%,numeric
+2026-04-04T10:43:00Z,6a8d26c8-b734-56f8-b3a9-35535ab18fed,5615f23b-6a74-54df-9c53-696cff70ffad,laboratory,33914-3,Glomerular filtration rate/1.73 sq M.predicted,67,mL/min/{1.73_m2},numeric
+2026-04-04T10:43:00Z,6a8d26c8-b734-56f8-b3a9-35535ab18fed,5615f23b-6a74-54df-9c53-696cff70ffad,laboratory,14959-1,Albumin/Creatinine [Mass Ratio] in Urine,42,mg/g,numeric
+2026-08-30T11:59:00Z,6a8d26c8-b734-56f8-b3a9-35535ab18fed,78652584-dbf0-5733-89ce-666c3af76828,laboratory,4548-4,Hemoglobin A1c,6.4,%,numeric
+2026-09-18T14:03:00Z,6a8d26c8-b734-56f8-b3a9-35535ab18fed,e8967551-a0f7-5713-8c98-9b6cc7e43ba4,vital-signs,8480-6,Systolic Blood Pressure,161,mm[Hg],numeric
+2026-09-18T14:03:00Z,6a8d26c8-b734-56f8-b3a9-35535ab18fed,e8967551-a0f7-5713-8c98-9b6cc7e43ba4,vital-signs,8462-4,Diastolic Blood Pressure,87,mm[Hg],numeric
+2025-05-14T10:12:00Z,dbca7fcb-5322-59a4-b28c-e71a0d699bb6,51da25f3-4012-58ee-87ed-711c3ffd0536,laboratory,33914-3,Glomerular filtration rate/1.73 sq M.predicted,77,mL/min/{1.73_m2},numeric
+2025-05-14T10:12:00Z,dbca7fcb-5322-59a4-b28c-e71a0d699bb6,51da25f3-4012-58ee-87ed-711c3ffd0536,laboratory,14959-1,Albumin/Creatinine [Mass Ratio] in Urine,21,mg/g,numeric
+2026-02-04T16:08:00Z,dbca7fcb-5322-59a4-b28c-e71a0d699bb6,4222d997-c15f-524b-9269-9bc0db0e93b3,vital-signs,8480-6,Systolic Blood Pressure,145,mm[Hg],numeric
+2026-02-04T16:08:00Z,dbca7fcb-5322-59a4-b28c-e71a0d699bb6,4222d997-c15f-524b-9269-9bc0db0e93b3,vital-signs,8462-4,Diastolic Blood Pressure,68,mm[Hg],numeric
+2026-03-09T13:03:00Z,dbca7fcb-5322-59a4-b28c-e71a0d699bb6,ba7b231c-108b-5484-a1ea-bfe2c2c85769,laboratory,4548-4,Hemoglobin A1c,7.9,%,numeric
+2026-06-09T11:37:00Z,dbca7fcb-5322-59a4-b28c-e71a0d699bb6,6544d4a3-b8df-503c-b9c6-00a4233db863,vital-signs,8480-6,Systolic Blood Pressure,118,mm[Hg],numeric
+2026-06-09T11:37:00Z,dbca7fcb-5322-59a4-b28c-e71a0d699bb6,6544d4a3-b8df-503c-b9c6-00a4233db863,vital-signs,8462-4,Diastolic Blood Pressure,75,mm[Hg],numeric
+2026-01-20T08:46:00Z,dfdb8684-0889-52f5-9a92-0936ee362a14,ac5e710f-6aeb-583a-8f7c-f66fc7ba2c10,vital-signs,8480-6,Systolic Blood Pressure,108,mm[Hg],numeric
+2026-01-20T08:46:00Z,dfdb8684-0889-52f5-9a92-0936ee362a14,ac5e710f-6aeb-583a-8f7c-f66fc7ba2c10,vital-signs,8462-4,Diastolic Blood Pressure,66,mm[Hg],numeric
+2026-02-11T13:45:00Z,27b330bb-8457-59be-907e-8522a525586d,814270ba-ba36-58e2-ba2a-918d350f4cd0,laboratory,57905-2,Hemoglobin.gastrointestinal [Presence] in Stool by Immunoassay,Negative,,text
+2025-05-14T14:03:00Z,c7f69a6d-e93a-5992-aaa5-b6ac3e4d21a7,ba8e9864-30f9-5abb-9549-6aef434ec955,laboratory,33914-3,Glomerular filtration rate/1.73 sq M.predicted,78,mL/min/{1.73_m2},numeric
+2025-05-14T14:03:00Z,c7f69a6d-e93a-5992-aaa5-b6ac3e4d21a7,ba8e9864-30f9-5abb-9549-6aef434ec955,laboratory,14959-1,Albumin/Creatinine [Mass Ratio] in Urine,39,mg/g,numeric
+2026-01-07T14:20:00Z,c7f69a6d-e93a-5992-aaa5-b6ac3e4d21a7,8d2aaf8c-0de9-5fc0-9dbc-bdd47b1231f9,laboratory,4548-4,Hemoglobin A1c,6.9,%,numeric
+2026-01-12T14:22:00Z,c7f69a6d-e93a-5992-aaa5-b6ac3e4d21a7,97831444-6b7f-5ef7-8bc9-3fcd85743117,laboratory,4548-4,Hemoglobin A1c,8.8,%,numeric
+2026-04-11T16:22:00Z,c7f69a6d-e93a-5992-aaa5-b6ac3e4d21a7,67d3cdc9-3369-504f-a089-5f72feeafca1,vital-signs,8480-6,Systolic Blood Pressure,113,mm[Hg],numeric
+2026-04-11T16:22:00Z,c7f69a6d-e93a-5992-aaa5-b6ac3e4d21a7,67d3cdc9-3369-504f-a089-5f72feeafca1,vital-signs,8462-4,Diastolic Blood Pressure,74,mm[Hg],numeric
+2026-05-15T09:23:00Z,c7f69a6d-e93a-5992-aaa5-b6ac3e4d21a7,ec2d0715-ea27-5499-86cd-016f1aa7b257,laboratory,4548-4,Hemoglobin A1c,7.2,%,numeric
+2026-03-26T11:06:00Z,4fda9d3f-d04d-5709-82bb-caedf4adabdd,3065df52-de04-541c-a58e-7d8927443112,laboratory,33914-3,Glomerular filtration rate/1.73 sq M.predicted,54,mL/min/{1.73_m2},numeric
+2026-04-24T13:27:00Z,4fda9d3f-d04d-5709-82bb-caedf4adabdd,e6742887-eb9f-55e0-bafd-d59bea511dde,laboratory,14959-1,Albumin/Creatinine [Mass Ratio] in Urine,38,mg/g,numeric
+2025-04-26T12:30:00Z,682bfc08-36f4-593a-b227-0fd3534ffc25,ab1be499-dfbb-5db0-bf8f-80f5ad7d89c0,vital-signs,8480-6,Systolic Blood Pressure,135,mm[Hg],numeric
+2025-04-26T12:30:00Z,682bfc08-36f4-593a-b227-0fd3534ffc25,ab1be499-dfbb-5db0-bf8f-80f5ad7d89c0,vital-signs,8462-4,Diastolic Blood Pressure,74,mm[Hg],numeric
+2025-05-14T13:58:00Z,682bfc08-36f4-593a-b227-0fd3534ffc25,17d59297-eab3-53b9-b347-d92972be94ac,laboratory,33914-3,Glomerular filtration rate/1.73 sq M.predicted,83,mL/min/{1.73_m2},numeric
+2025-05-14T13:58:00Z,682bfc08-36f4-593a-b227-0fd3534ffc25,17d59297-eab3-53b9-b347-d92972be94ac,laboratory,14959-1,Albumin/Creatinine [Mass Ratio] in Urine,24,mg/g,numeric
+2026-06-26T08:44:00Z,682bfc08-36f4-593a-b227-0fd3534ffc25,2dfcf984-d28f-5ac5-b8b5-1b29d88f6def,laboratory,4548-4,Hemoglobin A1c,6.7,%,numeric
+2026-01-15T14:30:00Z,3e3e8e8a-23fb-57dc-96fc-ffb89a290578,4910a780-8c10-5016-8e6b-459ff4f9fb56,vital-signs,8480-6,Systolic Blood Pressure,125,mm[Hg],numeric
+2026-01-15T14:30:00Z,3e3e8e8a-23fb-57dc-96fc-ffb89a290578,4910a780-8c10-5016-8e6b-459ff4f9fb56,vital-signs,8462-4,Diastolic Blood Pressure,68,mm[Hg],numeric
+2026-01-27T10:49:00Z,3e3e8e8a-23fb-57dc-96fc-ffb89a290578,1f247485-55b0-5c55-b4a6-4c159ed7cbef,vital-signs,8480-6,Systolic Blood Pressure,114,mm[Hg],numeric
+2026-01-27T10:49:00Z,3e3e8e8a-23fb-57dc-96fc-ffb89a290578,1f247485-55b0-5c55-b4a6-4c159ed7cbef,vital-signs,8462-4,Diastolic Blood Pressure,65,mm[Hg],numeric
+2026-02-21T14:36:00Z,3e3e8e8a-23fb-57dc-96fc-ffb89a290578,c8bd2a78-2522-5f01-a620-985c90737bd3,laboratory,57905-2,Hemoglobin.gastrointestinal [Presence] in Stool by Immunoassay,Negative,,text
+2026-04-29T15:32:00Z,a77fa91c-0cc8-5798-8646-4da9f83e7900,98600c48-0b36-513d-b73a-26fe79f27da8,vital-signs,8480-6,Systolic Blood Pressure,146,mm[Hg],numeric
+2026-04-29T15:32:00Z,a77fa91c-0cc8-5798-8646-4da9f83e7900,98600c48-0b36-513d-b73a-26fe79f27da8,vital-signs,8462-4,Diastolic Blood Pressure,92,mm[Hg],numeric
+2026-08-29T13:36:00Z,a77fa91c-0cc8-5798-8646-4da9f83e7900,db9c76bb-77dd-570b-af92-069d8b162495,vital-signs,8480-6,Systolic Blood Pressure,170,mm[Hg],numeric
+2026-08-29T13:36:00Z,a77fa91c-0cc8-5798-8646-4da9f83e7900,db9c76bb-77dd-570b-af92-069d8b162495,vital-signs,8462-4,Diastolic Blood Pressure,88,mm[Hg],numeric
+2026-01-07T11:24:00Z,dbcbf29d-686c-5fc1-892c-22d26bdc2826,3738ac01-02a7-50f1-aa2c-659139f9dbf3,laboratory,33914-3,Glomerular filtration rate/1.73 sq M.predicted,83,mL/min/{1.73_m2},numeric
+2026-01-31T11:24:00Z,dbcbf29d-686c-5fc1-892c-22d26bdc2826,b5ce2054-7359-55ee-ba77-f00c234e9ff7,vital-signs,8480-6,Systolic Blood Pressure,123,mm[Hg],numeric
+2026-01-31T11:24:00Z,dbcbf29d-686c-5fc1-892c-22d26bdc2826,b5ce2054-7359-55ee-ba77-f00c234e9ff7,vital-signs,8462-4,Diastolic Blood Pressure,72,mm[Hg],numeric
+2026-02-06T08:20:00Z,dbcbf29d-686c-5fc1-892c-22d26bdc2826,18aa5a25-0aa8-5c85-8148-4fc161131657,laboratory,14959-1,Albumin/Creatinine [Mass Ratio] in Urine,17,mg/g,numeric
+2026-03-25T13:02:00Z,dbcbf29d-686c-5fc1-892c-22d26bdc2826,cfbb708e-0909-54c4-8939-e23140858ca5,vital-signs,8480-6,Systolic Blood Pressure,142,mm[Hg],numeric
+2026-03-25T13:02:00Z,dbcbf29d-686c-5fc1-892c-22d26bdc2826,cfbb708e-0909-54c4-8939-e23140858ca5,vital-signs,8462-4,Diastolic Blood Pressure,93,mm[Hg],numeric
+2026-06-15T10:11:00Z,dbcbf29d-686c-5fc1-892c-22d26bdc2826,c5f4b3a7-2ce5-5da3-866e-d6fe54e8766f,laboratory,4548-4,Hemoglobin A1c,6.6,%,numeric
+2026-07-23T15:51:00Z,dbcbf29d-686c-5fc1-892c-22d26bdc2826,748ee8bd-c429-5188-979c-8c92011471ff,vital-signs,8480-6,Systolic Blood Pressure,137,mm[Hg],numeric
+2026-07-23T15:51:00Z,dbcbf29d-686c-5fc1-892c-22d26bdc2826,748ee8bd-c429-5188-979c-8c92011471ff,vital-signs,8462-4,Diastolic Blood Pressure,86,mm[Hg],numeric
+2026-09-28T14:06:00Z,dbcbf29d-686c-5fc1-892c-22d26bdc2826,a201a99a-510e-5788-8913-59f5bc0e8a7c,laboratory,57905-2,Hemoglobin.gastrointestinal [Presence] in Stool by Immunoassay,Negative,,text
+2023-01-30T15:50:00Z,5b738bea-870f-5513-a8d8-960c53d4ae5c,f19dcfc4-5e03-5b45-bf1f-3d1666fcca6a,laboratory,21440-3,High risk HPV DNA [Presence] in Cervix,Negative,,text
+2026-02-19T09:16:00Z,5cd69f29-23e1-5745-b270-a84f0f1baace,4997edba-feb7-5798-b79c-99557861f98d,laboratory,4548-4,Hemoglobin A1c,9.2,%,numeric
+2026-02-28T13:19:00Z,5cd69f29-23e1-5745-b270-a84f0f1baace,b1c3e6dc-2ff6-52ab-9d7f-56b1cef2888e,laboratory,4548-4,Hemoglobin A1c,9.9,%,numeric
+2026-04-06T08:38:00Z,5cd69f29-23e1-5745-b270-a84f0f1baace,83391328-9bdf-5069-93a9-2db0daf433ca,laboratory,33914-3,Glomerular filtration rate/1.73 sq M.predicted,48,mL/min/{1.73_m2},numeric
+2026-07-30T16:44:00Z,5cd69f29-23e1-5745-b270-a84f0f1baace,e5029908-0194-5d91-b2f9-e04459aaf625,laboratory,4548-4,Hemoglobin A1c,7.5,%,numeric
+2026-09-05T12:26:00Z,5cd69f29-23e1-5745-b270-a84f0f1baace,5cbd568f-f638-5005-a7fb-28ab350aa23c,vital-signs,8480-6,Systolic Blood Pressure,111,mm[Hg],numeric
+2026-09-05T12:26:00Z,5cd69f29-23e1-5745-b270-a84f0f1baace,5cbd568f-f638-5005-a7fb-28ab350aa23c,vital-signs,8462-4,Diastolic Blood Pressure,67,mm[Hg],numeric
+2025-02-07T16:17:00Z,1d940ef2-346c-5c74-b7db-b13cc76af5b8,a5396a11-058f-5d39-b6cf-96c82735389c,vital-signs,8480-6,Systolic Blood Pressure,140,mm[Hg],numeric
+2025-02-07T16:17:00Z,1d940ef2-346c-5c74-b7db-b13cc76af5b8,a5396a11-058f-5d39-b6cf-96c82735389c,vital-signs,8462-4,Diastolic Blood Pressure,91,mm[Hg],numeric
+2026-06-18T10:43:00Z,1d940ef2-346c-5c74-b7db-b13cc76af5b8,bd2cb477-1aa1-58a2-8162-bf9feb151b64,laboratory,33914-3,Glomerular filtration rate/1.73 sq M.predicted,71,mL/min/{1.73_m2},numeric
+2026-09-30T09:02:00Z,1d940ef2-346c-5c74-b7db-b13cc76af5b8,8674286b-5d35-58f7-9551-1146c78a1098,laboratory,4548-4,Hemoglobin A1c,7.3,%,numeric
+2026-03-09T13:19:00Z,49a6b746-337f-564e-8fe8-37e4aa80fee9,a1d3f8c9-1fa3-531e-9c08-97d8a326b393,vital-signs,8480-6,Systolic Blood Pressure,157,mm[Hg],numeric
+2026-03-09T13:19:00Z,49a6b746-337f-564e-8fe8-37e4aa80fee9,a1d3f8c9-1fa3-531e-9c08-97d8a326b393,vital-signs,8462-4,Diastolic Blood Pressure,88,mm[Hg],numeric
+2026-04-26T10:44:00Z,49a6b746-337f-564e-8fe8-37e4aa80fee9,b9e24842-66ac-5b8a-8865-00c2276d4a5a,laboratory,33914-3,Glomerular filtration rate/1.73 sq M.predicted,64,mL/min/{1.73_m2},numeric
+2026-04-26T10:44:00Z,49a6b746-337f-564e-8fe8-37e4aa80fee9,b9e24842-66ac-5b8a-8865-00c2276d4a5a,laboratory,14959-1,Albumin/Creatinine [Mass Ratio] in Urine,46,mg/g,numeric
+2026-06-25T08:05:00Z,49a6b746-337f-564e-8fe8-37e4aa80fee9,047cdd95-f4d6-5573-941d-3160e18dfeed,laboratory,4548-4,Hemoglobin A1c,9.1,%,numeric
+2026-07-17T16:38:00Z,49a6b746-337f-564e-8fe8-37e4aa80fee9,bb7905a4-cf53-5965-bad2-95dc9d3141d9,laboratory,4548-4,Hemoglobin A1c,8.8,%,numeric
+2026-09-23T16:55:00Z,49a6b746-337f-564e-8fe8-37e4aa80fee9,c99ee2d6-4272-59dc-b9dc-2c66f4cabfc2,laboratory,4548-4,Hemoglobin A1c,6.1,%,numeric
+2026-09-26T16:21:00Z,49a6b746-337f-564e-8fe8-37e4aa80fee9,a374d181-4d78-531e-a8dd-8d05400d1db4,vital-signs,8480-6,Systolic Blood Pressure,136,mm[Hg],numeric
+2026-09-26T16:21:00Z,49a6b746-337f-564e-8fe8-37e4aa80fee9,a374d181-4d78-531e-a8dd-8d05400d1db4,vital-signs,8462-4,Diastolic Blood Pressure,97,mm[Hg],numeric
+2026-03-03T16:45:00Z,5dc78374-7e66-581a-929f-1bd762c246ae,5d142db1-0aae-5949-8bdf-20d6c1492be6,vital-signs,8480-6,Systolic Blood Pressure,123,mm[Hg],numeric
+2026-03-03T16:45:00Z,5dc78374-7e66-581a-929f-1bd762c246ae,5d142db1-0aae-5949-8bdf-20d6c1492be6,vital-signs,8462-4,Diastolic Blood Pressure,81,mm[Hg],numeric
+2026-04-10T11:18:00Z,5dc78374-7e66-581a-929f-1bd762c246ae,8eda09ab-af37-5b4f-875b-25842a4dd94b,vital-signs,8480-6,Systolic Blood Pressure,138,mm[Hg],numeric
+2026-04-10T11:18:00Z,5dc78374-7e66-581a-929f-1bd762c246ae,8eda09ab-af37-5b4f-875b-25842a4dd94b,vital-signs,8462-4,Diastolic Blood Pressure,68,mm[Hg],numeric
+2026-04-20T09:33:00Z,5dc78374-7e66-581a-929f-1bd762c246ae,8bd7949f-dd18-5429-a045-4bafda8eca41,laboratory,4548-4,Hemoglobin A1c,6.5,%,numeric
+2026-09-06T10:40:00Z,5dc78374-7e66-581a-929f-1bd762c246ae,5c1d77ac-c3c0-5dbb-b523-f93d5de3c806,laboratory,33914-3,Glomerular filtration rate/1.73 sq M.predicted,110,mL/min/{1.73_m2},numeric
+2026-09-06T10:40:00Z,5dc78374-7e66-581a-929f-1bd762c246ae,5c1d77ac-c3c0-5dbb-b523-f93d5de3c806,laboratory,14959-1,Albumin/Creatinine [Mass Ratio] in Urine,56,mg/g,numeric
+2026-09-24T12:45:00Z,62d95070-99fc-55b1-bcc9-9057fd8bcee8,bfe3befd-6ebc-58a9-8cd5-8b8ad1bd9035,vital-signs,8480-6,Systolic Blood Pressure,116,mm[Hg],numeric
+2026-09-24T12:45:00Z,62d95070-99fc-55b1-bcc9-9057fd8bcee8,bfe3befd-6ebc-58a9-8cd5-8b8ad1bd9035,vital-signs,8462-4,Diastolic Blood Pressure,75,mm[Hg],numeric
+2026-07-09T15:14:00Z,70ed6fea-8b5b-5a4b-b21a-db0cef4cdd46,a5c6c439-bd7d-5cb8-be10-c64606ed2999,vital-signs,8480-6,Systolic Blood Pressure,122,mm[Hg],numeric
+2026-07-09T15:14:00Z,70ed6fea-8b5b-5a4b-b21a-db0cef4cdd46,a5c6c439-bd7d-5cb8-be10-c64606ed2999,vital-signs,8462-4,Diastolic Blood Pressure,94,mm[Hg],numeric
+2026-09-08T13:51:00Z,70ed6fea-8b5b-5a4b-b21a-db0cef4cdd46,0011a1db-4c2e-5925-9f58-075d3affa9f7,vital-signs,8480-6,Systolic Blood Pressure,144,mm[Hg],numeric
+2026-09-08T13:51:00Z,70ed6fea-8b5b-5a4b-b21a-db0cef4cdd46,0011a1db-4c2e-5925-9f58-075d3affa9f7,vital-signs,8462-4,Diastolic Blood Pressure,87,mm[Hg],numeric
+2026-01-22T13:28:00Z,d988f925-6c4f-5d3c-97eb-99b984b8371a,5209d311-df70-5762-b204-bbb119e43243,laboratory,33914-3,Glomerular filtration rate/1.73 sq M.predicted,61,mL/min/{1.73_m2},numeric
+2026-01-22T13:28:00Z,d988f925-6c4f-5d3c-97eb-99b984b8371a,5209d311-df70-5762-b204-bbb119e43243,laboratory,14959-1,Albumin/Creatinine [Mass Ratio] in Urine,15,mg/g,numeric
+2026-02-04T15:45:00Z,d988f925-6c4f-5d3c-97eb-99b984b8371a,5a95bd32-43d6-582e-bd41-bfddf92148a9,laboratory,4548-4,Hemoglobin A1c,7.5,%,numeric
+2026-02-17T09:19:00Z,d988f925-6c4f-5d3c-97eb-99b984b8371a,852fc4d1-bcdb-5ccb-a6f1-0b55af31a3da,vital-signs,8480-6,Systolic Blood Pressure,127,mm[Hg],numeric
+2026-02-17T09:19:00Z,d988f925-6c4f-5d3c-97eb-99b984b8371a,852fc4d1-bcdb-5ccb-a6f1-0b55af31a3da,vital-signs,8462-4,Diastolic Blood Pressure,89,mm[Hg],numeric
+2026-02-24T12:00:00Z,d988f925-6c4f-5d3c-97eb-99b984b8371a,0231142c-8cab-5443-96b2-00aa92dccdd9,vital-signs,8480-6,Systolic Blood Pressure,130,mm[Hg],numeric
+2026-02-24T12:00:00Z,d988f925-6c4f-5d3c-97eb-99b984b8371a,0231142c-8cab-5443-96b2-00aa92dccdd9,vital-signs,8462-4,Diastolic Blood Pressure,75,mm[Hg],numeric
+2026-03-10T12:45:00Z,d988f925-6c4f-5d3c-97eb-99b984b8371a,086537d7-27c5-5a06-9d3e-d2d263391895,laboratory,4548-4,Hemoglobin A1c,7.6,%,numeric
+2026-06-09T11:58:00Z,d988f925-6c4f-5d3c-97eb-99b984b8371a,313abb00-d94f-5dd8-ac9c-9165fcb295f5,vital-signs,8480-6,Systolic Blood Pressure,113,mm[Hg],numeric
+2026-06-09T11:58:00Z,d988f925-6c4f-5d3c-97eb-99b984b8371a,313abb00-d94f-5dd8-ac9c-9165fcb295f5,vital-signs,8462-4,Diastolic Blood Pressure,84,mm[Hg],numeric
+2026-05-06T09:47:00Z,95a3a0ab-aa08-5101-95a6-07044b381622,a50b3713-2300-5dff-853f-95eb95215a4d,vital-signs,8480-6,Systolic Blood Pressure,156,mm[Hg],numeric
+2026-05-06T09:47:00Z,95a3a0ab-aa08-5101-95a6-07044b381622,a50b3713-2300-5dff-853f-95eb95215a4d,vital-signs,8462-4,Diastolic Blood Pressure,68,mm[Hg],numeric
+2026-05-08T12:22:00Z,95a3a0ab-aa08-5101-95a6-07044b381622,65a963f6-0a1d-55a5-a5ba-e774a18d822b,vital-signs,8480-6,Systolic Blood Pressure,120,mm[Hg],numeric
+2026-05-08T12:22:00Z,95a3a0ab-aa08-5101-95a6-07044b381622,65a963f6-0a1d-55a5-a5ba-e774a18d822b,vital-signs,8462-4,Diastolic Blood Pressure,71,mm[Hg],numeric
+2026-01-18T11:58:00Z,df4e94b3-bfa2-514a-98b9-fb039daf05e2,b787851a-92f8-5197-b3c6-99c35c30dd92,laboratory,4548-4,Hemoglobin A1c,7.5,%,numeric
+2026-02-21T08:12:00Z,df4e94b3-bfa2-514a-98b9-fb039daf05e2,53bccf80-faf6-5cbb-be59-1d767e8d370c,vital-signs,8480-6,Systolic Blood Pressure,129,mm[Hg],numeric
+2026-02-21T08:12:00Z,df4e94b3-bfa2-514a-98b9-fb039daf05e2,53bccf80-faf6-5cbb-be59-1d767e8d370c,vital-signs,8462-4,Diastolic Blood Pressure,84,mm[Hg],numeric
+2026-05-26T11:53:00Z,df4e94b3-bfa2-514a-98b9-fb039daf05e2,c7988a16-eea4-558a-856e-ae9648b453de,vital-signs,8480-6,Systolic Blood Pressure,154,mm[Hg],numeric
+2026-05-26T11:53:00Z,df4e94b3-bfa2-514a-98b9-fb039daf05e2,c7988a16-eea4-558a-856e-ae9648b453de,vital-signs,8462-4,Diastolic Blood Pressure,90,mm[Hg],numeric
+2026-08-12T14:43:00Z,df4e94b3-bfa2-514a-98b9-fb039daf05e2,f64b15e0-f351-50d4-b355-60ca337f4cad,laboratory,4548-4,Hemoglobin A1c,10.5,%,numeric
+2026-08-18T12:33:00Z,df4e94b3-bfa2-514a-98b9-fb039daf05e2,37d525f9-f37f-5f42-8feb-1ff52d6019b3,vital-signs,8480-6,Systolic Blood Pressure,114,mm[Hg],numeric
+2026-08-18T12:33:00Z,df4e94b3-bfa2-514a-98b9-fb039daf05e2,37d525f9-f37f-5f42-8feb-1ff52d6019b3,vital-signs,8462-4,Diastolic Blood Pressure,79,mm[Hg],numeric
+2026-05-24T11:12:00Z,caba2c42-684c-57a2-a0a5-3be3f7d16e70,ba82449e-5080-548e-bed6-76689919277b,vital-signs,8480-6,Systolic Blood Pressure,137,mm[Hg],numeric
+2026-05-24T11:12:00Z,caba2c42-684c-57a2-a0a5-3be3f7d16e70,ba82449e-5080-548e-bed6-76689919277b,vital-signs,8462-4,Diastolic Blood Pressure,86,mm[Hg],numeric
+2026-04-10T14:35:00Z,1e3755a3-add8-50e4-ad95-4333588291f9,8e039911-852b-500c-adec-cf5fc8a69efb,vital-signs,8480-6,Systolic Blood Pressure,135,mm[Hg],numeric
+2026-04-10T14:35:00Z,1e3755a3-add8-50e4-ad95-4333588291f9,8e039911-852b-500c-adec-cf5fc8a69efb,vital-signs,8462-4,Diastolic Blood Pressure,75,mm[Hg],numeric
+2026-05-05T14:47:00Z,1e3755a3-add8-50e4-ad95-4333588291f9,a6f716ae-b305-53dd-b39b-6e3af83fa30c,laboratory,33914-3,Glomerular filtration rate/1.73 sq M.predicted,78,mL/min/{1.73_m2},numeric
+2026-05-05T14:47:00Z,1e3755a3-add8-50e4-ad95-4333588291f9,a6f716ae-b305-53dd-b39b-6e3af83fa30c,laboratory,14959-1,Albumin/Creatinine [Mass Ratio] in Urine,30,mg/g,numeric
+2026-07-08T12:48:00Z,1e3755a3-add8-50e4-ad95-4333588291f9,3629934d-4245-5047-b99d-fac0b06583a9,vital-signs,8480-6,Systolic Blood Pressure,121,mm[Hg],numeric
+2026-07-08T12:48:00Z,1e3755a3-add8-50e4-ad95-4333588291f9,3629934d-4245-5047-b99d-fac0b06583a9,vital-signs,8462-4,Diastolic Blood Pressure,77,mm[Hg],numeric
+2026-07-21T12:26:00Z,1e3755a3-add8-50e4-ad95-4333588291f9,3f61a0d5-0de3-54f3-998a-a1a9cbd3f5bb,laboratory,4548-4,Hemoglobin A1c,6.8,%,numeric
+2026-07-24T12:18:00Z,1e3755a3-add8-50e4-ad95-4333588291f9,27e63711-5b64-5b0a-a51e-1069c6deb831,laboratory,4548-4,Hemoglobin A1c,9.5,%,numeric
+2026-09-23T11:07:00Z,1e3755a3-add8-50e4-ad95-4333588291f9,70b59c8c-df5e-567a-a777-f70337a230d0,laboratory,4548-4,Hemoglobin A1c,5.9,%,numeric
+2026-01-14T09:44:00Z,5040d715-6789-5612-afbe-571b0e1ee1e7,2629094e-13a0-5d61-9577-93486e10dd50,laboratory,57905-2,Hemoglobin.gastrointestinal [Presence] in Stool by Immunoassay,Negative,,text
+2026-02-27T08:51:00Z,681acff9-904c-5778-b9a0-f0546110657d,94e405c1-5ae6-5c27-bb96-0d7b197ffd53,vital-signs,8480-6,Systolic Blood Pressure,122,mm[Hg],numeric
+2026-02-27T08:51:00Z,681acff9-904c-5778-b9a0-f0546110657d,94e405c1-5ae6-5c27-bb96-0d7b197ffd53,vital-signs,8462-4,Diastolic Blood Pressure,74,mm[Hg],numeric
+2026-05-04T11:05:00Z,681acff9-904c-5778-b9a0-f0546110657d,59d51a41-6f98-5f07-aa60-8eb6daed614f,vital-signs,8480-6,Systolic Blood Pressure,133,mm[Hg],numeric
+2026-05-04T11:05:00Z,681acff9-904c-5778-b9a0-f0546110657d,59d51a41-6f98-5f07-aa60-8eb6daed614f,vital-signs,8462-4,Diastolic Blood Pressure,73,mm[Hg],numeric
+2026-06-17T11:37:00Z,681acff9-904c-5778-b9a0-f0546110657d,4fca6969-ec33-578b-9be5-f86b9eb44778,vital-signs,8480-6,Systolic Blood Pressure,122,mm[Hg],numeric
+2026-06-17T11:37:00Z,681acff9-904c-5778-b9a0-f0546110657d,4fca6969-ec33-578b-9be5-f86b9eb44778,vital-signs,8462-4,Diastolic Blood Pressure,62,mm[Hg],numeric
+2026-03-24T10:32:00Z,6968e553-fcc1-5104-93b6-dc146ea7c910,d63b4f38-165c-5af9-a747-aaf9e4323a25,vital-signs,8480-6,Systolic Blood Pressure,134,mm[Hg],numeric
+2026-03-24T10:32:00Z,6968e553-fcc1-5104-93b6-dc146ea7c910,d63b4f38-165c-5af9-a747-aaf9e4323a25,vital-signs,8462-4,Diastolic Blood Pressure,84,mm[Hg],numeric
+2026-03-31T08:22:00Z,6968e553-fcc1-5104-93b6-dc146ea7c910,9c368cc7-0b6f-50c7-8f6e-5cb7962425c0,vital-signs,8480-6,Systolic Blood Pressure,135,mm[Hg],numeric
+2026-03-31T08:22:00Z,6968e553-fcc1-5104-93b6-dc146ea7c910,9c368cc7-0b6f-50c7-8f6e-5cb7962425c0,vital-signs,8462-4,Diastolic Blood Pressure,89,mm[Hg],numeric
+2026-04-22T16:14:00Z,6968e553-fcc1-5104-93b6-dc146ea7c910,f662b2ae-9760-5cf9-93d4-24ebac643c6c,vital-signs,8480-6,Systolic Blood Pressure,130,mm[Hg],numeric
+2026-04-22T16:14:00Z,6968e553-fcc1-5104-93b6-dc146ea7c910,f662b2ae-9760-5cf9-93d4-24ebac643c6c,vital-signs,8462-4,Diastolic Blood Pressure,76,mm[Hg],numeric
+2026-04-25T14:35:00Z,6968e553-fcc1-5104-93b6-dc146ea7c910,29de5a93-7093-57cd-8fb5-1477cd7e2afb,laboratory,33914-3,Glomerular filtration rate/1.73 sq M.predicted,67,mL/min/{1.73_m2},numeric
+2026-04-25T14:35:00Z,6968e553-fcc1-5104-93b6-dc146ea7c910,29de5a93-7093-57cd-8fb5-1477cd7e2afb,laboratory,14959-1,Albumin/Creatinine [Mass Ratio] in Urine,5,mg/g,numeric
+2026-04-30T14:42:00Z,6968e553-fcc1-5104-93b6-dc146ea7c910,6f612da1-1e34-5c70-97c8-c7b4ace0e9ab,laboratory,4548-4,Hemoglobin A1c,8.5,%,numeric
+2024-02-20T08:23:00Z,e3c9a63d-e8fa-5dc8-ac66-1e29b34898c7,aab139af-073e-5e09-863b-4f1d65f1d1cb,laboratory,21440-3,High risk HPV DNA [Presence] in Cervix,Negative,,text
+2026-03-01T12:33:00Z,e3c9a63d-e8fa-5dc8-ac66-1e29b34898c7,06fd0562-97f8-5c12-be16-47c609d6db39,vital-signs,8480-6,Systolic Blood Pressure,160,mm[Hg],numeric
+2026-03-01T12:33:00Z,e3c9a63d-e8fa-5dc8-ac66-1e29b34898c7,06fd0562-97f8-5c12-be16-47c609d6db39,vital-signs,8462-4,Diastolic Blood Pressure,89,mm[Hg],numeric
+2026-05-08T08:39:00Z,e3c9a63d-e8fa-5dc8-ac66-1e29b34898c7,24ff0ea1-940a-5df5-8c10-4a3dc2db50ce,vital-signs,8480-6,Systolic Blood Pressure,121,mm[Hg],numeric
+2026-05-08T08:39:00Z,e3c9a63d-e8fa-5dc8-ac66-1e29b34898c7,24ff0ea1-940a-5df5-8c10-4a3dc2db50ce,vital-signs,8462-4,Diastolic Blood Pressure,88,mm[Hg],numeric
+2026-09-18T16:51:00Z,e3c9a63d-e8fa-5dc8-ac66-1e29b34898c7,0422b13d-e024-571a-9b8a-25809966717c,vital-signs,8480-6,Systolic Blood Pressure,121,mm[Hg],numeric
+2026-09-18T16:51:00Z,e3c9a63d-e8fa-5dc8-ac66-1e29b34898c7,0422b13d-e024-571a-9b8a-25809966717c,vital-signs,8462-4,Diastolic Blood Pressure,95,mm[Hg],numeric
+2026-01-08T16:40:00Z,ff5aed1c-b78d-5dc0-9d9e-5a8a62ad3f51,14d6974b-d921-5896-b867-57d19b5baf4b,laboratory,4548-4,Hemoglobin A1c,6.6,%,numeric
+2026-02-11T08:51:00Z,ff5aed1c-b78d-5dc0-9d9e-5a8a62ad3f51,f330c8a6-1b1e-57b1-9b0b-956bed23bd24,vital-signs,8480-6,Systolic Blood Pressure,136,mm[Hg],numeric
+2026-02-11T08:51:00Z,ff5aed1c-b78d-5dc0-9d9e-5a8a62ad3f51,f330c8a6-1b1e-57b1-9b0b-956bed23bd24,vital-signs,8462-4,Diastolic Blood Pressure,95,mm[Hg],numeric
+2026-05-18T13:11:00Z,ff5aed1c-b78d-5dc0-9d9e-5a8a62ad3f51,c05e5499-47d2-5ac9-8c89-fc81552edeeb,laboratory,33914-3,Glomerular filtration rate/1.73 sq M.predicted,64,mL/min/{1.73_m2},numeric
+2026-08-14T13:21:00Z,ff5aed1c-b78d-5dc0-9d9e-5a8a62ad3f51,a788c29e-94d5-5a70-8231-8348ade46d63,laboratory,14959-1,Albumin/Creatinine [Mass Ratio] in Urine,27,mg/g,numeric
+2026-08-17T13:20:00Z,ff5aed1c-b78d-5dc0-9d9e-5a8a62ad3f51,41accaf4-f3a8-5a69-bd44-a71d783f1e84,laboratory,4548-4,Hemoglobin A1c,8.8,%,numeric
+2026-09-16T13:30:00Z,ff5aed1c-b78d-5dc0-9d9e-5a8a62ad3f51,77fb6f69-d384-5cf0-bf12-19172f09b86b,laboratory,4548-4,Hemoglobin A1c,7.6,%,numeric
+2026-09-21T12:23:00Z,ff5aed1c-b78d-5dc0-9d9e-5a8a62ad3f51,f606d3b4-fc11-548d-8c25-d9eeb530bcb1,vital-signs,8480-6,Systolic Blood Pressure,112,mm[Hg],numeric
+2026-09-21T12:23:00Z,ff5aed1c-b78d-5dc0-9d9e-5a8a62ad3f51,f606d3b4-fc11-548d-8c25-d9eeb530bcb1,vital-signs,8462-4,Diastolic Blood Pressure,70,mm[Hg],numeric
+2026-04-01T12:21:00Z,d635534c-491d-5919-b42e-653867d351c5,10a2df0b-ae26-5f3e-8005-9210d2bdcfbb,vital-signs,8480-6,Systolic Blood Pressure,109,mm[Hg],numeric
+2026-04-01T12:21:00Z,d635534c-491d-5919-b42e-653867d351c5,10a2df0b-ae26-5f3e-8005-9210d2bdcfbb,vital-signs,8462-4,Diastolic Blood Pressure,74,mm[Hg],numeric
+2026-03-19T11:37:00Z,d76057bb-de85-5943-a2e0-10497951daf6,b0a0a0f9-9a72-5cd8-adb9-1906ebfab096,laboratory,33914-3,Glomerular filtration rate/1.73 sq M.predicted,87,mL/min/{1.73_m2},numeric
+2026-04-08T10:50:00Z,d76057bb-de85-5943-a2e0-10497951daf6,206d2670-683e-5684-9500-813edeaa1cc0,vital-signs,8480-6,Systolic Blood Pressure,131,mm[Hg],numeric
+2026-04-08T10:50:00Z,d76057bb-de85-5943-a2e0-10497951daf6,206d2670-683e-5684-9500-813edeaa1cc0,vital-signs,8462-4,Diastolic Blood Pressure,74,mm[Hg],numeric
+2026-04-24T12:34:00Z,d76057bb-de85-5943-a2e0-10497951daf6,b1357f10-fb02-5957-8d99-a43a233df74e,laboratory,14959-1,Albumin/Creatinine [Mass Ratio] in Urine,22,mg/g,numeric
+2026-05-29T15:32:00Z,d76057bb-de85-5943-a2e0-10497951daf6,272a6a8e-acb6-5a4f-a67f-bcaa6a3a8783,vital-signs,8480-6,Systolic Blood Pressure,136,mm[Hg],numeric
+2026-05-29T15:32:00Z,d76057bb-de85-5943-a2e0-10497951daf6,272a6a8e-acb6-5a4f-a67f-bcaa6a3a8783,vital-signs,8462-4,Diastolic Blood Pressure,66,mm[Hg],numeric
+2026-09-16T09:23:00Z,d76057bb-de85-5943-a2e0-10497951daf6,8042659a-4570-5666-b88c-e8808644eb74,laboratory,4548-4,Hemoglobin A1c,7.4,%,numeric
+2025-06-25T10:23:00Z,acd259d1-df6c-5421-9ac2-b664e5fe2f5d,64e50f91-6a68-5a5b-a394-74168eb1a0fa,vital-signs,8480-6,Systolic Blood Pressure,141,mm[Hg],numeric
+2025-06-25T10:23:00Z,acd259d1-df6c-5421-9ac2-b664e5fe2f5d,64e50f91-6a68-5a5b-a394-74168eb1a0fa,vital-signs,8462-4,Diastolic Blood Pressure,81,mm[Hg],numeric
+2026-06-26T09:12:00Z,acd259d1-df6c-5421-9ac2-b664e5fe2f5d,cc7aaea9-39a6-5c1e-9c0c-26c5608ad549,laboratory,4548-4,Hemoglobin A1c,7.6,%,numeric
+2026-01-18T10:15:00Z,1532d87b-c231-5a3d-848b-3a44f220fa3d,449a21fb-2ca2-557c-9121-dda8803b15d9,laboratory,4548-4,Hemoglobin A1c,6.5,%,numeric
+2026-02-26T09:04:00Z,1532d87b-c231-5a3d-848b-3a44f220fa3d,bd8c065e-da37-5f6b-a11a-2cae395a7d83,vital-signs,8480-6,Systolic Blood Pressure,139,mm[Hg],numeric
+2026-02-26T09:04:00Z,1532d87b-c231-5a3d-848b-3a44f220fa3d,bd8c065e-da37-5f6b-a11a-2cae395a7d83,vital-signs,8462-4,Diastolic Blood Pressure,84,mm[Hg],numeric
+2026-03-28T08:26:00Z,1532d87b-c231-5a3d-848b-3a44f220fa3d,dacde0cf-b886-51ca-a8c7-4770b98ff462,laboratory,4548-4,Hemoglobin A1c,6.5,%,numeric
+2026-04-26T14:14:00Z,1532d87b-c231-5a3d-848b-3a44f220fa3d,1ceb4935-9508-596b-8fb2-1c69fb5f718a,vital-signs,8480-6,Systolic Blood Pressure,136,mm[Hg],numeric
+2026-04-26T14:14:00Z,1532d87b-c231-5a3d-848b-3a44f220fa3d,1ceb4935-9508-596b-8fb2-1c69fb5f718a,vital-signs,8462-4,Diastolic Blood Pressure,84,mm[Hg],numeric
+2026-06-27T14:08:00Z,1532d87b-c231-5a3d-848b-3a44f220fa3d,c03f27b4-5464-5634-8229-776e403de0ed,laboratory,57905-2,Hemoglobin.gastrointestinal [Presence] in Stool by Immunoassay,Negative,,text
+2026-02-28T13:21:00Z,763090c2-364a-5141-9c20-89119bc0eb9c,4d0e6fab-986c-5263-b649-197a9dcb0bfa,vital-signs,8480-6,Systolic Blood Pressure,146,mm[Hg],numeric
+2026-02-28T13:21:00Z,763090c2-364a-5141-9c20-89119bc0eb9c,4d0e6fab-986c-5263-b649-197a9dcb0bfa,vital-signs,8462-4,Diastolic Blood Pressure,86,mm[Hg],numeric
+2026-02-04T11:21:00Z,9b4b4157-ed4b-5700-abc7-bc591d8aa2f4,d87db864-5586-56a5-bca2-f3671fa6250c,vital-signs,8480-6,Systolic Blood Pressure,134,mm[Hg],numeric
+2026-02-04T11:21:00Z,9b4b4157-ed4b-5700-abc7-bc591d8aa2f4,d87db864-5586-56a5-bca2-f3671fa6250c,vital-signs,8462-4,Diastolic Blood Pressure,84,mm[Hg],numeric
+2026-09-28T16:21:00Z,9b4b4157-ed4b-5700-abc7-bc591d8aa2f4,b35cf159-b0f9-50bd-afe9-402128c80039,vital-signs,8480-6,Systolic Blood Pressure,110,mm[Hg],numeric
+2026-09-28T16:21:00Z,9b4b4157-ed4b-5700-abc7-bc591d8aa2f4,b35cf159-b0f9-50bd-afe9-402128c80039,vital-signs,8462-4,Diastolic Blood Pressure,79,mm[Hg],numeric
+2026-02-14T14:21:00Z,5417478b-78c6-5141-ad47-8b12a72122dc,da5b4158-2450-5db5-996f-45c6e938aa10,vital-signs,8480-6,Systolic Blood Pressure,120,mm[Hg],numeric
+2026-02-14T14:21:00Z,5417478b-78c6-5141-ad47-8b12a72122dc,da5b4158-2450-5db5-996f-45c6e938aa10,vital-signs,8462-4,Diastolic Blood Pressure,95,mm[Hg],numeric
+2026-03-09T14:00:00Z,5417478b-78c6-5141-ad47-8b12a72122dc,41b021d4-630c-5de2-a0c6-d96197a79b1f,vital-signs,8480-6,Systolic Blood Pressure,129,mm[Hg],numeric
+2026-03-09T14:00:00Z,5417478b-78c6-5141-ad47-8b12a72122dc,41b021d4-630c-5de2-a0c6-d96197a79b1f,vital-signs,8462-4,Diastolic Blood Pressure,68,mm[Hg],numeric
+2026-04-23T11:53:00Z,5417478b-78c6-5141-ad47-8b12a72122dc,9df638b1-f91e-5a1c-9520-3a081d74c2e0,laboratory,4548-4,Hemoglobin A1c,8.9,%,numeric
+2026-05-03T13:15:00Z,5417478b-78c6-5141-ad47-8b12a72122dc,91dacfeb-f64a-59a5-9716-f72a5583fa40,laboratory,4548-4,Hemoglobin A1c,6.8,%,numeric
+2026-06-09T12:49:00Z,5417478b-78c6-5141-ad47-8b12a72122dc,52e800fb-4539-549c-827f-c28a51d35920,laboratory,33914-3,Glomerular filtration rate/1.73 sq M.predicted,47,mL/min/{1.73_m2},numeric
+2026-06-09T12:49:00Z,5417478b-78c6-5141-ad47-8b12a72122dc,52e800fb-4539-549c-827f-c28a51d35920,laboratory,14959-1,Albumin/Creatinine [Mass Ratio] in Urine,18,mg/g,numeric
+2026-06-19T11:42:00Z,5417478b-78c6-5141-ad47-8b12a72122dc,5284918a-81d5-5c19-9edf-59e3574f91d1,laboratory,4548-4,Hemoglobin A1c,9.3,%,numeric
+2026-08-27T13:56:00Z,5417478b-78c6-5141-ad47-8b12a72122dc,2e5b84d1-feaf-5668-9394-b67611626b07,vital-signs,8480-6,Systolic Blood Pressure,122,mm[Hg],numeric
+2026-08-27T13:56:00Z,5417478b-78c6-5141-ad47-8b12a72122dc,2e5b84d1-feaf-5668-9394-b67611626b07,vital-signs,8462-4,Diastolic Blood Pressure,67,mm[Hg],numeric
+2026-03-17T15:42:00Z,545b4b7b-29c0-5ac8-b67d-4dd0a81eba1b,0d785c59-719c-5f87-9c32-768aa61b4c09,vital-signs,8480-6,Systolic Blood Pressure,137,mm[Hg],numeric
+2026-03-17T15:42:00Z,545b4b7b-29c0-5ac8-b67d-4dd0a81eba1b,0d785c59-719c-5f87-9c32-768aa61b4c09,vital-signs,8462-4,Diastolic Blood Pressure,81,mm[Hg],numeric
+2025-05-14T12:35:00Z,e2054685-e38d-568b-b94c-9d1107afa71a,0822fa87-af5b-5755-a85f-268ab3059a96,laboratory,33914-3,Glomerular filtration rate/1.73 sq M.predicted,94,mL/min/{1.73_m2},numeric
+2025-05-14T12:35:00Z,e2054685-e38d-568b-b94c-9d1107afa71a,0822fa87-af5b-5755-a85f-268ab3059a96,laboratory,14959-1,Albumin/Creatinine [Mass Ratio] in Urine,29,mg/g,numeric
+2026-05-14T08:43:00Z,e2054685-e38d-568b-b94c-9d1107afa71a,79542dec-b3e8-5a75-9308-cf358568070c,laboratory,57905-2,Hemoglobin.gastrointestinal [Presence] in Stool by Immunoassay,Negative,,text
+2026-05-20T08:37:00Z,e2054685-e38d-568b-b94c-9d1107afa71a,0fe8b135-6e6f-5ed8-9c52-bd2cf0ef0684,laboratory,4548-4,Hemoglobin A1c,5.9,%,numeric
+2026-06-26T10:22:00Z,e2054685-e38d-568b-b94c-9d1107afa71a,4d06bff7-4c60-5bf8-b829-814fa5ef1081,vital-signs,8480-6,Systolic Blood Pressure,139,mm[Hg],numeric
+2026-06-26T10:22:00Z,e2054685-e38d-568b-b94c-9d1107afa71a,4d06bff7-4c60-5bf8-b829-814fa5ef1081,vital-signs,8462-4,Diastolic Blood Pressure,75,mm[Hg],numeric
+2026-08-15T09:35:00Z,e2054685-e38d-568b-b94c-9d1107afa71a,879b06df-f834-5a72-a9cf-de0c2cd90546,vital-signs,8480-6,Systolic Blood Pressure,141,mm[Hg],numeric
+2026-08-15T09:35:00Z,e2054685-e38d-568b-b94c-9d1107afa71a,879b06df-f834-5a72-a9cf-de0c2cd90546,vital-signs,8462-4,Diastolic Blood Pressure,80,mm[Hg],numeric
+2026-09-09T15:55:00Z,e2054685-e38d-568b-b94c-9d1107afa71a,d0bbf3fd-6ef9-54ac-8947-461c285d8464,vital-signs,8480-6,Systolic Blood Pressure,121,mm[Hg],numeric
+2026-09-09T15:55:00Z,e2054685-e38d-568b-b94c-9d1107afa71a,d0bbf3fd-6ef9-54ac-8947-461c285d8464,vital-signs,8462-4,Diastolic Blood Pressure,94,mm[Hg],numeric
+2026-04-08T14:24:00Z,511c9685-3ced-5bed-a77c-88958034d99a,2c4646c4-f5e1-5a0d-8429-dc5be825c2a0,vital-signs,8480-6,Systolic Blood Pressure,151,mm[Hg],numeric
+2026-04-08T14:24:00Z,511c9685-3ced-5bed-a77c-88958034d99a,2c4646c4-f5e1-5a0d-8429-dc5be825c2a0,vital-signs,8462-4,Diastolic Blood Pressure,94,mm[Hg],numeric
+2026-05-10T14:14:00Z,511c9685-3ced-5bed-a77c-88958034d99a,2963a21c-a502-597b-9c8c-37fae069b79c,vital-signs,8480-6,Systolic Blood Pressure,118,mm[Hg],numeric
+2026-05-10T14:14:00Z,511c9685-3ced-5bed-a77c-88958034d99a,2963a21c-a502-597b-9c8c-37fae069b79c,vital-signs,8462-4,Diastolic Blood Pressure,69,mm[Hg],numeric
+2026-08-07T15:02:00Z,511c9685-3ced-5bed-a77c-88958034d99a,1daef141-a6a0-58be-b6de-1a2a2f09d77b,vital-signs,8480-6,Systolic Blood Pressure,133,mm[Hg],numeric
+2026-08-07T15:02:00Z,511c9685-3ced-5bed-a77c-88958034d99a,1daef141-a6a0-58be-b6de-1a2a2f09d77b,vital-signs,8462-4,Diastolic Blood Pressure,63,mm[Hg],numeric
+2026-09-13T15:34:00Z,511c9685-3ced-5bed-a77c-88958034d99a,75cbf502-3348-5779-aa14-32f37d6c7518,laboratory,33914-3,Glomerular filtration rate/1.73 sq M.predicted,49,mL/min/{1.73_m2},numeric
+2026-09-28T08:35:00Z,511c9685-3ced-5bed-a77c-88958034d99a,8dc7d01a-de21-58ea-9310-811984e25459,laboratory,4548-4,Hemoglobin A1c,9.6,%,numeric
+2026-01-14T13:21:00Z,07af81b9-0708-5e23-a05b-97b175aa6cef,f9ff4b70-d612-53c2-b177-61290cae352f,vital-signs,8480-6,Systolic Blood Pressure,150,mm[Hg],numeric
+2026-01-14T13:21:00Z,07af81b9-0708-5e23-a05b-97b175aa6cef,f9ff4b70-d612-53c2-b177-61290cae352f,vital-signs,8462-4,Diastolic Blood Pressure,86,mm[Hg],numeric
+2026-02-21T10:01:00Z,07af81b9-0708-5e23-a05b-97b175aa6cef,e3c80436-0604-5454-b212-4916539ecedd,vital-signs,8480-6,Systolic Blood Pressure,149,mm[Hg],numeric
+2026-02-21T10:01:00Z,07af81b9-0708-5e23-a05b-97b175aa6cef,e3c80436-0604-5454-b212-4916539ecedd,vital-signs,8462-4,Diastolic Blood Pressure,90,mm[Hg],numeric
+2026-05-14T09:26:00Z,07af81b9-0708-5e23-a05b-97b175aa6cef,7a1e529c-e6f9-595f-afec-02483e6b3b3e,vital-signs,8480-6,Systolic Blood Pressure,117,mm[Hg],numeric
+2026-05-14T09:26:00Z,07af81b9-0708-5e23-a05b-97b175aa6cef,7a1e529c-e6f9-595f-afec-02483e6b3b3e,vital-signs,8462-4,Diastolic Blood Pressure,65,mm[Hg],numeric
+2023-12-13T11:34:00Z,25dda220-8dc2-566d-a6f4-57e34871d9e6,26009464-42b7-5bb0-a6c5-9a25abbd39b0,laboratory,21440-3,High risk HPV DNA [Presence] in Cervix,Negative,,text
+2025-07-29T08:29:00Z,25dda220-8dc2-566d-a6f4-57e34871d9e6,a48bcd0d-017d-5cbe-ac75-ae613a1d1b18,laboratory,4548-4,Hemoglobin A1c,9.2,%,numeric
+2026-03-19T15:19:00Z,25dda220-8dc2-566d-a6f4-57e34871d9e6,1f2915d2-3cb6-57d7-b54b-fe246b66130c,vital-signs,8480-6,Systolic Blood Pressure,120,mm[Hg],numeric
+2026-03-19T15:19:00Z,25dda220-8dc2-566d-a6f4-57e34871d9e6,1f2915d2-3cb6-57d7-b54b-fe246b66130c,vital-signs,8462-4,Diastolic Blood Pressure,97,mm[Hg],numeric
+2026-04-22T08:31:00Z,25dda220-8dc2-566d-a6f4-57e34871d9e6,39365893-fc98-5365-9f51-6bfb02fb2af0,laboratory,33914-3,Glomerular filtration rate/1.73 sq M.predicted,55,mL/min/{1.73_m2},numeric
+2026-04-22T08:31:00Z,25dda220-8dc2-566d-a6f4-57e34871d9e6,39365893-fc98-5365-9f51-6bfb02fb2af0,laboratory,14959-1,Albumin/Creatinine [Mass Ratio] in Urine,37,mg/g,numeric
+2026-05-12T15:46:00Z,25dda220-8dc2-566d-a6f4-57e34871d9e6,4ff3873f-c4d0-5638-8966-de5d94274224,vital-signs,8480-6,Systolic Blood Pressure,129,mm[Hg],numeric
+2026-05-12T15:46:00Z,25dda220-8dc2-566d-a6f4-57e34871d9e6,4ff3873f-c4d0-5638-8966-de5d94274224,vital-signs,8462-4,Diastolic Blood Pressure,67,mm[Hg],numeric
+2026-06-18T09:21:00Z,6816660d-3d9f-552a-b760-7c4c24105c60,a51ea203-8e81-5cd0-a6fa-8cee0926013e,laboratory,21440-3,High risk HPV DNA [Presence] in Cervix,Negative,,text
+2026-02-13T15:08:00Z,00fd7cbc-3e76-5dc8-873c-f1993dda21d3,5699a7b9-680b-5a28-a28f-2aeac57b6a16,laboratory,14959-1,Albumin/Creatinine [Mass Ratio] in Urine,37,mg/g,numeric
+2026-04-17T16:04:00Z,00fd7cbc-3e76-5dc8-873c-f1993dda21d3,0996e850-cfa7-5a92-8a3c-e46d0c26a60f,laboratory,33914-3,Glomerular filtration rate/1.73 sq M.predicted,48,mL/min/{1.73_m2},numeric
+2026-03-20T12:39:00Z,e03f1e52-8289-56e6-96fe-f233ee4683c5,ea67d735-46d2-53c0-8bbc-5c853c14c526,vital-signs,8480-6,Systolic Blood Pressure,118,mm[Hg],numeric
+2026-03-20T12:39:00Z,e03f1e52-8289-56e6-96fe-f233ee4683c5,ea67d735-46d2-53c0-8bbc-5c853c14c526,vital-signs,8462-4,Diastolic Blood Pressure,95,mm[Hg],numeric
+2026-03-25T08:31:00Z,e03f1e52-8289-56e6-96fe-f233ee4683c5,128d094c-cbbc-5525-974c-e6724ed7127e,vital-signs,8480-6,Systolic Blood Pressure,133,mm[Hg],numeric
+2026-03-25T08:31:00Z,e03f1e52-8289-56e6-96fe-f233ee4683c5,128d094c-cbbc-5525-974c-e6724ed7127e,vital-signs,8462-4,Diastolic Blood Pressure,80,mm[Hg],numeric
+2026-04-05T14:31:00Z,e03f1e52-8289-56e6-96fe-f233ee4683c5,0a2695cb-df0a-5641-b61b-79d083f127fd,vital-signs,8480-6,Systolic Blood Pressure,128,mm[Hg],numeric
+2026-04-05T14:31:00Z,e03f1e52-8289-56e6-96fe-f233ee4683c5,0a2695cb-df0a-5641-b61b-79d083f127fd,vital-signs,8462-4,Diastolic Blood Pressure,84,mm[Hg],numeric
+2026-04-20T16:20:00Z,a652a264-ee9a-5ea7-8213-b92a05d46aa9,76ba1aa1-ed27-504e-a232-4f504604784f,vital-signs,8480-6,Systolic Blood Pressure,153,mm[Hg],numeric
+2026-04-20T16:20:00Z,a652a264-ee9a-5ea7-8213-b92a05d46aa9,76ba1aa1-ed27-504e-a232-4f504604784f,vital-signs,8462-4,Diastolic Blood Pressure,79,mm[Hg],numeric
+2026-06-24T11:02:00Z,a652a264-ee9a-5ea7-8213-b92a05d46aa9,949bbebe-89ae-5779-a049-09650e39974b,vital-signs,8480-6,Systolic Blood Pressure,152,mm[Hg],numeric
+2026-06-24T11:02:00Z,a652a264-ee9a-5ea7-8213-b92a05d46aa9,949bbebe-89ae-5779-a049-09650e39974b,vital-signs,8462-4,Diastolic Blood Pressure,89,mm[Hg],numeric
+2026-01-19T16:41:00Z,99ae0cbd-b842-5bfd-a959-66675cc36b35,0c1efba4-2e0e-59a6-9573-87cb31cbf6ff,laboratory,4548-4,Hemoglobin A1c,6.7,%,numeric
+2026-02-17T11:07:00Z,99ae0cbd-b842-5bfd-a959-66675cc36b35,f85ee964-8450-510b-a6e1-d1ae1a3a67f5,vital-signs,8480-6,Systolic Blood Pressure,141,mm[Hg],numeric
+2026-02-17T11:07:00Z,99ae0cbd-b842-5bfd-a959-66675cc36b35,f85ee964-8450-510b-a6e1-d1ae1a3a67f5,vital-signs,8462-4,Diastolic Blood Pressure,97,mm[Hg],numeric
+2026-05-01T15:45:00Z,99ae0cbd-b842-5bfd-a959-66675cc36b35,2e46668f-d977-50f1-ada1-f920d43af70b,laboratory,4548-4,Hemoglobin A1c,6.1,%,numeric
+2026-07-22T15:11:00Z,99ae0cbd-b842-5bfd-a959-66675cc36b35,2dec4878-5e00-59dc-84b9-24e981ff5e4b,laboratory,14959-1,Albumin/Creatinine [Mass Ratio] in Urine,17,mg/g,numeric
+2026-09-25T10:15:00Z,99ae0cbd-b842-5bfd-a959-66675cc36b35,ce4d3a0f-bac6-5491-b152-bfc76681d45e,vital-signs,8480-6,Systolic Blood Pressure,157,mm[Hg],numeric
+2026-09-25T10:15:00Z,99ae0cbd-b842-5bfd-a959-66675cc36b35,ce4d3a0f-bac6-5491-b152-bfc76681d45e,vital-signs,8462-4,Diastolic Blood Pressure,76,mm[Hg],numeric
+2026-04-23T13:12:00Z,61bfafb4-a074-584b-b5e9-85f732e24124,02f5e5b9-476e-54a8-b765-89f7157fb780,laboratory,57905-2,Hemoglobin.gastrointestinal [Presence] in Stool by Immunoassay,Negative,,text
+2026-06-02T16:31:00Z,61bfafb4-a074-584b-b5e9-85f732e24124,50fffb7e-3a1a-5004-b5ac-5909276ecc7d,vital-signs,8480-6,Systolic Blood Pressure,124,mm[Hg],numeric
+2026-06-02T16:31:00Z,61bfafb4-a074-584b-b5e9-85f732e24124,50fffb7e-3a1a-5004-b5ac-5909276ecc7d,vital-signs,8462-4,Diastolic Blood Pressure,87,mm[Hg],numeric
+2026-07-11T10:30:00Z,61bfafb4-a074-584b-b5e9-85f732e24124,20cdce99-9236-5b5d-bf57-ed9e6add5833,vital-signs,8480-6,Systolic Blood Pressure,130,mm[Hg],numeric
+2026-07-11T10:30:00Z,61bfafb4-a074-584b-b5e9-85f732e24124,20cdce99-9236-5b5d-bf57-ed9e6add5833,vital-signs,8462-4,Diastolic Blood Pressure,94,mm[Hg],numeric
+2026-08-16T11:33:00Z,61bfafb4-a074-584b-b5e9-85f732e24124,fb2da45b-d156-5a79-9781-eadd9ba2ad65,vital-signs,8480-6,Systolic Blood Pressure,134,mm[Hg],numeric
+2026-08-16T11:33:00Z,61bfafb4-a074-584b-b5e9-85f732e24124,fb2da45b-d156-5a79-9781-eadd9ba2ad65,vital-signs,8462-4,Diastolic Blood Pressure,66,mm[Hg],numeric
+2026-06-24T16:20:00Z,06f666c2-19a3-57d1-b877-366048f494ce,e25b4f50-6963-560a-aadd-b1203f413006,vital-signs,8480-6,Systolic Blood Pressure,112,mm[Hg],numeric
+2026-06-24T16:20:00Z,06f666c2-19a3-57d1-b877-366048f494ce,e25b4f50-6963-560a-aadd-b1203f413006,vital-signs,8462-4,Diastolic Blood Pressure,65,mm[Hg],numeric
+2022-08-26T09:44:00Z,aa7dc6b2-1dde-5fbd-a3f7-50d7396afaa3,6e3dceac-ace1-548e-87f5-169c2963d0fc,laboratory,21440-3,High risk HPV DNA [Presence] in Cervix,Negative,,text
+2026-03-17T10:54:00Z,80318a3c-ec6e-5875-a9aa-9fa490bdfcd7,807504fe-c3f9-5c5d-bd10-9ef28561084a,vital-signs,8480-6,Systolic Blood Pressure,123,mm[Hg],numeric
+2026-03-17T10:54:00Z,80318a3c-ec6e-5875-a9aa-9fa490bdfcd7,807504fe-c3f9-5c5d-bd10-9ef28561084a,vital-signs,8462-4,Diastolic Blood Pressure,92,mm[Hg],numeric
+2026-05-21T11:49:00Z,80318a3c-ec6e-5875-a9aa-9fa490bdfcd7,ee423177-b8b8-5d2b-ac33-8029402d03db,laboratory,4548-4,Hemoglobin A1c,6.9,%,numeric
+2026-06-11T10:18:00Z,80318a3c-ec6e-5875-a9aa-9fa490bdfcd7,93fb43cb-7fd4-54a7-a48f-06ed1ae9f1d6,laboratory,33914-3,Glomerular filtration rate/1.73 sq M.predicted,94,mL/min/{1.73_m2},numeric
+2026-06-25T13:29:00Z,80318a3c-ec6e-5875-a9aa-9fa490bdfcd7,8ea501cf-d782-535a-aec8-ab5f14caea34,vital-signs,8480-6,Systolic Blood Pressure,132,mm[Hg],numeric
+2026-06-25T13:29:00Z,80318a3c-ec6e-5875-a9aa-9fa490bdfcd7,8ea501cf-d782-535a-aec8-ab5f14caea34,vital-signs,8462-4,Diastolic Blood Pressure,67,mm[Hg],numeric
+2026-07-13T13:40:00Z,80318a3c-ec6e-5875-a9aa-9fa490bdfcd7,ab578f11-4856-542f-a8de-53b811c3c4ae,laboratory,4548-4,Hemoglobin A1c,9.4,%,numeric
+2026-08-13T11:00:00Z,80318a3c-ec6e-5875-a9aa-9fa490bdfcd7,d163b7f4-34ab-5a02-b3bb-1b93386e1699,laboratory,57905-2,Hemoglobin.gastrointestinal [Presence] in Stool by Immunoassay,Negative,,text
+2026-07-20T14:15:00Z,6e60c02d-5220-5ecb-baf8-050d7a5a58fb,362259b1-3046-5c05-81fc-5b19c01078e1,laboratory,33914-3,Glomerular filtration rate/1.73 sq M.predicted,72,mL/min/{1.73_m2},numeric
+2026-02-24T08:39:00Z,083df2c2-ca8a-5825-9f76-73ff49346393,b723be57-37d4-5aa4-bc23-65f0326cb4f8,laboratory,4548-4,Hemoglobin A1c,7.0,%,numeric
+2026-03-03T14:30:00Z,083df2c2-ca8a-5825-9f76-73ff49346393,a40deb51-75c7-59b7-91fd-8161a42b5bb9,vital-signs,8480-6,Systolic Blood Pressure,110,mm[Hg],numeric
+2026-03-03T14:30:00Z,083df2c2-ca8a-5825-9f76-73ff49346393,a40deb51-75c7-59b7-91fd-8161a42b5bb9,vital-signs,8462-4,Diastolic Blood Pressure,77,mm[Hg],numeric
+2026-04-05T12:11:00Z,083df2c2-ca8a-5825-9f76-73ff49346393,5f1262d3-4aef-59d0-a26e-8a951386e003,laboratory,33914-3,Glomerular filtration rate/1.73 sq M.predicted,68,mL/min/{1.73_m2},numeric
+2026-04-05T12:11:00Z,083df2c2-ca8a-5825-9f76-73ff49346393,5f1262d3-4aef-59d0-a26e-8a951386e003,laboratory,14959-1,Albumin/Creatinine [Mass Ratio] in Urine,53,mg/g,numeric
+2026-08-25T16:11:00Z,e0ec4144-db75-51d0-a36f-ef4ae55d5c4a,4ce00cde-567b-513f-8c9e-655bfb73c9a4,laboratory,33914-3,Glomerular filtration rate/1.73 sq M.predicted,108,mL/min/{1.73_m2},numeric
+2026-02-16T14:10:00Z,95c4e83e-d8bd-58bd-987c-306842ddd5e9,0a05a51f-c9b0-5070-b5d0-5f7130e42242,vital-signs,8480-6,Systolic Blood Pressure,127,mm[Hg],numeric
+2026-02-16T14:10:00Z,95c4e83e-d8bd-58bd-987c-306842ddd5e9,0a05a51f-c9b0-5070-b5d0-5f7130e42242,vital-signs,8462-4,Diastolic Blood Pressure,96,mm[Hg],numeric
+2026-09-25T14:53:00Z,95c4e83e-d8bd-58bd-987c-306842ddd5e9,4aaa7aae-1c17-5226-8830-e17940f0af48,vital-signs,8480-6,Systolic Blood Pressure,145,mm[Hg],numeric
+2026-09-25T14:53:00Z,95c4e83e-d8bd-58bd-987c-306842ddd5e9,4aaa7aae-1c17-5226-8830-e17940f0af48,vital-signs,8462-4,Diastolic Blood Pressure,86,mm[Hg],numeric
+2025-05-14T11:36:00Z,f05a061c-eb38-587a-ba3f-db1c348aaf74,d2082bdd-ae6c-5221-a667-de14a61bc6a2,laboratory,33914-3,Glomerular filtration rate/1.73 sq M.predicted,75,mL/min/{1.73_m2},numeric
+2025-05-14T11:36:00Z,f05a061c-eb38-587a-ba3f-db1c348aaf74,d2082bdd-ae6c-5221-a667-de14a61bc6a2,laboratory,14959-1,Albumin/Creatinine [Mass Ratio] in Urine,11,mg/g,numeric
+2025-10-28T16:16:00Z,f05a061c-eb38-587a-ba3f-db1c348aaf74,14e61b78-2c35-5a10-9ae6-d11d8d2f04d9,laboratory,4548-4,Hemoglobin A1c,9.6,%,numeric
+2026-01-23T14:01:00Z,f05a061c-eb38-587a-ba3f-db1c348aaf74,2ec0f831-0700-5308-bd2c-0e703fd91a31,vital-signs,8480-6,Systolic Blood Pressure,143,mm[Hg],numeric
+2026-01-23T14:01:00Z,f05a061c-eb38-587a-ba3f-db1c348aaf74,2ec0f831-0700-5308-bd2c-0e703fd91a31,vital-signs,8462-4,Diastolic Blood Pressure,73,mm[Hg],numeric
+2026-02-08T13:16:00Z,f05a061c-eb38-587a-ba3f-db1c348aaf74,37b25ca5-17d6-5978-b825-14462d76c8e7,vital-signs,8480-6,Systolic Blood Pressure,118,mm[Hg],numeric
+2026-02-08T13:16:00Z,f05a061c-eb38-587a-ba3f-db1c348aaf74,37b25ca5-17d6-5978-b825-14462d76c8e7,vital-signs,8462-4,Diastolic Blood Pressure,93,mm[Hg],numeric
+2026-09-26T10:11:00Z,f05a061c-eb38-587a-ba3f-db1c348aaf74,a04b9002-c267-5416-a195-8f4fa56a6c97,vital-signs,8480-6,Systolic Blood Pressure,152,mm[Hg],numeric
+2026-09-26T10:11:00Z,f05a061c-eb38-587a-ba3f-db1c348aaf74,a04b9002-c267-5416-a195-8f4fa56a6c97,vital-signs,8462-4,Diastolic Blood Pressure,72,mm[Hg],numeric
+2025-08-09T14:26:00Z,adc1ed12-bc57-5c62-b400-e0b1c38a332e,4f7667d7-070b-54ce-9d6f-654196012112,vital-signs,8480-6,Systolic Blood Pressure,128,mm[Hg],numeric
+2025-08-09T14:26:00Z,adc1ed12-bc57-5c62-b400-e0b1c38a332e,4f7667d7-070b-54ce-9d6f-654196012112,vital-signs,8462-4,Diastolic Blood Pressure,88,mm[Hg],numeric
+2026-02-28T10:11:00Z,b2daff4a-27c5-5fef-9cf1-3da277851c2a,d05fb319-28cc-5a01-95d2-f2b856bf6d68,vital-signs,8480-6,Systolic Blood Pressure,149,mm[Hg],numeric
+2026-02-28T10:11:00Z,b2daff4a-27c5-5fef-9cf1-3da277851c2a,d05fb319-28cc-5a01-95d2-f2b856bf6d68,vital-signs,8462-4,Diastolic Blood Pressure,88,mm[Hg],numeric
+2026-07-30T15:23:00Z,b2daff4a-27c5-5fef-9cf1-3da277851c2a,8f68b0a7-9f0f-5c90-b695-2b9027310f26,vital-signs,8480-6,Systolic Blood Pressure,124,mm[Hg],numeric
+2026-07-30T15:23:00Z,b2daff4a-27c5-5fef-9cf1-3da277851c2a,8f68b0a7-9f0f-5c90-b695-2b9027310f26,vital-signs,8462-4,Diastolic Blood Pressure,87,mm[Hg],numeric
+2025-10-31T12:53:00Z,1258689c-f88e-5cfa-b6ef-943b732687cb,2d2dad91-a898-55fd-af93-26ace004651a,vital-signs,8480-6,Systolic Blood Pressure,135,mm[Hg],numeric
+2025-10-31T12:53:00Z,1258689c-f88e-5cfa-b6ef-943b732687cb,2d2dad91-a898-55fd-af93-26ace004651a,vital-signs,8462-4,Diastolic Blood Pressure,85,mm[Hg],numeric
+2026-03-04T14:10:00Z,1258689c-f88e-5cfa-b6ef-943b732687cb,b1fa61ed-5253-5cff-b7c0-84f0e61bdbfa,laboratory,33914-3,Glomerular filtration rate/1.73 sq M.predicted,51,mL/min/{1.73_m2},numeric
+2026-03-04T14:10:00Z,1258689c-f88e-5cfa-b6ef-943b732687cb,b1fa61ed-5253-5cff-b7c0-84f0e61bdbfa,laboratory,14959-1,Albumin/Creatinine [Mass Ratio] in Urine,51,mg/g,numeric
+2026-08-16T08:20:00Z,1258689c-f88e-5cfa-b6ef-943b732687cb,50f4e572-8165-51bb-b33a-110f6a4617b9,laboratory,4548-4,Hemoglobin A1c,7.2,%,numeric
+2023-03-09T14:02:00Z,cf12a4ad-9301-52c4-8b0e-cac0a99ec9d9,41d9efc7-1cd4-5b70-93fa-c3792e3c17ff,laboratory,21440-3,High risk HPV DNA [Presence] in Cervix,Negative,,text
+2026-04-13T13:37:00Z,cf12a4ad-9301-52c4-8b0e-cac0a99ec9d9,03e00944-f628-57b3-a26b-8ab2e3556941,vital-signs,8480-6,Systolic Blood Pressure,149,mm[Hg],numeric
+2026-04-13T13:37:00Z,cf12a4ad-9301-52c4-8b0e-cac0a99ec9d9,03e00944-f628-57b3-a26b-8ab2e3556941,vital-signs,8462-4,Diastolic Blood Pressure,80,mm[Hg],numeric
+2026-05-24T16:55:00Z,cf12a4ad-9301-52c4-8b0e-cac0a99ec9d9,58d95fa6-a51c-5f25-aa23-8066c9a075e6,vital-signs,8480-6,Systolic Blood Pressure,125,mm[Hg],numeric
+2026-05-24T16:55:00Z,cf12a4ad-9301-52c4-8b0e-cac0a99ec9d9,58d95fa6-a51c-5f25-aa23-8066c9a075e6,vital-signs,8462-4,Diastolic Blood Pressure,96,mm[Hg],numeric
+2026-02-09T08:34:00Z,58b60b33-ed39-54f8-a00c-c060ada4ef9b,74dfebda-42b6-5114-be30-a8db8d1799ab,vital-signs,8480-6,Systolic Blood Pressure,132,mm[Hg],numeric
+2026-02-09T08:34:00Z,58b60b33-ed39-54f8-a00c-c060ada4ef9b,74dfebda-42b6-5114-be30-a8db8d1799ab,vital-signs,8462-4,Diastolic Blood Pressure,84,mm[Hg],numeric
+2026-04-14T10:10:00Z,58b60b33-ed39-54f8-a00c-c060ada4ef9b,f38d32d7-50ee-58a5-a34c-d0f0e2e5714d,vital-signs,8480-6,Systolic Blood Pressure,132,mm[Hg],numeric
+2026-04-14T10:10:00Z,58b60b33-ed39-54f8-a00c-c060ada4ef9b,f38d32d7-50ee-58a5-a34c-d0f0e2e5714d,vital-signs,8462-4,Diastolic Blood Pressure,85,mm[Hg],numeric
+2026-09-22T09:28:00Z,58b60b33-ed39-54f8-a00c-c060ada4ef9b,a2b15fb2-a01a-50a8-892e-5b1a666034cc,vital-signs,8480-6,Systolic Blood Pressure,128,mm[Hg],numeric
+2026-09-22T09:28:00Z,58b60b33-ed39-54f8-a00c-c060ada4ef9b,a2b15fb2-a01a-50a8-892e-5b1a666034cc,vital-signs,8462-4,Diastolic Blood Pressure,67,mm[Hg],numeric
+2026-02-04T08:45:00Z,b9009025-9e19-53ae-ac52-cc0ef7b4b2d8,fd6ffeaa-429a-5c6e-97e8-643621881a23,laboratory,4548-4,Hemoglobin A1c,8.8,%,numeric
+2026-03-05T10:46:00Z,b9009025-9e19-53ae-ac52-cc0ef7b4b2d8,a297c946-454a-508e-9a2c-3c4a62573962,vital-signs,8480-6,Systolic Blood Pressure,108,mm[Hg],numeric
+2026-03-05T10:46:00Z,b9009025-9e19-53ae-ac52-cc0ef7b4b2d8,a297c946-454a-508e-9a2c-3c4a62573962,vital-signs,8462-4,Diastolic Blood Pressure,71,mm[Hg],numeric
+2026-05-10T08:29:00Z,b9009025-9e19-53ae-ac52-cc0ef7b4b2d8,0d464b23-e113-599a-b921-c813211f711e,laboratory,33914-3,Glomerular filtration rate/1.73 sq M.predicted,95,mL/min/{1.73_m2},numeric
+2026-06-22T12:35:00Z,b9009025-9e19-53ae-ac52-cc0ef7b4b2d8,b32ff5bd-5c98-5293-86d8-fc1deabe2f72,laboratory,4548-4,Hemoglobin A1c,5.6,%,numeric
+2026-09-10T10:36:00Z,b9009025-9e19-53ae-ac52-cc0ef7b4b2d8,979de87d-16c5-5531-b01f-9850b6de7002,laboratory,57905-2,Hemoglobin.gastrointestinal [Presence] in Stool by Immunoassay,Negative,,text
+2026-01-08T11:56:00Z,e747c2c2-5aa6-5935-a287-4ad740421fe6,be2cfdb3-f0c4-5e53-b1a2-98d96842ee4c,vital-signs,8480-6,Systolic Blood Pressure,130,mm[Hg],numeric
+2026-01-08T11:56:00Z,e747c2c2-5aa6-5935-a287-4ad740421fe6,be2cfdb3-f0c4-5e53-b1a2-98d96842ee4c,vital-signs,8462-4,Diastolic Blood Pressure,84,mm[Hg],numeric
+2026-01-25T12:57:00Z,e747c2c2-5aa6-5935-a287-4ad740421fe6,3db8d5b9-12b1-56ee-a627-faf830b9101c,laboratory,4548-4,Hemoglobin A1c,7.3,%,numeric
+2026-02-09T08:48:00Z,e747c2c2-5aa6-5935-a287-4ad740421fe6,98fc3a9c-ceb2-5a8f-a3d8-9e412241e22e,vital-signs,8480-6,Systolic Blood Pressure,126,mm[Hg],numeric
+2026-02-09T08:48:00Z,e747c2c2-5aa6-5935-a287-4ad740421fe6,98fc3a9c-ceb2-5a8f-a3d8-9e412241e22e,vital-signs,8462-4,Diastolic Blood Pressure,62,mm[Hg],numeric
+2026-02-12T10:04:00Z,e747c2c2-5aa6-5935-a287-4ad740421fe6,7ebdf711-66a5-5035-85e1-fc333e20cf37,laboratory,33914-3,Glomerular filtration rate/1.73 sq M.predicted,58,mL/min/{1.73_m2},numeric
+2026-02-12T10:04:00Z,e747c2c2-5aa6-5935-a287-4ad740421fe6,7ebdf711-66a5-5035-85e1-fc333e20cf37,laboratory,14959-1,Albumin/Creatinine [Mass Ratio] in Urine,45,mg/g,numeric
+2026-02-14T09:26:00Z,e747c2c2-5aa6-5935-a287-4ad740421fe6,1d591cfb-8e96-55c8-953f-f7e0556dd087,laboratory,4548-4,Hemoglobin A1c,7.9,%,numeric
+2026-03-24T08:04:00Z,3324af6c-1676-53bd-8b8b-1adee8a368f8,310d0a49-d8dc-5d31-9d6d-75897d16f913,vital-signs,8480-6,Systolic Blood Pressure,159,mm[Hg],numeric
+2026-03-24T08:04:00Z,3324af6c-1676-53bd-8b8b-1adee8a368f8,310d0a49-d8dc-5d31-9d6d-75897d16f913,vital-signs,8462-4,Diastolic Blood Pressure,94,mm[Hg],numeric
+2026-05-01T10:44:00Z,3324af6c-1676-53bd-8b8b-1adee8a368f8,97c659ec-260f-54e0-ada6-8573d0ace36c,vital-signs,8480-6,Systolic Blood Pressure,126,mm[Hg],numeric
+2026-05-01T10:44:00Z,3324af6c-1676-53bd-8b8b-1adee8a368f8,97c659ec-260f-54e0-ada6-8573d0ace36c,vital-signs,8462-4,Diastolic Blood Pressure,71,mm[Hg],numeric
+2026-05-23T11:36:00Z,3324af6c-1676-53bd-8b8b-1adee8a368f8,b93f2543-dec0-5d4e-9050-7883e80cce31,vital-signs,8480-6,Systolic Blood Pressure,144,mm[Hg],numeric
+2026-05-23T11:36:00Z,3324af6c-1676-53bd-8b8b-1adee8a368f8,b93f2543-dec0-5d4e-9050-7883e80cce31,vital-signs,8462-4,Diastolic Blood Pressure,83,mm[Hg],numeric
+2026-03-23T11:35:00Z,54de997b-43e8-5f81-abda-1b8624976530,a045f86e-cf69-5008-a833-9fe76198384d,vital-signs,8480-6,Systolic Blood Pressure,131,mm[Hg],numeric
+2026-03-23T11:35:00Z,54de997b-43e8-5f81-abda-1b8624976530,a045f86e-cf69-5008-a833-9fe76198384d,vital-signs,8462-4,Diastolic Blood Pressure,69,mm[Hg],numeric
+2026-06-30T10:52:00Z,54de997b-43e8-5f81-abda-1b8624976530,286a72af-3347-57e2-8167-86d0596c761e,vital-signs,8480-6,Systolic Blood Pressure,140,mm[Hg],numeric
+2026-06-30T10:52:00Z,54de997b-43e8-5f81-abda-1b8624976530,286a72af-3347-57e2-8167-86d0596c761e,vital-signs,8462-4,Diastolic Blood Pressure,91,mm[Hg],numeric
+2026-09-03T14:46:00Z,54de997b-43e8-5f81-abda-1b8624976530,6f991b0c-8cce-5faa-a1e0-3e52751192ac,vital-signs,8480-6,Systolic Blood Pressure,113,mm[Hg],numeric
+2026-09-03T14:46:00Z,54de997b-43e8-5f81-abda-1b8624976530,6f991b0c-8cce-5faa-a1e0-3e52751192ac,vital-signs,8462-4,Diastolic Blood Pressure,87,mm[Hg],numeric
+2026-01-18T14:46:00Z,4db8d604-2542-5a31-b7f7-e5055392b65f,2013f8a5-9bae-5e69-b11f-02ff770645f0,vital-signs,8480-6,Systolic Blood Pressure,133,mm[Hg],numeric
+2026-01-18T14:46:00Z,4db8d604-2542-5a31-b7f7-e5055392b65f,2013f8a5-9bae-5e69-b11f-02ff770645f0,vital-signs,8462-4,Diastolic Blood Pressure,82,mm[Hg],numeric
+2026-09-24T13:13:00Z,4db8d604-2542-5a31-b7f7-e5055392b65f,02065c19-ca13-5d24-b097-01d3dd931e9b,vital-signs,8480-6,Systolic Blood Pressure,124,mm[Hg],numeric
+2026-09-24T13:13:00Z,4db8d604-2542-5a31-b7f7-e5055392b65f,02065c19-ca13-5d24-b097-01d3dd931e9b,vital-signs,8462-4,Diastolic Blood Pressure,82,mm[Hg],numeric
+2025-05-14T15:51:00Z,d1c739f4-597e-569b-8e85-c4cb9f0c8e69,8042699c-ba97-5290-982d-06f032a4c44f,laboratory,33914-3,Glomerular filtration rate/1.73 sq M.predicted,85,mL/min/{1.73_m2},numeric
+2025-05-14T15:51:00Z,d1c739f4-597e-569b-8e85-c4cb9f0c8e69,8042699c-ba97-5290-982d-06f032a4c44f,laboratory,14959-1,Albumin/Creatinine [Mass Ratio] in Urine,5,mg/g,numeric
+2026-01-20T16:36:00Z,d1c739f4-597e-569b-8e85-c4cb9f0c8e69,149833ee-57ce-5aa0-8556-c0facbfc9806,vital-signs,8480-6,Systolic Blood Pressure,139,mm[Hg],numeric
+2026-01-20T16:36:00Z,d1c739f4-597e-569b-8e85-c4cb9f0c8e69,149833ee-57ce-5aa0-8556-c0facbfc9806,vital-signs,8462-4,Diastolic Blood Pressure,87,mm[Hg],numeric
+2026-02-06T10:45:00Z,d1c739f4-597e-569b-8e85-c4cb9f0c8e69,9d3a7b1e-6a09-576b-904d-63ab6f2f904e,vital-signs,8480-6,Systolic Blood Pressure,122,mm[Hg],numeric
+2026-02-06T10:45:00Z,d1c739f4-597e-569b-8e85-c4cb9f0c8e69,9d3a7b1e-6a09-576b-904d-63ab6f2f904e,vital-signs,8462-4,Diastolic Blood Pressure,80,mm[Hg],numeric
+2026-03-28T11:58:00Z,d1c739f4-597e-569b-8e85-c4cb9f0c8e69,74ebe013-a80e-58ac-9543-54626948e9b1,vital-signs,8480-6,Systolic Blood Pressure,136,mm[Hg],numeric
+2026-03-28T11:58:00Z,d1c739f4-597e-569b-8e85-c4cb9f0c8e69,74ebe013-a80e-58ac-9543-54626948e9b1,vital-signs,8462-4,Diastolic Blood Pressure,98,mm[Hg],numeric
+2026-03-24T15:50:00Z,43e7537d-c740-5d55-8b5f-fd9f91543436,7885a70a-6a34-5192-8897-ebf5bfcfa20c,vital-signs,8480-6,Systolic Blood Pressure,135,mm[Hg],numeric
+2026-03-24T15:50:00Z,43e7537d-c740-5d55-8b5f-fd9f91543436,7885a70a-6a34-5192-8897-ebf5bfcfa20c,vital-signs,8462-4,Diastolic Blood Pressure,68,mm[Hg],numeric
+2026-06-06T11:54:00Z,675e859c-8590-57a3-b2ac-12271c19dff0,d725b5be-1f21-51b6-bb54-57f950d3d705,vital-signs,8480-6,Systolic Blood Pressure,137,mm[Hg],numeric
+2026-06-06T11:54:00Z,675e859c-8590-57a3-b2ac-12271c19dff0,d725b5be-1f21-51b6-bb54-57f950d3d705,vital-signs,8462-4,Diastolic Blood Pressure,98,mm[Hg],numeric
+2026-06-09T09:16:00Z,675e859c-8590-57a3-b2ac-12271c19dff0,7b3f5e82-dcae-5222-a60f-bc434efb4665,vital-signs,8480-6,Systolic Blood Pressure,146,mm[Hg],numeric
+2026-06-09T09:16:00Z,675e859c-8590-57a3-b2ac-12271c19dff0,7b3f5e82-dcae-5222-a60f-bc434efb4665,vital-signs,8462-4,Diastolic Blood Pressure,86,mm[Hg],numeric
+2026-03-02T14:11:00Z,86d834b8-ac1f-53aa-96cf-19dbefd16e21,a9bf1701-9054-5b98-93f5-77f1f77104c0,laboratory,14959-1,Albumin/Creatinine [Mass Ratio] in Urine,46,mg/g,numeric
+2026-03-14T16:17:00Z,86d834b8-ac1f-53aa-96cf-19dbefd16e21,8756e6fa-9039-5c4d-9828-9fbc8147ae71,vital-signs,8480-6,Systolic Blood Pressure,150,mm[Hg],numeric
+2026-03-14T16:17:00Z,86d834b8-ac1f-53aa-96cf-19dbefd16e21,8756e6fa-9039-5c4d-9828-9fbc8147ae71,vital-signs,8462-4,Diastolic Blood Pressure,98,mm[Hg],numeric
+2026-04-08T11:19:00Z,86d834b8-ac1f-53aa-96cf-19dbefd16e21,b55cc77d-21ec-5feb-bf15-7690d339e917,laboratory,4548-4,Hemoglobin A1c,5.9,%,numeric
+2026-05-08T10:20:00Z,86d834b8-ac1f-53aa-96cf-19dbefd16e21,1f8a3928-0ffe-5604-a07a-136e72573f03,vital-signs,8480-6,Systolic Blood Pressure,121,mm[Hg],numeric
+2026-05-08T10:20:00Z,86d834b8-ac1f-53aa-96cf-19dbefd16e21,1f8a3928-0ffe-5604-a07a-136e72573f03,vital-signs,8462-4,Diastolic Blood Pressure,74,mm[Hg],numeric
+2026-07-02T10:13:00Z,86d834b8-ac1f-53aa-96cf-19dbefd16e21,261aae94-3109-5876-b482-63e44ea45399,vital-signs,8480-6,Systolic Blood Pressure,131,mm[Hg],numeric
+2026-07-02T10:13:00Z,86d834b8-ac1f-53aa-96cf-19dbefd16e21,261aae94-3109-5876-b482-63e44ea45399,vital-signs,8462-4,Diastolic Blood Pressure,90,mm[Hg],numeric
+2025-04-30T16:15:00Z,cc280c91-9348-5b24-93ba-5a3aa59e7c78,a884706e-79c9-56e3-a491-bc4a621b4e13,laboratory,21440-3,High risk HPV DNA [Presence] in Cervix,Negative,,text
+2026-04-30T08:54:00Z,cc280c91-9348-5b24-93ba-5a3aa59e7c78,71738bd5-373e-5454-87c4-285b3ed94f3f,vital-signs,8480-6,Systolic Blood Pressure,135,mm[Hg],numeric
+2026-04-30T08:54:00Z,cc280c91-9348-5b24-93ba-5a3aa59e7c78,71738bd5-373e-5454-87c4-285b3ed94f3f,vital-signs,8462-4,Diastolic Blood Pressure,88,mm[Hg],numeric
+2026-09-05T08:40:00Z,cc280c91-9348-5b24-93ba-5a3aa59e7c78,f9197a25-2909-57d7-b386-73ba9a462d1a,vital-signs,8480-6,Systolic Blood Pressure,129,mm[Hg],numeric
+2026-09-05T08:40:00Z,cc280c91-9348-5b24-93ba-5a3aa59e7c78,f9197a25-2909-57d7-b386-73ba9a462d1a,vital-signs,8462-4,Diastolic Blood Pressure,71,mm[Hg],numeric
+2026-09-19T15:46:00Z,cc280c91-9348-5b24-93ba-5a3aa59e7c78,e59a6dce-d6da-5857-b1e2-5e882060c8e6,vital-signs,8480-6,Systolic Blood Pressure,120,mm[Hg],numeric
+2026-09-19T15:46:00Z,cc280c91-9348-5b24-93ba-5a3aa59e7c78,e59a6dce-d6da-5857-b1e2-5e882060c8e6,vital-signs,8462-4,Diastolic Blood Pressure,82,mm[Hg],numeric
+2026-05-10T12:50:00Z,50495b4c-258a-5e35-8ac3-68282cc7feb9,02b7fe2c-37ee-55ce-846d-bf907744d228,vital-signs,8480-6,Systolic Blood Pressure,119,mm[Hg],numeric
+2026-05-10T12:50:00Z,50495b4c-258a-5e35-8ac3-68282cc7feb9,02b7fe2c-37ee-55ce-846d-bf907744d228,vital-signs,8462-4,Diastolic Blood Pressure,67,mm[Hg],numeric
+2026-06-07T08:11:00Z,e49f50f1-e95d-5b03-b5a6-46bd089e1a8f,0c08d746-347b-5931-a1f4-60e3555a9475,laboratory,33914-3,Glomerular filtration rate/1.73 sq M.predicted,52,mL/min/{1.73_m2},numeric
+2026-06-29T13:51:00Z,e49f50f1-e95d-5b03-b5a6-46bd089e1a8f,494ad7c4-f1df-5632-9350-517d79d89249,vital-signs,8480-6,Systolic Blood Pressure,147,mm[Hg],numeric
+2026-06-29T13:51:00Z,e49f50f1-e95d-5b03-b5a6-46bd089e1a8f,494ad7c4-f1df-5632-9350-517d79d89249,vital-signs,8462-4,Diastolic Blood Pressure,79,mm[Hg],numeric
+2026-07-02T10:28:00Z,e49f50f1-e95d-5b03-b5a6-46bd089e1a8f,a6add59d-e76a-58d7-a33b-b9eda7ec8355,laboratory,4548-4,Hemoglobin A1c,7.2,%,numeric
+2026-07-19T11:58:00Z,e49f50f1-e95d-5b03-b5a6-46bd089e1a8f,8ae9ad19-e84f-53c7-b466-5022b1cf64fa,laboratory,4548-4,Hemoglobin A1c,6.7,%,numeric
+2026-08-02T15:47:00Z,e49f50f1-e95d-5b03-b5a6-46bd089e1a8f,bf22c201-9f33-5a6c-a2c9-5a483a73c9fa,vital-signs,8480-6,Systolic Blood Pressure,112,mm[Hg],numeric
+2026-08-02T15:47:00Z,e49f50f1-e95d-5b03-b5a6-46bd089e1a8f,bf22c201-9f33-5a6c-a2c9-5a483a73c9fa,vital-signs,8462-4,Diastolic Blood Pressure,88,mm[Hg],numeric
+2026-08-09T09:05:00Z,e49f50f1-e95d-5b03-b5a6-46bd089e1a8f,53c80518-556e-5419-9e4f-809ccb9cdac0,laboratory,14959-1,Albumin/Creatinine [Mass Ratio] in Urine,23,mg/g,numeric
+2024-05-30T11:22:00Z,29abb661-4d84-5b5b-a5fb-ff8bc4de5861,5f5f68c8-2e7e-5dac-a424-bbcd148e3c5a,laboratory,21440-3,High risk HPV DNA [Presence] in Cervix,Negative,,text
+2026-02-24T16:12:00Z,29abb661-4d84-5b5b-a5fb-ff8bc4de5861,acae30e0-f592-5207-86d9-85c8a4865099,vital-signs,8480-6,Systolic Blood Pressure,133,mm[Hg],numeric
+2026-02-24T16:12:00Z,29abb661-4d84-5b5b-a5fb-ff8bc4de5861,acae30e0-f592-5207-86d9-85c8a4865099,vital-signs,8462-4,Diastolic Blood Pressure,74,mm[Hg],numeric
+2026-01-25T15:49:00Z,79fa1c1e-d2d0-5e18-a14d-801a6bdfaea1,398a67bd-52a2-5248-8651-612424261841,laboratory,4548-4,Hemoglobin A1c,6.0,%,numeric
+2026-02-12T13:21:00Z,79fa1c1e-d2d0-5e18-a14d-801a6bdfaea1,1dfd6e1d-0d2a-5da0-b73e-44411df455ec,laboratory,33914-3,Glomerular filtration rate/1.73 sq M.predicted,47,mL/min/{1.73_m2},numeric
+2026-06-12T09:09:00Z,79fa1c1e-d2d0-5e18-a14d-801a6bdfaea1,ec65df9d-920c-5023-abae-7156726dac4f,vital-signs,8480-6,Systolic Blood Pressure,157,mm[Hg],numeric
+2026-06-12T09:09:00Z,79fa1c1e-d2d0-5e18-a14d-801a6bdfaea1,ec65df9d-920c-5023-abae-7156726dac4f,vital-signs,8462-4,Diastolic Blood Pressure,69,mm[Hg],numeric
+2026-07-19T08:29:00Z,79fa1c1e-d2d0-5e18-a14d-801a6bdfaea1,7d478faa-de26-54ed-83e2-e8f653dcd8a9,vital-signs,8480-6,Systolic Blood Pressure,155,mm[Hg],numeric
+2026-07-19T08:29:00Z,79fa1c1e-d2d0-5e18-a14d-801a6bdfaea1,7d478faa-de26-54ed-83e2-e8f653dcd8a9,vital-signs,8462-4,Diastolic Blood Pressure,71,mm[Hg],numeric
+2026-08-31T15:51:00Z,79fa1c1e-d2d0-5e18-a14d-801a6bdfaea1,5822270d-cada-5454-a5ab-203b0e9c8916,vital-signs,8480-6,Systolic Blood Pressure,114,mm[Hg],numeric
+2026-08-31T15:51:00Z,79fa1c1e-d2d0-5e18-a14d-801a6bdfaea1,5822270d-cada-5454-a5ab-203b0e9c8916,vital-signs,8462-4,Diastolic Blood Pressure,88,mm[Hg],numeric
+2026-08-20T14:54:00Z,2e15117e-4bf3-5702-8af8-38a36c1839df,7425cb22-928d-5f43-97aa-0688da3f90e4,laboratory,21440-3,High risk HPV DNA [Presence] in Cervix,Negative,,text
+2026-03-23T13:13:00Z,dcfab763-5d2a-5393-9208-efe3fbbd3607,0817940e-fb56-5074-a04a-8fdfdc5806a8,laboratory,4548-4,Hemoglobin A1c,7.0,%,numeric
+2026-05-01T12:53:00Z,dcfab763-5d2a-5393-9208-efe3fbbd3607,be74f0fc-0d65-5e36-a1eb-b79c67b1afd9,laboratory,4548-4,Hemoglobin A1c,8.1,%,numeric
+2026-05-14T12:09:00Z,dcfab763-5d2a-5393-9208-efe3fbbd3607,1e068679-ea72-581c-a0ed-089d0992a37a,vital-signs,8480-6,Systolic Blood Pressure,154,mm[Hg],numeric
+2026-05-14T12:09:00Z,dcfab763-5d2a-5393-9208-efe3fbbd3607,1e068679-ea72-581c-a0ed-089d0992a37a,vital-signs,8462-4,Diastolic Blood Pressure,88,mm[Hg],numeric
+2026-08-09T12:16:00Z,dcfab763-5d2a-5393-9208-efe3fbbd3607,327698ef-1d26-5383-a576-e29dce633723,laboratory,4548-4,Hemoglobin A1c,11.0,%,numeric
+2026-09-01T10:36:00Z,dcfab763-5d2a-5393-9208-efe3fbbd3607,72662e4b-68c4-51e0-8c4a-5c7d1a05fb6b,vital-signs,8480-6,Systolic Blood Pressure,128,mm[Hg],numeric
+2026-09-01T10:36:00Z,dcfab763-5d2a-5393-9208-efe3fbbd3607,72662e4b-68c4-51e0-8c4a-5c7d1a05fb6b,vital-signs,8462-4,Diastolic Blood Pressure,68,mm[Hg],numeric
+2026-09-30T09:40:00Z,dcfab763-5d2a-5393-9208-efe3fbbd3607,ea3222bd-3bf5-588e-aad4-807cc1ce8833,vital-signs,8480-6,Systolic Blood Pressure,116,mm[Hg],numeric
+2026-09-30T09:40:00Z,dcfab763-5d2a-5393-9208-efe3fbbd3607,ea3222bd-3bf5-588e-aad4-807cc1ce8833,vital-signs,8462-4,Diastolic Blood Pressure,73,mm[Hg],numeric
+2026-02-03T16:28:00Z,ad20e740-bf72-55a2-9b88-0c5e90b9e3c6,ed1be6ff-2e86-5788-9ab8-597d100cf7a3,laboratory,4548-4,Hemoglobin A1c,8.5,%,numeric
+2026-02-24T12:23:00Z,ad20e740-bf72-55a2-9b88-0c5e90b9e3c6,9bcb4be9-3532-58f0-b4de-7b44eb59bb3a,laboratory,4548-4,Hemoglobin A1c,8.9,%,numeric
+2026-03-08T14:20:00Z,ad20e740-bf72-55a2-9b88-0c5e90b9e3c6,dd739c8d-fd35-522c-8e52-efa12e793b48,vital-signs,8480-6,Systolic Blood Pressure,111,mm[Hg],numeric
+2026-03-08T14:20:00Z,ad20e740-bf72-55a2-9b88-0c5e90b9e3c6,dd739c8d-fd35-522c-8e52-efa12e793b48,vital-signs,8462-4,Diastolic Blood Pressure,87,mm[Hg],numeric
+2026-09-29T15:15:00Z,ad20e740-bf72-55a2-9b88-0c5e90b9e3c6,0266bf9d-b24f-53e7-b62c-e4178d99d313,laboratory,4548-4,Hemoglobin A1c,6.8,%,numeric
+2026-07-22T08:45:00Z,3a323321-7a24-5dfc-b6dc-273723471f79,1b7b1b79-d70b-56af-a529-bc1aaa8e087e,laboratory,21440-3,High risk HPV DNA [Presence] in Cervix,Negative,,text
+2026-10-02T16:14:00Z,3a323321-7a24-5dfc-b6dc-273723471f79,b20024cc-df52-537b-a883-e266d866500f,vital-signs,8480-6,Systolic Blood Pressure,138,mm[Hg],numeric
+2026-10-02T16:14:00Z,3a323321-7a24-5dfc-b6dc-273723471f79,b20024cc-df52-537b-a883-e266d866500f,vital-signs,8462-4,Diastolic Blood Pressure,74,mm[Hg],numeric
+2025-11-23T14:34:00Z,53cf9c3d-ccb4-51fc-9330-58c3b3963a3f,a0edcac3-2bee-5e27-87db-e2ce39cb84a7,laboratory,21440-3,High risk HPV DNA [Presence] in Cervix,Negative,,text
+2026-06-21T09:11:00Z,17b68015-dc31-5394-a308-11e2a475cfda,bb375def-b757-5914-9053-3a22a1c861bf,vital-signs,8480-6,Systolic Blood Pressure,122,mm[Hg],numeric
+2026-06-21T09:11:00Z,17b68015-dc31-5394-a308-11e2a475cfda,bb375def-b757-5914-9053-3a22a1c861bf,vital-signs,8462-4,Diastolic Blood Pressure,90,mm[Hg],numeric
+2026-09-29T15:15:00Z,17b68015-dc31-5394-a308-11e2a475cfda,92f47c79-f6ad-51bc-bde9-936f6d089c18,vital-signs,8480-6,Systolic Blood Pressure,137,mm[Hg],numeric
+2026-09-29T15:15:00Z,17b68015-dc31-5394-a308-11e2a475cfda,92f47c79-f6ad-51bc-bde9-936f6d089c18,vital-signs,8462-4,Diastolic Blood Pressure,63,mm[Hg],numeric
+2026-09-26T15:50:00Z,f8a7d90d-bac1-5599-9f54-81e2dee81bb3,558dd442-6408-5ac8-a8d5-445342f49edb,vital-signs,8480-6,Systolic Blood Pressure,134,mm[Hg],numeric
+2026-09-26T15:50:00Z,f8a7d90d-bac1-5599-9f54-81e2dee81bb3,558dd442-6408-5ac8-a8d5-445342f49edb,vital-signs,8462-4,Diastolic Blood Pressure,76,mm[Hg],numeric
+2026-03-22T09:44:00Z,90248221-4a39-52fb-91c1-9d528727099f,57a3cddf-f7ab-5e35-93a7-096b43447c42,vital-signs,8480-6,Systolic Blood Pressure,115,mm[Hg],numeric
+2026-03-22T09:44:00Z,90248221-4a39-52fb-91c1-9d528727099f,57a3cddf-f7ab-5e35-93a7-096b43447c42,vital-signs,8462-4,Diastolic Blood Pressure,66,mm[Hg],numeric
+2026-06-24T08:51:00Z,16718985-1277-57a3-8405-47b7d4d1366d,88049633-0828-5ba3-8406-47c68c643801,vital-signs,8480-6,Systolic Blood Pressure,130,mm[Hg],numeric
+2026-06-24T08:51:00Z,16718985-1277-57a3-8405-47b7d4d1366d,88049633-0828-5ba3-8406-47c68c643801,vital-signs,8462-4,Diastolic Blood Pressure,75,mm[Hg],numeric
+2026-08-23T15:30:00Z,16718985-1277-57a3-8405-47b7d4d1366d,11fe6190-be2c-53e4-af81-926cb053622c,laboratory,33914-3,Glomerular filtration rate/1.73 sq M.predicted,92,mL/min/{1.73_m2},numeric
+2026-08-23T15:30:00Z,16718985-1277-57a3-8405-47b7d4d1366d,11fe6190-be2c-53e4-af81-926cb053622c,laboratory,14959-1,Albumin/Creatinine [Mass Ratio] in Urine,4,mg/g,numeric
+2026-02-23T08:03:00Z,29371f59-ceab-59cb-9356-47e76da8f210,194fb2d1-b55c-5960-9b57-2b5d3f721ba7,laboratory,57905-2,Hemoglobin.gastrointestinal [Presence] in Stool by Immunoassay,Negative,,text
+2026-06-11T12:13:00Z,29371f59-ceab-59cb-9356-47e76da8f210,a6ffd902-946b-5d0a-a9c9-c8d4bb8d4cb7,vital-signs,8480-6,Systolic Blood Pressure,130,mm[Hg],numeric
+2026-06-11T12:13:00Z,29371f59-ceab-59cb-9356-47e76da8f210,a6ffd902-946b-5d0a-a9c9-c8d4bb8d4cb7,vital-signs,8462-4,Diastolic Blood Pressure,68,mm[Hg],numeric
+2026-06-29T16:11:00Z,29371f59-ceab-59cb-9356-47e76da8f210,8903bb93-048a-534a-bea4-d286d13c059e,vital-signs,8480-6,Systolic Blood Pressure,154,mm[Hg],numeric
+2026-06-29T16:11:00Z,29371f59-ceab-59cb-9356-47e76da8f210,8903bb93-048a-534a-bea4-d286d13c059e,vital-signs,8462-4,Diastolic Blood Pressure,98,mm[Hg],numeric
+2026-01-31T16:43:00Z,962422e6-c668-56f0-ab6b-b5e8c50e3d22,d240cb32-b4dd-5d84-a551-53ae94841924,laboratory,33914-3,Glomerular filtration rate/1.73 sq M.predicted,86,mL/min/{1.73_m2},numeric
+2026-03-20T12:37:00Z,962422e6-c668-56f0-ab6b-b5e8c50e3d22,ac0632c6-890c-559e-9a9a-93b99ce61b43,laboratory,4548-4,Hemoglobin A1c,6.5,%,numeric
+2026-04-27T13:44:00Z,962422e6-c668-56f0-ab6b-b5e8c50e3d22,7302f316-2682-5ed8-923f-8e00c2b506b1,laboratory,4548-4,Hemoglobin A1c,6.7,%,numeric
+2026-05-16T14:21:00Z,962422e6-c668-56f0-ab6b-b5e8c50e3d22,62498a50-c111-510a-a9b2-3fb5842464c9,laboratory,14959-1,Albumin/Creatinine [Mass Ratio] in Urine,51,mg/g,numeric
+2026-07-03T10:51:00Z,962422e6-c668-56f0-ab6b-b5e8c50e3d22,5aca26a0-3366-57a6-9bbf-bfe0a83631ba,laboratory,4548-4,Hemoglobin A1c,7.2,%,numeric
+2026-09-06T10:38:00Z,962422e6-c668-56f0-ab6b-b5e8c50e3d22,18a9a859-f93c-533c-b4a0-44920c7731e7,vital-signs,8480-6,Systolic Blood Pressure,126,mm[Hg],numeric
+2026-09-06T10:38:00Z,962422e6-c668-56f0-ab6b-b5e8c50e3d22,18a9a859-f93c-533c-b4a0-44920c7731e7,vital-signs,8462-4,Diastolic Blood Pressure,69,mm[Hg],numeric
+2026-04-16T09:57:00Z,c1a993cf-8d15-53c4-9db3-ee54948af7ea,84c4943e-5618-506c-83de-2413e2eb3e61,vital-signs,8480-6,Systolic Blood Pressure,117,mm[Hg],numeric
+2026-04-16T09:57:00Z,c1a993cf-8d15-53c4-9db3-ee54948af7ea,84c4943e-5618-506c-83de-2413e2eb3e61,vital-signs,8462-4,Diastolic Blood Pressure,70,mm[Hg],numeric
+2026-06-26T09:08:00Z,c1a993cf-8d15-53c4-9db3-ee54948af7ea,8dacdcdf-53a4-55a8-ac94-5dcf2aafd5d0,laboratory,4548-4,Hemoglobin A1c,6.4,%,numeric
+2026-07-01T13:14:00Z,c1a993cf-8d15-53c4-9db3-ee54948af7ea,722d960f-aba7-56f8-a4df-d36acac79b21,laboratory,14959-1,Albumin/Creatinine [Mass Ratio] in Urine,23,mg/g,numeric
+2026-09-05T15:13:00Z,c1a993cf-8d15-53c4-9db3-ee54948af7ea,455c594b-4f75-51fe-93d0-b7e9d48cba65,laboratory,57905-2,Hemoglobin.gastrointestinal [Presence] in Stool by Immunoassay,Negative,,text
+2026-02-28T09:45:00Z,ab124020-9b7d-51dc-a783-3520b21bc2b6,57bcd50c-23b8-52ec-a62a-df22dfa8ce16,vital-signs,8480-6,Systolic Blood Pressure,123,mm[Hg],numeric
+2026-02-28T09:45:00Z,ab124020-9b7d-51dc-a783-3520b21bc2b6,57bcd50c-23b8-52ec-a62a-df22dfa8ce16,vital-signs,8462-4,Diastolic Blood Pressure,81,mm[Hg],numeric
+2026-04-30T12:57:00Z,ab124020-9b7d-51dc-a783-3520b21bc2b6,57696dac-cc33-52e7-8087-e14ce103a3a8,vital-signs,8480-6,Systolic Blood Pressure,172,mm[Hg],numeric
+2026-04-30T12:57:00Z,ab124020-9b7d-51dc-a783-3520b21bc2b6,57696dac-cc33-52e7-8087-e14ce103a3a8,vital-signs,8462-4,Diastolic Blood Pressure,96,mm[Hg],numeric
+2026-01-16T08:00:00Z,f82d3f45-a70d-5858-a26c-7ca04e49077a,c3a55326-1892-5e7d-b3cb-65668f5dcc79,vital-signs,8480-6,Systolic Blood Pressure,120,mm[Hg],numeric
+2026-01-16T08:00:00Z,f82d3f45-a70d-5858-a26c-7ca04e49077a,c3a55326-1892-5e7d-b3cb-65668f5dcc79,vital-signs,8462-4,Diastolic Blood Pressure,69,mm[Hg],numeric
+2026-05-16T12:08:00Z,f82d3f45-a70d-5858-a26c-7ca04e49077a,3b7e6500-5b2f-5fd9-a5a2-27a603e7b7ae,vital-signs,8480-6,Systolic Blood Pressure,168,mm[Hg],numeric
+2026-05-16T12:08:00Z,f82d3f45-a70d-5858-a26c-7ca04e49077a,3b7e6500-5b2f-5fd9-a5a2-27a603e7b7ae,vital-signs,8462-4,Diastolic Blood Pressure,91,mm[Hg],numeric
+2026-04-30T10:58:00Z,f53a72f6-4b99-5ce8-9333-b96a6797dbac,c2e0e207-ed9f-516b-95a5-99fbc85f351f,vital-signs,8480-6,Systolic Blood Pressure,108,mm[Hg],numeric
+2026-04-30T10:58:00Z,f53a72f6-4b99-5ce8-9333-b96a6797dbac,c2e0e207-ed9f-516b-95a5-99fbc85f351f,vital-signs,8462-4,Diastolic Blood Pressure,88,mm[Hg],numeric
+2026-06-24T16:43:00Z,95d94783-0f1e-526c-b42f-3ab17cee8c79,3b4c42b8-0b08-580e-97ea-b3ae642ded11,vital-signs,8480-6,Systolic Blood Pressure,132,mm[Hg],numeric
+2026-06-24T16:43:00Z,95d94783-0f1e-526c-b42f-3ab17cee8c79,3b4c42b8-0b08-580e-97ea-b3ae642ded11,vital-signs,8462-4,Diastolic Blood Pressure,75,mm[Hg],numeric
+2026-02-10T11:29:00Z,2961987c-ca85-5e1c-831f-eca266f78306,7b2447dc-ffbc-5d1a-9fc7-a471d9a0574a,vital-signs,8480-6,Systolic Blood Pressure,143,mm[Hg],numeric
+2026-02-10T11:29:00Z,2961987c-ca85-5e1c-831f-eca266f78306,7b2447dc-ffbc-5d1a-9fc7-a471d9a0574a,vital-signs,8462-4,Diastolic Blood Pressure,90,mm[Hg],numeric
+2026-03-28T13:45:00Z,2961987c-ca85-5e1c-831f-eca266f78306,841c84af-23d9-52d4-b2e2-f6ea724e1edb,vital-signs,8480-6,Systolic Blood Pressure,172,mm[Hg],numeric
+2026-03-28T13:45:00Z,2961987c-ca85-5e1c-831f-eca266f78306,841c84af-23d9-52d4-b2e2-f6ea724e1edb,vital-signs,8462-4,Diastolic Blood Pressure,90,mm[Hg],numeric
+2026-05-01T11:50:00Z,2961987c-ca85-5e1c-831f-eca266f78306,4a967c1b-3407-5d43-8f90-e072e7458ed9,laboratory,4548-4,Hemoglobin A1c,6.0,%,numeric
+2026-09-14T11:02:00Z,2961987c-ca85-5e1c-831f-eca266f78306,e76699f7-7acd-58e4-8009-cf66c243fd6e,laboratory,33914-3,Glomerular filtration rate/1.73 sq M.predicted,75,mL/min/{1.73_m2},numeric
+2026-01-28T13:39:00Z,101276f6-5095-5310-8a98-20d8803d9f87,536a0d3e-ef7d-5f23-aa13-8f81f35681ce,laboratory,21440-3,High risk HPV DNA [Presence] in Cervix,Negative,,text
+2026-06-20T10:55:00Z,101276f6-5095-5310-8a98-20d8803d9f87,dc82c79c-6e27-56a7-9042-9a39a3e40593,vital-signs,8480-6,Systolic Blood Pressure,109,mm[Hg],numeric
+2026-06-20T10:55:00Z,101276f6-5095-5310-8a98-20d8803d9f87,dc82c79c-6e27-56a7-9042-9a39a3e40593,vital-signs,8462-4,Diastolic Blood Pressure,79,mm[Hg],numeric
+2026-03-10T16:53:00Z,ddd750d1-f520-5766-9c85-824caa5511a5,a24e5030-6d15-5e0b-a38e-c03e3940acaf,vital-signs,8480-6,Systolic Blood Pressure,139,mm[Hg],numeric
+2026-03-10T16:53:00Z,ddd750d1-f520-5766-9c85-824caa5511a5,a24e5030-6d15-5e0b-a38e-c03e3940acaf,vital-signs,8462-4,Diastolic Blood Pressure,85,mm[Hg],numeric
+2026-04-01T08:42:00Z,ddd750d1-f520-5766-9c85-824caa5511a5,6dce7884-0578-5701-b598-b0a5fbc9e85c,vital-signs,8480-6,Systolic Blood Pressure,122,mm[Hg],numeric
+2026-04-01T08:42:00Z,ddd750d1-f520-5766-9c85-824caa5511a5,6dce7884-0578-5701-b598-b0a5fbc9e85c,vital-signs,8462-4,Diastolic Blood Pressure,82,mm[Hg],numeric
+2026-09-30T10:53:00Z,ddd750d1-f520-5766-9c85-824caa5511a5,7a6708e6-0c71-5a08-9bf0-57acb85a36a7,vital-signs,8480-6,Systolic Blood Pressure,159,mm[Hg],numeric
+2026-09-30T10:53:00Z,ddd750d1-f520-5766-9c85-824caa5511a5,7a6708e6-0c71-5a08-9bf0-57acb85a36a7,vital-signs,8462-4,Diastolic Blood Pressure,93,mm[Hg],numeric
+2026-02-18T11:16:00Z,d778d93a-49d8-590e-abbe-06393e3976d1,3865bef0-519d-521f-86c3-a08b13c600db,vital-signs,8480-6,Systolic Blood Pressure,159,mm[Hg],numeric
+2026-02-18T11:16:00Z,d778d93a-49d8-590e-abbe-06393e3976d1,3865bef0-519d-521f-86c3-a08b13c600db,vital-signs,8462-4,Diastolic Blood Pressure,96,mm[Hg],numeric
+2026-03-20T16:28:00Z,d778d93a-49d8-590e-abbe-06393e3976d1,2eca16af-ba2c-5e0b-b469-f67312785cd1,vital-signs,8480-6,Systolic Blood Pressure,126,mm[Hg],numeric
+2026-03-20T16:28:00Z,d778d93a-49d8-590e-abbe-06393e3976d1,2eca16af-ba2c-5e0b-b469-f67312785cd1,vital-signs,8462-4,Diastolic Blood Pressure,91,mm[Hg],numeric
+2026-04-27T09:17:00Z,045ed9f8-89f5-56fc-b8f0-5350c0759291,f87aea45-48a9-5e57-a695-49db01b77606,laboratory,4548-4,Hemoglobin A1c,8.9,%,numeric
+2026-06-15T10:01:00Z,045ed9f8-89f5-56fc-b8f0-5350c0759291,ef38fac9-8c47-50cd-a8f5-dbf358f2c266,vital-signs,8480-6,Systolic Blood Pressure,160,mm[Hg],numeric
+2026-06-15T10:01:00Z,045ed9f8-89f5-56fc-b8f0-5350c0759291,ef38fac9-8c47-50cd-a8f5-dbf358f2c266,vital-signs,8462-4,Diastolic Blood Pressure,95,mm[Hg],numeric
+2026-08-31T16:01:00Z,045ed9f8-89f5-56fc-b8f0-5350c0759291,3d8ad08e-0930-5f1a-86b1-1dfd7e6f1dd4,vital-signs,8480-6,Systolic Blood Pressure,138,mm[Hg],numeric
+2026-08-31T16:01:00Z,045ed9f8-89f5-56fc-b8f0-5350c0759291,3d8ad08e-0930-5f1a-86b1-1dfd7e6f1dd4,vital-signs,8462-4,Diastolic Blood Pressure,63,mm[Hg],numeric
+2026-06-12T15:44:00Z,2da04d3d-f180-5c6b-b6ec-0c9d69be451c,3437e4ad-a5ba-56e6-be21-b2778598e242,vital-signs,8480-6,Systolic Blood Pressure,165,mm[Hg],numeric
+2026-06-12T15:44:00Z,2da04d3d-f180-5c6b-b6ec-0c9d69be451c,3437e4ad-a5ba-56e6-be21-b2778598e242,vital-signs,8462-4,Diastolic Blood Pressure,95,mm[Hg],numeric
+2026-02-27T16:37:00Z,75c0c065-1c1c-558b-b7c8-11d6557af7fa,95ab770c-d6cf-5ea4-bd40-d86f3552f5b2,laboratory,57905-2,Hemoglobin.gastrointestinal [Presence] in Stool by Immunoassay,Negative,,text
+2026-09-22T08:44:00Z,fff0d9c2-e183-57aa-b24b-aba5607fa771,e677714e-852d-5558-9490-b1af6fc26f3a,laboratory,33914-3,Glomerular filtration rate/1.73 sq M.predicted,77,mL/min/{1.73_m2},numeric
+2026-09-27T15:03:00Z,fff0d9c2-e183-57aa-b24b-aba5607fa771,7d1bbd59-4234-502d-bc98-00e7b6ba8397,laboratory,4548-4,Hemoglobin A1c,6.5,%,numeric
+2026-10-05T14:55:00Z,fff0d9c2-e183-57aa-b24b-aba5607fa771,8d6e77ae-73d8-5cf6-87bb-398242336d7b,vital-signs,8480-6,Systolic Blood Pressure,127,mm[Hg],numeric
+2026-10-05T14:55:00Z,fff0d9c2-e183-57aa-b24b-aba5607fa771,8d6e77ae-73d8-5cf6-87bb-398242336d7b,vital-signs,8462-4,Diastolic Blood Pressure,80,mm[Hg],numeric
+2026-05-23T14:27:00Z,2d75562e-5151-5fa5-b3b0-490bb79e1e16,3a176714-bcfa-5b47-9b92-a55976aefacc,laboratory,21440-3,High risk HPV DNA [Presence] in Cervix,Negative,,text
+2026-01-26T10:06:00Z,156ec713-ecdd-5390-b56e-e7e985afcb04,6bd66ea8-a86b-5e16-b70b-626566bd3f23,vital-signs,8480-6,Systolic Blood Pressure,148,mm[Hg],numeric
+2026-01-26T10:06:00Z,156ec713-ecdd-5390-b56e-e7e985afcb04,6bd66ea8-a86b-5e16-b70b-626566bd3f23,vital-signs,8462-4,Diastolic Blood Pressure,93,mm[Hg],numeric
+2026-08-09T13:48:00Z,156ec713-ecdd-5390-b56e-e7e985afcb04,84a89f73-4458-5f37-bc94-b3a1ec55a585,vital-signs,8480-6,Systolic Blood Pressure,150,mm[Hg],numeric
+2026-08-09T13:48:00Z,156ec713-ecdd-5390-b56e-e7e985afcb04,84a89f73-4458-5f37-bc94-b3a1ec55a585,vital-signs,8462-4,Diastolic Blood Pressure,74,mm[Hg],numeric
+2026-09-21T13:06:00Z,156ec713-ecdd-5390-b56e-e7e985afcb04,9f80be16-a395-59d2-8b4e-626cab9635fe,vital-signs,8480-6,Systolic Blood Pressure,110,mm[Hg],numeric
+2026-09-21T13:06:00Z,156ec713-ecdd-5390-b56e-e7e985afcb04,9f80be16-a395-59d2-8b4e-626cab9635fe,vital-signs,8462-4,Diastolic Blood Pressure,86,mm[Hg],numeric
+2026-01-11T08:13:00Z,a51e7ce2-01cb-5b84-9651-c5eb10507cd4,8972da71-c3fa-5af7-b03a-028c7df2bddc,vital-signs,8480-6,Systolic Blood Pressure,134,mm[Hg],numeric
+2026-01-11T08:13:00Z,a51e7ce2-01cb-5b84-9651-c5eb10507cd4,8972da71-c3fa-5af7-b03a-028c7df2bddc,vital-signs,8462-4,Diastolic Blood Pressure,91,mm[Hg],numeric
+2026-08-23T12:52:00Z,a51e7ce2-01cb-5b84-9651-c5eb10507cd4,dbd29f8a-1eb3-5ae0-afaa-4cb8474bf3c5,vital-signs,8480-6,Systolic Blood Pressure,170,mm[Hg],numeric
+2026-08-23T12:52:00Z,a51e7ce2-01cb-5b84-9651-c5eb10507cd4,dbd29f8a-1eb3-5ae0-afaa-4cb8474bf3c5,vital-signs,8462-4,Diastolic Blood Pressure,96,mm[Hg],numeric
+2026-03-13T11:39:00Z,a3e29d21-0ce4-54e0-b557-c205e29ce60d,2681a3a6-34e7-5fc9-aff9-21f4792b0810,vital-signs,8480-6,Systolic Blood Pressure,157,mm[Hg],numeric
+2026-03-13T11:39:00Z,a3e29d21-0ce4-54e0-b557-c205e29ce60d,2681a3a6-34e7-5fc9-aff9-21f4792b0810,vital-signs,8462-4,Diastolic Blood Pressure,81,mm[Hg],numeric
+2026-03-30T08:28:00Z,a3e29d21-0ce4-54e0-b557-c205e29ce60d,1df9fe69-1abd-5891-85c5-92b4147f5c6d,vital-signs,8480-6,Systolic Blood Pressure,117,mm[Hg],numeric
+2026-03-30T08:28:00Z,a3e29d21-0ce4-54e0-b557-c205e29ce60d,1df9fe69-1abd-5891-85c5-92b4147f5c6d,vital-signs,8462-4,Diastolic Blood Pressure,77,mm[Hg],numeric
+2026-03-05T10:55:00Z,c3da01fd-eb53-5d62-ba45-6ece1070675c,d3c04bb2-679d-5bb0-9e9a-125dba2f8115,vital-signs,8480-6,Systolic Blood Pressure,120,mm[Hg],numeric
+2026-03-05T10:55:00Z,c3da01fd-eb53-5d62-ba45-6ece1070675c,d3c04bb2-679d-5bb0-9e9a-125dba2f8115,vital-signs,8462-4,Diastolic Blood Pressure,78,mm[Hg],numeric
+2026-06-20T08:05:00Z,c3da01fd-eb53-5d62-ba45-6ece1070675c,fde5f4c7-f285-5599-968f-7eb7ce79509f,vital-signs,8480-6,Systolic Blood Pressure,160,mm[Hg],numeric
+2026-06-20T08:05:00Z,c3da01fd-eb53-5d62-ba45-6ece1070675c,fde5f4c7-f285-5599-968f-7eb7ce79509f,vital-signs,8462-4,Diastolic Blood Pressure,87,mm[Hg],numeric
+2026-07-01T08:45:00Z,c3da01fd-eb53-5d62-ba45-6ece1070675c,d77cc94b-94cd-57ae-962c-d533f3eae9f3,vital-signs,8480-6,Systolic Blood Pressure,118,mm[Hg],numeric
+2026-07-01T08:45:00Z,c3da01fd-eb53-5d62-ba45-6ece1070675c,d77cc94b-94cd-57ae-962c-d533f3eae9f3,vital-signs,8462-4,Diastolic Blood Pressure,62,mm[Hg],numeric
+2026-04-07T15:30:00Z,78beb7a8-f0c5-5711-9d9b-a5f8ee2d4ea1,3b6e52a4-a5f3-569a-b8c2-4d2bb117b251,vital-signs,8480-6,Systolic Blood Pressure,130,mm[Hg],numeric
+2026-04-07T15:30:00Z,78beb7a8-f0c5-5711-9d9b-a5f8ee2d4ea1,3b6e52a4-a5f3-569a-b8c2-4d2bb117b251,vital-signs,8462-4,Diastolic Blood Pressure,82,mm[Hg],numeric
+2026-04-26T10:15:00Z,78beb7a8-f0c5-5711-9d9b-a5f8ee2d4ea1,e7005a8d-7070-57b7-a954-1e347fa61e1a,laboratory,4548-4,Hemoglobin A1c,8.1,%,numeric
+2026-05-29T11:26:00Z,78beb7a8-f0c5-5711-9d9b-a5f8ee2d4ea1,84a402f2-dfe2-558a-af4a-795e4a2157b6,laboratory,4548-4,Hemoglobin A1c,9.4,%,numeric
+2026-06-05T16:20:00Z,78beb7a8-f0c5-5711-9d9b-a5f8ee2d4ea1,2ef2cea8-35a1-56d4-adb0-b803c80562ac,vital-signs,8480-6,Systolic Blood Pressure,125,mm[Hg],numeric
+2026-06-05T16:20:00Z,78beb7a8-f0c5-5711-9d9b-a5f8ee2d4ea1,2ef2cea8-35a1-56d4-adb0-b803c80562ac,vital-signs,8462-4,Diastolic Blood Pressure,70,mm[Hg],numeric
+2026-06-22T08:56:00Z,78beb7a8-f0c5-5711-9d9b-a5f8ee2d4ea1,5c8df59c-a636-5959-92ae-435d2e39ebc6,laboratory,33914-3,Glomerular filtration rate/1.73 sq M.predicted,67,mL/min/{1.73_m2},numeric
+2026-06-22T08:56:00Z,78beb7a8-f0c5-5711-9d9b-a5f8ee2d4ea1,5c8df59c-a636-5959-92ae-435d2e39ebc6,laboratory,14959-1,Albumin/Creatinine [Mass Ratio] in Urine,56,mg/g,numeric
+2026-06-25T14:11:00Z,78beb7a8-f0c5-5711-9d9b-a5f8ee2d4ea1,9385bbf4-2177-557b-bfdf-3cf4dbafd653,laboratory,4548-4,Hemoglobin A1c,6.0,%,numeric
+2026-02-06T10:36:00Z,31692b50-58fe-557b-99a3-95a801fbccb0,d827bc1c-6132-5a9f-8ce8-382de949e182,vital-signs,8480-6,Systolic Blood Pressure,145,mm[Hg],numeric
+2026-02-06T10:36:00Z,31692b50-58fe-557b-99a3-95a801fbccb0,d827bc1c-6132-5a9f-8ce8-382de949e182,vital-signs,8462-4,Diastolic Blood Pressure,93,mm[Hg],numeric
+2026-03-18T08:22:00Z,31692b50-58fe-557b-99a3-95a801fbccb0,db954135-c20a-57dd-88b6-0116094f9a71,vital-signs,8480-6,Systolic Blood Pressure,141,mm[Hg],numeric
+2026-03-18T08:22:00Z,31692b50-58fe-557b-99a3-95a801fbccb0,db954135-c20a-57dd-88b6-0116094f9a71,vital-signs,8462-4,Diastolic Blood Pressure,71,mm[Hg],numeric
+2026-06-19T10:09:00Z,31692b50-58fe-557b-99a3-95a801fbccb0,583bbef3-8da1-53f0-b4fd-b6f46666e02e,vital-signs,8480-6,Systolic Blood Pressure,134,mm[Hg],numeric
+2026-06-19T10:09:00Z,31692b50-58fe-557b-99a3-95a801fbccb0,583bbef3-8da1-53f0-b4fd-b6f46666e02e,vital-signs,8462-4,Diastolic Blood Pressure,69,mm[Hg],numeric
+2025-04-30T08:40:00Z,cfc2f505-51e3-5f41-9013-c06b7ac1917a,9939afe3-ca13-59b5-9e23-1f46c9d54994,vital-signs,8480-6,Systolic Blood Pressure,137,mm[Hg],numeric
+2025-04-30T08:40:00Z,cfc2f505-51e3-5f41-9013-c06b7ac1917a,9939afe3-ca13-59b5-9e23-1f46c9d54994,vital-signs,8462-4,Diastolic Blood Pressure,92,mm[Hg],numeric
+2026-01-18T15:18:00Z,1040b61b-50b1-5407-ba14-f192d0ea7bc4,0a458359-5c59-53eb-92e2-77296e921ad0,laboratory,57905-2,Hemoglobin.gastrointestinal [Presence] in Stool by Immunoassay,Negative,,text
+2026-01-30T15:20:00Z,1040b61b-50b1-5407-ba14-f192d0ea7bc4,eb9b8b13-d9af-5eb3-a3fa-857411a066f9,laboratory,14959-1,Albumin/Creatinine [Mass Ratio] in Urine,53,mg/g,numeric
+2026-04-19T14:03:00Z,1040b61b-50b1-5407-ba14-f192d0ea7bc4,9755d91d-fc59-543b-9b0e-5a939ba8f5dc,laboratory,4548-4,Hemoglobin A1c,8.8,%,numeric
+2026-05-03T11:46:00Z,1040b61b-50b1-5407-ba14-f192d0ea7bc4,bd0b8f23-6b59-5b97-a814-6dbb1940f266,laboratory,4548-4,Hemoglobin A1c,8.5,%,numeric
+2026-05-23T09:54:00Z,1040b61b-50b1-5407-ba14-f192d0ea7bc4,c183901b-2579-5e78-b950-7c687a14d971,vital-signs,8480-6,Systolic Blood Pressure,157,mm[Hg],numeric
+2026-05-23T09:54:00Z,1040b61b-50b1-5407-ba14-f192d0ea7bc4,c183901b-2579-5e78-b950-7c687a14d971,vital-signs,8462-4,Diastolic Blood Pressure,72,mm[Hg],numeric
+2026-05-24T10:24:00Z,1040b61b-50b1-5407-ba14-f192d0ea7bc4,3434a15e-d46f-50db-9dbe-8659249018f1,vital-signs,8480-6,Systolic Blood Pressure,136,mm[Hg],numeric
+2026-05-24T10:24:00Z,1040b61b-50b1-5407-ba14-f192d0ea7bc4,3434a15e-d46f-50db-9dbe-8659249018f1,vital-signs,8462-4,Diastolic Blood Pressure,74,mm[Hg],numeric
+2026-07-29T08:41:00Z,1040b61b-50b1-5407-ba14-f192d0ea7bc4,054497dd-f453-5f59-864b-5ee1d963b761,vital-signs,8480-6,Systolic Blood Pressure,151,mm[Hg],numeric
+2026-07-29T08:41:00Z,1040b61b-50b1-5407-ba14-f192d0ea7bc4,054497dd-f453-5f59-864b-5ee1d963b761,vital-signs,8462-4,Diastolic Blood Pressure,83,mm[Hg],numeric
+2026-08-08T12:48:00Z,1040b61b-50b1-5407-ba14-f192d0ea7bc4,bfac038a-dc0a-5757-b8fe-e8a69546080d,laboratory,4548-4,Hemoglobin A1c,5.8,%,numeric
+2026-09-25T11:52:00Z,1040b61b-50b1-5407-ba14-f192d0ea7bc4,5c401902-8f60-5ab1-bf5f-c56d234f4a8b,laboratory,33914-3,Glomerular filtration rate/1.73 sq M.predicted,105,mL/min/{1.73_m2},numeric
+2026-02-12T10:58:00Z,40ba43ac-a411-5eae-9ec4-f79070d1d4be,549ddd4a-6f11-5e71-a344-d9aa05126318,laboratory,57905-2,Hemoglobin.gastrointestinal [Presence] in Stool by Immunoassay,Negative,,text
+2026-01-30T12:02:00Z,ea6d626b-9ae8-5474-a810-549817eb0c5e,34c331dd-4e05-5995-bbf9-a3dfce4ceb45,laboratory,4548-4,Hemoglobin A1c,5.7,%,numeric
+2026-03-04T12:43:00Z,ea6d626b-9ae8-5474-a810-549817eb0c5e,ae9db927-54ce-5cf1-b55c-f1a85024b7f4,vital-signs,8480-6,Systolic Blood Pressure,138,mm[Hg],numeric
+2026-03-04T12:43:00Z,ea6d626b-9ae8-5474-a810-549817eb0c5e,ae9db927-54ce-5cf1-b55c-f1a85024b7f4,vital-signs,8462-4,Diastolic Blood Pressure,70,mm[Hg],numeric
+2026-05-18T13:39:00Z,ea6d626b-9ae8-5474-a810-549817eb0c5e,c994f8f7-6306-53e5-9e9f-525dc53c8c3a,laboratory,33914-3,Glomerular filtration rate/1.73 sq M.predicted,82,mL/min/{1.73_m2},numeric
+2026-05-18T13:39:00Z,ea6d626b-9ae8-5474-a810-549817eb0c5e,c994f8f7-6306-53e5-9e9f-525dc53c8c3a,laboratory,14959-1,Albumin/Creatinine [Mass Ratio] in Urine,18,mg/g,numeric
+2026-06-27T10:49:00Z,ea6d626b-9ae8-5474-a810-549817eb0c5e,2eb092d1-366d-594d-ab25-c19fdcbaa25f,vital-signs,8480-6,Systolic Blood Pressure,145,mm[Hg],numeric
+2026-06-27T10:49:00Z,ea6d626b-9ae8-5474-a810-549817eb0c5e,2eb092d1-366d-594d-ab25-c19fdcbaa25f,vital-signs,8462-4,Diastolic Blood Pressure,94,mm[Hg],numeric
+2026-08-03T14:20:00Z,ea6d626b-9ae8-5474-a810-549817eb0c5e,7f6c0c7b-2e20-5807-b179-3a823c9c5fd5,vital-signs,8480-6,Systolic Blood Pressure,129,mm[Hg],numeric
+2026-08-03T14:20:00Z,ea6d626b-9ae8-5474-a810-549817eb0c5e,7f6c0c7b-2e20-5807-b179-3a823c9c5fd5,vital-signs,8462-4,Diastolic Blood Pressure,69,mm[Hg],numeric
+2025-06-28T12:12:00Z,bfa14a81-0cd9-5502-807f-9f87f80f8ada,92dfffac-ec07-573f-82eb-acda434c3587,vital-signs,8480-6,Systolic Blood Pressure,132,mm[Hg],numeric
+2025-06-28T12:12:00Z,bfa14a81-0cd9-5502-807f-9f87f80f8ada,92dfffac-ec07-573f-82eb-acda434c3587,vital-signs,8462-4,Diastolic Blood Pressure,78,mm[Hg],numeric
+2025-05-15T11:19:00Z,7f6d4a19-ac83-58c0-af0e-9ec09955db7f,63ede715-0238-5b66-b37e-386690aaf3e0,vital-signs,8480-6,Systolic Blood Pressure,150,mm[Hg],numeric
+2025-05-15T11:19:00Z,7f6d4a19-ac83-58c0-af0e-9ec09955db7f,63ede715-0238-5b66-b37e-386690aaf3e0,vital-signs,8462-4,Diastolic Blood Pressure,77,mm[Hg],numeric
+2025-05-07T10:27:00Z,d16269d4-1f32-5f55-808f-c6abbcc392aa,c757ef2c-85ea-568a-be96-d3246bafb301,laboratory,21440-3,High risk HPV DNA [Presence] in Cervix,Negative,,text
+2026-01-08T08:49:00Z,d16269d4-1f32-5f55-808f-c6abbcc392aa,399617f8-ef05-5cb0-9f53-25a52e8b9cfc,laboratory,14959-1,Albumin/Creatinine [Mass Ratio] in Urine,38,mg/g,numeric
+2026-01-10T10:52:00Z,d16269d4-1f32-5f55-808f-c6abbcc392aa,775a7249-9663-5e06-af3c-846c5d3be880,laboratory,33914-3,Glomerular filtration rate/1.73 sq M.predicted,82,mL/min/{1.73_m2},numeric
+2026-02-03T11:31:00Z,d16269d4-1f32-5f55-808f-c6abbcc392aa,0d79049d-f0ce-5ec3-90e1-980a9029d1e5,laboratory,4548-4,Hemoglobin A1c,7.5,%,numeric
+2026-02-08T08:36:00Z,d16269d4-1f32-5f55-808f-c6abbcc392aa,04d36ba3-ed4e-5483-bcbb-7f892993c985,laboratory,4548-4,Hemoglobin A1c,8.9,%,numeric
+2026-02-13T14:18:00Z,d16269d4-1f32-5f55-808f-c6abbcc392aa,e517b013-58a4-5d20-9532-066e1ac4a82a,vital-signs,8480-6,Systolic Blood Pressure,156,mm[Hg],numeric
+2026-02-13T14:18:00Z,d16269d4-1f32-5f55-808f-c6abbcc392aa,e517b013-58a4-5d20-9532-066e1ac4a82a,vital-signs,8462-4,Diastolic Blood Pressure,75,mm[Hg],numeric
+2026-05-11T10:07:00Z,d16269d4-1f32-5f55-808f-c6abbcc392aa,d5633cb9-b866-59b2-8418-0af81c13381b,laboratory,4548-4,Hemoglobin A1c,7.4,%,numeric
+2026-08-11T08:39:00Z,d16269d4-1f32-5f55-808f-c6abbcc392aa,4ebea3fc-6a3a-5bcf-b395-b0cbcd119f52,vital-signs,8480-6,Systolic Blood Pressure,133,mm[Hg],numeric
+2026-08-11T08:39:00Z,d16269d4-1f32-5f55-808f-c6abbcc392aa,4ebea3fc-6a3a-5bcf-b395-b0cbcd119f52,vital-signs,8462-4,Diastolic Blood Pressure,74,mm[Hg],numeric
+2026-01-27T08:23:00Z,d32cd9b7-1081-57a8-814d-b44c18477d4a,ef4a3076-988d-5e5b-911a-0508aa95eee6,vital-signs,8480-6,Systolic Blood Pressure,131,mm[Hg],numeric
+2026-01-27T08:23:00Z,d32cd9b7-1081-57a8-814d-b44c18477d4a,ef4a3076-988d-5e5b-911a-0508aa95eee6,vital-signs,8462-4,Diastolic Blood Pressure,75,mm[Hg],numeric
+2026-02-22T14:58:00Z,d32cd9b7-1081-57a8-814d-b44c18477d4a,8df913b4-68b0-5ec3-b3e3-53007f01a56a,laboratory,33914-3,Glomerular filtration rate/1.73 sq M.predicted,55,mL/min/{1.73_m2},numeric
+2026-02-22T14:58:00Z,d32cd9b7-1081-57a8-814d-b44c18477d4a,8df913b4-68b0-5ec3-b3e3-53007f01a56a,laboratory,14959-1,Albumin/Creatinine [Mass Ratio] in Urine,28,mg/g,numeric
+2026-04-11T08:09:00Z,d32cd9b7-1081-57a8-814d-b44c18477d4a,c4f38e7b-bdde-52be-a38c-098c6a383626,vital-signs,8480-6,Systolic Blood Pressure,144,mm[Hg],numeric
+2026-04-11T08:09:00Z,d32cd9b7-1081-57a8-814d-b44c18477d4a,c4f38e7b-bdde-52be-a38c-098c6a383626,vital-signs,8462-4,Diastolic Blood Pressure,90,mm[Hg],numeric
+2026-06-10T12:24:00Z,d32cd9b7-1081-57a8-814d-b44c18477d4a,f0b425eb-8d4a-5baa-9ce5-a7674adfdbcf,laboratory,4548-4,Hemoglobin A1c,7.8,%,numeric
+2026-03-06T08:14:00Z,5fdd9825-31fe-599c-80c0-da14f31c2a89,8efeaa1a-09e0-5f65-ad53-7c10cc86e0b2,laboratory,57905-2,Hemoglobin.gastrointestinal [Presence] in Stool by Immunoassay,Negative,,text
+2026-04-22T10:14:00Z,5fdd9825-31fe-599c-80c0-da14f31c2a89,062ffd5e-f722-59a7-87e6-bc8c14dae32e,vital-signs,8480-6,Systolic Blood Pressure,135,mm[Hg],numeric
+2026-04-22T10:14:00Z,5fdd9825-31fe-599c-80c0-da14f31c2a89,062ffd5e-f722-59a7-87e6-bc8c14dae32e,vital-signs,8462-4,Diastolic Blood Pressure,79,mm[Hg],numeric
+2026-09-09T16:34:00Z,5fdd9825-31fe-599c-80c0-da14f31c2a89,1b9cd009-1f84-5901-9aab-ef4219510682,vital-signs,8480-6,Systolic Blood Pressure,112,mm[Hg],numeric
+2026-09-09T16:34:00Z,5fdd9825-31fe-599c-80c0-da14f31c2a89,1b9cd009-1f84-5901-9aab-ef4219510682,vital-signs,8462-4,Diastolic Blood Pressure,69,mm[Hg],numeric
+2026-01-10T08:18:00Z,9c3fdd89-dda5-5b60-bf83-d2271072e5ba,9c72bde4-b4bc-561b-b809-150f2ecc1777,vital-signs,8480-6,Systolic Blood Pressure,126,mm[Hg],numeric
+2026-01-10T08:18:00Z,9c3fdd89-dda5-5b60-bf83-d2271072e5ba,9c72bde4-b4bc-561b-b809-150f2ecc1777,vital-signs,8462-4,Diastolic Blood Pressure,77,mm[Hg],numeric
+2026-05-24T11:59:00Z,9c3fdd89-dda5-5b60-bf83-d2271072e5ba,aec40220-e3e2-5b63-8fda-313dfbe95d12,vital-signs,8480-6,Systolic Blood Pressure,117,mm[Hg],numeric
+2026-05-24T11:59:00Z,9c3fdd89-dda5-5b60-bf83-d2271072e5ba,aec40220-e3e2-5b63-8fda-313dfbe95d12,vital-signs,8462-4,Diastolic Blood Pressure,73,mm[Hg],numeric
+2026-07-04T15:16:00Z,914e432b-bf5b-54cb-b38d-96b1b6b39d38,f3c35fe8-8a27-5f2a-8fd3-f95997952890,vital-signs,8480-6,Systolic Blood Pressure,148,mm[Hg],numeric
+2026-07-04T15:16:00Z,914e432b-bf5b-54cb-b38d-96b1b6b39d38,f3c35fe8-8a27-5f2a-8fd3-f95997952890,vital-signs,8462-4,Diastolic Blood Pressure,69,mm[Hg],numeric
+2026-10-02T10:01:00Z,914e432b-bf5b-54cb-b38d-96b1b6b39d38,e228c9da-d1cd-5534-b365-60ebb66805be,vital-signs,8480-6,Systolic Blood Pressure,134,mm[Hg],numeric
+2026-10-02T10:01:00Z,914e432b-bf5b-54cb-b38d-96b1b6b39d38,e228c9da-d1cd-5534-b365-60ebb66805be,vital-signs,8462-4,Diastolic Blood Pressure,74,mm[Hg],numeric
+2022-11-06T10:37:00Z,c6d5eb27-47ac-57c8-92fe-4d8a0bf88f6e,04b26b8c-ff78-523b-99c5-48c3fe02a5e8,laboratory,21440-3,High risk HPV DNA [Presence] in Cervix,Negative,,text
+2025-07-30T15:52:00Z,b0341a17-d725-5194-b98d-3468666cc76e,70d9c943-e721-5e39-98ee-57a18f070326,vital-signs,8480-6,Systolic Blood Pressure,148,mm[Hg],numeric
+2025-07-30T15:52:00Z,b0341a17-d725-5194-b98d-3468666cc76e,70d9c943-e721-5e39-98ee-57a18f070326,vital-signs,8462-4,Diastolic Blood Pressure,73,mm[Hg],numeric
+2026-03-30T13:00:00Z,b0b435ef-296b-5235-a1a7-e9ffdbfab834,53e22c9f-932f-5cca-b63c-64ca5d4b791f,laboratory,4548-4,Hemoglobin A1c,8.7,%,numeric
+2026-05-17T14:50:00Z,b0b435ef-296b-5235-a1a7-e9ffdbfab834,8b51a2dd-7fd7-5609-b1f0-c151d515dc3e,laboratory,33914-3,Glomerular filtration rate/1.73 sq M.predicted,91,mL/min/{1.73_m2},numeric
+2026-06-01T11:04:00Z,b0b435ef-296b-5235-a1a7-e9ffdbfab834,cf4c34a6-e419-528f-a370-94a7c0fea5d8,laboratory,14959-1,Albumin/Creatinine [Mass Ratio] in Urine,19,mg/g,numeric
+2026-08-04T12:05:00Z,b0b435ef-296b-5235-a1a7-e9ffdbfab834,f50ab6f9-6ad8-5ea8-9d58-01d2e90ca38c,laboratory,4548-4,Hemoglobin A1c,8.3,%,numeric
+2026-08-15T10:13:00Z,b0b435ef-296b-5235-a1a7-e9ffdbfab834,149f583a-72b4-570a-817d-5d09a03fec47,vital-signs,8480-6,Systolic Blood Pressure,144,mm[Hg],numeric
+2026-08-15T10:13:00Z,b0b435ef-296b-5235-a1a7-e9ffdbfab834,149f583a-72b4-570a-817d-5d09a03fec47,vital-signs,8462-4,Diastolic Blood Pressure,96,mm[Hg],numeric
+2026-08-25T09:22:00Z,b0b435ef-296b-5235-a1a7-e9ffdbfab834,f14b8e28-b5f6-5885-8374-c560f0daf725,vital-signs,8480-6,Systolic Blood Pressure,143,mm[Hg],numeric
+2026-08-25T09:22:00Z,b0b435ef-296b-5235-a1a7-e9ffdbfab834,f14b8e28-b5f6-5885-8374-c560f0daf725,vital-signs,8462-4,Diastolic Blood Pressure,93,mm[Hg],numeric
+2026-09-29T15:46:00Z,b0b435ef-296b-5235-a1a7-e9ffdbfab834,7359d17c-e8a8-5eb9-adcd-ce2898cfe6ae,laboratory,4548-4,Hemoglobin A1c,10.4,%,numeric
+2026-10-04T12:52:00Z,eb99e25c-ff5b-511b-996d-4adb582b536d,fd186c87-2f52-5fa2-bffb-4a672d0e283a,vital-signs,8480-6,Systolic Blood Pressure,132,mm[Hg],numeric
+2026-10-04T12:52:00Z,eb99e25c-ff5b-511b-996d-4adb582b536d,fd186c87-2f52-5fa2-bffb-4a672d0e283a,vital-signs,8462-4,Diastolic Blood Pressure,69,mm[Hg],numeric
+2026-06-20T08:11:00Z,074dd9db-d498-5db1-a619-46aac0db346d,3cb91a4e-9e14-5b52-ba3f-243658eb0b13,vital-signs,8480-6,Systolic Blood Pressure,147,mm[Hg],numeric
+2026-06-20T08:11:00Z,074dd9db-d498-5db1-a619-46aac0db346d,3cb91a4e-9e14-5b52-ba3f-243658eb0b13,vital-signs,8462-4,Diastolic Blood Pressure,71,mm[Hg],numeric
+2026-08-06T14:59:00Z,074dd9db-d498-5db1-a619-46aac0db346d,524d7d2e-6f85-5cb2-8b1e-dac5336d450c,laboratory,4548-4,Hemoglobin A1c,7.2,%,numeric
+2026-08-11T12:56:00Z,074dd9db-d498-5db1-a619-46aac0db346d,446af190-1d8a-59a8-b1b1-461105a524f1,laboratory,4548-4,Hemoglobin A1c,9.0,%,numeric
+2026-09-13T08:03:00Z,074dd9db-d498-5db1-a619-46aac0db346d,43f02b7e-4abe-585d-bdcc-e7147bdbf921,laboratory,33914-3,Glomerular filtration rate/1.73 sq M.predicted,74,mL/min/{1.73_m2},numeric
+2026-09-13T08:03:00Z,074dd9db-d498-5db1-a619-46aac0db346d,43f02b7e-4abe-585d-bdcc-e7147bdbf921,laboratory,14959-1,Albumin/Creatinine [Mass Ratio] in Urine,44,mg/g,numeric
+2022-11-10T08:09:00Z,9b6ecc96-b412-5f1b-b180-f239fb8bead7,613e4a68-a97a-59cf-b624-560db51e9a5a,laboratory,21440-3,High risk HPV DNA [Presence] in Cervix,Negative,,text
+2026-03-07T09:55:00Z,00356263-f11f-5943-9590-050907335f33,9cc1f380-0308-59dd-a996-868ec634d4cc,vital-signs,8480-6,Systolic Blood Pressure,131,mm[Hg],numeric
+2026-03-07T09:55:00Z,00356263-f11f-5943-9590-050907335f33,9cc1f380-0308-59dd-a996-868ec634d4cc,vital-signs,8462-4,Diastolic Blood Pressure,88,mm[Hg],numeric
+2026-05-16T11:40:00Z,6207eb88-9c07-5c03-9609-1926d38affdb,1bc30152-602f-59ed-9128-d79761bef51b,laboratory,33914-3,Glomerular filtration rate/1.73 sq M.predicted,82,mL/min/{1.73_m2},numeric
+2026-07-21T15:03:00Z,6207eb88-9c07-5c03-9609-1926d38affdb,b6fd57bb-3615-5a45-9216-40ab9d224b49,laboratory,4548-4,Hemoglobin A1c,7.5,%,numeric
+2026-08-06T16:36:00Z,6207eb88-9c07-5c03-9609-1926d38affdb,92415424-0727-5b7d-b43a-366f96b704c0,laboratory,4548-4,Hemoglobin A1c,7.1,%,numeric
+2026-09-10T12:06:00Z,6207eb88-9c07-5c03-9609-1926d38affdb,0d21a0ed-585e-5cdd-b485-30908228a1ac,vital-signs,8480-6,Systolic Blood Pressure,134,mm[Hg],numeric
+2026-09-10T12:06:00Z,6207eb88-9c07-5c03-9609-1926d38affdb,0d21a0ed-585e-5cdd-b485-30908228a1ac,vital-signs,8462-4,Diastolic Blood Pressure,86,mm[Hg],numeric
+2026-01-20T08:26:00Z,49d4665e-f143-5bcd-907d-27c4a04dcc47,585e2c33-1773-575e-b99a-4caa66c5d3f9,vital-signs,8480-6,Systolic Blood Pressure,152,mm[Hg],numeric
+2026-01-20T08:26:00Z,49d4665e-f143-5bcd-907d-27c4a04dcc47,585e2c33-1773-575e-b99a-4caa66c5d3f9,vital-signs,8462-4,Diastolic Blood Pressure,81,mm[Hg],numeric
+2026-03-07T09:49:00Z,49d4665e-f143-5bcd-907d-27c4a04dcc47,022912d2-1fe2-52f5-beb2-0b464b1e06d9,vital-signs,8480-6,Systolic Blood Pressure,167,mm[Hg],numeric
+2026-03-07T09:49:00Z,49d4665e-f143-5bcd-907d-27c4a04dcc47,022912d2-1fe2-52f5-beb2-0b464b1e06d9,vital-signs,8462-4,Diastolic Blood Pressure,95,mm[Hg],numeric
+2026-04-21T14:49:00Z,49d4665e-f143-5bcd-907d-27c4a04dcc47,5687dc34-1378-555b-8f93-3d315a06228e,laboratory,4548-4,Hemoglobin A1c,10.7,%,numeric
+2022-06-17T08:25:00Z,cdcbcec4-8279-5f9d-b069-9f54331a17f3,a85ca1ea-69ba-5f87-bffb-7ec58031b199,laboratory,21440-3,High risk HPV DNA [Presence] in Cervix,Negative,,text
+2023-03-11T13:32:00Z,48f0b750-7230-5e6b-a5fe-12164d41130c,a8bae313-c18d-54b0-add0-61805f7bf351,laboratory,21440-3,High risk HPV DNA [Presence] in Cervix,Negative,,text
+2026-02-25T11:29:00Z,c0aaabe4-1e37-5631-8199-9d3220479a25,8f64c02e-c70b-57ea-b63c-6d803b18fabd,vital-signs,8480-6,Systolic Blood Pressure,128,mm[Hg],numeric
+2026-02-25T11:29:00Z,c0aaabe4-1e37-5631-8199-9d3220479a25,8f64c02e-c70b-57ea-b63c-6d803b18fabd,vital-signs,8462-4,Diastolic Blood Pressure,71,mm[Hg],numeric
+2026-05-11T09:45:00Z,c0aaabe4-1e37-5631-8199-9d3220479a25,ca437605-3507-5e4f-8e95-a877d8224e1d,vital-signs,8480-6,Systolic Blood Pressure,135,mm[Hg],numeric
+2026-05-11T09:45:00Z,c0aaabe4-1e37-5631-8199-9d3220479a25,ca437605-3507-5e4f-8e95-a877d8224e1d,vital-signs,8462-4,Diastolic Blood Pressure,76,mm[Hg],numeric
+2026-06-18T16:39:00Z,c0aaabe4-1e37-5631-8199-9d3220479a25,99a074c5-3003-558b-8c8e-47005d0cdfdd,vital-signs,8480-6,Systolic Blood Pressure,114,mm[Hg],numeric
+2026-06-18T16:39:00Z,c0aaabe4-1e37-5631-8199-9d3220479a25,99a074c5-3003-558b-8c8e-47005d0cdfdd,vital-signs,8462-4,Diastolic Blood Pressure,67,mm[Hg],numeric
+2026-04-07T12:03:00Z,bd4a3b91-a82a-5496-8a31-c4c0f6655834,5eb7f8d6-e05f-53d0-95fb-fc8963c97cce,laboratory,4548-4,Hemoglobin A1c,6.8,%,numeric
+2026-04-09T15:52:00Z,bd4a3b91-a82a-5496-8a31-c4c0f6655834,d27175ab-6034-5d81-bc2f-e7f6bdd52146,laboratory,14959-1,Albumin/Creatinine [Mass Ratio] in Urine,53,mg/g,numeric
+2026-06-06T11:38:00Z,bd4a3b91-a82a-5496-8a31-c4c0f6655834,cb48934c-a193-587a-b90c-00169648c4d7,laboratory,4548-4,Hemoglobin A1c,8.5,%,numeric
+2026-06-11T16:48:00Z,bd4a3b91-a82a-5496-8a31-c4c0f6655834,14e55e76-8039-51b6-8c61-baec541fcf66,laboratory,4548-4,Hemoglobin A1c,6.1,%,numeric
+2026-06-11T16:48:00Z,bd4a3b91-a82a-5496-8a31-c4c0f6655834,14e55e76-8039-51b6-8c61-baec541fcf66,vital-signs,8480-6,Systolic Blood Pressure,113,mm[Hg],numeric
+2026-06-11T16:48:00Z,bd4a3b91-a82a-5496-8a31-c4c0f6655834,14e55e76-8039-51b6-8c61-baec541fcf66,vital-signs,8462-4,Diastolic Blood Pressure,71,mm[Hg],numeric
+2026-07-13T14:24:00Z,bd4a3b91-a82a-5496-8a31-c4c0f6655834,0f52e083-b145-5e4c-9b34-ca983507f35c,laboratory,33914-3,Glomerular filtration rate/1.73 sq M.predicted,77,mL/min/{1.73_m2},numeric
+2026-02-13T13:14:00Z,004f5278-aec5-51c2-a1ce-08d7471cd9f3,f32651cf-a14c-524c-b2a5-d483f5f41929,vital-signs,8480-6,Systolic Blood Pressure,159,mm[Hg],numeric
+2026-02-13T13:14:00Z,004f5278-aec5-51c2-a1ce-08d7471cd9f3,f32651cf-a14c-524c-b2a5-d483f5f41929,vital-signs,8462-4,Diastolic Blood Pressure,92,mm[Hg],numeric
+2026-01-04T16:53:00Z,976efa18-fed1-5933-80ef-2e094f8760c7,4b94e8f0-01d7-5c0d-b6d4-26ae07f45708,laboratory,33914-3,Glomerular filtration rate/1.73 sq M.predicted,69,mL/min/{1.73_m2},numeric
+2026-01-04T16:53:00Z,976efa18-fed1-5933-80ef-2e094f8760c7,4b94e8f0-01d7-5c0d-b6d4-26ae07f45708,laboratory,14959-1,Albumin/Creatinine [Mass Ratio] in Urine,8,mg/g,numeric
+2026-02-15T08:01:00Z,976efa18-fed1-5933-80ef-2e094f8760c7,30284942-bcee-593e-890d-15b79272b0a0,laboratory,4548-4,Hemoglobin A1c,7.1,%,numeric
+2026-03-18T12:02:00Z,976efa18-fed1-5933-80ef-2e094f8760c7,a19b4cd7-cea9-5ee9-9c50-92011c1c7ffd,vital-signs,8480-6,Systolic Blood Pressure,147,mm[Hg],numeric
+2026-03-18T12:02:00Z,976efa18-fed1-5933-80ef-2e094f8760c7,a19b4cd7-cea9-5ee9-9c50-92011c1c7ffd,vital-signs,8462-4,Diastolic Blood Pressure,79,mm[Hg],numeric
+2026-08-30T11:59:00Z,976efa18-fed1-5933-80ef-2e094f8760c7,1ef07048-3278-5c42-922e-7a37c94440a9,vital-signs,8480-6,Systolic Blood Pressure,130,mm[Hg],numeric
+2026-08-30T11:59:00Z,976efa18-fed1-5933-80ef-2e094f8760c7,1ef07048-3278-5c42-922e-7a37c94440a9,vital-signs,8462-4,Diastolic Blood Pressure,78,mm[Hg],numeric
+2022-12-20T10:12:00Z,a3a12749-3271-50d8-840a-2cca83301783,fa536af9-79f3-5457-a162-3952945a2688,laboratory,21440-3,High risk HPV DNA [Presence] in Cervix,Negative,,text
+2026-02-28T10:01:00Z,a3a12749-3271-50d8-840a-2cca83301783,51b7fe2b-8370-5fe0-ba72-550b72f7a659,vital-signs,8480-6,Systolic Blood Pressure,144,mm[Hg],numeric
+2026-02-28T10:01:00Z,a3a12749-3271-50d8-840a-2cca83301783,51b7fe2b-8370-5fe0-ba72-550b72f7a659,vital-signs,8462-4,Diastolic Blood Pressure,82,mm[Hg],numeric
+2026-08-01T12:40:00Z,a3a12749-3271-50d8-840a-2cca83301783,b2f8692d-b242-558d-8203-6b8a3f20b827,vital-signs,8480-6,Systolic Blood Pressure,159,mm[Hg],numeric
+2026-08-01T12:40:00Z,a3a12749-3271-50d8-840a-2cca83301783,b2f8692d-b242-558d-8203-6b8a3f20b827,vital-signs,8462-4,Diastolic Blood Pressure,79,mm[Hg],numeric
+2026-08-04T12:20:00Z,a3a12749-3271-50d8-840a-2cca83301783,ec29cbac-ecfb-59db-9702-73ec94d0c269,vital-signs,8480-6,Systolic Blood Pressure,111,mm[Hg],numeric
+2026-08-04T12:20:00Z,a3a12749-3271-50d8-840a-2cca83301783,ec29cbac-ecfb-59db-9702-73ec94d0c269,vital-signs,8462-4,Diastolic Blood Pressure,87,mm[Hg],numeric
+2022-02-18T13:56:00Z,21972ed4-f7a2-58ac-862e-600fd6d420b6,71ad8c00-9923-5bb6-9a6e-109af00c610c,laboratory,21440-3,High risk HPV DNA [Presence] in Cervix,Negative,,text
+2025-02-07T13:56:00Z,21885845-ab3b-5853-8647-64f27ecdf3b5,ca24443e-8528-5c0f-817e-314d7da8b2b7,vital-signs,8480-6,Systolic Blood Pressure,120,mm[Hg],numeric
+2025-02-07T13:56:00Z,21885845-ab3b-5853-8647-64f27ecdf3b5,ca24443e-8528-5c0f-817e-314d7da8b2b7,vital-signs,8462-4,Diastolic Blood Pressure,84,mm[Hg],numeric
+2025-05-14T15:19:00Z,7c99c760-5aa6-5ee9-86fe-4057803a1457,a14940b3-9f46-56d5-9e0d-c720bce8188e,laboratory,33914-3,Glomerular filtration rate/1.73 sq M.predicted,45,mL/min/{1.73_m2},numeric
+2025-05-14T15:19:00Z,7c99c760-5aa6-5ee9-86fe-4057803a1457,a14940b3-9f46-56d5-9e0d-c720bce8188e,laboratory,14959-1,Albumin/Creatinine [Mass Ratio] in Urine,20,mg/g,numeric
+2026-02-08T09:18:00Z,7c99c760-5aa6-5ee9-86fe-4057803a1457,97494c44-c23f-5765-a5ac-2d3c417d4b15,laboratory,4548-4,Hemoglobin A1c,8.3,%,numeric
+2026-03-03T12:34:00Z,7c99c760-5aa6-5ee9-86fe-4057803a1457,8f4ef9cf-f3d8-52d5-bc44-449eff2300c7,laboratory,4548-4,Hemoglobin A1c,9.9,%,numeric
+2026-03-21T11:07:00Z,7c99c760-5aa6-5ee9-86fe-4057803a1457,49ca011f-bc84-58c4-92b9-6926caf59f71,laboratory,4548-4,Hemoglobin A1c,5.6,%,numeric
+2026-04-05T16:38:00Z,7c99c760-5aa6-5ee9-86fe-4057803a1457,907639c5-f465-53ee-bafc-14710c909e28,vital-signs,8480-6,Systolic Blood Pressure,122,mm[Hg],numeric
+2026-04-05T16:38:00Z,7c99c760-5aa6-5ee9-86fe-4057803a1457,907639c5-f465-53ee-bafc-14710c909e28,vital-signs,8462-4,Diastolic Blood Pressure,75,mm[Hg],numeric
+2026-05-01T14:16:00Z,7c99c760-5aa6-5ee9-86fe-4057803a1457,358f0d07-41bb-54cf-bc6d-e98e1ba31d06,vital-signs,8480-6,Systolic Blood Pressure,118,mm[Hg],numeric
+2026-05-01T14:16:00Z,7c99c760-5aa6-5ee9-86fe-4057803a1457,358f0d07-41bb-54cf-bc6d-e98e1ba31d06,vital-signs,8462-4,Diastolic Blood Pressure,91,mm[Hg],numeric
+2026-08-27T11:46:00Z,7c99c760-5aa6-5ee9-86fe-4057803a1457,a52141db-8225-5431-ab7f-9e6333fa7603,vital-signs,8480-6,Systolic Blood Pressure,115,mm[Hg],numeric
+2026-08-27T11:46:00Z,7c99c760-5aa6-5ee9-86fe-4057803a1457,a52141db-8225-5431-ab7f-9e6333fa7603,vital-signs,8462-4,Diastolic Blood Pressure,73,mm[Hg],numeric
+2026-04-10T08:30:00Z,5c248d03-d063-5075-971e-c6ef5bc166e8,91d405f0-0384-55bb-ab06-b03dfef4ad09,vital-signs,8480-6,Systolic Blood Pressure,134,mm[Hg],numeric
+2026-04-10T08:30:00Z,5c248d03-d063-5075-971e-c6ef5bc166e8,91d405f0-0384-55bb-ab06-b03dfef4ad09,vital-signs,8462-4,Diastolic Blood Pressure,83,mm[Hg],numeric
+2026-01-30T09:40:00Z,1203e2c8-39a3-54d9-8398-5c05282bb653,bd4324e0-9713-5c28-bf59-8d4ae8f65866,vital-signs,8480-6,Systolic Blood Pressure,135,mm[Hg],numeric
+2026-01-30T09:40:00Z,1203e2c8-39a3-54d9-8398-5c05282bb653,bd4324e0-9713-5c28-bf59-8d4ae8f65866,vital-signs,8462-4,Diastolic Blood Pressure,98,mm[Hg],numeric
+2026-09-25T09:19:00Z,1203e2c8-39a3-54d9-8398-5c05282bb653,e83ff882-028e-5101-8db6-adbcf4328a89,vital-signs,8480-6,Systolic Blood Pressure,131,mm[Hg],numeric
+2026-09-25T09:19:00Z,1203e2c8-39a3-54d9-8398-5c05282bb653,e83ff882-028e-5101-8db6-adbcf4328a89,vital-signs,8462-4,Diastolic Blood Pressure,79,mm[Hg],numeric
+2026-09-30T10:31:00Z,1203e2c8-39a3-54d9-8398-5c05282bb653,754a694f-5223-51db-b769-0386be1f1e16,vital-signs,8480-6,Systolic Blood Pressure,135,mm[Hg],numeric
+2026-09-30T10:31:00Z,1203e2c8-39a3-54d9-8398-5c05282bb653,754a694f-5223-51db-b769-0386be1f1e16,vital-signs,8462-4,Diastolic Blood Pressure,77,mm[Hg],numeric
+2025-09-09T08:01:00Z,27eb7e30-1307-54f0-9c30-ffa283f90841,35669581-d844-5edc-b1bb-685cf95a3189,vital-signs,8480-6,Systolic Blood Pressure,138,mm[Hg],numeric
+2025-09-09T08:01:00Z,27eb7e30-1307-54f0-9c30-ffa283f90841,35669581-d844-5edc-b1bb-685cf95a3189,vital-signs,8462-4,Diastolic Blood Pressure,93,mm[Hg],numeric
+2026-02-08T16:44:00Z,27eb7e30-1307-54f0-9c30-ffa283f90841,86f542fc-c302-5471-b2e6-9020f2213c25,laboratory,33914-3,Glomerular filtration rate/1.73 sq M.predicted,67,mL/min/{1.73_m2},numeric
+2026-07-20T09:21:00Z,27eb7e30-1307-54f0-9c30-ffa283f90841,b501a979-84b0-5287-9d60-1516539b6553,laboratory,14959-1,Albumin/Creatinine [Mass Ratio] in Urine,21,mg/g,numeric
+2026-03-16T09:15:00Z,a2b806cc-41eb-5359-8d03-b60c53503521,95fdd2f6-f8e3-5eca-9d3b-d544f23e8e4a,vital-signs,8480-6,Systolic Blood Pressure,121,mm[Hg],numeric
+2026-03-16T09:15:00Z,a2b806cc-41eb-5359-8d03-b60c53503521,95fdd2f6-f8e3-5eca-9d3b-d544f23e8e4a,vital-signs,8462-4,Diastolic Blood Pressure,76,mm[Hg],numeric
+2026-02-04T08:08:00Z,67b8839a-8338-5045-9b00-9ded95203264,0e6f94d1-f762-5066-b09c-020bf00094b1,vital-signs,8480-6,Systolic Blood Pressure,131,mm[Hg],numeric
+2026-02-04T08:08:00Z,67b8839a-8338-5045-9b00-9ded95203264,0e6f94d1-f762-5066-b09c-020bf00094b1,vital-signs,8462-4,Diastolic Blood Pressure,86,mm[Hg],numeric
+2026-07-25T15:08:00Z,67b8839a-8338-5045-9b00-9ded95203264,342e14c7-e2d1-54b6-93cb-d5ade0b596e9,vital-signs,8480-6,Systolic Blood Pressure,132,mm[Hg],numeric
+2026-07-25T15:08:00Z,67b8839a-8338-5045-9b00-9ded95203264,342e14c7-e2d1-54b6-93cb-d5ade0b596e9,vital-signs,8462-4,Diastolic Blood Pressure,81,mm[Hg],numeric
+2026-07-19T12:19:00Z,a83ce2fe-c06f-5888-818d-d95b4e9adae3,a23267de-d908-5e6e-8253-76c62d34b9a0,vital-signs,8480-6,Systolic Blood Pressure,156,mm[Hg],numeric
+2026-07-19T12:19:00Z,a83ce2fe-c06f-5888-818d-d95b4e9adae3,a23267de-d908-5e6e-8253-76c62d34b9a0,vital-signs,8462-4,Diastolic Blood Pressure,83,mm[Hg],numeric
+2026-10-02T15:19:00Z,a83ce2fe-c06f-5888-818d-d95b4e9adae3,22e98b5f-edde-5e2d-830f-54a2b8a55431,vital-signs,8480-6,Systolic Blood Pressure,133,mm[Hg],numeric
+2026-10-02T15:19:00Z,a83ce2fe-c06f-5888-818d-d95b4e9adae3,22e98b5f-edde-5e2d-830f-54a2b8a55431,vital-signs,8462-4,Diastolic Blood Pressure,96,mm[Hg],numeric
+2026-05-19T11:56:00Z,e138be73-c7e8-50d8-ac7c-c8e6190d0ef1,3d8317b8-7c20-5e48-885e-53ecf1e7f8e2,vital-signs,8480-6,Systolic Blood Pressure,138,mm[Hg],numeric
+2026-05-19T11:56:00Z,e138be73-c7e8-50d8-ac7c-c8e6190d0ef1,3d8317b8-7c20-5e48-885e-53ecf1e7f8e2,vital-signs,8462-4,Diastolic Blood Pressure,69,mm[Hg],numeric
+2026-05-22T14:10:00Z,e138be73-c7e8-50d8-ac7c-c8e6190d0ef1,cf7426a4-ba60-5aa3-b3a6-1187b01bc726,vital-signs,8480-6,Systolic Blood Pressure,118,mm[Hg],numeric
+2026-05-22T14:10:00Z,e138be73-c7e8-50d8-ac7c-c8e6190d0ef1,cf7426a4-ba60-5aa3-b3a6-1187b01bc726,vital-signs,8462-4,Diastolic Blood Pressure,93,mm[Hg],numeric
+2026-07-13T16:55:00Z,e138be73-c7e8-50d8-ac7c-c8e6190d0ef1,0968e817-ebe7-5e5c-b114-757e5360a9cb,laboratory,14959-1,Albumin/Creatinine [Mass Ratio] in Urine,20,mg/g,numeric
+2026-08-18T15:42:00Z,e138be73-c7e8-50d8-ac7c-c8e6190d0ef1,6c6b1e47-e25f-53da-9a0c-525f8c89d3d1,laboratory,33914-3,Glomerular filtration rate/1.73 sq M.predicted,88,mL/min/{1.73_m2},numeric
+2026-09-24T10:11:00Z,e138be73-c7e8-50d8-ac7c-c8e6190d0ef1,f02c98ea-63e2-5fc9-b39b-92b4ef089e7a,vital-signs,8480-6,Systolic Blood Pressure,129,mm[Hg],numeric
+2026-09-24T10:11:00Z,e138be73-c7e8-50d8-ac7c-c8e6190d0ef1,f02c98ea-63e2-5fc9-b39b-92b4ef089e7a,vital-signs,8462-4,Diastolic Blood Pressure,65,mm[Hg],numeric
+2026-06-27T14:29:00Z,94e76a5a-7b49-5c15-9dff-5afbfc481181,b79e07f6-41b0-537f-91b3-ff71893b72e4,vital-signs,8480-6,Systolic Blood Pressure,122,mm[Hg],numeric
+2026-06-27T14:29:00Z,94e76a5a-7b49-5c15-9dff-5afbfc481181,b79e07f6-41b0-537f-91b3-ff71893b72e4,vital-signs,8462-4,Diastolic Blood Pressure,96,mm[Hg],numeric
+2026-04-25T16:57:00Z,85931f39-24ea-5e82-ae42-92e40b28a6a5,96e70f8c-298e-581f-9189-50161d032e8c,vital-signs,8480-6,Systolic Blood Pressure,119,mm[Hg],numeric
+2026-04-25T16:57:00Z,85931f39-24ea-5e82-ae42-92e40b28a6a5,96e70f8c-298e-581f-9189-50161d032e8c,vital-signs,8462-4,Diastolic Blood Pressure,88,mm[Hg],numeric
+2026-06-30T14:42:00Z,85931f39-24ea-5e82-ae42-92e40b28a6a5,032b665e-553f-5dfd-b704-d53f44b6f670,vital-signs,8480-6,Systolic Blood Pressure,137,mm[Hg],numeric
+2026-06-30T14:42:00Z,85931f39-24ea-5e82-ae42-92e40b28a6a5,032b665e-553f-5dfd-b704-d53f44b6f670,vital-signs,8462-4,Diastolic Blood Pressure,82,mm[Hg],numeric
+2026-08-11T08:04:00Z,85931f39-24ea-5e82-ae42-92e40b28a6a5,33536bc3-b2f3-5153-af4c-0fbf781e0131,vital-signs,8480-6,Systolic Blood Pressure,124,mm[Hg],numeric
+2026-08-11T08:04:00Z,85931f39-24ea-5e82-ae42-92e40b28a6a5,33536bc3-b2f3-5153-af4c-0fbf781e0131,vital-signs,8462-4,Diastolic Blood Pressure,86,mm[Hg],numeric
+2026-01-03T15:56:00Z,096edfde-9170-59bc-865a-ab602915ea7c,63d73bbc-5e0b-5c95-8767-ed3789b55506,laboratory,33914-3,Glomerular filtration rate/1.73 sq M.predicted,67,mL/min/{1.73_m2},numeric
+2026-01-28T13:23:00Z,096edfde-9170-59bc-865a-ab602915ea7c,070a91ce-ef26-54b6-972d-cf7beaf40ef2,laboratory,4548-4,Hemoglobin A1c,9.3,%,numeric
+2026-02-22T14:00:00Z,096edfde-9170-59bc-865a-ab602915ea7c,50707104-6f1c-52df-b6e8-b33b3a098297,vital-signs,8480-6,Systolic Blood Pressure,159,mm[Hg],numeric
+2026-02-22T14:00:00Z,096edfde-9170-59bc-865a-ab602915ea7c,50707104-6f1c-52df-b6e8-b33b3a098297,vital-signs,8462-4,Diastolic Blood Pressure,80,mm[Hg],numeric
+2026-03-29T13:20:00Z,096edfde-9170-59bc-865a-ab602915ea7c,18731b9d-fb5a-591e-8317-a3d495d275e8,laboratory,4548-4,Hemoglobin A1c,5.8,%,numeric
+2026-06-19T15:15:00Z,096edfde-9170-59bc-865a-ab602915ea7c,fbf4b159-0f59-5ee8-8dfc-cddd2bf9642a,vital-signs,8480-6,Systolic Blood Pressure,157,mm[Hg],numeric
+2026-06-19T15:15:00Z,096edfde-9170-59bc-865a-ab602915ea7c,fbf4b159-0f59-5ee8-8dfc-cddd2bf9642a,vital-signs,8462-4,Diastolic Blood Pressure,91,mm[Hg],numeric
+2026-09-15T10:16:00Z,096edfde-9170-59bc-865a-ab602915ea7c,5f90580a-5a76-581d-9787-3723dfa302a1,vital-signs,8480-6,Systolic Blood Pressure,125,mm[Hg],numeric
+2026-09-15T10:16:00Z,096edfde-9170-59bc-865a-ab602915ea7c,5f90580a-5a76-581d-9787-3723dfa302a1,vital-signs,8462-4,Diastolic Blood Pressure,74,mm[Hg],numeric
+2025-09-12T16:07:00Z,29f53de5-e41a-5158-b756-005151f4c154,ca8fc47b-20ec-5938-8fb3-1eb7a60adb4f,vital-signs,8480-6,Systolic Blood Pressure,125,mm[Hg],numeric
+2025-09-12T16:07:00Z,29f53de5-e41a-5158-b756-005151f4c154,ca8fc47b-20ec-5938-8fb3-1eb7a60adb4f,vital-signs,8462-4,Diastolic Blood Pressure,80,mm[Hg],numeric
+2026-02-18T16:02:00Z,29f53de5-e41a-5158-b756-005151f4c154,73b7ef59-f964-598c-83fa-c31496571346,laboratory,33914-3,Glomerular filtration rate/1.73 sq M.predicted,100,mL/min/{1.73_m2},numeric
+2026-03-02T13:53:00Z,29f53de5-e41a-5158-b756-005151f4c154,c4832296-38d7-5d07-b073-92d4373a0425,laboratory,4548-4,Hemoglobin A1c,7.4,%,numeric
+2026-07-04T12:37:00Z,29f53de5-e41a-5158-b756-005151f4c154,3bf7f371-d7c1-550b-8ed9-0b966968f6b8,laboratory,4548-4,Hemoglobin A1c,8.4,%,numeric
+2026-07-15T16:10:00Z,29f53de5-e41a-5158-b756-005151f4c154,2319c90f-a437-527b-a881-152e8919a114,laboratory,4548-4,Hemoglobin A1c,7.7,%,numeric
+2026-01-30T10:17:00Z,3a2e3041-c9b6-58d0-ab4e-12868779bea7,8f895a3f-3a05-5310-b606-b2c6eec6ff47,vital-signs,8480-6,Systolic Blood Pressure,158,mm[Hg],numeric
+2026-01-30T10:17:00Z,3a2e3041-c9b6-58d0-ab4e-12868779bea7,8f895a3f-3a05-5310-b606-b2c6eec6ff47,vital-signs,8462-4,Diastolic Blood Pressure,68,mm[Hg],numeric
+2026-05-25T14:45:00Z,3a2e3041-c9b6-58d0-ab4e-12868779bea7,4a6d24ca-18c1-53c5-abf9-da3ffe541991,vital-signs,8480-6,Systolic Blood Pressure,132,mm[Hg],numeric
+2026-05-25T14:45:00Z,3a2e3041-c9b6-58d0-ab4e-12868779bea7,4a6d24ca-18c1-53c5-abf9-da3ffe541991,vital-signs,8462-4,Diastolic Blood Pressure,63,mm[Hg],numeric
+2026-01-22T12:58:00Z,e6402e87-b672-5386-a9c6-805ddca6adb6,550eb506-466f-5042-a4e1-c6afb7dac7fc,vital-signs,8480-6,Systolic Blood Pressure,121,mm[Hg],numeric
+2026-01-22T12:58:00Z,e6402e87-b672-5386-a9c6-805ddca6adb6,550eb506-466f-5042-a4e1-c6afb7dac7fc,vital-signs,8462-4,Diastolic Blood Pressure,94,mm[Hg],numeric
+2026-02-25T16:12:00Z,e6402e87-b672-5386-a9c6-805ddca6adb6,7a44b147-9923-55f7-9600-bd9228413df2,vital-signs,8480-6,Systolic Blood Pressure,116,mm[Hg],numeric
+2026-02-25T16:12:00Z,e6402e87-b672-5386-a9c6-805ddca6adb6,7a44b147-9923-55f7-9600-bd9228413df2,vital-signs,8462-4,Diastolic Blood Pressure,85,mm[Hg],numeric
+2026-03-18T16:37:00Z,e960d14a-a152-57fd-b3ba-1900e4fd625e,bd60a62a-8ad0-5b06-9f28-d78d7b19e75d,laboratory,21440-3,High risk HPV DNA [Presence] in Cervix,Negative,,text
+2026-03-31T08:19:00Z,e960d14a-a152-57fd-b3ba-1900e4fd625e,8298d6e5-45a0-54b1-8d98-d1589e80de99,laboratory,4548-4,Hemoglobin A1c,9.0,%,numeric
+2026-04-13T11:29:00Z,e960d14a-a152-57fd-b3ba-1900e4fd625e,83c8cb39-4d41-519a-ab74-648bfa42346d,laboratory,4548-4,Hemoglobin A1c,8.7,%,numeric
+2026-05-09T16:32:00Z,e960d14a-a152-57fd-b3ba-1900e4fd625e,fdd66c5f-4ee0-569a-a237-2c918c76be8e,vital-signs,8480-6,Systolic Blood Pressure,171,mm[Hg],numeric
+2026-05-09T16:32:00Z,e960d14a-a152-57fd-b3ba-1900e4fd625e,fdd66c5f-4ee0-569a-a237-2c918c76be8e,vital-signs,8462-4,Diastolic Blood Pressure,98,mm[Hg],numeric
+2026-08-06T12:20:00Z,e960d14a-a152-57fd-b3ba-1900e4fd625e,ba2251b9-5c94-55f7-b3b4-513d5cde1fab,laboratory,4548-4,Hemoglobin A1c,8.8,%,numeric
+2026-09-05T15:45:00Z,e960d14a-a152-57fd-b3ba-1900e4fd625e,d5fe2b06-d02b-5de3-8258-23097d3cca7b,laboratory,33914-3,Glomerular filtration rate/1.73 sq M.predicted,51,mL/min/{1.73_m2},numeric
+2026-01-28T08:01:00Z,8fa21ef8-2475-5e66-9235-1c0b787f9c4c,a62b9df6-a016-5071-b5bb-0a64960219fd,laboratory,33914-3,Glomerular filtration rate/1.73 sq M.predicted,38,mL/min/{1.73_m2},numeric
+2026-01-28T08:01:00Z,8fa21ef8-2475-5e66-9235-1c0b787f9c4c,a62b9df6-a016-5071-b5bb-0a64960219fd,laboratory,14959-1,Albumin/Creatinine [Mass Ratio] in Urine,10,mg/g,numeric
+2026-04-04T08:06:00Z,8fa21ef8-2475-5e66-9235-1c0b787f9c4c,c2de0bf4-7b44-5521-ab02-e941bb96ae21,laboratory,4548-4,Hemoglobin A1c,7.2,%,numeric
+2026-06-17T15:44:00Z,8fa21ef8-2475-5e66-9235-1c0b787f9c4c,d7bba46b-6234-5d04-a3c8-3908bfc25782,vital-signs,8480-6,Systolic Blood Pressure,141,mm[Hg],numeric
+2026-06-17T15:44:00Z,8fa21ef8-2475-5e66-9235-1c0b787f9c4c,d7bba46b-6234-5d04-a3c8-3908bfc25782,vital-signs,8462-4,Diastolic Blood Pressure,88,mm[Hg],numeric
+2026-07-08T08:09:00Z,8fa21ef8-2475-5e66-9235-1c0b787f9c4c,89345c18-dd3a-566a-8f12-a91f760d1927,vital-signs,8480-6,Systolic Blood Pressure,128,mm[Hg],numeric
+2026-07-08T08:09:00Z,8fa21ef8-2475-5e66-9235-1c0b787f9c4c,89345c18-dd3a-566a-8f12-a91f760d1927,vital-signs,8462-4,Diastolic Blood Pressure,83,mm[Hg],numeric
+2026-08-24T14:46:00Z,8fa21ef8-2475-5e66-9235-1c0b787f9c4c,c0a1afdf-b7f0-569a-b5db-851b0bdee7f9,vital-signs,8480-6,Systolic Blood Pressure,109,mm[Hg],numeric
+2026-08-24T14:46:00Z,8fa21ef8-2475-5e66-9235-1c0b787f9c4c,c0a1afdf-b7f0-569a-b5db-851b0bdee7f9,vital-signs,8462-4,Diastolic Blood Pressure,63,mm[Hg],numeric
+2026-06-30T13:59:00Z,9dded252-dbd0-502c-8577-f8b05f845d91,f1028dd2-eb51-556e-a61a-fbb15b1692df,vital-signs,8480-6,Systolic Blood Pressure,131,mm[Hg],numeric
+2026-06-30T13:59:00Z,9dded252-dbd0-502c-8577-f8b05f845d91,f1028dd2-eb51-556e-a61a-fbb15b1692df,vital-signs,8462-4,Diastolic Blood Pressure,70,mm[Hg],numeric
+2026-03-05T16:35:00Z,b41305e9-c127-5ea1-8b48-7702a0e6c7fe,ebb30530-7473-5350-9614-5442d593b31a,vital-signs,8480-6,Systolic Blood Pressure,137,mm[Hg],numeric
+2026-03-05T16:35:00Z,b41305e9-c127-5ea1-8b48-7702a0e6c7fe,ebb30530-7473-5350-9614-5442d593b31a,vital-signs,8462-4,Diastolic Blood Pressure,90,mm[Hg],numeric
+2026-07-12T12:28:00Z,b41305e9-c127-5ea1-8b48-7702a0e6c7fe,c99db626-3e70-51e1-bed4-f6df78d55926,vital-signs,8480-6,Systolic Blood Pressure,129,mm[Hg],numeric
+2026-07-12T12:28:00Z,b41305e9-c127-5ea1-8b48-7702a0e6c7fe,c99db626-3e70-51e1-bed4-f6df78d55926,vital-signs,8462-4,Diastolic Blood Pressure,86,mm[Hg],numeric
+2026-02-27T16:00:00Z,aceb7009-ac14-5165-a8df-9abe38f7e8fa,c2e4d244-e493-54c5-a8ba-3fb79423be29,laboratory,33914-3,Glomerular filtration rate/1.73 sq M.predicted,96,mL/min/{1.73_m2},numeric
+2026-02-27T16:00:00Z,aceb7009-ac14-5165-a8df-9abe38f7e8fa,c2e4d244-e493-54c5-a8ba-3fb79423be29,laboratory,14959-1,Albumin/Creatinine [Mass Ratio] in Urine,31,mg/g,numeric
+2026-05-02T09:05:00Z,aceb7009-ac14-5165-a8df-9abe38f7e8fa,dbc3961f-3813-5e58-b7b4-cdbcb84c7126,vital-signs,8480-6,Systolic Blood Pressure,160,mm[Hg],numeric
+2026-05-02T09:05:00Z,aceb7009-ac14-5165-a8df-9abe38f7e8fa,dbc3961f-3813-5e58-b7b4-cdbcb84c7126,vital-signs,8462-4,Diastolic Blood Pressure,76,mm[Hg],numeric
+2026-08-18T09:49:00Z,aceb7009-ac14-5165-a8df-9abe38f7e8fa,1d03766c-6ac3-5425-a795-387197e5a021,laboratory,4548-4,Hemoglobin A1c,7.8,%,numeric
+2026-02-12T12:53:00Z,74446c30-a219-5cf3-99a6-2400a90be4cc,6b7fbd20-5cea-580a-914b-27332738aced,vital-signs,8480-6,Systolic Blood Pressure,116,mm[Hg],numeric
+2026-02-12T12:53:00Z,74446c30-a219-5cf3-99a6-2400a90be4cc,6b7fbd20-5cea-580a-914b-27332738aced,vital-signs,8462-4,Diastolic Blood Pressure,73,mm[Hg],numeric
+2026-03-18T09:05:00Z,4bf957ff-30f4-53c8-adf6-b18d3709056b,270d6c62-a690-5488-9518-bc91e78e2bbb,vital-signs,8480-6,Systolic Blood Pressure,108,mm[Hg],numeric
+2026-03-18T09:05:00Z,4bf957ff-30f4-53c8-adf6-b18d3709056b,270d6c62-a690-5488-9518-bc91e78e2bbb,vital-signs,8462-4,Diastolic Blood Pressure,62,mm[Hg],numeric
+2025-08-11T12:30:00Z,12fd1586-2a95-5e71-934b-1c7204c4f741,9414e5ed-9a63-5441-bc0e-35ec1af9ec64,vital-signs,8480-6,Systolic Blood Pressure,149,mm[Hg],numeric
+2025-08-11T12:30:00Z,12fd1586-2a95-5e71-934b-1c7204c4f741,9414e5ed-9a63-5441-bc0e-35ec1af9ec64,vital-signs,8462-4,Diastolic Blood Pressure,85,mm[Hg],numeric
+2026-03-01T11:25:00Z,6f540fbb-e361-577d-9bbb-b2e9cbe696ac,d5b56aa1-5054-5016-8ac9-731c9d218a5d,vital-signs,8480-6,Systolic Blood Pressure,135,mm[Hg],numeric
+2026-03-01T11:25:00Z,6f540fbb-e361-577d-9bbb-b2e9cbe696ac,d5b56aa1-5054-5016-8ac9-731c9d218a5d,vital-signs,8462-4,Diastolic Blood Pressure,72,mm[Hg],numeric
+2026-08-16T10:10:00Z,6f540fbb-e361-577d-9bbb-b2e9cbe696ac,b60f53ba-588c-5a09-879d-af5d635215ca,vital-signs,8480-6,Systolic Blood Pressure,169,mm[Hg],numeric
+2026-08-16T10:10:00Z,6f540fbb-e361-577d-9bbb-b2e9cbe696ac,b60f53ba-588c-5a09-879d-af5d635215ca,vital-signs,8462-4,Diastolic Blood Pressure,91,mm[Hg],numeric
+2026-01-09T09:08:00Z,0d1e4f2d-04c2-5af8-b661-a04ab53e5e0b,aba28c33-1d7f-5f24-9cb7-989c0207ac26,vital-signs,8480-6,Systolic Blood Pressure,119,mm[Hg],numeric
+2026-01-09T09:08:00Z,0d1e4f2d-04c2-5af8-b661-a04ab53e5e0b,aba28c33-1d7f-5f24-9cb7-989c0207ac26,vital-signs,8462-4,Diastolic Blood Pressure,75,mm[Hg],numeric
+2026-02-11T08:29:00Z,0d1e4f2d-04c2-5af8-b661-a04ab53e5e0b,641d7b31-d0f2-5878-8a47-efe4ff7d33ca,vital-signs,8480-6,Systolic Blood Pressure,142,mm[Hg],numeric
+2026-02-11T08:29:00Z,0d1e4f2d-04c2-5af8-b661-a04ab53e5e0b,641d7b31-d0f2-5878-8a47-efe4ff7d33ca,vital-signs,8462-4,Diastolic Blood Pressure,87,mm[Hg],numeric
+2025-09-04T16:53:00Z,b88cda13-0407-5145-bd7a-09b7a9f90044,e497f1ef-eaa5-5a22-a283-0306109766ed,laboratory,4548-4,Hemoglobin A1c,8.1,%,numeric
+2026-07-22T08:34:00Z,b88cda13-0407-5145-bd7a-09b7a9f90044,9ce9ccf4-8759-598d-81eb-dc7b4cb2b78d,vital-signs,8480-6,Systolic Blood Pressure,131,mm[Hg],numeric
+2026-07-22T08:34:00Z,b88cda13-0407-5145-bd7a-09b7a9f90044,9ce9ccf4-8759-598d-81eb-dc7b4cb2b78d,vital-signs,8462-4,Diastolic Blood Pressure,77,mm[Hg],numeric
+2026-07-23T13:21:00Z,b88cda13-0407-5145-bd7a-09b7a9f90044,2a060592-cb4b-5c36-b9be-dec6ab4ebcbe,laboratory,14959-1,Albumin/Creatinine [Mass Ratio] in Urine,49,mg/g,numeric
+2026-04-20T08:22:00Z,e490cd3a-2801-59a4-b463-a03f36a91a3d,bb7769d3-ee7f-54a2-a717-d582763657cd,vital-signs,8480-6,Systolic Blood Pressure,143,mm[Hg],numeric
+2026-04-20T08:22:00Z,e490cd3a-2801-59a4-b463-a03f36a91a3d,bb7769d3-ee7f-54a2-a717-d582763657cd,vital-signs,8462-4,Diastolic Blood Pressure,77,mm[Hg],numeric
+2026-06-13T16:15:00Z,e490cd3a-2801-59a4-b463-a03f36a91a3d,db9095f8-0d42-5225-966c-60d0c9f863c3,vital-signs,8480-6,Systolic Blood Pressure,147,mm[Hg],numeric
+2026-06-13T16:15:00Z,e490cd3a-2801-59a4-b463-a03f36a91a3d,db9095f8-0d42-5225-966c-60d0c9f863c3,vital-signs,8462-4,Diastolic Blood Pressure,74,mm[Hg],numeric
+2026-09-02T08:25:00Z,e490cd3a-2801-59a4-b463-a03f36a91a3d,63c83da4-864b-5395-b537-5acd6d538b41,vital-signs,8480-6,Systolic Blood Pressure,168,mm[Hg],numeric
+2026-09-02T08:25:00Z,e490cd3a-2801-59a4-b463-a03f36a91a3d,63c83da4-864b-5395-b537-5acd6d538b41,vital-signs,8462-4,Diastolic Blood Pressure,78,mm[Hg],numeric
+2026-01-09T16:46:00Z,748e5139-709c-5eb2-b44d-8d14f30755a6,d7e2606e-909d-57f6-bd9c-15786a1b1f9d,vital-signs,8480-6,Systolic Blood Pressure,118,mm[Hg],numeric
+2026-01-09T16:46:00Z,748e5139-709c-5eb2-b44d-8d14f30755a6,d7e2606e-909d-57f6-bd9c-15786a1b1f9d,vital-signs,8462-4,Diastolic Blood Pressure,73,mm[Hg],numeric
+2026-03-05T13:36:00Z,748e5139-709c-5eb2-b44d-8d14f30755a6,1bb7d22e-59cc-5105-bb66-b0ecd7f6e7d3,vital-signs,8480-6,Systolic Blood Pressure,165,mm[Hg],numeric
+2026-03-05T13:36:00Z,748e5139-709c-5eb2-b44d-8d14f30755a6,1bb7d22e-59cc-5105-bb66-b0ecd7f6e7d3,vital-signs,8462-4,Diastolic Blood Pressure,71,mm[Hg],numeric
+2026-05-22T11:31:00Z,748e5139-709c-5eb2-b44d-8d14f30755a6,0fcf4278-ed6d-5b55-9889-29b1b477a91f,laboratory,33914-3,Glomerular filtration rate/1.73 sq M.predicted,81,mL/min/{1.73_m2},numeric
+2026-06-23T15:34:00Z,748e5139-709c-5eb2-b44d-8d14f30755a6,f1f5208b-d2c0-50d1-abc5-da198d459ed4,laboratory,4548-4,Hemoglobin A1c,8.7,%,numeric
+2026-09-29T10:21:00Z,748e5139-709c-5eb2-b44d-8d14f30755a6,1ba9538e-6de0-5075-9ee9-42a2a189e02c,laboratory,4548-4,Hemoglobin A1c,5.8,%,numeric
+2026-02-25T15:14:00Z,4f0dab8c-10dd-5b6e-80d3-b5bcc52b373f,b38a5906-340d-57ea-b0ab-7fa86430f8ec,laboratory,4548-4,Hemoglobin A1c,8.7,%,numeric
+2026-05-19T08:10:00Z,4f0dab8c-10dd-5b6e-80d3-b5bcc52b373f,4ee257ab-8c34-5384-9ffb-9403048e9b59,vital-signs,8480-6,Systolic Blood Pressure,118,mm[Hg],numeric
+2026-05-19T08:10:00Z,4f0dab8c-10dd-5b6e-80d3-b5bcc52b373f,4ee257ab-8c34-5384-9ffb-9403048e9b59,vital-signs,8462-4,Diastolic Blood Pressure,69,mm[Hg],numeric
+2026-08-08T13:28:00Z,4f0dab8c-10dd-5b6e-80d3-b5bcc52b373f,d80caeb1-9536-5f7c-b328-6dce5edb2ac3,vital-signs,8480-6,Systolic Blood Pressure,134,mm[Hg],numeric
+2026-08-08T13:28:00Z,4f0dab8c-10dd-5b6e-80d3-b5bcc52b373f,d80caeb1-9536-5f7c-b328-6dce5edb2ac3,vital-signs,8462-4,Diastolic Blood Pressure,74,mm[Hg],numeric
+2026-08-31T10:24:00Z,4f0dab8c-10dd-5b6e-80d3-b5bcc52b373f,7571d409-4bad-508a-8f4c-db495632314a,vital-signs,8480-6,Systolic Blood Pressure,122,mm[Hg],numeric
+2026-08-31T10:24:00Z,4f0dab8c-10dd-5b6e-80d3-b5bcc52b373f,7571d409-4bad-508a-8f4c-db495632314a,vital-signs,8462-4,Diastolic Blood Pressure,93,mm[Hg],numeric
+2026-09-23T15:40:00Z,4f0dab8c-10dd-5b6e-80d3-b5bcc52b373f,bd785498-8dba-5fb2-a484-c2073bbfeafe,laboratory,33914-3,Glomerular filtration rate/1.73 sq M.predicted,92,mL/min/{1.73_m2},numeric
+2026-09-23T15:40:00Z,4f0dab8c-10dd-5b6e-80d3-b5bcc52b373f,bd785498-8dba-5fb2-a484-c2073bbfeafe,laboratory,14959-1,Albumin/Creatinine [Mass Ratio] in Urine,5,mg/g,numeric
+2026-10-03T16:10:00Z,4f0dab8c-10dd-5b6e-80d3-b5bcc52b373f,ad25f277-c286-541a-b4fb-d37c7cb5134e,laboratory,4548-4,Hemoglobin A1c,5.8,%,numeric
+2025-05-14T08:25:00Z,0bdf3e0d-2574-5e82-ad0f-d6a7f3bd0992,873df877-ac56-5f73-aaa9-6d81d6cb1b0d,laboratory,33914-3,Glomerular filtration rate/1.73 sq M.predicted,82,mL/min/{1.73_m2},numeric
+2025-05-14T08:25:00Z,0bdf3e0d-2574-5e82-ad0f-d6a7f3bd0992,873df877-ac56-5f73-aaa9-6d81d6cb1b0d,laboratory,14959-1,Albumin/Creatinine [Mass Ratio] in Urine,8,mg/g,numeric
+2026-02-07T08:28:00Z,8c0577b5-1496-5d20-9121-b5aa71a14eeb,97a16f30-a6d0-53aa-8d48-f3e6473ffca8,vital-signs,8480-6,Systolic Blood Pressure,160,mm[Hg],numeric
+2026-02-07T08:28:00Z,8c0577b5-1496-5d20-9121-b5aa71a14eeb,97a16f30-a6d0-53aa-8d48-f3e6473ffca8,vital-signs,8462-4,Diastolic Blood Pressure,80,mm[Hg],numeric
+2026-04-15T16:29:00Z,8c0577b5-1496-5d20-9121-b5aa71a14eeb,f8ecd0bf-6a0e-55c6-9528-0d4afd08d797,vital-signs,8480-6,Systolic Blood Pressure,140,mm[Hg],numeric
+2026-04-15T16:29:00Z,8c0577b5-1496-5d20-9121-b5aa71a14eeb,f8ecd0bf-6a0e-55c6-9528-0d4afd08d797,vital-signs,8462-4,Diastolic Blood Pressure,75,mm[Hg],numeric
+2026-06-06T12:49:00Z,8c0577b5-1496-5d20-9121-b5aa71a14eeb,54853475-9f63-5ed6-908a-9e6220ff8b2f,vital-signs,8480-6,Systolic Blood Pressure,109,mm[Hg],numeric
+2026-06-06T12:49:00Z,8c0577b5-1496-5d20-9121-b5aa71a14eeb,54853475-9f63-5ed6-908a-9e6220ff8b2f,vital-signs,8462-4,Diastolic Blood Pressure,68,mm[Hg],numeric
+2026-04-15T08:02:00Z,b7dd747b-9153-56eb-a57c-47c44e6ea611,4c5356e7-3f6d-557b-821a-726e4a97303f,vital-signs,8480-6,Systolic Blood Pressure,138,mm[Hg],numeric
+2026-04-15T08:02:00Z,b7dd747b-9153-56eb-a57c-47c44e6ea611,4c5356e7-3f6d-557b-821a-726e4a97303f,vital-signs,8462-4,Diastolic Blood Pressure,98,mm[Hg],numeric
+2026-01-16T08:21:00Z,7be78fa9-9733-50f4-9cc9-a4b675b63c47,8f580a62-b223-5cf8-a9b5-0aaef501b821,laboratory,33914-3,Glomerular filtration rate/1.73 sq M.predicted,47,mL/min/{1.73_m2},numeric
+2026-01-28T14:45:00Z,7be78fa9-9733-50f4-9cc9-a4b675b63c47,856212ad-eef1-54d5-ba83-c1d1a1e19423,laboratory,14959-1,Albumin/Creatinine [Mass Ratio] in Urine,43,mg/g,numeric
+2026-01-29T08:50:00Z,7be78fa9-9733-50f4-9cc9-a4b675b63c47,fc551acd-afc9-5c56-a50c-22cbf7b8253b,vital-signs,8480-6,Systolic Blood Pressure,123,mm[Hg],numeric
+2026-01-29T08:50:00Z,7be78fa9-9733-50f4-9cc9-a4b675b63c47,fc551acd-afc9-5c56-a50c-22cbf7b8253b,vital-signs,8462-4,Diastolic Blood Pressure,70,mm[Hg],numeric
+2026-07-01T16:54:00Z,7be78fa9-9733-50f4-9cc9-a4b675b63c47,2d8e577c-6f29-5df4-8c6e-9085b3bb282f,vital-signs,8480-6,Systolic Blood Pressure,124,mm[Hg],numeric
+2026-07-01T16:54:00Z,7be78fa9-9733-50f4-9cc9-a4b675b63c47,2d8e577c-6f29-5df4-8c6e-9085b3bb282f,vital-signs,8462-4,Diastolic Blood Pressure,80,mm[Hg],numeric
+2026-07-05T15:59:00Z,7be78fa9-9733-50f4-9cc9-a4b675b63c47,6dcad5ea-7444-5313-82a3-6b52ef001e9b,laboratory,4548-4,Hemoglobin A1c,8.1,%,numeric
+2026-07-29T13:26:00Z,7be78fa9-9733-50f4-9cc9-a4b675b63c47,b69f4a8e-7012-5690-92d5-2077b1fe7a6d,vital-signs,8480-6,Systolic Blood Pressure,114,mm[Hg],numeric
+2026-07-29T13:26:00Z,7be78fa9-9733-50f4-9cc9-a4b675b63c47,b69f4a8e-7012-5690-92d5-2077b1fe7a6d,vital-signs,8462-4,Diastolic Blood Pressure,72,mm[Hg],numeric
+2026-08-14T16:11:00Z,7be78fa9-9733-50f4-9cc9-a4b675b63c47,f8b27240-3da3-532d-bec1-78e73bb3f761,laboratory,4548-4,Hemoglobin A1c,5.8,%,numeric
+2025-05-14T14:42:00Z,78ed6f40-a792-5371-ba19-1685a523dbd0,eac8f8fd-3c90-54a0-84e5-6e7aa6cd31bc,laboratory,33914-3,Glomerular filtration rate/1.73 sq M.predicted,88,mL/min/{1.73_m2},numeric
+2025-05-14T14:42:00Z,78ed6f40-a792-5371-ba19-1685a523dbd0,eac8f8fd-3c90-54a0-84e5-6e7aa6cd31bc,laboratory,14959-1,Albumin/Creatinine [Mass Ratio] in Urine,27,mg/g,numeric
+2026-03-16T12:07:00Z,78ed6f40-a792-5371-ba19-1685a523dbd0,5f2b79f7-3b90-5108-bd11-f9e2407da96e,laboratory,4548-4,Hemoglobin A1c,7.8,%,numeric
+2026-04-14T14:27:00Z,78ed6f40-a792-5371-ba19-1685a523dbd0,478d6f42-0832-5e56-91e9-4c625ec52e74,laboratory,4548-4,Hemoglobin A1c,6.8,%,numeric
+2026-06-19T10:22:00Z,78ed6f40-a792-5371-ba19-1685a523dbd0,fa1005d4-495c-5980-a4b9-6bfc51314d39,laboratory,4548-4,Hemoglobin A1c,7.8,%,numeric
+2026-07-09T11:47:00Z,78ed6f40-a792-5371-ba19-1685a523dbd0,05ca181d-e816-59a7-85ed-1add74ddb29e,vital-signs,8480-6,Systolic Blood Pressure,139,mm[Hg],numeric
+2026-07-09T11:47:00Z,78ed6f40-a792-5371-ba19-1685a523dbd0,05ca181d-e816-59a7-85ed-1add74ddb29e,vital-signs,8462-4,Diastolic Blood Pressure,75,mm[Hg],numeric
+2026-07-25T08:50:00Z,78ed6f40-a792-5371-ba19-1685a523dbd0,b9b1142e-5c69-5d88-a2d7-7f76a6f24fd8,vital-signs,8480-6,Systolic Blood Pressure,159,mm[Hg],numeric
+2026-07-25T08:50:00Z,78ed6f40-a792-5371-ba19-1685a523dbd0,b9b1142e-5c69-5d88-a2d7-7f76a6f24fd8,vital-signs,8462-4,Diastolic Blood Pressure,91,mm[Hg],numeric
+2026-08-15T12:25:00Z,78ed6f40-a792-5371-ba19-1685a523dbd0,30c1e151-151c-50e9-b53e-99efe515d841,vital-signs,8480-6,Systolic Blood Pressure,113,mm[Hg],numeric
+2026-08-15T12:25:00Z,78ed6f40-a792-5371-ba19-1685a523dbd0,30c1e151-151c-50e9-b53e-99efe515d841,vital-signs,8462-4,Diastolic Blood Pressure,78,mm[Hg],numeric
+2026-05-17T10:20:00Z,22d3cc24-128e-5c1a-b6e5-8aa3692701ae,d5a61faa-d5c7-5774-8ada-2f245dd90118,vital-signs,8480-6,Systolic Blood Pressure,127,mm[Hg],numeric
+2026-05-17T10:20:00Z,22d3cc24-128e-5c1a-b6e5-8aa3692701ae,d5a61faa-d5c7-5774-8ada-2f245dd90118,vital-signs,8462-4,Diastolic Blood Pressure,86,mm[Hg],numeric
+2026-06-14T08:42:00Z,22d3cc24-128e-5c1a-b6e5-8aa3692701ae,43e642b2-e481-5522-928c-b64c83fa269b,vital-signs,8480-6,Systolic Blood Pressure,157,mm[Hg],numeric
+2026-06-14T08:42:00Z,22d3cc24-128e-5c1a-b6e5-8aa3692701ae,43e642b2-e481-5522-928c-b64c83fa269b,vital-signs,8462-4,Diastolic Blood Pressure,79,mm[Hg],numeric
+2026-09-03T12:12:00Z,22d3cc24-128e-5c1a-b6e5-8aa3692701ae,0ab9d04f-bb27-591a-9ef9-77f7867fe52c,vital-signs,8480-6,Systolic Blood Pressure,121,mm[Hg],numeric
+2026-09-03T12:12:00Z,22d3cc24-128e-5c1a-b6e5-8aa3692701ae,0ab9d04f-bb27-591a-9ef9-77f7867fe52c,vital-signs,8462-4,Diastolic Blood Pressure,75,mm[Hg],numeric
+2026-02-22T13:25:00Z,0634a6bc-f3da-576c-8092-8c516d1fa240,d6977ec6-1d79-5f75-ba00-f81819f33505,laboratory,4548-4,Hemoglobin A1c,9.2,%,numeric
+2026-03-15T13:09:00Z,0634a6bc-f3da-576c-8092-8c516d1fa240,9b3c1ac1-bd19-595f-aea5-27d7c0eec15c,laboratory,4548-4,Hemoglobin A1c,6.6,%,numeric
+2026-05-29T11:56:00Z,0634a6bc-f3da-576c-8092-8c516d1fa240,1fa382d5-3534-5841-a5cb-d4dc842d85de,vital-signs,8480-6,Systolic Blood Pressure,124,mm[Hg],numeric
+2026-05-29T11:56:00Z,0634a6bc-f3da-576c-8092-8c516d1fa240,1fa382d5-3534-5841-a5cb-d4dc842d85de,vital-signs,8462-4,Diastolic Blood Pressure,82,mm[Hg],numeric
+2026-07-05T10:34:00Z,0634a6bc-f3da-576c-8092-8c516d1fa240,372d0f24-1531-5f06-9bff-e36696a7c772,laboratory,14959-1,Albumin/Creatinine [Mass Ratio] in Urine,15,mg/g,numeric
+2026-07-11T08:43:00Z,0634a6bc-f3da-576c-8092-8c516d1fa240,94b80592-3e2b-5072-87c1-25bd83a8904d,vital-signs,8480-6,Systolic Blood Pressure,138,mm[Hg],numeric
+2026-07-11T08:43:00Z,0634a6bc-f3da-576c-8092-8c516d1fa240,94b80592-3e2b-5072-87c1-25bd83a8904d,vital-signs,8462-4,Diastolic Blood Pressure,80,mm[Hg],numeric
+2026-01-25T13:35:00Z,b83a0a2b-0df4-522c-8705-959228e013b3,674730c9-bbfa-537e-adf6-df139ae4254c,vital-signs,8480-6,Systolic Blood Pressure,152,mm[Hg],numeric
+2026-01-25T13:35:00Z,b83a0a2b-0df4-522c-8705-959228e013b3,674730c9-bbfa-537e-adf6-df139ae4254c,vital-signs,8462-4,Diastolic Blood Pressure,89,mm[Hg],numeric
+2026-05-10T13:37:00Z,b83a0a2b-0df4-522c-8705-959228e013b3,05094851-0bf8-520f-81b7-38ef3a5c9276,vital-signs,8480-6,Systolic Blood Pressure,121,mm[Hg],numeric
+2026-05-10T13:37:00Z,b83a0a2b-0df4-522c-8705-959228e013b3,05094851-0bf8-520f-81b7-38ef3a5c9276,vital-signs,8462-4,Diastolic Blood Pressure,73,mm[Hg],numeric
+2026-08-04T08:48:00Z,b83a0a2b-0df4-522c-8705-959228e013b3,e8491741-12f3-5aed-8855-ba6fd795e689,vital-signs,8480-6,Systolic Blood Pressure,169,mm[Hg],numeric
+2026-08-04T08:48:00Z,b83a0a2b-0df4-522c-8705-959228e013b3,e8491741-12f3-5aed-8855-ba6fd795e689,vital-signs,8462-4,Diastolic Blood Pressure,91,mm[Hg],numeric
+2025-05-14T12:42:00Z,a113988a-8c56-5a4a-adfd-53ca4595fe3f,969f0a8a-acca-5dd4-bab0-3b3971cbd827,laboratory,33914-3,Glomerular filtration rate/1.73 sq M.predicted,91,mL/min/{1.73_m2},numeric
+2025-05-14T12:42:00Z,a113988a-8c56-5a4a-adfd-53ca4595fe3f,969f0a8a-acca-5dd4-bab0-3b3971cbd827,laboratory,14959-1,Albumin/Creatinine [Mass Ratio] in Urine,30,mg/g,numeric
+2026-01-20T12:15:00Z,a113988a-8c56-5a4a-adfd-53ca4595fe3f,b18e9942-4149-5cef-b050-295c6dbd822b,laboratory,4548-4,Hemoglobin A1c,7.3,%,numeric
+2026-01-28T08:18:00Z,a113988a-8c56-5a4a-adfd-53ca4595fe3f,f0bdf473-30a7-598a-9c5f-b6c8d18e10b1,vital-signs,8480-6,Systolic Blood Pressure,120,mm[Hg],numeric
+2026-01-28T08:18:00Z,a113988a-8c56-5a4a-adfd-53ca4595fe3f,f0bdf473-30a7-598a-9c5f-b6c8d18e10b1,vital-signs,8462-4,Diastolic Blood Pressure,75,mm[Hg],numeric
+2026-06-10T10:03:00Z,a113988a-8c56-5a4a-adfd-53ca4595fe3f,7cb6223f-898b-5aa9-bfb5-ea7d6c5d1acc,vital-signs,8480-6,Systolic Blood Pressure,121,mm[Hg],numeric
+2026-06-10T10:03:00Z,a113988a-8c56-5a4a-adfd-53ca4595fe3f,7cb6223f-898b-5aa9-bfb5-ea7d6c5d1acc,vital-signs,8462-4,Diastolic Blood Pressure,87,mm[Hg],numeric
+2026-08-28T13:59:00Z,a113988a-8c56-5a4a-adfd-53ca4595fe3f,bb397f87-bac1-52fa-8380-a6e1b28af62a,laboratory,57905-2,Hemoglobin.gastrointestinal [Presence] in Stool by Immunoassay,Negative,,text
+2026-09-14T14:07:00Z,a113988a-8c56-5a4a-adfd-53ca4595fe3f,aa1be5a2-40a5-5a44-a658-130b6763cdba,vital-signs,8480-6,Systolic Blood Pressure,124,mm[Hg],numeric
+2026-09-14T14:07:00Z,a113988a-8c56-5a4a-adfd-53ca4595fe3f,aa1be5a2-40a5-5a44-a658-130b6763cdba,vital-signs,8462-4,Diastolic Blood Pressure,73,mm[Hg],numeric
+2022-07-08T10:28:00Z,8f86f916-bd81-5bf4-8835-8048b6453143,80a177ec-8a58-5cc3-8327-5434db3bc8e8,laboratory,21440-3,High risk HPV DNA [Presence] in Cervix,Negative,,text
+2025-05-14T16:35:00Z,8f86f916-bd81-5bf4-8835-8048b6453143,d576b2c0-93e4-5649-86d1-0141da7c5ec9,laboratory,33914-3,Glomerular filtration rate/1.73 sq M.predicted,90,mL/min/{1.73_m2},numeric
+2025-05-14T16:35:00Z,8f86f916-bd81-5bf4-8835-8048b6453143,d576b2c0-93e4-5649-86d1-0141da7c5ec9,laboratory,14959-1,Albumin/Creatinine [Mass Ratio] in Urine,5,mg/g,numeric
+2026-01-07T09:36:00Z,8f86f916-bd81-5bf4-8835-8048b6453143,de2b5911-c5cf-5071-923d-be060be7a565,vital-signs,8480-6,Systolic Blood Pressure,160,mm[Hg],numeric
+2026-01-07T09:36:00Z,8f86f916-bd81-5bf4-8835-8048b6453143,de2b5911-c5cf-5071-923d-be060be7a565,vital-signs,8462-4,Diastolic Blood Pressure,70,mm[Hg],numeric
+2026-03-02T14:20:00Z,8f86f916-bd81-5bf4-8835-8048b6453143,b621a5c3-9b46-5158-af65-2e857420c3d8,laboratory,57905-2,Hemoglobin.gastrointestinal [Presence] in Stool by Immunoassay,Negative,,text
+2026-08-14T13:45:00Z,8f86f916-bd81-5bf4-8835-8048b6453143,ebdbc61b-d0b4-5239-81a7-ea79209657dd,laboratory,4548-4,Hemoglobin A1c,10.4,%,numeric
+2026-09-12T13:07:00Z,8f86f916-bd81-5bf4-8835-8048b6453143,c7661714-5ac5-5e3e-8afb-57892f255080,vital-signs,8480-6,Systolic Blood Pressure,125,mm[Hg],numeric
+2026-09-12T13:07:00Z,8f86f916-bd81-5bf4-8835-8048b6453143,c7661714-5ac5-5e3e-8afb-57892f255080,vital-signs,8462-4,Diastolic Blood Pressure,63,mm[Hg],numeric
+2026-02-07T13:33:00Z,80a42af5-a04b-5444-abc1-10303b9096bd,07d962cf-980b-50ee-8ea9-00af115ef692,vital-signs,8480-6,Systolic Blood Pressure,139,mm[Hg],numeric
+2026-02-07T13:33:00Z,80a42af5-a04b-5444-abc1-10303b9096bd,07d962cf-980b-50ee-8ea9-00af115ef692,vital-signs,8462-4,Diastolic Blood Pressure,78,mm[Hg],numeric
+2026-05-04T16:26:00Z,80a42af5-a04b-5444-abc1-10303b9096bd,ca6076be-5f4a-51cc-a326-0a2ed77d354b,vital-signs,8480-6,Systolic Blood Pressure,141,mm[Hg],numeric
+2026-05-04T16:26:00Z,80a42af5-a04b-5444-abc1-10303b9096bd,ca6076be-5f4a-51cc-a326-0a2ed77d354b,vital-signs,8462-4,Diastolic Blood Pressure,96,mm[Hg],numeric
+2026-05-26T14:20:00Z,80a42af5-a04b-5444-abc1-10303b9096bd,1d69c73d-51fa-5567-b68f-08d2baa1a9dc,vital-signs,8480-6,Systolic Blood Pressure,113,mm[Hg],numeric
+2026-05-26T14:20:00Z,80a42af5-a04b-5444-abc1-10303b9096bd,1d69c73d-51fa-5567-b68f-08d2baa1a9dc,vital-signs,8462-4,Diastolic Blood Pressure,77,mm[Hg],numeric
+2026-04-23T11:05:00Z,f3e56246-bc0e-5874-b81b-0a49465e7d0a,8834db51-af9e-51cd-b954-b1ce34d3f34b,vital-signs,8480-6,Systolic Blood Pressure,126,mm[Hg],numeric
+2026-04-23T11:05:00Z,f3e56246-bc0e-5874-b81b-0a49465e7d0a,8834db51-af9e-51cd-b954-b1ce34d3f34b,vital-signs,8462-4,Diastolic Blood Pressure,67,mm[Hg],numeric
+2025-07-19T16:36:00Z,8fecca84-52d6-54b4-b122-406a693f39f8,4574b5cb-ea7b-5b9d-9991-27c780b92912,laboratory,21440-3,High risk HPV DNA [Presence] in Cervix,Negative,,text
+2026-03-03T08:58:00Z,8fecca84-52d6-54b4-b122-406a693f39f8,b1cdd63c-bdbf-5c95-8d16-15c98887bba0,laboratory,4548-4,Hemoglobin A1c,7.2,%,numeric
+2026-04-29T16:00:00Z,8fecca84-52d6-54b4-b122-406a693f39f8,93c43b48-ffc1-505c-b373-39f22e46c5b8,laboratory,33914-3,Glomerular filtration rate/1.73 sq M.predicted,67,mL/min/{1.73_m2},numeric
+2026-04-29T16:00:00Z,8fecca84-52d6-54b4-b122-406a693f39f8,93c43b48-ffc1-505c-b373-39f22e46c5b8,laboratory,14959-1,Albumin/Creatinine [Mass Ratio] in Urine,47,mg/g,numeric
+2026-06-26T08:29:00Z,8fecca84-52d6-54b4-b122-406a693f39f8,040d35d1-3a32-5612-ba4d-c13da207a69b,vital-signs,8480-6,Systolic Blood Pressure,151,mm[Hg],numeric
+2026-06-26T08:29:00Z,8fecca84-52d6-54b4-b122-406a693f39f8,040d35d1-3a32-5612-ba4d-c13da207a69b,vital-signs,8462-4,Diastolic Blood Pressure,92,mm[Hg],numeric
+2026-09-08T09:38:00Z,8fecca84-52d6-54b4-b122-406a693f39f8,8bc3fb35-e872-5ff7-bd85-77be072d90d3,laboratory,4548-4,Hemoglobin A1c,7.3,%,numeric
+2026-08-10T15:43:00Z,8d9d89d2-145c-57a6-a2ea-9bdbc4a0b748,1770f761-7747-5d31-a253-72ee3c19f905,vital-signs,8480-6,Systolic Blood Pressure,123,mm[Hg],numeric
+2026-08-10T15:43:00Z,8d9d89d2-145c-57a6-a2ea-9bdbc4a0b748,1770f761-7747-5d31-a253-72ee3c19f905,vital-signs,8462-4,Diastolic Blood Pressure,79,mm[Hg],numeric
+2026-07-22T15:54:00Z,6f4d08e4-0a95-5c1c-bfd3-c10ee0e4bb27,fa27154f-672d-5b69-8037-8186de072f51,vital-signs,8480-6,Systolic Blood Pressure,157,mm[Hg],numeric
+2026-07-22T15:54:00Z,6f4d08e4-0a95-5c1c-bfd3-c10ee0e4bb27,fa27154f-672d-5b69-8037-8186de072f51,vital-signs,8462-4,Diastolic Blood Pressure,80,mm[Hg],numeric
+2026-10-02T13:53:00Z,6f4d08e4-0a95-5c1c-bfd3-c10ee0e4bb27,7a466226-d897-57ed-993f-b822fb696be7,vital-signs,8480-6,Systolic Blood Pressure,118,mm[Hg],numeric
+2026-10-02T13:53:00Z,6f4d08e4-0a95-5c1c-bfd3-c10ee0e4bb27,7a466226-d897-57ed-993f-b822fb696be7,vital-signs,8462-4,Diastolic Blood Pressure,67,mm[Hg],numeric
+2026-02-23T08:47:00Z,7c9f389f-0bff-5461-a12f-49b4d40b632f,9473f725-cb13-523f-9b59-71d52bd32cc2,vital-signs,8480-6,Systolic Blood Pressure,134,mm[Hg],numeric
+2026-02-23T08:47:00Z,7c9f389f-0bff-5461-a12f-49b4d40b632f,9473f725-cb13-523f-9b59-71d52bd32cc2,vital-signs,8462-4,Diastolic Blood Pressure,76,mm[Hg],numeric
+2026-05-14T12:11:00Z,7c9f389f-0bff-5461-a12f-49b4d40b632f,38d63a33-a144-5237-acff-0917734f7cb3,vital-signs,8480-6,Systolic Blood Pressure,145,mm[Hg],numeric
+2026-05-14T12:11:00Z,7c9f389f-0bff-5461-a12f-49b4d40b632f,38d63a33-a144-5237-acff-0917734f7cb3,vital-signs,8462-4,Diastolic Blood Pressure,81,mm[Hg],numeric
+2026-08-12T15:16:00Z,7c9f389f-0bff-5461-a12f-49b4d40b632f,a04230b6-8a36-5082-b235-c5dcca6e52be,vital-signs,8480-6,Systolic Blood Pressure,126,mm[Hg],numeric
+2026-08-12T15:16:00Z,7c9f389f-0bff-5461-a12f-49b4d40b632f,a04230b6-8a36-5082-b235-c5dcca6e52be,vital-signs,8462-4,Diastolic Blood Pressure,81,mm[Hg],numeric
+2026-04-24T09:36:00Z,098891f2-afed-5718-bd52-af392406817b,f58204ff-5655-5b3c-9b3c-6e8098dfa495,vital-signs,8480-6,Systolic Blood Pressure,135,mm[Hg],numeric
+2026-04-24T09:36:00Z,098891f2-afed-5718-bd52-af392406817b,f58204ff-5655-5b3c-9b3c-6e8098dfa495,vital-signs,8462-4,Diastolic Blood Pressure,84,mm[Hg],numeric
+2026-05-16T16:03:00Z,098891f2-afed-5718-bd52-af392406817b,cc093b6a-f230-5d05-a19d-a2414bf0b0c8,vital-signs,8480-6,Systolic Blood Pressure,127,mm[Hg],numeric
+2026-05-16T16:03:00Z,098891f2-afed-5718-bd52-af392406817b,cc093b6a-f230-5d05-a19d-a2414bf0b0c8,vital-signs,8462-4,Diastolic Blood Pressure,74,mm[Hg],numeric
+2026-05-21T10:47:00Z,f0d89263-b478-55e3-922b-9c88661647e1,ae21361e-6f2d-5038-a0f8-d1694e4e796e,laboratory,57905-2,Hemoglobin.gastrointestinal [Presence] in Stool by Immunoassay,Negative,,text
+2026-02-22T09:10:00Z,e584624c-a65d-5a30-a067-20f8deda894e,5778ae24-c3bd-5b50-8254-aa6db1c25351,vital-signs,8480-6,Systolic Blood Pressure,135,mm[Hg],numeric
+2026-02-22T09:10:00Z,e584624c-a65d-5a30-a067-20f8deda894e,5778ae24-c3bd-5b50-8254-aa6db1c25351,vital-signs,8462-4,Diastolic Blood Pressure,86,mm[Hg],numeric
+2026-05-28T14:22:00Z,e584624c-a65d-5a30-a067-20f8deda894e,30df5ccd-bf83-5db5-90f4-49ba7601c3f4,vital-signs,8480-6,Systolic Blood Pressure,150,mm[Hg],numeric
+2026-05-28T14:22:00Z,e584624c-a65d-5a30-a067-20f8deda894e,30df5ccd-bf83-5db5-90f4-49ba7601c3f4,vital-signs,8462-4,Diastolic Blood Pressure,91,mm[Hg],numeric
+2026-08-27T10:33:00Z,e584624c-a65d-5a30-a067-20f8deda894e,b340186c-68ce-5b6b-a57b-b7ade3e1d8cb,vital-signs,8480-6,Systolic Blood Pressure,126,mm[Hg],numeric
+2026-08-27T10:33:00Z,e584624c-a65d-5a30-a067-20f8deda894e,b340186c-68ce-5b6b-a57b-b7ade3e1d8cb,vital-signs,8462-4,Diastolic Blood Pressure,96,mm[Hg],numeric
+2026-02-14T16:05:00Z,f23c3e19-12c0-59cf-a75b-6bb2674fd99e,c5a893f7-4344-57df-a3c1-d3503c0ffebb,vital-signs,8480-6,Systolic Blood Pressure,139,mm[Hg],numeric
+2026-02-14T16:05:00Z,f23c3e19-12c0-59cf-a75b-6bb2674fd99e,c5a893f7-4344-57df-a3c1-d3503c0ffebb,vital-signs,8462-4,Diastolic Blood Pressure,88,mm[Hg],numeric
+2026-09-27T13:26:00Z,f23c3e19-12c0-59cf-a75b-6bb2674fd99e,0c5b3df3-886e-5082-a85f-40f2e783fa8b,vital-signs,8480-6,Systolic Blood Pressure,156,mm[Hg],numeric
+2026-09-27T13:26:00Z,f23c3e19-12c0-59cf-a75b-6bb2674fd99e,0c5b3df3-886e-5082-a85f-40f2e783fa8b,vital-signs,8462-4,Diastolic Blood Pressure,74,mm[Hg],numeric
+2026-06-07T16:03:00Z,0fc3c1b5-eaa3-5f0b-859e-2607513e7a2d,985944a5-8a41-574a-9f71-3bda9a3e1a3b,vital-signs,8480-6,Systolic Blood Pressure,158,mm[Hg],numeric
+2026-06-07T16:03:00Z,0fc3c1b5-eaa3-5f0b-859e-2607513e7a2d,985944a5-8a41-574a-9f71-3bda9a3e1a3b,vital-signs,8462-4,Diastolic Blood Pressure,84,mm[Hg],numeric
+2026-08-18T15:31:00Z,0fc3c1b5-eaa3-5f0b-859e-2607513e7a2d,3b85d9dc-84fc-50d4-93ee-2005f507d81a,vital-signs,8480-6,Systolic Blood Pressure,110,mm[Hg],numeric
+2026-08-18T15:31:00Z,0fc3c1b5-eaa3-5f0b-859e-2607513e7a2d,3b85d9dc-84fc-50d4-93ee-2005f507d81a,vital-signs,8462-4,Diastolic Blood Pressure,82,mm[Hg],numeric
+2026-01-08T16:24:00Z,9389dfc6-ae89-55fc-b632-68a2014395af,2ee09016-cc1a-55bd-abd4-6ed0a8258272,laboratory,4548-4,Hemoglobin A1c,9.7,%,numeric
+2026-01-12T10:01:00Z,9389dfc6-ae89-55fc-b632-68a2014395af,93e77e2f-ed77-5daf-ae9d-e5c9b3bc2117,laboratory,4548-4,Hemoglobin A1c,7.6,%,numeric
+2026-03-14T10:14:00Z,9389dfc6-ae89-55fc-b632-68a2014395af,28c32a20-7aeb-51dc-b775-259992440e1f,laboratory,4548-4,Hemoglobin A1c,8.7,%,numeric
+2026-04-19T09:47:00Z,9389dfc6-ae89-55fc-b632-68a2014395af,6bebe176-b5e6-5e4a-81ed-0822d38a5a29,laboratory,33914-3,Glomerular filtration rate/1.73 sq M.predicted,87,mL/min/{1.73_m2},numeric
+2026-07-22T14:57:00Z,9389dfc6-ae89-55fc-b632-68a2014395af,cc836b08-f9c4-50b0-a2a0-25eee8889f37,vital-signs,8480-6,Systolic Blood Pressure,119,mm[Hg],numeric
+2026-07-22T14:57:00Z,9389dfc6-ae89-55fc-b632-68a2014395af,cc836b08-f9c4-50b0-a2a0-25eee8889f37,vital-signs,8462-4,Diastolic Blood Pressure,96,mm[Hg],numeric
+2026-08-04T14:55:00Z,9389dfc6-ae89-55fc-b632-68a2014395af,f79e8463-7999-5c63-8bc1-8278e4ee7000,vital-signs,8480-6,Systolic Blood Pressure,166,mm[Hg],numeric
+2026-08-04T14:55:00Z,9389dfc6-ae89-55fc-b632-68a2014395af,f79e8463-7999-5c63-8bc1-8278e4ee7000,vital-signs,8462-4,Diastolic Blood Pressure,84,mm[Hg],numeric
+2025-06-13T13:11:00Z,7a10f59b-1d33-5cf4-8ee8-724444e91815,2f015d4e-5a95-5117-ad31-b8895cbc4516,laboratory,4548-4,Hemoglobin A1c,6.7,%,numeric
+2026-01-10T12:11:00Z,7a10f59b-1d33-5cf4-8ee8-724444e91815,5db1793a-f72e-5aed-81f8-af6053eeac2c,vital-signs,8480-6,Systolic Blood Pressure,117,mm[Hg],numeric
+2026-01-10T12:11:00Z,7a10f59b-1d33-5cf4-8ee8-724444e91815,5db1793a-f72e-5aed-81f8-af6053eeac2c,vital-signs,8462-4,Diastolic Blood Pressure,78,mm[Hg],numeric
+2026-01-10T12:11:00Z,7a10f59b-1d33-5cf4-8ee8-724444e91815,5db1793a-f72e-5aed-81f8-af6053eeac2c,laboratory,33914-3,Glomerular filtration rate/1.73 sq M.predicted,44,mL/min/{1.73_m2},numeric
+2026-03-05T13:37:00Z,44d76f92-4ae8-5dcf-9689-08e1936677a3,96cf24f1-1fec-5b71-97af-73c9a39d461c,laboratory,14959-1,Albumin/Creatinine [Mass Ratio] in Urine,35,mg/g,numeric
+2026-04-08T14:37:00Z,44d76f92-4ae8-5dcf-9689-08e1936677a3,387dc84b-ecfb-597b-9b5f-305c33aa33a4,laboratory,4548-4,Hemoglobin A1c,6.1,%,numeric
+2026-09-04T16:52:00Z,44d76f92-4ae8-5dcf-9689-08e1936677a3,053e919a-178c-56fa-b239-f9b6e83ac5ba,vital-signs,8480-6,Systolic Blood Pressure,114,mm[Hg],numeric
+2026-09-04T16:52:00Z,44d76f92-4ae8-5dcf-9689-08e1936677a3,053e919a-178c-56fa-b239-f9b6e83ac5ba,vital-signs,8462-4,Diastolic Blood Pressure,63,mm[Hg],numeric
+2026-02-09T15:06:00Z,a087ca2f-9ec2-5abd-bde5-fa266105db42,a9583f2b-92f3-5821-983c-3fa11431227b,vital-signs,8480-6,Systolic Blood Pressure,129,mm[Hg],numeric
+2026-02-09T15:06:00Z,a087ca2f-9ec2-5abd-bde5-fa266105db42,a9583f2b-92f3-5821-983c-3fa11431227b,vital-signs,8462-4,Diastolic Blood Pressure,70,mm[Hg],numeric
+2026-07-27T15:25:00Z,a087ca2f-9ec2-5abd-bde5-fa266105db42,1e26b565-7feb-570a-8c7a-38e71f8cd4fc,laboratory,33914-3,Glomerular filtration rate/1.73 sq M.predicted,98,mL/min/{1.73_m2},numeric
+2026-07-27T15:25:00Z,a087ca2f-9ec2-5abd-bde5-fa266105db42,1e26b565-7feb-570a-8c7a-38e71f8cd4fc,laboratory,14959-1,Albumin/Creatinine [Mass Ratio] in Urine,21,mg/g,numeric
+2026-09-10T10:15:00Z,a087ca2f-9ec2-5abd-bde5-fa266105db42,20d18ad9-0a27-5544-92b3-5f94d972c797,vital-signs,8480-6,Systolic Blood Pressure,151,mm[Hg],numeric
+2026-09-10T10:15:00Z,a087ca2f-9ec2-5abd-bde5-fa266105db42,20d18ad9-0a27-5544-92b3-5f94d972c797,vital-signs,8462-4,Diastolic Blood Pressure,85,mm[Hg],numeric
+2026-05-06T10:58:00Z,fede6c28-c35a-5bc3-99fb-751d3d85b2b1,cc252ed0-be11-529e-a9cd-fd01833ea1eb,vital-signs,8480-6,Systolic Blood Pressure,117,mm[Hg],numeric
+2026-05-06T10:58:00Z,fede6c28-c35a-5bc3-99fb-751d3d85b2b1,cc252ed0-be11-529e-a9cd-fd01833ea1eb,vital-signs,8462-4,Diastolic Blood Pressure,71,mm[Hg],numeric
+2026-07-29T14:32:00Z,fede6c28-c35a-5bc3-99fb-751d3d85b2b1,1cc91f67-ddf6-577d-b290-3b28bec878af,laboratory,4548-4,Hemoglobin A1c,9.9,%,numeric
+2026-09-29T14:27:00Z,fede6c28-c35a-5bc3-99fb-751d3d85b2b1,94342580-bceb-5e76-866e-677e71736421,laboratory,4548-4,Hemoglobin A1c,7.1,%,numeric
+2026-03-03T11:24:00Z,92a3f441-6496-5de4-bb5f-5257c5025ff5,b9971f08-86b3-5080-b100-f4bebaed64b2,laboratory,33914-3,Glomerular filtration rate/1.73 sq M.predicted,89,mL/min/{1.73_m2},numeric
+2026-06-26T13:21:00Z,92a3f441-6496-5de4-bb5f-5257c5025ff5,770930b9-5d6b-5f5f-ba35-d965551ece11,vital-signs,8480-6,Systolic Blood Pressure,131,mm[Hg],numeric
+2026-06-26T13:21:00Z,92a3f441-6496-5de4-bb5f-5257c5025ff5,770930b9-5d6b-5f5f-ba35-d965551ece11,vital-signs,8462-4,Diastolic Blood Pressure,84,mm[Hg],numeric
+2026-01-20T10:40:00Z,b7c80bf8-91a7-5d4b-9c84-26c1d05ccd35,8465dbf7-a66b-5e0b-8bb9-bff263766c61,vital-signs,8480-6,Systolic Blood Pressure,147,mm[Hg],numeric
+2026-01-20T10:40:00Z,b7c80bf8-91a7-5d4b-9c84-26c1d05ccd35,8465dbf7-a66b-5e0b-8bb9-bff263766c61,vital-signs,8462-4,Diastolic Blood Pressure,70,mm[Hg],numeric
+2026-04-15T16:01:00Z,b7c80bf8-91a7-5d4b-9c84-26c1d05ccd35,fcae42c6-8796-5666-9f24-67fa1d3d0d71,laboratory,33914-3,Glomerular filtration rate/1.73 sq M.predicted,39,mL/min/{1.73_m2},numeric
+2026-04-25T10:34:00Z,b7c80bf8-91a7-5d4b-9c84-26c1d05ccd35,983f19f6-09c3-54b4-97b1-8ade62bc20dc,vital-signs,8480-6,Systolic Blood Pressure,134,mm[Hg],numeric
+2026-04-25T10:34:00Z,b7c80bf8-91a7-5d4b-9c84-26c1d05ccd35,983f19f6-09c3-54b4-97b1-8ade62bc20dc,vital-signs,8462-4,Diastolic Blood Pressure,78,mm[Hg],numeric
+2026-07-15T16:40:00Z,b7c80bf8-91a7-5d4b-9c84-26c1d05ccd35,8a32380b-6d23-5d8d-8c85-8ce404b46069,laboratory,57905-2,Hemoglobin.gastrointestinal [Presence] in Stool by Immunoassay,Negative,,text
+2026-08-15T15:44:00Z,b7c80bf8-91a7-5d4b-9c84-26c1d05ccd35,35aedabb-2af5-59ac-b1d9-a103571660c0,laboratory,4548-4,Hemoglobin A1c,8.9,%,numeric
+2026-09-04T10:04:00Z,b7c80bf8-91a7-5d4b-9c84-26c1d05ccd35,9cf51cf9-cdf9-5e37-87ff-23862f9a11bf,vital-signs,8480-6,Systolic Blood Pressure,115,mm[Hg],numeric
+2026-09-04T10:04:00Z,b7c80bf8-91a7-5d4b-9c84-26c1d05ccd35,9cf51cf9-cdf9-5e37-87ff-23862f9a11bf,vital-signs,8462-4,Diastolic Blood Pressure,74,mm[Hg],numeric
+2026-09-12T14:53:00Z,b7c80bf8-91a7-5d4b-9c84-26c1d05ccd35,919f93ac-5072-569a-8e40-28d355891ba5,laboratory,4548-4,Hemoglobin A1c,7.8,%,numeric
+2026-09-14T13:23:00Z,b7c80bf8-91a7-5d4b-9c84-26c1d05ccd35,be9861f6-b874-5d5a-8896-3a96a840be36,laboratory,4548-4,Hemoglobin A1c,5.8,%,numeric
+2026-01-08T11:36:00Z,2fea6881-4a6b-51a4-9528-0c2bb4c6316f,21c90036-2bbf-5ea0-a4a5-2f5bed14c334,vital-signs,8480-6,Systolic Blood Pressure,145,mm[Hg],numeric
+2026-01-08T11:36:00Z,2fea6881-4a6b-51a4-9528-0c2bb4c6316f,21c90036-2bbf-5ea0-a4a5-2f5bed14c334,vital-signs,8462-4,Diastolic Blood Pressure,74,mm[Hg],numeric
+2026-05-21T11:14:00Z,2fea6881-4a6b-51a4-9528-0c2bb4c6316f,38af1f28-fc5c-515c-a365-319cb9d57dda,vital-signs,8480-6,Systolic Blood Pressure,110,mm[Hg],numeric
+2026-05-21T11:14:00Z,2fea6881-4a6b-51a4-9528-0c2bb4c6316f,38af1f28-fc5c-515c-a365-319cb9d57dda,vital-signs,8462-4,Diastolic Blood Pressure,78,mm[Hg],numeric
+2026-02-09T16:30:00Z,81c64128-e6b7-532c-b4e0-0f5c549f6fc6,d29aabd1-c90c-50ce-9eb3-2df0069a3c2e,vital-signs,8480-6,Systolic Blood Pressure,123,mm[Hg],numeric
+2026-02-09T16:30:00Z,81c64128-e6b7-532c-b4e0-0f5c549f6fc6,d29aabd1-c90c-50ce-9eb3-2df0069a3c2e,vital-signs,8462-4,Diastolic Blood Pressure,76,mm[Hg],numeric
+2026-03-26T09:58:00Z,81c64128-e6b7-532c-b4e0-0f5c549f6fc6,864447e3-b7b0-57c3-a233-0073946194f3,vital-signs,8480-6,Systolic Blood Pressure,108,mm[Hg],numeric
+2026-03-26T09:58:00Z,81c64128-e6b7-532c-b4e0-0f5c549f6fc6,864447e3-b7b0-57c3-a233-0073946194f3,vital-signs,8462-4,Diastolic Blood Pressure,74,mm[Hg],numeric
+2026-02-14T11:24:00Z,08e5a001-3bf7-519f-b0ee-36bb4ae2bc64,1872e662-b043-5976-8ca9-49cf95275260,vital-signs,8480-6,Systolic Blood Pressure,123,mm[Hg],numeric
+2026-02-14T11:24:00Z,08e5a001-3bf7-519f-b0ee-36bb4ae2bc64,1872e662-b043-5976-8ca9-49cf95275260,vital-signs,8462-4,Diastolic Blood Pressure,81,mm[Hg],numeric
+2026-09-28T12:36:00Z,08e5a001-3bf7-519f-b0ee-36bb4ae2bc64,fe713dee-0a1e-5be2-a801-a0e2018c330a,vital-signs,8480-6,Systolic Blood Pressure,132,mm[Hg],numeric
+2026-09-28T12:36:00Z,08e5a001-3bf7-519f-b0ee-36bb4ae2bc64,fe713dee-0a1e-5be2-a801-a0e2018c330a,vital-signs,8462-4,Diastolic Blood Pressure,81,mm[Hg],numeric
+2026-01-11T09:50:00Z,3c3ce646-0cd7-587d-8e6a-409a17901c66,6bb0f1b4-87b9-558b-be8d-3e573826576d,laboratory,33914-3,Glomerular filtration rate/1.73 sq M.predicted,61,mL/min/{1.73_m2},numeric
+2026-01-11T09:50:00Z,3c3ce646-0cd7-587d-8e6a-409a17901c66,6bb0f1b4-87b9-558b-be8d-3e573826576d,laboratory,14959-1,Albumin/Creatinine [Mass Ratio] in Urine,31,mg/g,numeric
+2026-06-16T11:29:00Z,727b267b-a48f-5c3a-b404-1d4ee560ff29,5b181a36-40ad-5d11-93da-642f623f3bb2,vital-signs,8480-6,Systolic Blood Pressure,144,mm[Hg],numeric
+2026-06-16T11:29:00Z,727b267b-a48f-5c3a-b404-1d4ee560ff29,5b181a36-40ad-5d11-93da-642f623f3bb2,vital-signs,8462-4,Diastolic Blood Pressure,92,mm[Hg],numeric
+2026-01-30T08:05:00Z,685cfac1-ac4f-56a3-8320-c5eb566a146d,730baa97-19a7-58f6-b002-fa05d64ddaf4,vital-signs,8480-6,Systolic Blood Pressure,142,mm[Hg],numeric
+2026-01-30T08:05:00Z,685cfac1-ac4f-56a3-8320-c5eb566a146d,730baa97-19a7-58f6-b002-fa05d64ddaf4,vital-signs,8462-4,Diastolic Blood Pressure,75,mm[Hg],numeric
+2026-08-23T09:32:00Z,685cfac1-ac4f-56a3-8320-c5eb566a146d,f69bf65d-1fdf-53ed-acdd-e721526dddd7,vital-signs,8480-6,Systolic Blood Pressure,138,mm[Hg],numeric
+2026-08-23T09:32:00Z,685cfac1-ac4f-56a3-8320-c5eb566a146d,f69bf65d-1fdf-53ed-acdd-e721526dddd7,vital-signs,8462-4,Diastolic Blood Pressure,92,mm[Hg],numeric
+2026-09-12T16:08:00Z,685cfac1-ac4f-56a3-8320-c5eb566a146d,0d748840-6101-5995-b822-997cbbb88fb1,vital-signs,8480-6,Systolic Blood Pressure,134,mm[Hg],numeric
+2026-09-12T16:08:00Z,685cfac1-ac4f-56a3-8320-c5eb566a146d,0d748840-6101-5995-b822-997cbbb88fb1,vital-signs,8462-4,Diastolic Blood Pressure,65,mm[Hg],numeric
+2025-06-01T11:41:00Z,d7215301-e94b-514b-8683-6da0de0d55d0,6d24cba3-15ac-5caf-8681-05f823634a4d,laboratory,21440-3,High risk HPV DNA [Presence] in Cervix,Negative,,text
+2026-04-10T10:18:00Z,a27e9687-46fe-52fc-98a0-44f72969fa02,ffee2bcd-7c90-536d-a766-911e725d4519,laboratory,57905-2,Hemoglobin.gastrointestinal [Presence] in Stool by Immunoassay,Negative,,text
+2025-05-14T12:27:00Z,1bd3a573-f100-521b-8b5a-ea66f92c4b1f,875ac002-f704-5ede-bac8-362862d93d45,laboratory,33914-3,Glomerular filtration rate/1.73 sq M.predicted,63,mL/min/{1.73_m2},numeric
+2025-05-14T12:27:00Z,1bd3a573-f100-521b-8b5a-ea66f92c4b1f,875ac002-f704-5ede-bac8-362862d93d45,laboratory,14959-1,Albumin/Creatinine [Mass Ratio] in Urine,33,mg/g,numeric
+2026-03-09T10:30:00Z,1bd3a573-f100-521b-8b5a-ea66f92c4b1f,2ab3dd5e-f152-59dd-8fc8-93bfcc8bbcf1,vital-signs,8480-6,Systolic Blood Pressure,157,mm[Hg],numeric
+2026-03-09T10:30:00Z,1bd3a573-f100-521b-8b5a-ea66f92c4b1f,2ab3dd5e-f152-59dd-8fc8-93bfcc8bbcf1,vital-signs,8462-4,Diastolic Blood Pressure,90,mm[Hg],numeric
+2026-06-08T11:34:00Z,1bd3a573-f100-521b-8b5a-ea66f92c4b1f,5a545847-ce62-5f71-8d68-2c8b6c9de361,vital-signs,8480-6,Systolic Blood Pressure,119,mm[Hg],numeric
+2026-06-08T11:34:00Z,1bd3a573-f100-521b-8b5a-ea66f92c4b1f,5a545847-ce62-5f71-8d68-2c8b6c9de361,vital-signs,8462-4,Diastolic Blood Pressure,100,mm[Hg],numeric
+2026-03-16T14:32:00Z,fe0a09fd-02dc-5198-9436-8f65370a7250,820c5ef4-2be9-579b-9f9a-62ad3b4e2105,laboratory,4548-4,Hemoglobin A1c,7.8,%,numeric
+2026-05-07T08:19:00Z,fe0a09fd-02dc-5198-9436-8f65370a7250,19196cea-cf5d-5341-8b6e-02b190aecbf1,vital-signs,8480-6,Systolic Blood Pressure,135,mm[Hg],numeric
+2026-05-07T08:19:00Z,fe0a09fd-02dc-5198-9436-8f65370a7250,19196cea-cf5d-5341-8b6e-02b190aecbf1,vital-signs,8462-4,Diastolic Blood Pressure,93,mm[Hg],numeric
+2026-06-07T11:35:00Z,fe0a09fd-02dc-5198-9436-8f65370a7250,bf117495-26d3-5722-834f-610835f0bb2c,laboratory,14959-1,Albumin/Creatinine [Mass Ratio] in Urine,17,mg/g,numeric
+2026-08-03T15:19:00Z,fe0a09fd-02dc-5198-9436-8f65370a7250,88a37e33-2e9b-5e2b-92e9-b966d5159949,vital-signs,8480-6,Systolic Blood Pressure,124,mm[Hg],numeric
+2026-08-03T15:19:00Z,fe0a09fd-02dc-5198-9436-8f65370a7250,88a37e33-2e9b-5e2b-92e9-b966d5159949,vital-signs,8462-4,Diastolic Blood Pressure,76,mm[Hg],numeric
+2026-04-06T10:58:00Z,38ac16db-bd97-590d-aeda-054a51feaea5,0b130f09-3070-5477-a2e6-24f4b4582955,vital-signs,8480-6,Systolic Blood Pressure,118,mm[Hg],numeric
+2026-04-06T10:58:00Z,38ac16db-bd97-590d-aeda-054a51feaea5,0b130f09-3070-5477-a2e6-24f4b4582955,vital-signs,8462-4,Diastolic Blood Pressure,75,mm[Hg],numeric
+2026-07-28T08:00:00Z,38ac16db-bd97-590d-aeda-054a51feaea5,15c1c6e4-bc24-5d98-9a38-7cc7cf4aa35b,vital-signs,8480-6,Systolic Blood Pressure,116,mm[Hg],numeric
+2026-07-28T08:00:00Z,38ac16db-bd97-590d-aeda-054a51feaea5,15c1c6e4-bc24-5d98-9a38-7cc7cf4aa35b,vital-signs,8462-4,Diastolic Blood Pressure,68,mm[Hg],numeric
+2026-02-01T13:07:00Z,fb7c9d24-b788-5a5a-a05d-b100602240d6,3ba61f1c-e7ba-573b-834c-131ab3fbbc54,laboratory,33914-3,Glomerular filtration rate/1.73 sq M.predicted,42,mL/min/{1.73_m2},numeric
+2026-02-01T13:07:00Z,fb7c9d24-b788-5a5a-a05d-b100602240d6,3ba61f1c-e7ba-573b-834c-131ab3fbbc54,laboratory,14959-1,Albumin/Creatinine [Mass Ratio] in Urine,19,mg/g,numeric
+2026-04-29T15:59:00Z,fb7c9d24-b788-5a5a-a05d-b100602240d6,30704570-6de7-5d84-8db1-f99fd205404e,vital-signs,8480-6,Systolic Blood Pressure,156,mm[Hg],numeric
+2026-04-29T15:59:00Z,fb7c9d24-b788-5a5a-a05d-b100602240d6,30704570-6de7-5d84-8db1-f99fd205404e,vital-signs,8462-4,Diastolic Blood Pressure,89,mm[Hg],numeric
+2026-07-18T11:23:00Z,fb7c9d24-b788-5a5a-a05d-b100602240d6,f948ff67-9108-5ded-9e21-b8eb9b9ae870,vital-signs,8480-6,Systolic Blood Pressure,112,mm[Hg],numeric
+2026-07-18T11:23:00Z,fb7c9d24-b788-5a5a-a05d-b100602240d6,f948ff67-9108-5ded-9e21-b8eb9b9ae870,vital-signs,8462-4,Diastolic Blood Pressure,65,mm[Hg],numeric
+2026-09-24T14:12:00Z,fb7c9d24-b788-5a5a-a05d-b100602240d6,5bddf0fe-9ae1-520f-a42a-12f159a365e3,laboratory,4548-4,Hemoglobin A1c,5.8,%,numeric

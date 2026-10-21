@@ -1,0 +1,2 @@
+# Seed data must keep its exact bytes: document hashes and ground-truth text depend on them.
+data/seed/** -text

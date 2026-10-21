@@ -1,0 +1,9 @@
+# Only needed to regenerate the seed data in data/seed (temporary POC data).
+Faker
+PyYAML
+numpy
+Pillow
+python-docx
+openpyxl
+pypdf
+fpdf

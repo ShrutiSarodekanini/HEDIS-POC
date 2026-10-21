@@ -1,0 +1,4 @@
+Endocrinology Visit 2026-04-14
+Patient: Nancy Allen  DOB: 06/08/1974  Member ID: M-010
+Referred to ophthalmology for diabetic eye exam.
+Visual acuity 20/30 OU checked today in clinic.

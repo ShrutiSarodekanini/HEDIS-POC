@@ -1,32 +1,36 @@
+# Local secrets and environment
+.env
+.env.*
+!.env.example
+
+# Python
 __pycache__/
-.pytest_cache/
-*.pyc
+*.py[cod]
 *.pyo
 *.pyd
 *.db
-generated_evidence/
-data/
-.env
-API_TESTING_GUIDE.md
-tests/
-
-# Python virtual environments
 .venv/
 venv/
 env/
 ENV/
-
-# Python tooling caches
+.pytest_cache/
 .mypy_cache/
 .ruff_cache/
+
+# Coverage, build, and packaging
 .coverage
 .coverage.*
 htmlcov/
-
-# Build and packaging
 build/
 dist/
 *.egg-info/
+
+# Project-generated/output artifacts
+generated_evidence/
+data/
+data/intake_store/
+tests/
+API_TESTING_GUIDE.md
 
 # Node/Vite artifacts
 node_modules/
@@ -36,14 +40,9 @@ ui/dist/
 # Logs
 *.log
 
-# Environment and local config
-.env.*
-!.env.example
-
-# IDE/editor
-.idea/
+# Editors and OS
+.vscode/
 .vscode/.history/
-
-# OS files
-.DS_Store
+.idea/
 Thumbs.db
+.DS_Store
