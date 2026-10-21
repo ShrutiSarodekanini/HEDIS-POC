@@ -21,6 +21,10 @@ dist/
 # Runtime-uploaded datasets
 .uploaded_datasets/
 
+# Node dependencies and runtime logs
+node_modules/
+*.log
+
 # OS files
 .DS_Store
 Thumbs.db

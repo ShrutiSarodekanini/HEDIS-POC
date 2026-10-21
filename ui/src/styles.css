@@ -27,6 +27,10 @@ nav { display: grid; gap: 5px; }
 .nav-icon { width: 16px; text-align: center; font-size: 14px; }
 .sidebar-footer { margin-top: auto; padding: 20px 14px 0; color: #a0adb5; font: 10px/1.6 Arial, sans-serif; text-transform: uppercase; letter-spacing: .08em; }
 .sidebar-footer span { text-transform: none; letter-spacing: 0; }
+.timing-summary { margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--line); font: 11px Arial, sans-serif; }
+.timing-summary .muted-label { margin-bottom: 8px; }
+.timing-summary div { display: flex; justify-content: space-between; padding: 5px 0; color: #71828e; }
+.timing-summary strong { color: var(--ink); font-weight: 700; }
 .main-content { width: min(100%, 1080px); margin: 0 auto; padding: 42px 36px 70px; }
 .page-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 30px; }
 .eyebrow { margin: 0 0 7px; color: #9aa8b1; font: 9px Arial, sans-serif; letter-spacing: .11em; text-transform: uppercase; }
