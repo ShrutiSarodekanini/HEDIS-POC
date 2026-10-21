@@ -32,6 +32,12 @@ if ($envText -notmatch "(?m)^\s*OPENROUTER_API_KEY\s*=\s*\S") {
         -ForegroundColor Yellow
 }
 
+# A DATABASE_URL already set in Windows (for example by another project) wins over .env, so drop it for this run.
+if ($env:DATABASE_URL) {
+    Write-Host "Note: ignoring the DATABASE_URL set in Windows for this run; using the one in .env." -ForegroundColor Yellow
+    Remove-Item Env:DATABASE_URL
+}
+
 if ($Setup) {
     Invoke-Step "Install packages" @("-m", "pip", "install", "-q", "-r", "requirements.txt")
     Invoke-Step "Create the tables" @("-m", "alembic", "-c", "db/alembic.ini", "upgrade", "head")
