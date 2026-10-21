@@ -1,1 +1,4 @@
-common components can be moved here
+HEDIS-POC compatibility folder.
+
+Use this folder for cross-service contracts and shared schemas.
+Current shared implementation exists in src/types and src/helpers.

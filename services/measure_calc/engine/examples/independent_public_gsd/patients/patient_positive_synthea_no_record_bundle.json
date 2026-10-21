@@ -1,0 +1,53 @@
+{
+  "resourceType": "Bundle",
+  "type": "collection",
+  "entry": [
+    {
+      "resource": {
+        "resourceType": "Patient",
+        "id": "3d8c62e3-6d04-9d25-78a7-b43b92d7954c",
+        "birthDate": "1983-04-17",
+        "gender": "female"
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Condition",
+        "id": "3d8c62e3-6d04-9d25-a1f0-d02589ca2c23",
+        "subject": {
+          "reference": "urn:uuid:3d8c62e3-6d04-9d25-78a7-b43b92d7954c"
+        },
+        "code": {
+          "coding": [
+            {
+              "system": "http://snomed.info/sct",
+              "code": "44054006",
+              "display": "Diabetes mellitus type 2 (disorder)"
+            }
+          ],
+          "text": "Diabetes mellitus type 2 (disorder)"
+        },
+        "onsetDateTime": "2025-04-27T20:20:52+05:30",
+        "recordedDate": "2025-04-27T20:20:52+05:30"
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Encounter",
+        "id": "3d8c62e3-6d04-9d25-7720-1e171d2ed639",
+        "status": "finished",
+        "class": {
+          "system": "http://terminology.hl7.org/CodeSystem/v3-ActCode",
+          "code": "AMB"
+        },
+        "period": {
+          "start": "2026-05-27T20:43:51+05:30",
+          "end": "2026-05-27T20:58:51+05:30"
+        },
+        "subject": {
+          "reference": "urn:uuid:3d8c62e3-6d04-9d25-78a7-b43b92d7954c"
+        }
+      }
+    }
+  ]
+}

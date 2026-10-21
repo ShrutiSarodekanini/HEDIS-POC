@@ -18,3 +18,43 @@ Thumbs.db
 
 # Uploaded originals and page images (contain patient data)
 data/intake_store/
+
+# Measure engine (Node) and data ingestion
+node_modules/
+build/
+debug/
+services/measure_calc/engine/node_modules/
+services/measure_calc/engine/build/
+services/measure_calc/engine/debug/
+services/measure_calc/engine/coverage/
+services/measure_calc/engine/cache/
+test/unit/fixtures/elm/queries/output/*
+test/unit/fixtures/elm/output/*
+test/unit/fixtures/elm/queries/.start-translator
+coverage
+cache
+test/integration/.start-translator
+regression/output/*-*
+regression/bundles/*
+regression/default-bundles/*
+data-requirements/fqm-e-dr/*
+data-requirements/jan-2024-connectathon/*
+data-requirements/sept-2023-connectathon/*
+data-requirements/elm-parser-dr/*
+data-requirements/elm-parser-for-ecqms
+coverage-percent-script
+
+# Local/generated datasets and outputs
+exports/
+.uploaded_datasets/
+
+# Local runtime and debug artifacts
+*.db
+_tmp_*
+_tmp*/
+fhir-*.bundle.json
+
+# Engine temporary generated runs/compilation outputs
+services/measure_calc/engine/examples/_tmp_fqm_synthea_runs/
+services/measure_calc/engine/examples/**/_tmp_compile_check/
+services/measure_calc/engine/examples/**/patients/*.json

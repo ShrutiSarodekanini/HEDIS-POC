@@ -1,0 +1,366 @@
+import * as DataRequirementHelpers from '../../src/helpers/DataRequirementHelpers';
+
+import { CalculationOptions, DataTypeQuery } from '../../src/types/Calculator';
+import { DataRequirement } from 'fhir/r4';
+import { DateTime, Interval } from 'cql-execution';
+import { DEFAULT_EXPANDED_CODE_QUERY_CHUNK_SIZE } from '../../src/constants';
+import moment from 'moment';
+
+describe('DataRequirementHelpers', () => {
+  describe('generateDataRequirement', () => {
+    test('can create DataRequirement with profile', () => {
+      const dtq: DataTypeQuery = {
+        dataType: 'fhir_type',
+        path: 'a.path',
+        templateId: 'http://hl7.org/fhir/StructureDefinition/fhir_type'
+      };
+
+      const expectedDataReq: fhir4.DataRequirement = {
+        type: dtq.dataType,
+        profile: ['http://hl7.org/fhir/StructureDefinition/fhir_type']
+      };
+
+      expect(DataRequirementHelpers.generateDataRequirement(dtq)).toEqual(expectedDataReq);
+    });
+
+    test('can create DataRequirement with valueSet filter', () => {
+      const dtq: DataTypeQuery = {
+        dataType: 'fhir_type',
+        path: 'a.path',
+        valueSet: 'http://example.com/valueset'
+      };
+
+      const expectedDataReq: fhir4.DataRequirement = {
+        type: dtq.dataType,
+        codeFilter: [
+          {
+            path: dtq.path,
+            valueSet: dtq.valueSet
+          }
+        ]
+      };
+
+      expect(DataRequirementHelpers.generateDataRequirement(dtq)).toEqual(expectedDataReq);
+    });
+
+    test('can create DataRequirement with code filter', () => {
+      const dtq: DataTypeQuery = {
+        dataType: 'fhir_type',
+        path: 'a.path',
+        code: { code: 'a_code', system: 'http://example.com/system' }
+      };
+
+      const expectedDataReq: fhir4.DataRequirement = {
+        type: dtq.dataType,
+        codeFilter: [
+          {
+            path: dtq.path,
+            code: [dtq.code as fhir4.Coding]
+          }
+        ]
+      };
+
+      expect(DataRequirementHelpers.generateDataRequirement(dtq)).toEqual(expectedDataReq);
+    });
+
+    test('can create DataRequirement with out vs or code filters', () => {
+      const dtq: DataTypeQuery = {
+        dataType: 'fhir_type',
+        path: 'a.path'
+      };
+
+      const expectedDataReq: fhir4.DataRequirement = {
+        type: dtq.dataType
+      };
+
+      expect(DataRequirementHelpers.generateDataRequirement(dtq)).toEqual(expectedDataReq);
+    });
+  });
+
+  describe('addFhirQueryPatternToDataRequirements', () => {
+    test('add fhirQueryPattern extension with CodeFilter codes and valueSets', () => {
+      const testDataReq: DataRequirement = {
+        type: 'Procedure',
+        codeFilter: [
+          {
+            path: 'code',
+            valueSet: 'http://example.com'
+          },
+          {
+            path: 'status',
+            code: [
+              {
+                code: 'completed',
+                system: 'http://hl7.org/fhir/event-status'
+              }
+            ]
+          }
+        ]
+      };
+
+      DataRequirementHelpers.addFhirQueryPatternToDataRequirements(testDataReq);
+      // Procedure should have 2 extensions (there are 2 ways for Procedure to reference Patient)
+      expect(testDataReq.extension?.length).toEqual(2);
+      if (testDataReq.extension) {
+        expect(testDataReq.extension[0].valueString).toEqual(
+          '/Procedure?code:in=http://example.com&status=completed&patient=Patient/{{context.patientId}}'
+        );
+        expect(testDataReq.extension[1].valueString).toEqual(
+          '/Procedure?code:in=http://example.com&status=completed&performer=Patient/{{context.patientId}}'
+        );
+      }
+    });
+
+    test('uses expanded code queries when option is set to true', () => {
+      const testDataReq: DataRequirement = {
+        type: 'Procedure',
+        codeFilter: [
+          {
+            path: 'code',
+            valueSet: 'http://example.com'
+          },
+          {
+            path: 'status',
+            code: [
+              {
+                code: 'completed',
+                system: 'http://hl7.org/fhir/event-status'
+              }
+            ]
+          }
+        ]
+      };
+      const valueSet = {
+        resourceType: 'ValueSet',
+        url: 'http://example.com',
+        expansion: {
+          contains: [{ code: 'value1' }, { code: 'value2' }, { code: 'value3' }]
+        }
+      } as fhir4.ValueSet;
+
+      DataRequirementHelpers.addFhirQueryPatternToDataRequirements(testDataReq, { useExpandedCodeQueries: true }, [
+        valueSet
+      ]);
+
+      expect(testDataReq.extension?.length).toEqual(2);
+      if (testDataReq.extension) {
+        expect(testDataReq.extension[0].valueString).toEqual(
+          '/Procedure?code=value1,value2,value3&status=completed&patient=Patient/{{context.patientId}}'
+        );
+        expect(testDataReq.extension[1].valueString).toEqual(
+          '/Procedure?code=value1,value2,value3&status=completed&performer=Patient/{{context.patientId}}'
+        );
+      }
+    });
+
+    test('chunks expanded code queries when valueset has more codes than the default chunk size', () => {
+      const testDataReq: DataRequirement = {
+        type: 'Procedure',
+        codeFilter: [
+          {
+            path: 'code',
+            valueSet: 'http://example.com'
+          }
+        ]
+      };
+      const expandedCodes = Array.from({ length: DEFAULT_EXPANDED_CODE_QUERY_CHUNK_SIZE + 1 }, (_, index) => ({
+        code: `value${index + 1}`
+      }));
+      const valueSet = {
+        resourceType: 'ValueSet',
+        url: 'http://example.com',
+        expansion: {
+          contains: expandedCodes
+        }
+      } as fhir4.ValueSet;
+      const firstCodeChunk = expandedCodes
+        .slice(0, DEFAULT_EXPANDED_CODE_QUERY_CHUNK_SIZE)
+        .map(({ code }) => code)
+        .join(',');
+      const secondCodeChunk = expandedCodes[DEFAULT_EXPANDED_CODE_QUERY_CHUNK_SIZE].code;
+
+      DataRequirementHelpers.addFhirQueryPatternToDataRequirements(testDataReq, { useExpandedCodeQueries: true }, [
+        valueSet
+      ]);
+
+      expect(testDataReq.extension?.map(extension => extension.valueString)).toEqual([
+        `/Procedure?code=${firstCodeChunk}&patient=Patient/{{context.patientId}}`,
+        `/Procedure?code=${firstCodeChunk}&performer=Patient/{{context.patientId}}`,
+        `/Procedure?code=${secondCodeChunk}&patient=Patient/{{context.patientId}}`,
+        `/Procedure?code=${secondCodeChunk}&performer=Patient/{{context.patientId}}`
+      ]);
+    });
+
+    test('add fhirQueryPattern extension with CodeFilter codes and valueSets, and date filters', () => {
+      const testDataReqWithDateFilter: DataRequirement = {
+        type: 'ServiceRequest',
+        codeFilter: [
+          {
+            path: 'code',
+            valueSet: 'http://example.com'
+          },
+          {
+            path: 'status',
+            code: [
+              {
+                code: 'completed',
+                system: 'http://example.com'
+              }
+            ]
+          }
+        ],
+        dateFilter: [
+          {
+            path: 'authoredOn.end',
+            valuePeriod: {
+              start: '2019-01-01',
+              end: '2019-12-31'
+            }
+          },
+          {
+            path: 'occurrence.start',
+            valuePeriod: {
+              start: '2019-01-01',
+              end: '2019-12-31'
+            }
+          }
+        ]
+      };
+      DataRequirementHelpers.addFhirQueryPatternToDataRequirements(testDataReqWithDateFilter);
+      expect(testDataReqWithDateFilter.extension?.length).toEqual(2);
+      expect(testDataReqWithDateFilter.extension?.[0].valueString).toEqual(
+        '/ServiceRequest?code:in=http://example.com&status=completed&authored=ge2019-01-01&authored=le2019-12-31&occurrence=ge2019-01-01&occurrence=le2019-12-31&subject=Patient/{{context.patientId}}'
+      );
+      expect(testDataReqWithDateFilter.extension?.[1].valueString).toEqual(
+        '/ServiceRequest?code:in=http://example.com&status=completed&authored=ge2019-01-01&authored=le2019-12-31&occurrence=ge2019-01-01&occurrence=le2019-12-31&performer=Patient/{{context.patientId}}'
+      );
+    });
+
+    test('add fhirQueryPattern extension with dateTime and duration date filters', () => {
+      const testDataReqWithDateFilter: DataRequirement = {
+        type: 'ServiceRequest',
+        dateFilter: [
+          {
+            path: 'authoredOn',
+            valueDateTime: '2019-01-01'
+          },
+          {
+            path: 'occurrence', // Note: duration is probably not a practical measure of occurrence here
+            valueDuration: {
+              unit: 'days',
+              value: 10
+            }
+          }
+        ]
+      };
+      DataRequirementHelpers.addFhirQueryPatternToDataRequirements(testDataReqWithDateFilter);
+      expect(testDataReqWithDateFilter.extension?.length).toEqual(2);
+      expect(testDataReqWithDateFilter.extension?.[0].valueString).toEqual(
+        '/ServiceRequest?authored=2019-01-01&occurrence=10&subject=Patient/{{context.patientId}}'
+      );
+      expect(testDataReqWithDateFilter.extension?.[1].valueString).toEqual(
+        '/ServiceRequest?authored=2019-01-01&occurrence=10&performer=Patient/{{context.patientId}}'
+      );
+    });
+
+    test('add fhirQueryPattern extension with incorrect path date filter ignores date filter', () => {
+      const testDataReqWithDateFilter: DataRequirement = {
+        type: 'Procedure',
+        dateFilter: [
+          {
+            path: 'wrong.end',
+            valuePeriod: {
+              start: '2019-01-01',
+              end: '2019-12-31'
+            }
+          }
+        ]
+      };
+      DataRequirementHelpers.addFhirQueryPatternToDataRequirements(testDataReqWithDateFilter);
+      expect(testDataReqWithDateFilter.extension?.length).toEqual(2);
+      if (testDataReqWithDateFilter.extension) {
+        expect(testDataReqWithDateFilter.extension[0].valueString).toEqual(
+          '/Procedure?patient=Patient/{{context.patientId}}'
+        );
+        expect(testDataReqWithDateFilter.extension[1].valueString).toEqual(
+          '/Procedure?performer=Patient/{{context.patientId}}'
+        );
+      }
+    });
+
+    test('add fhirQueryPattern extension to data requirement of type Coverage with CodeFilter codes and valueSets', () => {
+      const testCoverageDataReq: DataRequirement = {
+        type: 'Coverage',
+        codeFilter: [
+          {
+            path: 'code',
+            valueSet: 'http://example.com'
+          },
+          {
+            path: 'status',
+            code: [
+              {
+                code: 'completed',
+                system: 'http://hl7.org/fhir/event-status'
+              }
+            ]
+          }
+        ]
+      };
+      DataRequirementHelpers.addFhirQueryPatternToDataRequirements(testCoverageDataReq);
+      expect(testCoverageDataReq.extension?.length).toEqual(4);
+      if (testCoverageDataReq.extension) {
+        expect(testCoverageDataReq.extension[0].valueString).toEqual(
+          '/Coverage?code:in=http://example.com&status=completed&policy-holder=Patient/{{context.patientId}}'
+        );
+        expect(testCoverageDataReq.extension[1].valueString).toEqual(
+          '/Coverage?code:in=http://example.com&status=completed&subscriber=Patient/{{context.patientId}}'
+        );
+        expect(testCoverageDataReq.extension[2].valueString).toEqual(
+          '/Coverage?code:in=http://example.com&status=completed&beneficiary=Patient/{{context.patientId}}'
+        );
+        expect(testCoverageDataReq.extension[3].valueString).toEqual(
+          '/Coverage?code:in=http://example.com&status=completed&payor=Patient/{{context.patientId}}'
+        );
+      }
+    });
+  });
+
+  describe('extractDataRequirementsMeasurementPeriod', () => {
+    test('uses default measurement period when no measurement info provided', () => {
+      const start = '2019-01-01';
+      const end = '2019-12-31';
+      const startCql = DateTime.fromJSDate(moment.utc(start, 'YYYYMDDHHmm').toDate(), 0);
+      const endCql = DateTime.fromJSDate(moment.utc(`${end}T23:59:59.999Z`, moment.ISO_8601, true).toDate(), 0);
+
+      expect(DataRequirementHelpers.extractDataRequirementsMeasurementPeriod({}, {})).toEqual({
+        'Measurement Period': new Interval(startCql, endCql)
+      });
+    });
+
+    test('uses measurement period from options when both provided', () => {
+      const start = '2019-01-01';
+      const end = '2020-01-01';
+      const startCql = DateTime.fromJSDate(moment.utc(start, 'YYYYMDDHHmm').toDate(), 0);
+      const endCql = DateTime.fromJSDate(moment.utc(`${end}T23:59:59.999Z`, moment.ISO_8601, true).toDate(), 0);
+      const options: CalculationOptions = { measurementPeriodStart: start, measurementPeriodEnd: end };
+      const mp: fhir4.Period = { start: '2000-01-01', end: '2001-01-01' };
+
+      expect(DataRequirementHelpers.extractDataRequirementsMeasurementPeriod(options, mp)).toEqual({
+        'Measurement Period': new Interval(startCql, endCql)
+      });
+    });
+  });
+
+  test('uses measurement period from Measure when options not provided', () => {
+    const start = '2019-01-01';
+    const end = '2020-01-01';
+    const startCql = DateTime.fromJSDate(moment.utc(start, 'YYYYMDDHHmm').toDate(), 0);
+    const endCql = DateTime.fromJSDate(moment.utc(`${end}T23:59:59.999Z`, moment.ISO_8601, true).toDate(), 0);
+    const mp: fhir4.Period = { start, end };
+
+    expect(DataRequirementHelpers.extractDataRequirementsMeasurementPeriod({}, mp)).toEqual({
+      'Measurement Period': new Interval(startCql, endCql)
+    });
+  });
+});

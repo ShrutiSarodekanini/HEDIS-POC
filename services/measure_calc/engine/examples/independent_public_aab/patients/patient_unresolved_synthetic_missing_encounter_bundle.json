@@ -1,0 +1,38 @@
+{
+  "resourceType": "Bundle",
+  "type": "collection",
+  "entry": [
+    {
+      "resource": {
+        "resourceType": "Patient",
+        "id": "f2439708-edae-c07f-ebd6-5e4a1bc05c6a",
+        "birthDate": "1968-02-12",
+        "gender": "male"
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Condition",
+        "id": "f2439708-edae-c07f-b6b9-d8862e4a5b62",
+        "subject": {
+          "reference": "urn:uuid:f2439708-edae-c07f-ebd6-5e4a1bc05c6a"
+        },
+        "encounter": {
+          "reference": "urn:uuid:f2439708-edae-c07f-3a07-6a11d7a9f3bb"
+        },
+        "code": {
+          "coding": [
+            {
+              "system": "http://snomed.info/sct",
+              "code": "10509002",
+              "display": "Acute bronchitis (disorder)"
+            }
+          ],
+          "text": "Acute bronchitis (disorder)"
+        },
+        "onsetDateTime": "2019-07-27T19:58:27+05:30",
+        "recordedDate": "2019-07-27T19:58:27+05:30"
+      }
+    }
+  ]
+}

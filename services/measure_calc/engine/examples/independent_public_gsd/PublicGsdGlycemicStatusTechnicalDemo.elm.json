@@ -1,0 +1,763 @@
+{
+   "library" : {
+      "annotation" : [ {
+         "translatorVersion" : "2.7.0",
+         "translatorOptions" : "",
+         "type" : "CqlToElmInfo"
+      } ],
+      "identifier" : {
+         "id" : "PublicGsdGlycemicStatusTechnicalDemo",
+         "version" : "0.1.0"
+      },
+      "schemaIdentifier" : {
+         "id" : "urn:hl7-org:elm",
+         "version" : "r1"
+      },
+      "usings" : {
+         "def" : [ {
+            "localIdentifier" : "System",
+            "uri" : "urn:hl7-org:elm-types:r1"
+         }, {
+            "localIdentifier" : "FHIR",
+            "uri" : "http://hl7.org/fhir",
+            "version" : "4.0.1"
+         } ]
+      },
+      "includes" : {
+         "def" : [ {
+            "localIdentifier" : "FHIRHelpers",
+            "path" : "FHIRHelpers",
+            "version" : "4.0.1"
+         } ]
+      },
+      "parameters" : {
+         "def" : [ {
+            "name" : "Measurement Period",
+            "accessLevel" : "Public",
+            "default" : {
+               "lowClosed" : true,
+               "highClosed" : true,
+               "type" : "Interval",
+               "low" : {
+                  "type" : "DateTime",
+                  "year" : {
+                     "valueType" : "{urn:hl7-org:elm-types:r1}Integer",
+                     "value" : "2026",
+                     "type" : "Literal"
+                  },
+                  "month" : {
+                     "valueType" : "{urn:hl7-org:elm-types:r1}Integer",
+                     "value" : "1",
+                     "type" : "Literal"
+                  },
+                  "day" : {
+                     "valueType" : "{urn:hl7-org:elm-types:r1}Integer",
+                     "value" : "1",
+                     "type" : "Literal"
+                  },
+                  "hour" : {
+                     "valueType" : "{urn:hl7-org:elm-types:r1}Integer",
+                     "value" : "0",
+                     "type" : "Literal"
+                  },
+                  "minute" : {
+                     "valueType" : "{urn:hl7-org:elm-types:r1}Integer",
+                     "value" : "0",
+                     "type" : "Literal"
+                  },
+                  "second" : {
+                     "valueType" : "{urn:hl7-org:elm-types:r1}Integer",
+                     "value" : "0",
+                     "type" : "Literal"
+                  },
+                  "millisecond" : {
+                     "valueType" : "{urn:hl7-org:elm-types:r1}Integer",
+                     "value" : "0",
+                     "type" : "Literal"
+                  }
+               },
+               "high" : {
+                  "type" : "DateTime",
+                  "year" : {
+                     "valueType" : "{urn:hl7-org:elm-types:r1}Integer",
+                     "value" : "2026",
+                     "type" : "Literal"
+                  },
+                  "month" : {
+                     "valueType" : "{urn:hl7-org:elm-types:r1}Integer",
+                     "value" : "12",
+                     "type" : "Literal"
+                  },
+                  "day" : {
+                     "valueType" : "{urn:hl7-org:elm-types:r1}Integer",
+                     "value" : "31",
+                     "type" : "Literal"
+                  },
+                  "hour" : {
+                     "valueType" : "{urn:hl7-org:elm-types:r1}Integer",
+                     "value" : "23",
+                     "type" : "Literal"
+                  },
+                  "minute" : {
+                     "valueType" : "{urn:hl7-org:elm-types:r1}Integer",
+                     "value" : "59",
+                     "type" : "Literal"
+                  },
+                  "second" : {
+                     "valueType" : "{urn:hl7-org:elm-types:r1}Integer",
+                     "value" : "59",
+                     "type" : "Literal"
+                  },
+                  "millisecond" : {
+                     "valueType" : "{urn:hl7-org:elm-types:r1}Integer",
+                     "value" : "999",
+                     "type" : "Literal"
+                  }
+               }
+            },
+            "parameterTypeSpecifier" : {
+               "type" : "IntervalTypeSpecifier",
+               "pointType" : {
+                  "name" : "{urn:hl7-org:elm-types:r1}DateTime",
+                  "type" : "NamedTypeSpecifier"
+               }
+            }
+         } ]
+      },
+      "valueSets" : {
+         "def" : [ {
+            "name" : "Diabetes Diagnoses",
+            "id" : "http://example.org/fhir/ValueSet/public-gsd-diabetes-diagnoses",
+            "accessLevel" : "Public"
+         }, {
+            "name" : "Glycemic Status Assessments",
+            "id" : "http://example.org/fhir/ValueSet/public-gsd-glycemic-status-assessments",
+            "accessLevel" : "Public"
+         } ]
+      },
+      "contexts" : {
+         "def" : [ {
+            "name" : "Patient"
+         } ]
+      },
+      "statements" : {
+         "def" : [ {
+            "name" : "Patient",
+            "context" : "Patient",
+            "expression" : {
+               "type" : "SingletonFrom",
+               "operand" : {
+                  "dataType" : "{http://hl7.org/fhir}Patient",
+                  "templateId" : "http://hl7.org/fhir/StructureDefinition/Patient",
+                  "type" : "Retrieve"
+               }
+            }
+         }, {
+            "name" : "Has Diabetes Condition",
+            "context" : "Patient",
+            "accessLevel" : "Public",
+            "expression" : {
+               "type" : "Exists",
+               "operand" : {
+                  "type" : "Query",
+                  "source" : [ {
+                     "alias" : "C",
+                     "expression" : {
+                        "dataType" : "{http://hl7.org/fhir}Condition",
+                        "templateId" : "http://hl7.org/fhir/StructureDefinition/Condition",
+                        "codeProperty" : "code",
+                        "codeComparator" : "in",
+                        "type" : "Retrieve",
+                        "codes" : {
+                           "name" : "Diabetes Diagnoses",
+                           "preserve" : true,
+                           "type" : "ValueSetRef"
+                        }
+                     }
+                  } ],
+                  "relationship" : [ ],
+                  "where" : {
+                     "type" : "And",
+                     "operand" : [ {
+                        "type" : "Is",
+                        "operand" : {
+                           "path" : "onset",
+                           "scope" : "C",
+                           "type" : "Property"
+                        },
+                        "isTypeSpecifier" : {
+                           "name" : "{http://hl7.org/fhir}dateTime",
+                           "type" : "NamedTypeSpecifier"
+                        }
+                     }, {
+                        "type" : "SameOrBefore",
+                        "operand" : [ {
+                           "path" : "value",
+                           "type" : "Property",
+                           "source" : {
+                              "strict" : false,
+                              "type" : "As",
+                              "operand" : {
+                                 "path" : "onset",
+                                 "scope" : "C",
+                                 "type" : "Property"
+                              },
+                              "asTypeSpecifier" : {
+                                 "name" : "{http://hl7.org/fhir}dateTime",
+                                 "type" : "NamedTypeSpecifier"
+                              }
+                           }
+                        }, {
+                           "type" : "End",
+                           "operand" : {
+                              "name" : "Measurement Period",
+                              "type" : "ParameterRef"
+                           }
+                        } ]
+                     } ]
+                  }
+               }
+            }
+         }, {
+            "name" : "Has Qualifying Encounter During Measurement Period",
+            "context" : "Patient",
+            "accessLevel" : "Public",
+            "expression" : {
+               "type" : "Exists",
+               "operand" : {
+                  "type" : "Query",
+                  "source" : [ {
+                     "alias" : "E",
+                     "expression" : {
+                        "dataType" : "{http://hl7.org/fhir}Encounter",
+                        "templateId" : "http://hl7.org/fhir/StructureDefinition/Encounter",
+                        "type" : "Retrieve"
+                     }
+                  } ],
+                  "relationship" : [ ],
+                  "where" : {
+                     "type" : "And",
+                     "operand" : [ {
+                        "type" : "In",
+                        "operand" : [ {
+                           "name" : "ToString",
+                           "libraryName" : "FHIRHelpers",
+                           "type" : "FunctionRef",
+                           "operand" : [ {
+                              "path" : "status",
+                              "scope" : "E",
+                              "type" : "Property"
+                           } ]
+                        }, {
+                           "type" : "List",
+                           "element" : [ {
+                              "valueType" : "{urn:hl7-org:elm-types:r1}String",
+                              "value" : "finished",
+                              "type" : "Literal"
+                           }, {
+                              "valueType" : "{urn:hl7-org:elm-types:r1}String",
+                              "value" : "in-progress",
+                              "type" : "Literal"
+                           } ]
+                        } ]
+                     }, {
+                        "precision" : "Day",
+                        "type" : "In",
+                        "operand" : [ {
+                           "path" : "value",
+                           "type" : "Property",
+                           "source" : {
+                              "path" : "start",
+                              "type" : "Property",
+                              "source" : {
+                                 "path" : "period",
+                                 "scope" : "E",
+                                 "type" : "Property"
+                              }
+                           }
+                        }, {
+                           "name" : "Measurement Period",
+                           "type" : "ParameterRef"
+                        } ]
+                     } ]
+                  }
+               }
+            }
+         }, {
+            "name" : "In-Period Glycemic Assessments",
+            "context" : "Patient",
+            "accessLevel" : "Public",
+            "expression" : {
+               "type" : "Query",
+               "source" : [ {
+                  "alias" : "O",
+                  "expression" : {
+                     "dataType" : "{http://hl7.org/fhir}Observation",
+                     "templateId" : "http://hl7.org/fhir/StructureDefinition/Observation",
+                     "codeProperty" : "code",
+                     "codeComparator" : "in",
+                     "type" : "Retrieve",
+                     "codes" : {
+                        "name" : "Glycemic Status Assessments",
+                        "preserve" : true,
+                        "type" : "ValueSetRef"
+                     }
+                  }
+               } ],
+               "relationship" : [ ],
+               "where" : {
+                  "type" : "And",
+                  "operand" : [ {
+                     "type" : "And",
+                     "operand" : [ {
+                        "type" : "And",
+                        "operand" : [ {
+                           "type" : "And",
+                           "operand" : [ {
+                              "type" : "In",
+                              "operand" : [ {
+                                 "name" : "ToString",
+                                 "libraryName" : "FHIRHelpers",
+                                 "type" : "FunctionRef",
+                                 "operand" : [ {
+                                    "path" : "status",
+                                    "scope" : "O",
+                                    "type" : "Property"
+                                 } ]
+                              }, {
+                                 "type" : "List",
+                                 "element" : [ {
+                                    "valueType" : "{urn:hl7-org:elm-types:r1}String",
+                                    "value" : "final",
+                                    "type" : "Literal"
+                                 }, {
+                                    "valueType" : "{urn:hl7-org:elm-types:r1}String",
+                                    "value" : "amended",
+                                    "type" : "Literal"
+                                 }, {
+                                    "valueType" : "{urn:hl7-org:elm-types:r1}String",
+                                    "value" : "corrected",
+                                    "type" : "Literal"
+                                 } ]
+                              } ]
+                           }, {
+                              "type" : "Is",
+                              "operand" : {
+                                 "path" : "effective",
+                                 "scope" : "O",
+                                 "type" : "Property"
+                              },
+                              "isTypeSpecifier" : {
+                                 "name" : "{http://hl7.org/fhir}dateTime",
+                                 "type" : "NamedTypeSpecifier"
+                              }
+                           } ]
+                        }, {
+                           "precision" : "Day",
+                           "type" : "In",
+                           "operand" : [ {
+                              "path" : "value",
+                              "type" : "Property",
+                              "source" : {
+                                 "strict" : false,
+                                 "type" : "As",
+                                 "operand" : {
+                                    "path" : "effective",
+                                    "scope" : "O",
+                                    "type" : "Property"
+                                 },
+                                 "asTypeSpecifier" : {
+                                    "name" : "{http://hl7.org/fhir}dateTime",
+                                    "type" : "NamedTypeSpecifier"
+                                 }
+                              }
+                           }, {
+                              "name" : "Measurement Period",
+                              "type" : "ParameterRef"
+                           } ]
+                        } ]
+                     }, {
+                        "type" : "Is",
+                        "operand" : {
+                           "path" : "value",
+                           "scope" : "O",
+                           "type" : "Property"
+                        },
+                        "isTypeSpecifier" : {
+                           "name" : "{http://hl7.org/fhir}Quantity",
+                           "type" : "NamedTypeSpecifier"
+                        }
+                     } ]
+                  }, {
+                     "type" : "Equal",
+                     "operand" : [ {
+                        "path" : "value",
+                        "type" : "Property",
+                        "source" : {
+                           "path" : "unit",
+                           "type" : "Property",
+                           "source" : {
+                              "strict" : false,
+                              "type" : "As",
+                              "operand" : {
+                                 "path" : "value",
+                                 "scope" : "O",
+                                 "type" : "Property"
+                              },
+                              "asTypeSpecifier" : {
+                                 "name" : "{http://hl7.org/fhir}Quantity",
+                                 "type" : "NamedTypeSpecifier"
+                              }
+                           }
+                        }
+                     }, {
+                        "valueType" : "{urn:hl7-org:elm-types:r1}String",
+                        "value" : "%",
+                        "type" : "Literal"
+                     } ]
+                  } ]
+               }
+            }
+         }, {
+            "name" : "Most Recent Glycemic Status Date",
+            "context" : "Patient",
+            "accessLevel" : "Public",
+            "expression" : {
+               "type" : "Max",
+               "source" : {
+                  "type" : "Query",
+                  "source" : [ {
+                     "alias" : "O",
+                     "expression" : {
+                        "name" : "In-Period Glycemic Assessments",
+                        "type" : "ExpressionRef"
+                     }
+                  } ],
+                  "relationship" : [ ],
+                  "return" : {
+                     "expression" : {
+                        "type" : "DateFrom",
+                        "operand" : {
+                           "path" : "value",
+                           "type" : "Property",
+                           "source" : {
+                              "strict" : false,
+                              "type" : "As",
+                              "operand" : {
+                                 "path" : "effective",
+                                 "scope" : "O",
+                                 "type" : "Property"
+                              },
+                              "asTypeSpecifier" : {
+                                 "name" : "{http://hl7.org/fhir}dateTime",
+                                 "type" : "NamedTypeSpecifier"
+                              }
+                           }
+                        }
+                     }
+                  }
+               }
+            }
+         }, {
+            "name" : "Lowest Glycemic Value On Most Recent Date",
+            "context" : "Patient",
+            "accessLevel" : "Public",
+            "expression" : {
+               "type" : "Min",
+               "source" : {
+                  "type" : "Query",
+                  "source" : [ {
+                     "alias" : "X",
+                     "expression" : {
+                        "type" : "Query",
+                        "source" : [ {
+                           "alias" : "O",
+                           "expression" : {
+                              "name" : "In-Period Glycemic Assessments",
+                              "type" : "ExpressionRef"
+                           }
+                        } ],
+                        "relationship" : [ ],
+                        "where" : {
+                           "type" : "Equal",
+                           "operand" : [ {
+                              "type" : "DateFrom",
+                              "operand" : {
+                                 "path" : "value",
+                                 "type" : "Property",
+                                 "source" : {
+                                    "strict" : false,
+                                    "type" : "As",
+                                    "operand" : {
+                                       "path" : "effective",
+                                       "scope" : "O",
+                                       "type" : "Property"
+                                    },
+                                    "asTypeSpecifier" : {
+                                       "name" : "{http://hl7.org/fhir}dateTime",
+                                       "type" : "NamedTypeSpecifier"
+                                    }
+                                 }
+                              }
+                           }, {
+                              "name" : "Most Recent Glycemic Status Date",
+                              "type" : "ExpressionRef"
+                           } ]
+                        },
+                        "return" : {
+                           "expression" : {
+                              "path" : "value",
+                              "type" : "Property",
+                              "source" : {
+                                 "strict" : false,
+                                 "type" : "As",
+                                 "operand" : {
+                                    "path" : "value",
+                                    "scope" : "O",
+                                    "type" : "Property"
+                                 },
+                                 "asTypeSpecifier" : {
+                                    "name" : "{http://hl7.org/fhir}Quantity",
+                                    "type" : "NamedTypeSpecifier"
+                                 }
+                              }
+                           }
+                        }
+                     }
+                  } ],
+                  "return" : {
+                     "distinct" : false,
+                     "expression" : {
+                        "name" : "ToDecimal",
+                        "libraryName" : "FHIRHelpers",
+                        "type" : "FunctionRef",
+                        "operand" : [ {
+                           "name" : "X",
+                           "type" : "AliasRef"
+                        } ]
+                     }
+                  }
+               }
+            }
+         }, {
+            "name" : "Has Most Recent Glycemic Assessment Without Result",
+            "context" : "Patient",
+            "accessLevel" : "Public",
+            "expression" : {
+               "type" : "Exists",
+               "operand" : {
+                  "type" : "Query",
+                  "source" : [ {
+                     "alias" : "O",
+                     "expression" : {
+                        "dataType" : "{http://hl7.org/fhir}Observation",
+                        "templateId" : "http://hl7.org/fhir/StructureDefinition/Observation",
+                        "codeProperty" : "code",
+                        "codeComparator" : "in",
+                        "type" : "Retrieve",
+                        "codes" : {
+                           "name" : "Glycemic Status Assessments",
+                           "preserve" : true,
+                           "type" : "ValueSetRef"
+                        }
+                     }
+                  } ],
+                  "relationship" : [ ],
+                  "where" : {
+                     "type" : "And",
+                     "operand" : [ {
+                        "type" : "And",
+                        "operand" : [ {
+                           "type" : "And",
+                           "operand" : [ {
+                              "type" : "In",
+                              "operand" : [ {
+                                 "name" : "ToString",
+                                 "libraryName" : "FHIRHelpers",
+                                 "type" : "FunctionRef",
+                                 "operand" : [ {
+                                    "path" : "status",
+                                    "scope" : "O",
+                                    "type" : "Property"
+                                 } ]
+                              }, {
+                                 "type" : "List",
+                                 "element" : [ {
+                                    "valueType" : "{urn:hl7-org:elm-types:r1}String",
+                                    "value" : "final",
+                                    "type" : "Literal"
+                                 }, {
+                                    "valueType" : "{urn:hl7-org:elm-types:r1}String",
+                                    "value" : "amended",
+                                    "type" : "Literal"
+                                 }, {
+                                    "valueType" : "{urn:hl7-org:elm-types:r1}String",
+                                    "value" : "corrected",
+                                    "type" : "Literal"
+                                 } ]
+                              } ]
+                           }, {
+                              "type" : "Is",
+                              "operand" : {
+                                 "path" : "effective",
+                                 "scope" : "O",
+                                 "type" : "Property"
+                              },
+                              "isTypeSpecifier" : {
+                                 "name" : "{http://hl7.org/fhir}dateTime",
+                                 "type" : "NamedTypeSpecifier"
+                              }
+                           } ]
+                        }, {
+                           "type" : "Equal",
+                           "operand" : [ {
+                              "type" : "DateFrom",
+                              "operand" : {
+                                 "path" : "value",
+                                 "type" : "Property",
+                                 "source" : {
+                                    "strict" : false,
+                                    "type" : "As",
+                                    "operand" : {
+                                       "path" : "effective",
+                                       "scope" : "O",
+                                       "type" : "Property"
+                                    },
+                                    "asTypeSpecifier" : {
+                                       "name" : "{http://hl7.org/fhir}dateTime",
+                                       "type" : "NamedTypeSpecifier"
+                                    }
+                                 }
+                              }
+                           }, {
+                              "name" : "Most Recent Glycemic Status Date",
+                              "type" : "ExpressionRef"
+                           } ]
+                        } ]
+                     }, {
+                        "type" : "IsNull",
+                        "operand" : {
+                           "path" : "value",
+                           "scope" : "O",
+                           "type" : "Property"
+                        }
+                     } ]
+                  }
+               }
+            }
+         }, {
+            "name" : "Has No In-Period Glycemic Assessment Record",
+            "context" : "Patient",
+            "accessLevel" : "Public",
+            "expression" : {
+               "type" : "Not",
+               "operand" : {
+                  "type" : "Exists",
+                  "operand" : {
+                     "name" : "In-Period Glycemic Assessments",
+                     "type" : "ExpressionRef"
+                  }
+               }
+            }
+         }, {
+            "name" : "Has Elevated Most Recent Glycemic Reading",
+            "context" : "Patient",
+            "accessLevel" : "Public",
+            "expression" : {
+               "type" : "Greater",
+               "operand" : [ {
+                  "name" : "Lowest Glycemic Value On Most Recent Date",
+                  "type" : "ExpressionRef"
+               }, {
+                  "valueType" : "{urn:hl7-org:elm-types:r1}Decimal",
+                  "value" : "9.0",
+                  "type" : "Literal"
+               } ]
+            }
+         }, {
+            "name" : "ipp",
+            "context" : "Patient",
+            "accessLevel" : "Public",
+            "expression" : {
+               "type" : "And",
+               "operand" : [ {
+                  "type" : "And",
+                  "operand" : [ {
+                     "type" : "In",
+                     "operand" : [ {
+                        "precision" : "Year",
+                        "type" : "CalculateAgeAt",
+                        "operand" : [ {
+                           "type" : "ToDateTime",
+                           "operand" : {
+                              "path" : "birthDate.value",
+                              "type" : "Property",
+                              "source" : {
+                                 "name" : "Patient",
+                                 "type" : "ExpressionRef"
+                              }
+                           }
+                        }, {
+                           "type" : "End",
+                           "operand" : {
+                              "name" : "Measurement Period",
+                              "type" : "ParameterRef"
+                           }
+                        } ]
+                     }, {
+                        "lowClosed" : true,
+                        "highClosed" : true,
+                        "type" : "Interval",
+                        "low" : {
+                           "valueType" : "{urn:hl7-org:elm-types:r1}Integer",
+                           "value" : "18",
+                           "type" : "Literal"
+                        },
+                        "high" : {
+                           "valueType" : "{urn:hl7-org:elm-types:r1}Integer",
+                           "value" : "75",
+                           "type" : "Literal"
+                        }
+                     } ]
+                  }, {
+                     "name" : "Has Diabetes Condition",
+                     "type" : "ExpressionRef"
+                  } ]
+               }, {
+                  "name" : "Has Qualifying Encounter During Measurement Period",
+                  "type" : "ExpressionRef"
+               } ]
+            }
+         }, {
+            "name" : "denom",
+            "context" : "Patient",
+            "accessLevel" : "Public",
+            "expression" : {
+               "name" : "ipp",
+               "type" : "ExpressionRef"
+            }
+         }, {
+            "name" : "numer",
+            "context" : "Patient",
+            "accessLevel" : "Public",
+            "expression" : {
+               "type" : "Or",
+               "operand" : [ {
+                  "type" : "Or",
+                  "operand" : [ {
+                     "name" : "Has Elevated Most Recent Glycemic Reading",
+                     "type" : "ExpressionRef"
+                  }, {
+                     "name" : "Has Most Recent Glycemic Assessment Without Result",
+                     "type" : "ExpressionRef"
+                  } ]
+               }, {
+                  "name" : "Has No In-Period Glycemic Assessment Record",
+                  "type" : "ExpressionRef"
+               } ]
+            }
+         } ]
+      }
+   }
+}
+

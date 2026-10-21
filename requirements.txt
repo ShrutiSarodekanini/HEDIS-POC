@@ -15,6 +15,9 @@ python-multipart
 pydantic
 httpx
 
+# Data ingestion (Synthea CSV to FHIR)
+fhir.resources>=8.0,<9.0
+
 # Document intake and conversion (US-02)
 cryptography      # encrypted storage of uploaded files
 pypdfium2         # PDF text with character positions, page rendering

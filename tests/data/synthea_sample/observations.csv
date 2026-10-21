@@ -1,0 +1,3 @@
+Id,DATE,PATIENT,ENCOUNTER,CODE,DESCRIPTION,VALUE,UNITS,TYPE
+obs-1,2022-01-10 10:10:00,pat-1,enc-1,4548-4,Hemoglobin A1c/Hemoglobin.total in Blood,7.2,%,numeric
+obs-2,2022-02-01 09:40:00,pat-2,enc-2,8480-6,Systolic blood pressure,130,mmHg,numeric

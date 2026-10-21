@@ -1,0 +1,694 @@
+from __future__ import annotations
+
+import json
+import subprocess
+import shutil
+import tempfile
+import time
+import uuid
+import zipfile
+from datetime import datetime
+from pathlib import Path
+import re
+from typing import Any
+
+from fastapi import APIRouter, File, Form, HTTPException, UploadFile
+
+from .config import settings
+from .db import session_scope
+from .models import FhirResource
+from .pipeline import STAGES, job_manager, launch_job, run_persist_stage
+from .repository import (
+    as_issue_dict,
+    as_job_dict,
+    as_resource_dict,
+    clear_jobs_for_input_dir,
+    list_issues_for_job,
+    list_jobs,
+    list_resources_for_job,
+)
+from .synthea import SUPPORTED_FILES, discover_dataset
+
+
+router = APIRouter(prefix="/api", tags=["conversion"])
+
+
+_BP_MEASURE_HINTS = ("BPD", "CBP", "CMS165", "CONTROLLINGHIGHBP")
+_BP_OBSERVATION_CODES = {"8480-6", "8462-4", "85354-9"}
+
+
+def _is_bp_measure_request(measure_id: str, bundle_path: Path) -> bool:
+    probe = "|".join(
+        [
+            str(measure_id or ""),
+            bundle_path.name,
+            bundle_path.parent.name,
+        ]
+    ).upper()
+    return any(hint in probe for hint in _BP_MEASURE_HINTS)
+
+
+def _observation_is_bp_related(resource: dict[str, Any]) -> bool:
+    code_block = resource.get("code") if isinstance(resource, dict) else None
+    codings = code_block.get("coding") if isinstance(code_block, dict) else None
+    if isinstance(codings, list):
+        for coding in codings:
+            if not isinstance(coding, dict):
+                continue
+            code = coding.get("code")
+            if isinstance(code, str) and code in _BP_OBSERVATION_CODES:
+                return True
+
+    text_blob = json.dumps(resource).lower()
+    return "blood pressure" in text_blob or "systolic" in text_blob or "diastolic" in text_blob
+
+
+def _prune_bp_bundle_payload(payload: dict[str, Any]) -> tuple[dict[str, Any], int, int]:
+    if payload.get("resourceType") != "Bundle":
+        return payload, 0, 0
+
+    entries = payload.get("entry")
+    if not isinstance(entries, list):
+        return payload, 0, 0
+
+    keep_types = {
+        "Patient",
+        "Encounter",
+        "Condition",
+        "Observation",
+        "Procedure",
+        "MedicationRequest",
+        "CarePlan",
+        "Immunization",
+    }
+
+    pruned_entries: list[dict[str, Any]] = []
+    removed_count = 0
+
+    for entry in entries:
+        if not isinstance(entry, dict):
+            removed_count += 1
+            continue
+
+        resource = entry.get("resource")
+        if not isinstance(resource, dict):
+            removed_count += 1
+            continue
+
+        resource_type = resource.get("resourceType")
+        if resource_type not in keep_types:
+            removed_count += 1
+            continue
+
+        if resource_type == "Observation" and not _observation_is_bp_related(resource):
+            removed_count += 1
+            continue
+
+        pruned_entries.append(entry)
+
+    if removed_count == 0:
+        return payload, len(entries), 0
+
+    pruned_payload = dict(payload)
+    pruned_payload["entry"] = pruned_entries
+    return pruned_payload, len(pruned_entries), removed_count
+
+
+def _maybe_prune_run_request_bundle(temp_path: Path, measure_id: str, bundle_path: Path) -> None:
+    if not _is_bp_measure_request(measure_id, bundle_path):
+        return
+
+    try:
+        payload = json.loads(temp_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return
+
+    if not isinstance(payload, dict):
+        return
+
+    pruned_payload, _, removed_count = _prune_bp_bundle_payload(payload)
+    if removed_count <= 0:
+        return
+
+    try:
+        temp_path.write_text(json.dumps(pruned_payload), encoding="utf-8")
+    except OSError:
+        return
+
+
+def _resolve_measure_bundle_path(measure_bundle_path: str | None) -> Path:
+    if not measure_bundle_path:
+        raise HTTPException(status_code=400, detail="measure_bundle_path is required")
+
+    candidate = Path(measure_bundle_path)
+    if candidate.is_absolute() and candidate.exists():
+        return candidate
+
+    repo_root = Path(__file__).resolve().parents[3]
+    engine_root = repo_root / "services" / "measure_calc" / "engine"
+
+    for path in (
+        engine_root / measure_bundle_path,
+        repo_root / measure_bundle_path,
+    ):
+        if path.exists():
+            return path
+
+    raise HTTPException(
+        status_code=400,
+        detail=f"measure_bundle_path not found: {measure_bundle_path}",
+    )
+
+
+def _to_member_result(cli_entry: dict, measure_id: str) -> dict:
+    patient_id = cli_entry.get("patientId") or "unknown"
+    detailed_results = cli_entry.get("detailedResults") or []
+    group = detailed_results[0] if detailed_results else {}
+    raw_populations = group.get("populationResults") or []
+
+    population_map = {
+        "initial_population": None,
+        "denominator": None,
+        "denominator_exclusion": None,
+        "denominator_exception": None,
+        "numerator": None,
+    }
+
+    pop_key_map = {
+        "initial-population": "initial_population",
+        "denominator": "denominator",
+        "denominator-exclusion": "denominator_exclusion",
+        "denominator-exception": "denominator_exception",
+        "numerator": "numerator",
+        "measure-population": "measure_population",
+        "measure-observation": "measure_observation",
+    }
+
+    for item in raw_populations:
+        pop_type = item.get("populationType")
+        key = pop_key_map.get(pop_type)
+        if key is None:
+            continue
+        population_map[key] = bool(item.get("result")) if item.get("result") is not None else None
+
+    denominator = population_map.get("denominator") is True
+    numerator = population_map.get("numerator")
+
+    if not denominator:
+        outcome = "not_in_population"
+    elif numerator is True:
+        outcome = "numerator_met"
+    elif numerator is False:
+        outcome = "numerator_not_met"
+    else:
+        outcome = "unresolved_policy"
+
+    status = "completed" if outcome != "unresolved_policy" else "unresolved"
+
+    return {
+        "member_id": patient_id,
+        "measure_id": measure_id,
+        "status": status,
+        "outcome": outcome,
+        "populations": population_map,
+        "data_quality_flags": [],
+        "warnings": [],
+        "errors": [],
+    }
+
+
+def _parse_measurement_year(measurement_year: str | None) -> int | None:
+    if not measurement_year:
+        return None
+
+    match = re.search(r"(\d{4})", measurement_year)
+    if not match:
+        return None
+
+    year = int(match.group(1))
+    if year < 1900 or year > 3000:
+        return None
+    return year
+
+
+def _extract_root_library_reference(measure_bundle_path: Path) -> str | None:
+    try:
+        payload = json.loads(measure_bundle_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+
+    entries = payload.get("entry") if isinstance(payload, dict) else None
+    if not isinstance(entries, list):
+        return None
+
+    measure_resource: dict | None = None
+    for entry in entries:
+        if not isinstance(entry, dict):
+            continue
+        resource = entry.get("resource")
+        if isinstance(resource, dict) and resource.get("resourceType") == "Measure":
+            measure_resource = resource
+            break
+
+    if not measure_resource:
+        return None
+
+    libraries = measure_resource.get("library")
+    if isinstance(libraries, list):
+        for lib in libraries:
+            if not isinstance(lib, dict):
+                continue
+            reference = lib.get("reference")
+            if isinstance(reference, str) and reference.strip():
+                raw_ref = reference.strip()
+                # Handle canonical URLs and Reference strings by taking the final path segment.
+                # Example: http://example.org/fhir/Library/MyLibrary|1.0.0 -> MyLibrary
+                tail = raw_ref.rsplit("/", 1)[-1]
+                lib_ref = tail.split("|", 1)[0].strip()
+                if lib_ref:
+                    return lib_ref
+
+    measure_id = measure_resource.get("id")
+    if isinstance(measure_id, str) and measure_id.strip():
+        return measure_id.strip()
+
+    stem = measure_bundle_path.stem
+    if stem.endswith("-bundle"):
+        stem = stem[: -len("-bundle")]
+    return stem or None
+
+
+@router.get("/health")
+def api_health() -> dict[str, str]:
+    return {
+        "status": "ok",
+        "message": "Service reachable",
+        "version": "1.0.0",
+    }
+
+
+def _require_input_dir(input_dir: str) -> str:
+    cleaned = (input_dir or "").strip()
+    if not cleaned:
+        raise HTTPException(status_code=400, detail="input_dir is required. Upload a folder/zip first or enter a valid path.")
+    return cleaned
+
+
+def _job_status_payload(job_id: str) -> dict:
+    state = job_manager.get_state(job_id)
+    if state is None:
+        with session_scope() as session:
+            resources = list_resources_for_job(session, job_id)
+        progress: dict[str, dict[str, int]] = {}
+        for resource in resources:
+            entry = progress.setdefault(
+                resource.resource_type,
+                {"total": 0, "processed": 0, "warnings": 0, "rejected": 0},
+            )
+            entry["total"] += 1
+            entry["processed"] += 1
+            if resource.validation_status in {"unavailable", "partial"}:
+                entry["warnings"] += 1
+            if resource.lifecycle_status == "rejected":
+                entry["rejected"] += 1
+        return {"job_id": job_id, "status": "unknown", "stages": [], "resource_progress": progress}
+
+    return {
+        "job_id": job_id,
+        "status": state.status,
+        "started_at": state.started_at,
+        "completed_at": state.completed_at,
+        "resource_progress": state.resource_progress,
+        "stages": [
+            {
+                "name": s.name,
+                "status": s.status,
+                "details": s.details,
+                "started_at": s.started_at,
+                "completed_at": s.completed_at,
+                "elapsed_seconds": s.elapsed_seconds,
+            }
+            for s in [state.stages[name] for name in STAGES]
+        ],
+    }
+
+
+@router.post("/datasets/upload")
+async def upload_dataset(files: list[UploadFile] = File(...)) -> dict:
+    started_at = time.time()
+    upload_root = Path("./.uploaded_datasets")
+    upload_root.mkdir(parents=True, exist_ok=True)
+
+    dataset_dir = upload_root / str(uuid.uuid4())
+    dataset_dir.mkdir(parents=True, exist_ok=True)
+
+    supported = {name.lower() for name in SUPPORTED_FILES.keys()}
+    saved_files: list[str] = []
+
+    for uploaded in files:
+        original_name = uploaded.filename or ""
+        target_name = Path(original_name).name.lower()
+        if target_name not in supported:
+            continue
+
+        target_path = dataset_dir / target_name
+        with target_path.open("wb") as handle:
+            shutil.copyfileobj(uploaded.file, handle)
+        saved_files.append(target_name)
+
+    if not saved_files:
+        raise HTTPException(
+            status_code=400,
+            detail="No supported Synthea CSV files were uploaded. Include files like patients.csv, encounters.csv, observations.csv, etc.",
+        )
+
+    metadata = discover_dataset(str(dataset_dir))
+    completed_at = time.time()
+    return {
+        "input_dir": str(dataset_dir.resolve()),
+        "saved_files": sorted(set(saved_files)),
+        "found_files": metadata.found_files,
+        "missing_required_files": metadata.missing_required_files,
+        "row_counts": metadata.row_counts,
+        "total_rows": sum(metadata.row_counts.values()),
+        "timelog": {
+            "step": "upload_dataset",
+            "started_at": started_at,
+            "completed_at": completed_at,
+            "elapsed_seconds": round(completed_at - started_at, 3),
+        },
+    }
+
+
+@router.post("/run-request-file")
+async def run_request_file(
+    file: UploadFile = File(...),
+    measure_id: str = Form(...),
+    measurement_year: str | None = Form(None),
+    adapter: str | None = Form(None),
+    measure_bundle_path: str | None = Form(None),
+    include_measure_report: str | None = Form(None),
+    runtime_enabled: str | None = Form(None),
+) -> dict:
+    del adapter, include_measure_report, runtime_enabled
+
+    bundle_path = _resolve_measure_bundle_path(measure_bundle_path)
+    repo_root = Path(__file__).resolve().parents[3]
+    engine_root = repo_root / "services" / "measure_calc" / "engine"
+    cli_path = engine_root / "build" / "cli.js"
+
+    if not cli_path.exists():
+        raise HTTPException(
+            status_code=500,
+            detail="Measure engine CLI is not built. Run `npm run backend:build`.",
+        )
+
+    suffix = Path(file.filename or "patient_bundle.json").suffix or ".json"
+    with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as temp_input:
+        temp_path = Path(temp_input.name)
+        temp_input.write(await file.read())
+
+    try:
+        root_lib_ref = _extract_root_library_reference(bundle_path)
+        parsed_year = _parse_measurement_year(measurement_year)
+        if parsed_year is None:
+            parsed_year = datetime.utcnow().year
+
+        _maybe_prune_run_request_bundle(temp_path, measure_id, bundle_path)
+
+        cmd = [
+            "node",
+            str(cli_path),
+            "detailed",
+            "--measure-bundle",
+            str(bundle_path),
+            "--patient-bundles",
+            str(temp_path),
+            "--measurement-period-start",
+            f"{parsed_year}-01-01",
+            "--measurement-period-end",
+            f"{parsed_year}-12-31",
+            "--trust-meta-profile",
+            "false",
+        ]
+
+        if root_lib_ref:
+            cmd.extend(["--root-lib-ref", root_lib_ref])
+
+        completed = subprocess.run(
+            cmd,
+            cwd=engine_root,
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+
+        if completed.returncode != 0:
+            message = completed.stderr.strip() or completed.stdout.strip() or "Engine execution failed"
+            return {
+                "member_id": Path(file.filename or "patient").stem,
+                "measure_id": measure_id,
+                "status": "failed",
+                "outcome": "failed",
+                "populations": {},
+                "data_quality_flags": ["engine_execution_failed"],
+                "warnings": [],
+                "errors": [{"message": message[-4000:]}],
+            }
+
+        try:
+            payload = json.loads(completed.stdout)
+        except json.JSONDecodeError as exc:
+            return {
+                "member_id": Path(file.filename or "patient").stem,
+                "measure_id": measure_id,
+                "status": "failed",
+                "outcome": "failed",
+                "populations": {},
+                "data_quality_flags": ["invalid_engine_payload"],
+                "warnings": [],
+                "errors": [{"message": f"Unable to parse engine output: {exc}"}],
+            }
+
+        if not isinstance(payload, list) or not payload:
+            return {
+                "member_id": Path(file.filename or "patient").stem,
+                "measure_id": measure_id,
+                "status": "failed",
+                "outcome": "failed",
+                "populations": {},
+                "data_quality_flags": ["empty_engine_payload"],
+                "warnings": [],
+                "errors": [{"message": "Engine returned no patient result."}],
+            }
+
+        return _to_member_result(payload[0], measure_id)
+    finally:
+        temp_path.unlink(missing_ok=True)
+
+
+@router.post("/datasets/upload-zip")
+async def upload_dataset_zip(file: UploadFile = File(...)) -> dict:
+    started_at = time.time()
+    filename = (file.filename or "").lower()
+    if not filename.endswith(".zip"):
+        raise HTTPException(status_code=400, detail="Please upload a .zip file.")
+
+    upload_root = Path("./.uploaded_datasets")
+    upload_root.mkdir(parents=True, exist_ok=True)
+
+    dataset_dir = upload_root / str(uuid.uuid4())
+    dataset_dir.mkdir(parents=True, exist_ok=True)
+
+    zip_path = dataset_dir / "dataset.zip"
+    with zip_path.open("wb") as handle:
+        shutil.copyfileobj(file.file, handle)
+
+    supported = {name.lower() for name in SUPPORTED_FILES.keys()}
+    saved_files: list[str] = []
+
+    try:
+        with zipfile.ZipFile(zip_path, "r") as archive:
+            for member in archive.infolist():
+                if member.is_dir():
+                    continue
+
+                member_name = Path(member.filename).name.lower()
+                if member_name not in supported:
+                    continue
+
+                target = dataset_dir / member_name
+                with archive.open(member, "r") as src, target.open("wb") as dst:
+                    shutil.copyfileobj(src, dst)
+                saved_files.append(member_name)
+    except zipfile.BadZipFile as exc:
+        raise HTTPException(status_code=400, detail=f"Invalid ZIP file: {exc}") from exc
+
+    if not saved_files:
+        raise HTTPException(
+            status_code=400,
+            detail="ZIP did not contain supported Synthea CSV files (patients.csv, encounters.csv, etc.).",
+        )
+
+    metadata = discover_dataset(str(dataset_dir))
+    completed_at = time.time()
+    return {
+        "input_dir": str(dataset_dir.resolve()),
+        "saved_files": sorted(set(saved_files)),
+        "found_files": metadata.found_files,
+        "missing_required_files": metadata.missing_required_files,
+        "row_counts": metadata.row_counts,
+        "total_rows": sum(metadata.row_counts.values()),
+        "timelog": {
+            "step": "upload_dataset_zip",
+            "started_at": started_at,
+            "completed_at": completed_at,
+            "elapsed_seconds": round(completed_at - started_at, 3),
+        },
+    }
+
+
+@router.get("/datasets")
+def list_available_datasets(base_dir: str | None = None) -> dict:
+    base = Path(base_dir or settings.datasets_base_dir)
+    datasets = []
+
+    if not base.exists():
+        return {"base_dir": str(base), "datasets": []}
+
+    for child in sorted(base.iterdir()):
+        if not child.is_dir():
+            continue
+        metadata = discover_dataset(str(child))
+        if metadata.found_files:
+            datasets.append(
+                {
+                    "name": child.name,
+                    "path": str(child),
+                    "found_files": metadata.found_files,
+                    "missing_required_files": metadata.missing_required_files,
+                    "row_counts": metadata.row_counts,
+                }
+            )
+
+    return {"base_dir": str(base), "datasets": datasets}
+
+
+@router.get("/datasets/inspect")
+def inspect_dataset(input_dir: str) -> dict:
+    cleaned = _require_input_dir(input_dir)
+    path = Path(cleaned)
+    if not path.exists() or not path.is_dir():
+        raise HTTPException(status_code=404, detail="Input directory not found")
+
+    metadata = discover_dataset(cleaned)
+    return {
+        "input_dir": metadata.input_dir,
+        "found_files": metadata.found_files,
+        "missing_required_files": metadata.missing_required_files,
+        "row_counts": metadata.row_counts,
+        "total_rows": sum(metadata.row_counts.values()),
+    }
+
+
+@router.post("/jobs/start")
+def start_conversion_job(input_dir: str) -> dict:
+    cleaned = _require_input_dir(input_dir)
+    path = Path(cleaned)
+    if not path.exists() or not path.is_dir():
+        raise HTTPException(status_code=404, detail="Input directory not found")
+
+    metadata = discover_dataset(cleaned)
+    if metadata.missing_required_files:
+        raise HTTPException(status_code=400, detail={"missing_required_files": metadata.missing_required_files})
+
+    with session_scope() as session:
+        cleared_jobs = clear_jobs_for_input_dir(session, cleaned)
+
+    job_id = job_manager.create_job(cleaned)
+    launch_job(job_id, cleaned)
+    return {
+        "job_id": job_id,
+        "status": "started",
+        "legacy_jobs_cleared": cleared_jobs,
+    }
+
+
+@router.post("/jobs/{job_id}/persist")
+def persist_job_resources(job_id: str) -> dict:
+    # Check if job exists in database (even if state was cleared from memory)
+    with session_scope() as session:
+        from .models import ConversionJob
+        job = session.get(ConversionJob, job_id)
+        if job is None:
+            raise HTTPException(status_code=404, detail="Job not found")
+    
+    persisted = run_persist_stage(job_id)
+    return {"job_id": job_id, "resources_persisted": persisted}
+
+
+@router.get("/jobs")
+def get_jobs() -> dict:
+    with session_scope() as session:
+        jobs = [as_job_dict(item) for item in list_jobs(session)]
+    return {"jobs": jobs}
+
+
+@router.get("/jobs/{job_id}")
+def get_job(job_id: str) -> dict:
+    with session_scope() as session:
+        jobs = [item for item in list_jobs(session) if item.id == job_id]
+        if not jobs:
+            raise HTTPException(status_code=404, detail="Job not found")
+        job = as_job_dict(jobs[0])
+
+    return {**job, "runtime": _job_status_payload(job_id)}
+
+
+@router.get("/jobs/{job_id}/status")
+def get_job_status(job_id: str) -> dict:
+    if job_manager.get_state(job_id) is None:
+        raise HTTPException(status_code=404, detail="Job not found")
+    return _job_status_payload(job_id)
+
+
+@router.get("/jobs/{job_id}/resources")
+def get_job_resources(job_id: str) -> dict:
+    with session_scope() as session:
+        resources = [as_resource_dict(item) for item in list_resources_for_job(session, job_id)]
+    return {"job_id": job_id, "resources": resources}
+
+
+@router.get("/jobs/{job_id}/patients")
+def get_job_patients(job_id: str) -> dict:
+    with session_scope() as session:
+        resources = list_resources_for_job(session, job_id)
+        patients = sorted({r.patient_id for r in resources if r.patient_id})
+    return {"job_id": job_id, "patients": patients}
+
+
+@router.get("/jobs/{job_id}/patients/{patient_id}/resources")
+def get_patient_resources(job_id: str, patient_id: str) -> dict:
+    with session_scope() as session:
+        resources = [
+            as_resource_dict(item)
+            for item in list_resources_for_job(session, job_id)
+            if item.patient_id == patient_id
+        ]
+    return {"job_id": job_id, "patient_id": patient_id, "resources": resources}
+
+
+@router.get("/jobs/{job_id}/validation")
+def get_job_validation(job_id: str) -> dict:
+    with session_scope() as session:
+        issues = [as_issue_dict(item) for item in list_issues_for_job(session, job_id)]
+    return {"job_id": job_id, "issues": issues}
+
+
+@router.get("/resources/{resource_pk}")
+def get_resource(resource_pk: int) -> dict:
+    with session_scope() as session:
+        row = session.get(FhirResource, resource_pk)
+        if not row:
+            raise HTTPException(status_code=404, detail="Resource not found")
+        return as_resource_dict(row)

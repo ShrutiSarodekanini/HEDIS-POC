@@ -1,0 +1,1195 @@
+{
+   "library" : {
+      "annotation" : [ {
+         "translatorVersion" : "2.7.0",
+         "translatorOptions" : "",
+         "type" : "CqlToElmInfo"
+      } ],
+      "identifier" : {
+         "id" : "PublicColorectalCancerScreeningTechnicalDemo",
+         "version" : "0.1.0"
+      },
+      "schemaIdentifier" : {
+         "id" : "urn:hl7-org:elm",
+         "version" : "r1"
+      },
+      "usings" : {
+         "def" : [ {
+            "localIdentifier" : "System",
+            "uri" : "urn:hl7-org:elm-types:r1"
+         }, {
+            "localIdentifier" : "FHIR",
+            "uri" : "http://hl7.org/fhir",
+            "version" : "4.0.1"
+         } ]
+      },
+      "includes" : {
+         "def" : [ {
+            "localIdentifier" : "FHIRHelpers",
+            "path" : "FHIRHelpers",
+            "version" : "4.0.1"
+         } ]
+      },
+      "parameters" : {
+         "def" : [ {
+            "name" : "Measurement Period",
+            "accessLevel" : "Public",
+            "default" : {
+               "lowClosed" : true,
+               "highClosed" : true,
+               "type" : "Interval",
+               "low" : {
+                  "type" : "DateTime",
+                  "year" : {
+                     "valueType" : "{urn:hl7-org:elm-types:r1}Integer",
+                     "value" : "2026",
+                     "type" : "Literal"
+                  },
+                  "month" : {
+                     "valueType" : "{urn:hl7-org:elm-types:r1}Integer",
+                     "value" : "1",
+                     "type" : "Literal"
+                  },
+                  "day" : {
+                     "valueType" : "{urn:hl7-org:elm-types:r1}Integer",
+                     "value" : "1",
+                     "type" : "Literal"
+                  },
+                  "hour" : {
+                     "valueType" : "{urn:hl7-org:elm-types:r1}Integer",
+                     "value" : "0",
+                     "type" : "Literal"
+                  },
+                  "minute" : {
+                     "valueType" : "{urn:hl7-org:elm-types:r1}Integer",
+                     "value" : "0",
+                     "type" : "Literal"
+                  },
+                  "second" : {
+                     "valueType" : "{urn:hl7-org:elm-types:r1}Integer",
+                     "value" : "0",
+                     "type" : "Literal"
+                  },
+                  "millisecond" : {
+                     "valueType" : "{urn:hl7-org:elm-types:r1}Integer",
+                     "value" : "0",
+                     "type" : "Literal"
+                  }
+               },
+               "high" : {
+                  "type" : "DateTime",
+                  "year" : {
+                     "valueType" : "{urn:hl7-org:elm-types:r1}Integer",
+                     "value" : "2026",
+                     "type" : "Literal"
+                  },
+                  "month" : {
+                     "valueType" : "{urn:hl7-org:elm-types:r1}Integer",
+                     "value" : "12",
+                     "type" : "Literal"
+                  },
+                  "day" : {
+                     "valueType" : "{urn:hl7-org:elm-types:r1}Integer",
+                     "value" : "31",
+                     "type" : "Literal"
+                  },
+                  "hour" : {
+                     "valueType" : "{urn:hl7-org:elm-types:r1}Integer",
+                     "value" : "23",
+                     "type" : "Literal"
+                  },
+                  "minute" : {
+                     "valueType" : "{urn:hl7-org:elm-types:r1}Integer",
+                     "value" : "59",
+                     "type" : "Literal"
+                  },
+                  "second" : {
+                     "valueType" : "{urn:hl7-org:elm-types:r1}Integer",
+                     "value" : "59",
+                     "type" : "Literal"
+                  },
+                  "millisecond" : {
+                     "valueType" : "{urn:hl7-org:elm-types:r1}Integer",
+                     "value" : "999",
+                     "type" : "Literal"
+                  }
+               }
+            },
+            "parameterTypeSpecifier" : {
+               "type" : "IntervalTypeSpecifier",
+               "pointType" : {
+                  "name" : "{urn:hl7-org:elm-types:r1}DateTime",
+                  "type" : "NamedTypeSpecifier"
+               }
+            }
+         } ]
+      },
+      "contexts" : {
+         "def" : [ {
+            "name" : "Patient"
+         } ]
+      },
+      "statements" : {
+         "def" : [ {
+            "name" : "Patient",
+            "context" : "Patient",
+            "expression" : {
+               "type" : "SingletonFrom",
+               "operand" : {
+                  "dataType" : "{http://hl7.org/fhir}Patient",
+                  "templateId" : "http://hl7.org/fhir/StructureDefinition/Patient",
+                  "type" : "Retrieve"
+               }
+            }
+         }, {
+            "name" : "Has Qualifying Encounter During Measurement Period",
+            "context" : "Patient",
+            "accessLevel" : "Public",
+            "expression" : {
+               "type" : "Exists",
+               "operand" : {
+                  "type" : "Query",
+                  "source" : [ {
+                     "alias" : "E",
+                     "expression" : {
+                        "dataType" : "{http://hl7.org/fhir}Encounter",
+                        "templateId" : "http://hl7.org/fhir/StructureDefinition/Encounter",
+                        "type" : "Retrieve"
+                     }
+                  } ],
+                  "relationship" : [ ],
+                  "where" : {
+                     "type" : "And",
+                     "operand" : [ {
+                        "type" : "In",
+                        "operand" : [ {
+                           "name" : "ToString",
+                           "libraryName" : "FHIRHelpers",
+                           "type" : "FunctionRef",
+                           "operand" : [ {
+                              "path" : "status",
+                              "scope" : "E",
+                              "type" : "Property"
+                           } ]
+                        }, {
+                           "type" : "List",
+                           "element" : [ {
+                              "valueType" : "{urn:hl7-org:elm-types:r1}String",
+                              "value" : "finished",
+                              "type" : "Literal"
+                           }, {
+                              "valueType" : "{urn:hl7-org:elm-types:r1}String",
+                              "value" : "in-progress",
+                              "type" : "Literal"
+                           } ]
+                        } ]
+                     }, {
+                        "precision" : "Day",
+                        "type" : "In",
+                        "operand" : [ {
+                           "path" : "value",
+                           "type" : "Property",
+                           "source" : {
+                              "path" : "start",
+                              "type" : "Property",
+                              "source" : {
+                                 "path" : "period",
+                                 "scope" : "E",
+                                 "type" : "Property"
+                              }
+                           }
+                        }, {
+                           "name" : "Measurement Period",
+                           "type" : "ParameterRef"
+                        } ]
+                     } ]
+                  }
+               }
+            }
+         }, {
+            "name" : "Has Qualifying Colonoscopy",
+            "context" : "Patient",
+            "accessLevel" : "Public",
+            "expression" : {
+               "type" : "Exists",
+               "operand" : {
+                  "type" : "Query",
+                  "source" : [ {
+                     "alias" : "P",
+                     "expression" : {
+                        "dataType" : "{http://hl7.org/fhir}Procedure",
+                        "templateId" : "http://hl7.org/fhir/StructureDefinition/Procedure",
+                        "type" : "Retrieve"
+                     }
+                  } ],
+                  "relationship" : [ ],
+                  "where" : {
+                     "type" : "And",
+                     "operand" : [ {
+                        "type" : "And",
+                        "operand" : [ {
+                           "type" : "In",
+                           "operand" : [ {
+                              "name" : "ToString",
+                              "libraryName" : "FHIRHelpers",
+                              "type" : "FunctionRef",
+                              "operand" : [ {
+                                 "path" : "status",
+                                 "scope" : "P",
+                                 "type" : "Property"
+                              } ]
+                           }, {
+                              "type" : "List",
+                              "element" : [ {
+                                 "valueType" : "{urn:hl7-org:elm-types:r1}String",
+                                 "value" : "completed",
+                                 "type" : "Literal"
+                              } ]
+                           } ]
+                        }, {
+                           "type" : "Exists",
+                           "operand" : {
+                              "type" : "Query",
+                              "source" : [ {
+                                 "alias" : "Coding",
+                                 "expression" : {
+                                    "path" : "coding",
+                                    "type" : "Property",
+                                    "source" : {
+                                       "path" : "code",
+                                       "scope" : "P",
+                                       "type" : "Property"
+                                    }
+                                 }
+                              } ],
+                              "relationship" : [ ],
+                              "where" : {
+                                 "type" : "And",
+                                 "operand" : [ {
+                                    "type" : "Equal",
+                                    "operand" : [ {
+                                       "path" : "value",
+                                       "type" : "Property",
+                                       "source" : {
+                                          "path" : "system",
+                                          "scope" : "Coding",
+                                          "type" : "Property"
+                                       }
+                                    }, {
+                                       "valueType" : "{urn:hl7-org:elm-types:r1}String",
+                                       "value" : "http://snomed.info/sct",
+                                       "type" : "Literal"
+                                    } ]
+                                 }, {
+                                    "type" : "Equal",
+                                    "operand" : [ {
+                                       "path" : "value",
+                                       "type" : "Property",
+                                       "source" : {
+                                          "path" : "code",
+                                          "scope" : "Coding",
+                                          "type" : "Property"
+                                       }
+                                    }, {
+                                       "valueType" : "{urn:hl7-org:elm-types:r1}String",
+                                       "value" : "73761001",
+                                       "type" : "Literal"
+                                    } ]
+                                 } ]
+                              }
+                           }
+                        } ]
+                     }, {
+                        "type" : "Or",
+                        "operand" : [ {
+                           "type" : "And",
+                           "operand" : [ {
+                              "type" : "Is",
+                              "operand" : {
+                                 "path" : "performed",
+                                 "scope" : "P",
+                                 "type" : "Property"
+                              },
+                              "isTypeSpecifier" : {
+                                 "name" : "{http://hl7.org/fhir}dateTime",
+                                 "type" : "NamedTypeSpecifier"
+                              }
+                           }, {
+                              "precision" : "Day",
+                              "type" : "In",
+                              "operand" : [ {
+                                 "path" : "value",
+                                 "type" : "Property",
+                                 "source" : {
+                                    "strict" : false,
+                                    "type" : "As",
+                                    "operand" : {
+                                       "path" : "performed",
+                                       "scope" : "P",
+                                       "type" : "Property"
+                                    },
+                                    "asTypeSpecifier" : {
+                                       "name" : "{http://hl7.org/fhir}dateTime",
+                                       "type" : "NamedTypeSpecifier"
+                                    }
+                                 }
+                              }, {
+                                 "lowClosed" : true,
+                                 "highClosed" : true,
+                                 "type" : "Interval",
+                                 "low" : {
+                                    "type" : "Subtract",
+                                    "operand" : [ {
+                                       "type" : "Start",
+                                       "operand" : {
+                                          "name" : "Measurement Period",
+                                          "type" : "ParameterRef"
+                                       }
+                                    }, {
+                                       "value" : 9,
+                                       "unit" : "years",
+                                       "type" : "Quantity"
+                                    } ]
+                                 },
+                                 "high" : {
+                                    "type" : "End",
+                                    "operand" : {
+                                       "name" : "Measurement Period",
+                                       "type" : "ParameterRef"
+                                    }
+                                 }
+                              } ]
+                           } ]
+                        }, {
+                           "type" : "And",
+                           "operand" : [ {
+                              "type" : "Is",
+                              "operand" : {
+                                 "path" : "performed",
+                                 "scope" : "P",
+                                 "type" : "Property"
+                              },
+                              "isTypeSpecifier" : {
+                                 "name" : "{http://hl7.org/fhir}Period",
+                                 "type" : "NamedTypeSpecifier"
+                              }
+                           }, {
+                              "type" : "Or",
+                              "operand" : [ {
+                                 "type" : "And",
+                                 "operand" : [ {
+                                    "type" : "Not",
+                                    "operand" : {
+                                       "type" : "IsNull",
+                                       "operand" : {
+                                          "path" : "start",
+                                          "type" : "Property",
+                                          "source" : {
+                                             "strict" : false,
+                                             "type" : "As",
+                                             "operand" : {
+                                                "path" : "performed",
+                                                "scope" : "P",
+                                                "type" : "Property"
+                                             },
+                                             "asTypeSpecifier" : {
+                                                "name" : "{http://hl7.org/fhir}Period",
+                                                "type" : "NamedTypeSpecifier"
+                                             }
+                                          }
+                                       }
+                                    }
+                                 }, {
+                                    "precision" : "Day",
+                                    "type" : "In",
+                                    "operand" : [ {
+                                       "path" : "value",
+                                       "type" : "Property",
+                                       "source" : {
+                                          "path" : "start",
+                                          "type" : "Property",
+                                          "source" : {
+                                             "strict" : false,
+                                             "type" : "As",
+                                             "operand" : {
+                                                "path" : "performed",
+                                                "scope" : "P",
+                                                "type" : "Property"
+                                             },
+                                             "asTypeSpecifier" : {
+                                                "name" : "{http://hl7.org/fhir}Period",
+                                                "type" : "NamedTypeSpecifier"
+                                             }
+                                          }
+                                       }
+                                    }, {
+                                       "lowClosed" : true,
+                                       "highClosed" : true,
+                                       "type" : "Interval",
+                                       "low" : {
+                                          "type" : "Subtract",
+                                          "operand" : [ {
+                                             "type" : "Start",
+                                             "operand" : {
+                                                "name" : "Measurement Period",
+                                                "type" : "ParameterRef"
+                                             }
+                                          }, {
+                                             "value" : 9,
+                                             "unit" : "years",
+                                             "type" : "Quantity"
+                                          } ]
+                                       },
+                                       "high" : {
+                                          "type" : "End",
+                                          "operand" : {
+                                             "name" : "Measurement Period",
+                                             "type" : "ParameterRef"
+                                          }
+                                       }
+                                    } ]
+                                 } ]
+                              }, {
+                                 "type" : "And",
+                                 "operand" : [ {
+                                    "type" : "Not",
+                                    "operand" : {
+                                       "type" : "IsNull",
+                                       "operand" : {
+                                          "path" : "end",
+                                          "type" : "Property",
+                                          "source" : {
+                                             "strict" : false,
+                                             "type" : "As",
+                                             "operand" : {
+                                                "path" : "performed",
+                                                "scope" : "P",
+                                                "type" : "Property"
+                                             },
+                                             "asTypeSpecifier" : {
+                                                "name" : "{http://hl7.org/fhir}Period",
+                                                "type" : "NamedTypeSpecifier"
+                                             }
+                                          }
+                                       }
+                                    }
+                                 }, {
+                                    "precision" : "Day",
+                                    "type" : "In",
+                                    "operand" : [ {
+                                       "path" : "value",
+                                       "type" : "Property",
+                                       "source" : {
+                                          "path" : "end",
+                                          "type" : "Property",
+                                          "source" : {
+                                             "strict" : false,
+                                             "type" : "As",
+                                             "operand" : {
+                                                "path" : "performed",
+                                                "scope" : "P",
+                                                "type" : "Property"
+                                             },
+                                             "asTypeSpecifier" : {
+                                                "name" : "{http://hl7.org/fhir}Period",
+                                                "type" : "NamedTypeSpecifier"
+                                             }
+                                          }
+                                       }
+                                    }, {
+                                       "lowClosed" : true,
+                                       "highClosed" : true,
+                                       "type" : "Interval",
+                                       "low" : {
+                                          "type" : "Subtract",
+                                          "operand" : [ {
+                                             "type" : "Start",
+                                             "operand" : {
+                                                "name" : "Measurement Period",
+                                                "type" : "ParameterRef"
+                                             }
+                                          }, {
+                                             "value" : 9,
+                                             "unit" : "years",
+                                             "type" : "Quantity"
+                                          } ]
+                                       },
+                                       "high" : {
+                                          "type" : "End",
+                                          "operand" : {
+                                             "name" : "Measurement Period",
+                                             "type" : "ParameterRef"
+                                          }
+                                       }
+                                    } ]
+                                 } ]
+                              } ]
+                           } ]
+                        } ]
+                     } ]
+                  }
+               }
+            }
+         }, {
+            "name" : "Has Qualifying FIT During Measurement Period",
+            "context" : "Patient",
+            "accessLevel" : "Public",
+            "expression" : {
+               "type" : "Exists",
+               "operand" : {
+                  "type" : "Query",
+                  "source" : [ {
+                     "alias" : "P",
+                     "expression" : {
+                        "dataType" : "{http://hl7.org/fhir}Procedure",
+                        "templateId" : "http://hl7.org/fhir/StructureDefinition/Procedure",
+                        "type" : "Retrieve"
+                     }
+                  } ],
+                  "relationship" : [ ],
+                  "where" : {
+                     "type" : "And",
+                     "operand" : [ {
+                        "type" : "And",
+                        "operand" : [ {
+                           "type" : "In",
+                           "operand" : [ {
+                              "name" : "ToString",
+                              "libraryName" : "FHIRHelpers",
+                              "type" : "FunctionRef",
+                              "operand" : [ {
+                                 "path" : "status",
+                                 "scope" : "P",
+                                 "type" : "Property"
+                              } ]
+                           }, {
+                              "type" : "List",
+                              "element" : [ {
+                                 "valueType" : "{urn:hl7-org:elm-types:r1}String",
+                                 "value" : "completed",
+                                 "type" : "Literal"
+                              } ]
+                           } ]
+                        }, {
+                           "type" : "Exists",
+                           "operand" : {
+                              "type" : "Query",
+                              "source" : [ {
+                                 "alias" : "Coding",
+                                 "expression" : {
+                                    "path" : "coding",
+                                    "type" : "Property",
+                                    "source" : {
+                                       "path" : "code",
+                                       "scope" : "P",
+                                       "type" : "Property"
+                                    }
+                                 }
+                              } ],
+                              "relationship" : [ ],
+                              "where" : {
+                                 "type" : "And",
+                                 "operand" : [ {
+                                    "type" : "Equal",
+                                    "operand" : [ {
+                                       "path" : "value",
+                                       "type" : "Property",
+                                       "source" : {
+                                          "path" : "system",
+                                          "scope" : "Coding",
+                                          "type" : "Property"
+                                       }
+                                    }, {
+                                       "valueType" : "{urn:hl7-org:elm-types:r1}String",
+                                       "value" : "http://www.ama-assn.org/go/cpt",
+                                       "type" : "Literal"
+                                    } ]
+                                 }, {
+                                    "type" : "Equal",
+                                    "operand" : [ {
+                                       "path" : "value",
+                                       "type" : "Property",
+                                       "source" : {
+                                          "path" : "code",
+                                          "scope" : "Coding",
+                                          "type" : "Property"
+                                       }
+                                    }, {
+                                       "valueType" : "{urn:hl7-org:elm-types:r1}String",
+                                       "value" : "82274",
+                                       "type" : "Literal"
+                                    } ]
+                                 } ]
+                              }
+                           }
+                        } ]
+                     }, {
+                        "type" : "Or",
+                        "operand" : [ {
+                           "type" : "And",
+                           "operand" : [ {
+                              "type" : "Is",
+                              "operand" : {
+                                 "path" : "performed",
+                                 "scope" : "P",
+                                 "type" : "Property"
+                              },
+                              "isTypeSpecifier" : {
+                                 "name" : "{http://hl7.org/fhir}dateTime",
+                                 "type" : "NamedTypeSpecifier"
+                              }
+                           }, {
+                              "precision" : "Day",
+                              "type" : "In",
+                              "operand" : [ {
+                                 "path" : "value",
+                                 "type" : "Property",
+                                 "source" : {
+                                    "strict" : false,
+                                    "type" : "As",
+                                    "operand" : {
+                                       "path" : "performed",
+                                       "scope" : "P",
+                                       "type" : "Property"
+                                    },
+                                    "asTypeSpecifier" : {
+                                       "name" : "{http://hl7.org/fhir}dateTime",
+                                       "type" : "NamedTypeSpecifier"
+                                    }
+                                 }
+                              }, {
+                                 "name" : "Measurement Period",
+                                 "type" : "ParameterRef"
+                              } ]
+                           } ]
+                        }, {
+                           "type" : "And",
+                           "operand" : [ {
+                              "type" : "Is",
+                              "operand" : {
+                                 "path" : "performed",
+                                 "scope" : "P",
+                                 "type" : "Property"
+                              },
+                              "isTypeSpecifier" : {
+                                 "name" : "{http://hl7.org/fhir}Period",
+                                 "type" : "NamedTypeSpecifier"
+                              }
+                           }, {
+                              "type" : "Or",
+                              "operand" : [ {
+                                 "type" : "And",
+                                 "operand" : [ {
+                                    "type" : "Not",
+                                    "operand" : {
+                                       "type" : "IsNull",
+                                       "operand" : {
+                                          "path" : "start",
+                                          "type" : "Property",
+                                          "source" : {
+                                             "strict" : false,
+                                             "type" : "As",
+                                             "operand" : {
+                                                "path" : "performed",
+                                                "scope" : "P",
+                                                "type" : "Property"
+                                             },
+                                             "asTypeSpecifier" : {
+                                                "name" : "{http://hl7.org/fhir}Period",
+                                                "type" : "NamedTypeSpecifier"
+                                             }
+                                          }
+                                       }
+                                    }
+                                 }, {
+                                    "precision" : "Day",
+                                    "type" : "In",
+                                    "operand" : [ {
+                                       "path" : "value",
+                                       "type" : "Property",
+                                       "source" : {
+                                          "path" : "start",
+                                          "type" : "Property",
+                                          "source" : {
+                                             "strict" : false,
+                                             "type" : "As",
+                                             "operand" : {
+                                                "path" : "performed",
+                                                "scope" : "P",
+                                                "type" : "Property"
+                                             },
+                                             "asTypeSpecifier" : {
+                                                "name" : "{http://hl7.org/fhir}Period",
+                                                "type" : "NamedTypeSpecifier"
+                                             }
+                                          }
+                                       }
+                                    }, {
+                                       "name" : "Measurement Period",
+                                       "type" : "ParameterRef"
+                                    } ]
+                                 } ]
+                              }, {
+                                 "type" : "And",
+                                 "operand" : [ {
+                                    "type" : "Not",
+                                    "operand" : {
+                                       "type" : "IsNull",
+                                       "operand" : {
+                                          "path" : "end",
+                                          "type" : "Property",
+                                          "source" : {
+                                             "strict" : false,
+                                             "type" : "As",
+                                             "operand" : {
+                                                "path" : "performed",
+                                                "scope" : "P",
+                                                "type" : "Property"
+                                             },
+                                             "asTypeSpecifier" : {
+                                                "name" : "{http://hl7.org/fhir}Period",
+                                                "type" : "NamedTypeSpecifier"
+                                             }
+                                          }
+                                       }
+                                    }
+                                 }, {
+                                    "precision" : "Day",
+                                    "type" : "In",
+                                    "operand" : [ {
+                                       "path" : "value",
+                                       "type" : "Property",
+                                       "source" : {
+                                          "path" : "end",
+                                          "type" : "Property",
+                                          "source" : {
+                                             "strict" : false,
+                                             "type" : "As",
+                                             "operand" : {
+                                                "path" : "performed",
+                                                "scope" : "P",
+                                                "type" : "Property"
+                                             },
+                                             "asTypeSpecifier" : {
+                                                "name" : "{http://hl7.org/fhir}Period",
+                                                "type" : "NamedTypeSpecifier"
+                                             }
+                                          }
+                                       }
+                                    }, {
+                                       "name" : "Measurement Period",
+                                       "type" : "ParameterRef"
+                                    } ]
+                                 } ]
+                              } ]
+                           } ]
+                        } ]
+                     } ]
+                  }
+               }
+            }
+         }, {
+            "name" : "Has Qualifying StoolDNA During Window",
+            "context" : "Patient",
+            "accessLevel" : "Public",
+            "expression" : {
+               "type" : "Exists",
+               "operand" : {
+                  "type" : "Query",
+                  "source" : [ {
+                     "alias" : "P",
+                     "expression" : {
+                        "dataType" : "{http://hl7.org/fhir}Procedure",
+                        "templateId" : "http://hl7.org/fhir/StructureDefinition/Procedure",
+                        "type" : "Retrieve"
+                     }
+                  } ],
+                  "relationship" : [ ],
+                  "where" : {
+                     "type" : "And",
+                     "operand" : [ {
+                        "type" : "And",
+                        "operand" : [ {
+                           "type" : "In",
+                           "operand" : [ {
+                              "name" : "ToString",
+                              "libraryName" : "FHIRHelpers",
+                              "type" : "FunctionRef",
+                              "operand" : [ {
+                                 "path" : "status",
+                                 "scope" : "P",
+                                 "type" : "Property"
+                              } ]
+                           }, {
+                              "type" : "List",
+                              "element" : [ {
+                                 "valueType" : "{urn:hl7-org:elm-types:r1}String",
+                                 "value" : "completed",
+                                 "type" : "Literal"
+                              } ]
+                           } ]
+                        }, {
+                           "type" : "Exists",
+                           "operand" : {
+                              "type" : "Query",
+                              "source" : [ {
+                                 "alias" : "Coding",
+                                 "expression" : {
+                                    "path" : "coding",
+                                    "type" : "Property",
+                                    "source" : {
+                                       "path" : "code",
+                                       "scope" : "P",
+                                       "type" : "Property"
+                                    }
+                                 }
+                              } ],
+                              "relationship" : [ ],
+                              "where" : {
+                                 "type" : "And",
+                                 "operand" : [ {
+                                    "type" : "Equal",
+                                    "operand" : [ {
+                                       "path" : "value",
+                                       "type" : "Property",
+                                       "source" : {
+                                          "path" : "system",
+                                          "scope" : "Coding",
+                                          "type" : "Property"
+                                       }
+                                    }, {
+                                       "valueType" : "{urn:hl7-org:elm-types:r1}String",
+                                       "value" : "http://www.ama-assn.org/go/cpt",
+                                       "type" : "Literal"
+                                    } ]
+                                 }, {
+                                    "type" : "Equal",
+                                    "operand" : [ {
+                                       "path" : "value",
+                                       "type" : "Property",
+                                       "source" : {
+                                          "path" : "code",
+                                          "scope" : "Coding",
+                                          "type" : "Property"
+                                       }
+                                    }, {
+                                       "valueType" : "{urn:hl7-org:elm-types:r1}String",
+                                       "value" : "81528",
+                                       "type" : "Literal"
+                                    } ]
+                                 } ]
+                              }
+                           }
+                        } ]
+                     }, {
+                        "type" : "Or",
+                        "operand" : [ {
+                           "type" : "And",
+                           "operand" : [ {
+                              "type" : "Is",
+                              "operand" : {
+                                 "path" : "performed",
+                                 "scope" : "P",
+                                 "type" : "Property"
+                              },
+                              "isTypeSpecifier" : {
+                                 "name" : "{http://hl7.org/fhir}dateTime",
+                                 "type" : "NamedTypeSpecifier"
+                              }
+                           }, {
+                              "precision" : "Day",
+                              "type" : "In",
+                              "operand" : [ {
+                                 "path" : "value",
+                                 "type" : "Property",
+                                 "source" : {
+                                    "strict" : false,
+                                    "type" : "As",
+                                    "operand" : {
+                                       "path" : "performed",
+                                       "scope" : "P",
+                                       "type" : "Property"
+                                    },
+                                    "asTypeSpecifier" : {
+                                       "name" : "{http://hl7.org/fhir}dateTime",
+                                       "type" : "NamedTypeSpecifier"
+                                    }
+                                 }
+                              }, {
+                                 "lowClosed" : true,
+                                 "highClosed" : true,
+                                 "type" : "Interval",
+                                 "low" : {
+                                    "type" : "Subtract",
+                                    "operand" : [ {
+                                       "type" : "Start",
+                                       "operand" : {
+                                          "name" : "Measurement Period",
+                                          "type" : "ParameterRef"
+                                       }
+                                    }, {
+                                       "value" : 2,
+                                       "unit" : "years",
+                                       "type" : "Quantity"
+                                    } ]
+                                 },
+                                 "high" : {
+                                    "type" : "End",
+                                    "operand" : {
+                                       "name" : "Measurement Period",
+                                       "type" : "ParameterRef"
+                                    }
+                                 }
+                              } ]
+                           } ]
+                        }, {
+                           "type" : "And",
+                           "operand" : [ {
+                              "type" : "Is",
+                              "operand" : {
+                                 "path" : "performed",
+                                 "scope" : "P",
+                                 "type" : "Property"
+                              },
+                              "isTypeSpecifier" : {
+                                 "name" : "{http://hl7.org/fhir}Period",
+                                 "type" : "NamedTypeSpecifier"
+                              }
+                           }, {
+                              "type" : "Or",
+                              "operand" : [ {
+                                 "type" : "And",
+                                 "operand" : [ {
+                                    "type" : "Not",
+                                    "operand" : {
+                                       "type" : "IsNull",
+                                       "operand" : {
+                                          "path" : "start",
+                                          "type" : "Property",
+                                          "source" : {
+                                             "strict" : false,
+                                             "type" : "As",
+                                             "operand" : {
+                                                "path" : "performed",
+                                                "scope" : "P",
+                                                "type" : "Property"
+                                             },
+                                             "asTypeSpecifier" : {
+                                                "name" : "{http://hl7.org/fhir}Period",
+                                                "type" : "NamedTypeSpecifier"
+                                             }
+                                          }
+                                       }
+                                    }
+                                 }, {
+                                    "precision" : "Day",
+                                    "type" : "In",
+                                    "operand" : [ {
+                                       "path" : "value",
+                                       "type" : "Property",
+                                       "source" : {
+                                          "path" : "start",
+                                          "type" : "Property",
+                                          "source" : {
+                                             "strict" : false,
+                                             "type" : "As",
+                                             "operand" : {
+                                                "path" : "performed",
+                                                "scope" : "P",
+                                                "type" : "Property"
+                                             },
+                                             "asTypeSpecifier" : {
+                                                "name" : "{http://hl7.org/fhir}Period",
+                                                "type" : "NamedTypeSpecifier"
+                                             }
+                                          }
+                                       }
+                                    }, {
+                                       "lowClosed" : true,
+                                       "highClosed" : true,
+                                       "type" : "Interval",
+                                       "low" : {
+                                          "type" : "Subtract",
+                                          "operand" : [ {
+                                             "type" : "Start",
+                                             "operand" : {
+                                                "name" : "Measurement Period",
+                                                "type" : "ParameterRef"
+                                             }
+                                          }, {
+                                             "value" : 2,
+                                             "unit" : "years",
+                                             "type" : "Quantity"
+                                          } ]
+                                       },
+                                       "high" : {
+                                          "type" : "End",
+                                          "operand" : {
+                                             "name" : "Measurement Period",
+                                             "type" : "ParameterRef"
+                                          }
+                                       }
+                                    } ]
+                                 } ]
+                              }, {
+                                 "type" : "And",
+                                 "operand" : [ {
+                                    "type" : "Not",
+                                    "operand" : {
+                                       "type" : "IsNull",
+                                       "operand" : {
+                                          "path" : "end",
+                                          "type" : "Property",
+                                          "source" : {
+                                             "strict" : false,
+                                             "type" : "As",
+                                             "operand" : {
+                                                "path" : "performed",
+                                                "scope" : "P",
+                                                "type" : "Property"
+                                             },
+                                             "asTypeSpecifier" : {
+                                                "name" : "{http://hl7.org/fhir}Period",
+                                                "type" : "NamedTypeSpecifier"
+                                             }
+                                          }
+                                       }
+                                    }
+                                 }, {
+                                    "precision" : "Day",
+                                    "type" : "In",
+                                    "operand" : [ {
+                                       "path" : "value",
+                                       "type" : "Property",
+                                       "source" : {
+                                          "path" : "end",
+                                          "type" : "Property",
+                                          "source" : {
+                                             "strict" : false,
+                                             "type" : "As",
+                                             "operand" : {
+                                                "path" : "performed",
+                                                "scope" : "P",
+                                                "type" : "Property"
+                                             },
+                                             "asTypeSpecifier" : {
+                                                "name" : "{http://hl7.org/fhir}Period",
+                                                "type" : "NamedTypeSpecifier"
+                                             }
+                                          }
+                                       }
+                                    }, {
+                                       "lowClosed" : true,
+                                       "highClosed" : true,
+                                       "type" : "Interval",
+                                       "low" : {
+                                          "type" : "Subtract",
+                                          "operand" : [ {
+                                             "type" : "Start",
+                                             "operand" : {
+                                                "name" : "Measurement Period",
+                                                "type" : "ParameterRef"
+                                             }
+                                          }, {
+                                             "value" : 2,
+                                             "unit" : "years",
+                                             "type" : "Quantity"
+                                          } ]
+                                       },
+                                       "high" : {
+                                          "type" : "End",
+                                          "operand" : {
+                                             "name" : "Measurement Period",
+                                             "type" : "ParameterRef"
+                                          }
+                                       }
+                                    } ]
+                                 } ]
+                              } ]
+                           } ]
+                        } ]
+                     } ]
+                  }
+               }
+            }
+         }, {
+            "name" : "ipp",
+            "context" : "Patient",
+            "accessLevel" : "Public",
+            "expression" : {
+               "type" : "And",
+               "operand" : [ {
+                  "type" : "In",
+                  "operand" : [ {
+                     "precision" : "Year",
+                     "type" : "CalculateAgeAt",
+                     "operand" : [ {
+                        "type" : "ToDateTime",
+                        "operand" : {
+                           "path" : "birthDate.value",
+                           "type" : "Property",
+                           "source" : {
+                              "name" : "Patient",
+                              "type" : "ExpressionRef"
+                           }
+                        }
+                     }, {
+                        "type" : "End",
+                        "operand" : {
+                           "name" : "Measurement Period",
+                           "type" : "ParameterRef"
+                        }
+                     } ]
+                  }, {
+                     "lowClosed" : true,
+                     "highClosed" : true,
+                     "type" : "Interval",
+                     "low" : {
+                        "valueType" : "{urn:hl7-org:elm-types:r1}Integer",
+                        "value" : "46",
+                        "type" : "Literal"
+                     },
+                     "high" : {
+                        "valueType" : "{urn:hl7-org:elm-types:r1}Integer",
+                        "value" : "75",
+                        "type" : "Literal"
+                     }
+                  } ]
+               }, {
+                  "name" : "Has Qualifying Encounter During Measurement Period",
+                  "type" : "ExpressionRef"
+               } ]
+            }
+         }, {
+            "name" : "denom",
+            "context" : "Patient",
+            "accessLevel" : "Public",
+            "expression" : {
+               "name" : "ipp",
+               "type" : "ExpressionRef"
+            }
+         }, {
+            "name" : "numer",
+            "context" : "Patient",
+            "accessLevel" : "Public",
+            "expression" : {
+               "type" : "Or",
+               "operand" : [ {
+                  "type" : "Or",
+                  "operand" : [ {
+                     "name" : "Has Qualifying Colonoscopy",
+                     "type" : "ExpressionRef"
+                  }, {
+                     "name" : "Has Qualifying FIT During Measurement Period",
+                     "type" : "ExpressionRef"
+                  } ]
+               }, {
+                  "name" : "Has Qualifying StoolDNA During Window",
+                  "type" : "ExpressionRef"
+               } ]
+            }
+         } ]
+      }
+   }
+}
+
