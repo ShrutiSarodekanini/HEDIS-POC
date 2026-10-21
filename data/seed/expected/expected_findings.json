@@ -173,6 +173,11 @@
     "optional": [
       {
         "doc": "D-803",
+        "quote": "Uses a walker, two falls this year",
+        "kind": "exclusion"
+      },
+      {
+        "doc": "D-803",
         "quote": "Advanced Alzheimer dementia",
         "kind": "exclusion"
       }
@@ -180,7 +185,7 @@
     "traps": [
       "around 7"
     ],
-    "note": "D-805 is a near-duplicate of D-801 from the HIE and should be linked, not extracted twice."
+    "note": "D-805 is a near-duplicate of D-801 from the HIE and should be linked, not extracted twice. Age 71 with frailty and advanced illness (D-803) also meets the GSD exclusion; either outcome is acceptable for review."
   },
   {
     "gap_id": "G-0012",
@@ -194,19 +199,44 @@
         "kind": "numerator"
       }
     ],
-    "optional": [],
+    "optional": [
+      {
+        "doc": "D-803",
+        "quote": "Uses a walker, two falls this year",
+        "kind": "exclusion"
+      },
+      {
+        "doc": "D-803",
+        "quote": "Advanced Alzheimer dementia",
+        "kind": "exclusion"
+      }
+    ],
     "traps": [],
-    "note": ""
+    "note": "Age 71 with frailty and advanced illness (D-803) also meets the EED exclusion; either outcome is acceptable for review."
   },
   {
     "gap_id": "G-0013",
     "member_id": "M-008",
     "measure_code": "KED",
-    "expected_status": "Open",
-    "find": [],
+    "expected_status": "Excluded",
+    "find": [
+      {
+        "doc": "D-803",
+        "quote": "Uses a walker, two falls this year",
+        "kind": "exclusion"
+      },
+      {
+        "doc": "D-803",
+        "quote": "Advanced Alzheimer dementia",
+        "kind": "exclusion"
+      }
+    ],
     "optional": [],
-    "traps": [],
-    "note": "No documents for this gap."
+    "traps": [
+      "A1c ordered today",
+      "around 7"
+    ],
+    "note": "No kidney test on record. Age 71 (66 to 80) with frailty (walker, falls) and advanced illness (advanced Alzheimer dementia) in D-803 meets the KED exclusion. Corrected 2026-10-21: it was first marked Open with no documents."
   },
   {
     "gap_id": "G-0014",
