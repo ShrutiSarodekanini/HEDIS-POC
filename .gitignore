@@ -1,0 +1,49 @@
+__pycache__/
+.pytest_cache/
+*.pyc
+*.pyo
+*.pyd
+*.db
+generated_evidence/
+data/
+.env
+API_TESTING_GUIDE.md
+tests/
+
+# Python virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# Python tooling caches
+.mypy_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+htmlcov/
+
+# Build and packaging
+build/
+dist/
+*.egg-info/
+
+# Node/Vite artifacts
+node_modules/
+ui/node_modules/
+ui/dist/
+
+# Logs
+*.log
+
+# Environment and local config
+.env.*
+!.env.example
+
+# IDE/editor
+.idea/
+.vscode/.history/
+
+# OS files
+.DS_Store
+Thumbs.db

@@ -1,0 +1,341 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>HEDIS Star Results Dashboard</title>
+  <style>
+    :root {
+      --bg: #f4f7fb;
+      --text: #172033;
+      --muted: #5a6778;
+      --panel: #ffffff;
+      --line: #d9e1ee;
+      --primary: #1455a3;
+      --primary-2: #0f3f78;
+      --ok: #0a7f3f;
+      --warn-bg: #fff8dd;
+      --warn-line: #ead26b;
+    }
+    body {
+      margin: 0;
+      background: radial-gradient(circle at top right, #e9f2ff 0%, var(--bg) 55%);
+      color: var(--text);
+      font-family: "Segoe UI", "Trebuchet MS", sans-serif;
+    }
+    main { max-width: 1120px; margin: 0 auto; padding: 28px 18px 42px; }
+    h1 { margin: 0 0 8px; }
+    .subtitle { margin: 0; color: var(--muted); }
+    .grid { display: grid; gap: 16px; margin-top: 18px; }
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 18px;
+      box-shadow: 0 4px 14px rgba(15, 63, 120, 0.08);
+    }
+    .panel h2 { margin: 0 0 10px; font-size: 1.08rem; }
+    .row { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+    .row-2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+    .row-3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+    label { display: block; font-weight: 600; margin-bottom: 6px; font-size: 0.94rem; }
+    input, select, button {
+      width: 100%;
+      box-sizing: border-box;
+      font: inherit;
+      border-radius: 8px;
+      border: 1px solid #b8c5d8;
+      padding: 9px 10px;
+      background: #fff;
+    }
+    button {
+      width: auto;
+      border: 0;
+      background: linear-gradient(180deg, var(--primary), var(--primary-2));
+      color: #fff;
+      font-weight: 600;
+      cursor: pointer;
+      margin-top: 12px;
+      padding: 10px 14px;
+    }
+    button.secondary {
+      background: #e9eef8;
+      color: #14223a;
+      border: 1px solid #c5d2e6;
+    }
+    button:disabled { opacity: .65; cursor: wait; }
+    .result-box {
+      margin-top: 14px;
+      border: 1px solid #dae3f2;
+      border-radius: 10px;
+      padding: 12px;
+      background: #fbfdff;
+    }
+    .metrics { display: grid; gap: 8px; margin-top: 8px; }
+    .metric {
+      display: flex;
+      justify-content: space-between;
+      border-bottom: 1px solid #edf0f6;
+      padding: 7px 0;
+    }
+    .pill {
+      display: inline-block;
+      padding: 3px 8px;
+      border-radius: 999px;
+      font-size: 0.82rem;
+      background: #e6f4ec;
+      color: var(--ok);
+      border: 1px solid #b6e3c9;
+    }
+    .warn {
+      margin-top: 10px;
+      border: 1px solid var(--warn-line);
+      background: var(--warn-bg);
+      border-radius: 8px;
+      padding: 10px;
+    }
+    .status { margin-top: 8px; color: var(--muted); min-height: 20px; }
+    .error { color: #a21b1b; }
+    .gaps { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 8px; margin-top: 10px; }
+    .gap-item { border: 1px solid #e1e7f0; border-radius: 8px; padding: 8px; }
+    .gap-item label { margin: 0; font-weight: 500; }
+    .nav { margin-top: 14px; display: flex; gap: 10px; flex-wrap: wrap; }
+    .nav a {
+      color: #124a95;
+      text-decoration: none;
+      font-weight: 600;
+      border-bottom: 1px solid #95b6e6;
+    }
+    @media (max-width: 880px) {
+      .row, .row-2, .row-3 { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+<main>
+  <h1>Star Calculation Dashboard</h1>
+  <p class="subtitle">Validate direct star calculation and before versus after gap-closure effects from the API.</p>
+  <div class="nav">
+    <a href="/">Measure comparison page</a>
+  </div>
+
+  <div class="grid">
+    <section class="panel">
+      <h2>Direct Star Calculation</h2>
+      <div class="row">
+        <div>
+          <label for="measureCode">Measure code</label>
+          <input id="measureCode" value="CBP">
+        </div>
+        <div>
+          <label for="measurementYear">Measurement year</label>
+          <input id="measurementYear" type="number" value="2026">
+        </div>
+        <div>
+          <label for="cmsYear">CMS rating year</label>
+          <input id="cmsYear" type="number" value="2027">
+        </div>
+        <div>
+          <label for="scoringValue">Scoring value</label>
+          <input id="scoringValue" type="number" step="0.01" value="84">
+        </div>
+      </div>
+      <div class="row-3" style="margin-top: 10px;">
+        <div>
+          <label for="denominator">Denominator</label>
+          <input id="denominator" type="number" value="100">
+        </div>
+        <div>
+          <label for="memberId">Member ID (optional persistence)</label>
+          <input id="memberId" placeholder="M1001">
+        </div>
+        <div>
+          <label for="careGapId">Care gap ID (optional)</label>
+          <input id="careGapId" placeholder="CG1001">
+        </div>
+      </div>
+      <button id="calcBtn">Calculate Star Rating</button>
+      <div id="calcStatus" class="status"></div>
+      <div id="calcResult" class="result-box" hidden></div>
+    </section>
+
+    <section class="panel">
+      <h2>Before and After Closing Gaps</h2>
+      <div class="row-2">
+        <div>
+          <label for="perfMeasure">Measure</label>
+          <select id="perfMeasure"></select>
+        </div>
+        <div style="display:flex; align-items:end; gap:8px;">
+          <button id="loadGapsBtn" class="secondary" style="margin-top:0;">Load Gaps</button>
+          <button id="compareBtn" style="margin-top:0;">Compare Before and After</button>
+        </div>
+      </div>
+      <div id="gapsWrap" class="gaps"></div>
+      <div id="compareStatus" class="status"></div>
+      <div id="compareResult" class="result-box" hidden></div>
+    </section>
+  </div>
+</main>
+
+<script>
+  const calcBtn = document.getElementById("calcBtn");
+  const calcStatus = document.getElementById("calcStatus");
+  const calcResult = document.getElementById("calcResult");
+
+  const perfMeasure = document.getElementById("perfMeasure");
+  const loadGapsBtn = document.getElementById("loadGapsBtn");
+  const compareBtn = document.getElementById("compareBtn");
+  const compareStatus = document.getElementById("compareStatus");
+  const compareResult = document.getElementById("compareResult");
+  const gapsWrap = document.getElementById("gapsWrap");
+
+  function pct(value) {
+    return value == null ? "N/A" : `${Number(value).toFixed(2)}%`;
+  }
+
+  function metric(label, left, right) {
+    return `<div class="metric"><span>${label}</span><strong>${left} -> ${right}</strong></div>`;
+  }
+
+  function renderCalc(payload) {
+    calcResult.hidden = false;
+    calcResult.innerHTML = `
+      <div><span class="pill">${payload.rating_status}</span></div>
+      <div class="metrics">
+        ${metric("Measure", payload.measure_code, payload.measure_code)}
+        ${metric("Input scoring value", payload.input_scoring_value ?? "N/A", payload.applied_scoring_value ?? "N/A")}
+        ${metric("Assigned star", payload.assigned_star_rating ?? "N/A", payload.assigned_star_rating ?? "N/A")}
+        ${metric("CMS year", payload.cms_rating_year, payload.cms_rating_year)}
+      </div>
+      <p><strong>Explanation:</strong> ${payload.explanation}</p>
+    `;
+  }
+
+  async function calculateStar() {
+    calcBtn.disabled = true;
+    calcStatus.textContent = "Calculating star result...";
+    calcStatus.className = "status";
+
+    const body = {
+      cms_rating_year: Number(document.getElementById("cmsYear").value),
+      result: {
+        measure_code: document.getElementById("measureCode").value,
+        measurement_year: Number(document.getElementById("measurementYear").value),
+        scoring_value: Number(document.getElementById("scoringValue").value),
+        denominator: Number(document.getElementById("denominator").value),
+        result_status: "completed",
+        scoring_value_kind: "cms_scoring_value"
+      }
+    };
+
+    const memberId = document.getElementById("memberId").value.trim();
+    const careGapId = document.getElementById("careGapId").value.trim();
+    if (memberId) body.member_id = memberId;
+    if (careGapId) body.care_gap_id = careGapId;
+
+    const response = await fetch("/api/star-rating/calculate", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify(body)
+    });
+
+    const payload = await response.json();
+    calcBtn.disabled = false;
+    if (!response.ok) {
+      calcStatus.textContent = payload.detail || "Star calculation failed";
+      calcStatus.className = "status error";
+      calcResult.hidden = true;
+      return;
+    }
+
+    calcStatus.textContent = "Star calculation completed.";
+    renderCalc(payload);
+  }
+
+  async function loadMeasures() {
+    const response = await fetch("/api/measure-performance/measures");
+    const measures = await response.json();
+    perfMeasure.innerHTML = measures
+      .map(m => `<option value="${m.code}">${m.code} - ${m.name}</option>`)
+      .join("");
+    await loadGaps();
+  }
+
+  async function loadGaps() {
+    compareStatus.textContent = "Loading gaps...";
+    const measureCode = perfMeasure.value;
+    const response = await fetch(`/api/measure-performance/${measureCode}/gaps`);
+    const gapList = await response.json();
+
+    gapsWrap.innerHTML = gapList.map(gap => `
+      <div class="gap-item">
+        <label>
+          <input type="checkbox" value="${gap.gap_id}">
+          ${gap.gap_id} (${gap.evidence_status})
+        </label>
+      </div>
+    `).join("");
+
+    compareStatus.textContent = `Loaded ${gapList.length} gaps for ${measureCode}.`;
+  }
+
+  function renderCompare(data) {
+    compareResult.hidden = false;
+    compareResult.innerHTML = `
+      <h3>${data.measure.code} - ${data.measure.name}</h3>
+      <div class="metrics">
+        ${metric("Numerator", data.baseline.numerator, data.recalculated.numerator)}
+        ${metric("Denominator", data.baseline.denominator, data.recalculated.denominator)}
+        ${metric("Performance rate", pct(data.baseline.performance_rate), pct(data.recalculated.performance_rate))}
+        ${metric("Open care gaps", data.baseline.open_care_gaps, data.recalculated.open_care_gaps)}
+        ${metric("Star rating", data.baseline.sample_star_rating ?? "N/A", data.recalculated.sample_star_rating ?? "N/A")}
+      </div>
+      <p><strong>Gaps closed:</strong> ${data.changes.gaps_closed}</p>
+      ${data.warnings.length ? `<div class="warn"><strong>Warnings</strong><ul>${data.warnings.map(w => `<li>${w}</li>`).join("")}</ul></div>` : ""}
+      <p style="margin-top:10px;"><strong>Methodology:</strong> ${data.measure.rating_methodology}</p>
+    `;
+  }
+
+  async function compareGapClosure() {
+    compareBtn.disabled = true;
+    compareStatus.textContent = "Calculating before and after results...";
+    compareStatus.className = "status";
+
+    const selected_gap_ids = Array.from(gapsWrap.querySelectorAll("input:checked")).map(el => el.value);
+    const body = {
+      measure_code: perfMeasure.value,
+      selected_gap_ids,
+    };
+
+    const response = await fetch("/api/measure-performance/compare", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify(body)
+    });
+
+    const payload = await response.json();
+    compareBtn.disabled = false;
+    if (!response.ok) {
+      compareStatus.textContent = payload.detail || "Comparison failed";
+      compareStatus.className = "status error";
+      compareResult.hidden = true;
+      return;
+    }
+
+    compareStatus.textContent = "Before and after comparison completed.";
+    renderCompare(payload);
+  }
+
+  calcBtn.addEventListener("click", calculateStar);
+  loadGapsBtn.addEventListener("click", loadGaps);
+  compareBtn.addEventListener("click", compareGapClosure);
+  perfMeasure.addEventListener("change", loadGaps);
+
+  loadMeasures().catch(err => {
+    compareStatus.textContent = String(err);
+    compareStatus.className = "status error";
+  });
+</script>
+</body>
+</html>
