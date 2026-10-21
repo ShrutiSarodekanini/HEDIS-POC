@@ -1,14 +1,11 @@
 from __future__ import annotations
 
 import datetime as dt
-from pathlib import Path
 import subprocess
 import sys
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import RedirectResponse
-from fastapi.staticfiles import StaticFiles
 
 from .app.api import router as api_router
 from .app import db
@@ -38,14 +35,13 @@ def create_app() -> FastAPI:
     db.Base.metadata.create_all(bind=db.engine)
     app.include_router(api_router)
 
-    project_root = Path(__file__).resolve().parents[2]
-    ui_dir = project_root / "ui"
-    if ui_dir.exists():
-        app.mount("/ui", StaticFiles(directory=str(ui_dir), html=True), name="ui")
-
-        @app.get("/")
-        def root_redirect():
-            return RedirectResponse(url="/ui/")
+    @app.get("/")
+    def root() -> dict[str, str]:
+        return {
+            "service": "hedis-data-ingestion-api",
+            "status": "ok",
+            "docs": "/docs",
+        }
 
     @app.get("/health")
     def health() -> dict[str, str]:

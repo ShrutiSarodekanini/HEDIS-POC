@@ -1,5 +1,6 @@
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import JSZip from 'jszip';
 import {
   Activity,
   CheckCircle2,
@@ -95,10 +96,83 @@ interface WorklistRow {
   decisionTime: string | null;
 }
 
+interface IngestionDatasetResponse {
+  input_dir?: string;
+  found_files?: string[];
+  missing_required_files?: string[];
+  row_counts?: Record<string, number>;
+  total_rows?: number;
+}
+
+interface IngestionJobResponse {
+  id?: string;
+  job_id?: string;
+  status?: string;
+  resources_generated?: number;
+  resources_persisted?: number;
+  warning_count?: number;
+  error_count?: number;
+  runtime?: {
+    status?: string;
+    started_at?: string;
+    completed_at?: string;
+    stages?: Array<{
+      name: string;
+      status: string;
+      details?: string;
+      elapsed_seconds?: number | null;
+    }>;
+  };
+}
+
+interface IngestionValidationIssue {
+  id: number;
+  severity: string;
+  issue_category: string;
+  source_file?: string | null;
+  source_record_id?: string | null;
+  diagnostic: string;
+}
+
+interface IngestionLogEntry {
+  at: string;
+  message: string;
+}
+
+interface IngestionPatientResourcesResponse {
+  job_id: string;
+  patient_id: string;
+  resources: Array<{
+    resource_json?: Record<string, unknown>;
+  }>;
+}
+
 type WorkflowStepState = 'complete' | 'current' | 'upcoming';
 
 function toErrorMessage(error: unknown): string {
   if (error instanceof ApiError) {
+    if (error.details && typeof error.details === 'object') {
+      const detailsRecord = error.details as Record<string, unknown>;
+      const topDetail = detailsRecord.detail;
+
+      if (typeof topDetail === 'string' && topDetail.length > 0) {
+        return `Backend request failed (${error.status}): ${topDetail}`;
+      }
+
+      if (topDetail && typeof topDetail === 'object') {
+        const inner = topDetail as Record<string, unknown>;
+        const missing = inner.missing_required_files;
+        if (Array.isArray(missing) && missing.length > 0) {
+          return `Cannot start ingestion. Missing required files: ${missing.join(', ')}`;
+        }
+      }
+
+      const missingTop = detailsRecord.missing_required_files;
+      if (Array.isArray(missingTop) && missingTop.length > 0) {
+        return `Cannot start ingestion. Missing required files: ${missingTop.join(', ')}`;
+      }
+    }
+
     if (typeof error.details === 'string' && error.details.length > 0) {
       return `Backend request failed (${error.status}): ${error.details}`;
     }
@@ -225,6 +299,25 @@ export function RunEvaluationWorkspace() {
   const service = useFqmApiService();
 
   const [patientBundleFiles, setPatientBundleFiles] = useState<File[]>([]);
+  const [ingestionInputDir, setIngestionInputDir] = useState('');
+  const [ingestionFiles, setIngestionFiles] = useState<File[]>([]);
+  const [ingestionJobId, setIngestionJobId] = useState('');
+  const [ingestionPatients, setIngestionPatients] = useState<string[]>([]);
+  const [selectedIngestionPatient, setSelectedIngestionPatient] = useState('');
+  const [selectedPatientFhir, setSelectedPatientFhir] = useState('');
+  const [allPatientsFhir, setAllPatientsFhir] = useState<{
+    jobId: string;
+    patientCount: number;
+    exportedAt: string;
+  } | null>(null);
+  const [ingestionBusy, setIngestionBusy] = useState(false);
+  const [ingestionStatusMessage, setIngestionStatusMessage] = useState('');
+  const [ingestionErrorMessage, setIngestionErrorMessage] = useState('');
+  const [ingestionDatasetMeta, setIngestionDatasetMeta] = useState<IngestionDatasetResponse | null>(null);
+  const [ingestionJobSummary, setIngestionJobSummary] = useState<IngestionJobResponse | null>(null);
+  const [ingestionValidationIssues, setIngestionValidationIssues] = useState<IngestionValidationIssue[]>([]);
+  const [ingestionLog, setIngestionLog] = useState<IngestionLogEntry[]>([]);
+  const stageStatusRef = useRef<Record<string, string>>({});
   const [errors, setErrors] = useState<FormErrors>({});
   const [submittedEvaluationId, setSubmittedEvaluationId] = useState<string | null>(
     null,
@@ -266,6 +359,18 @@ export function RunEvaluationWorkspace() {
     },
   });
 
+  const ingestionJobQuery = useQuery({
+    queryKey: ['ingestion-job-live', ingestionJobId],
+    queryFn: () => ingestionApiRequest(`/jobs/${encodeURIComponent(ingestionJobId.trim())}`) as Promise<IngestionJobResponse>,
+    enabled: Boolean(ingestionJobId),
+    refetchInterval: (queryState) => {
+      const runtimeStatus = queryState.state.data?.runtime?.status?.toLowerCase();
+      const topLevelStatus = queryState.state.data?.status?.toLowerCase();
+      const current = runtimeStatus || topLevelStatus;
+      return current === 'running' || current === 'pending' || current === 'started' ? 1500 : false;
+    },
+  });
+
   const fileValidation = useMemo(() => {
     const patientFileErrors = patientBundleFiles
       .map((file) => ({
@@ -278,6 +383,438 @@ export function RunEvaluationWorkspace() {
       patientFileErrors,
     };
   }, [patientBundleFiles]);
+
+  useEffect(() => {
+    if (!ingestionJobQuery.data) {
+      return;
+    }
+    setIngestionJobSummary(ingestionJobQuery.data);
+  }, [ingestionJobQuery.data]);
+
+  useEffect(() => {
+    const stages = ingestionJobSummary?.runtime?.stages ?? [];
+    if (stages.length === 0) {
+      return;
+    }
+
+    const now = new Date().toLocaleTimeString();
+    const nextEntries: IngestionLogEntry[] = [];
+
+    for (const stage of stages) {
+      const previous = stageStatusRef.current[stage.name];
+      if (previous !== stage.status) {
+        stageStatusRef.current[stage.name] = stage.status;
+        nextEntries.push({
+          at: now,
+          message: `${stage.name}: ${stage.status}${stage.details ? ` - ${stage.details}` : ''}`,
+        });
+      }
+    }
+
+    if (nextEntries.length > 0) {
+      setIngestionLog((current) => [...nextEntries, ...current].slice(0, 20));
+    }
+  }, [ingestionJobSummary?.runtime?.stages]);
+
+  async function ingestionApiRequest(path: string, init?: RequestInit): Promise<unknown> {
+    const response = await fetch(`${config.apiBaseUrl}${path}`, {
+      ...init,
+      headers: {
+        Accept: 'application/json',
+        ...(init?.headers ?? {}),
+      },
+    });
+
+    const payload = await response
+      .text()
+      .then((raw) => {
+        try {
+          return raw ? JSON.parse(raw) : null;
+        } catch {
+          return raw;
+        }
+      });
+
+    if (!response.ok) {
+      const detailText =
+        typeof payload === 'string'
+          ? payload
+          : typeof payload === 'object' && payload !== null && 'detail' in payload
+            ? String((payload as Record<string, unknown>).detail)
+            : `Ingestion request failed with status ${response.status}`;
+      throw new ApiError(detailText, response.status, payload);
+    }
+
+    return payload;
+  }
+
+  async function inspectIngestionDataset() {
+    if (!ingestionInputDir.trim()) {
+      setIngestionErrorMessage('Upload CSV files first to create a dataset.');
+      return;
+    }
+    setIngestionBusy(true);
+    setIngestionErrorMessage('');
+    try {
+      const payload = await ingestionApiRequest(
+        `/datasets/inspect?input_dir=${encodeURIComponent(ingestionInputDir.trim())}`,
+      );
+      const dataset = payload as IngestionDatasetResponse;
+      setIngestionDatasetMeta(dataset);
+      setIngestionStatusMessage(`Dataset inspected successfully. ${dataset.total_rows ?? 0} rows discovered.`);
+    } catch (error) {
+      setIngestionErrorMessage(toErrorMessage(error));
+    } finally {
+      setIngestionBusy(false);
+    }
+  }
+
+  async function uploadIngestionCsvFiles() {
+    if (ingestionFiles.length === 0) {
+      setIngestionErrorMessage('Select one or more Synthea CSV files first.');
+      return;
+    }
+    setIngestionBusy(true);
+    setIngestionErrorMessage('');
+    try {
+      const formData = new FormData();
+      ingestionFiles.forEach((file) => formData.append('files', file, file.name));
+      const payload = await ingestionApiRequest('/datasets/upload', {
+        method: 'POST',
+        body: formData,
+      });
+      const asRecord = payload as IngestionDatasetResponse;
+      if (asRecord.input_dir) {
+        setIngestionInputDir(asRecord.input_dir);
+      }
+      setIngestionDatasetMeta(asRecord);
+      setIngestionJobSummary(null);
+      setIngestionValidationIssues([]);
+      setIngestionJobId('');
+      setIngestionPatients([]);
+      setSelectedIngestionPatient('');
+      setSelectedPatientFhir('');
+      setAllPatientsFhir(null);
+      setIngestionStatusMessage(`Uploaded dataset successfully. ${asRecord.total_rows ?? 0} rows discovered.`);
+    } catch (error) {
+      setIngestionErrorMessage(toErrorMessage(error));
+    } finally {
+      setIngestionBusy(false);
+    }
+  }
+
+  async function startIngestionJob() {
+    if (!ingestionInputDir.trim()) {
+      setIngestionErrorMessage('Upload CSV files first to start ingestion.');
+      return;
+    }
+    setIngestionBusy(true);
+    setIngestionErrorMessage('');
+    try {
+      const missingRequiredFiles = ingestionDatasetMeta?.missing_required_files ?? [];
+      if (missingRequiredFiles.length > 0) {
+        throw new ApiError(
+          `Missing required files: ${missingRequiredFiles.join(', ')}`,
+          400,
+          { missing_required_files: missingRequiredFiles },
+        );
+      }
+
+      const payload = await ingestionApiRequest(
+        `/jobs/start?input_dir=${encodeURIComponent(ingestionInputDir.trim())}`,
+        { method: 'POST' },
+      );
+      const asRecord = payload as IngestionJobResponse;
+      if (asRecord.job_id) {
+        setIngestionJobId(asRecord.job_id);
+      }
+      stageStatusRef.current = {};
+      setIngestionLog([
+        {
+          at: new Date().toLocaleTimeString(),
+          message: `Job started: ${asRecord.job_id ?? 'unknown'}`,
+        },
+      ]);
+      setIngestionJobSummary(asRecord);
+      setIngestionPatients([]);
+      setSelectedIngestionPatient('');
+      setSelectedPatientFhir('');
+      setAllPatientsFhir(null);
+      setIngestionValidationIssues([]);
+      setIngestionStatusMessage('Ingestion job started successfully.');
+    } catch (error) {
+      setIngestionErrorMessage(toErrorMessage(error));
+    } finally {
+      setIngestionBusy(false);
+    }
+  }
+
+  async function refreshIngestionJob() {
+    if (!ingestionJobId.trim()) {
+      setIngestionErrorMessage('Start ingestion first to refresh status.');
+      return;
+    }
+    setIngestionBusy(true);
+    setIngestionErrorMessage('');
+    try {
+      const payload = await ingestionApiRequest(`/jobs/${encodeURIComponent(ingestionJobId.trim())}`);
+      setIngestionJobSummary(payload as IngestionJobResponse);
+      setIngestionStatusMessage('Ingestion status refreshed.');
+    } catch (error) {
+      setIngestionErrorMessage(toErrorMessage(error));
+    } finally {
+      setIngestionBusy(false);
+    }
+  }
+
+  async function persistIngestionResources() {
+    if (!ingestionJobId.trim()) {
+      setIngestionErrorMessage('Start ingestion first to persist resources.');
+      return;
+    }
+    setIngestionBusy(true);
+    setIngestionErrorMessage('');
+    try {
+      const payload = await ingestionApiRequest(
+        `/jobs/${encodeURIComponent(ingestionJobId.trim())}/persist`,
+        { method: 'POST' },
+      );
+      const asRecord = payload as { resources_persisted?: number };
+      const latestJob = await ingestionApiRequest(
+        `/jobs/${encodeURIComponent(ingestionJobId.trim())}`,
+      ) as IngestionJobResponse;
+      setIngestionJobSummary(latestJob);
+      setIngestionStatusMessage(
+        `Resources persisted successfully. ${asRecord.resources_persisted ?? 0} resources marked persisted.`,
+      );
+    } catch (error) {
+      setIngestionErrorMessage(toErrorMessage(error));
+    } finally {
+      setIngestionBusy(false);
+    }
+  }
+
+  async function loadIngestionValidation() {
+    if (!ingestionJobId.trim()) {
+      setIngestionErrorMessage('Start ingestion first to load validation issues.');
+      return;
+    }
+    setIngestionBusy(true);
+    setIngestionErrorMessage('');
+    try {
+      const payload = await ingestionApiRequest(
+        `/jobs/${encodeURIComponent(ingestionJobId.trim())}/validation`,
+      );
+      const asRecord = payload as { issues?: IngestionValidationIssue[] };
+      const issues = Array.isArray(asRecord.issues) ? asRecord.issues : [];
+      setIngestionValidationIssues(issues);
+      setIngestionStatusMessage(
+        issues.length > 0
+          ? `Validation loaded. ${issues.length} issues found.`
+          : 'Validation loaded. No issues found.',
+      );
+    } catch (error) {
+      setIngestionErrorMessage(toErrorMessage(error));
+    } finally {
+      setIngestionBusy(false);
+    }
+  }
+
+  function toPatientBundle(
+    jobId: string,
+    patientId: string,
+    resourcesPayload: IngestionPatientResourcesResponse,
+  ): Record<string, unknown> {
+    const entries = (resourcesPayload.resources ?? [])
+      .map((item) => item.resource_json)
+      .filter((resource): resource is Record<string, unknown> => Boolean(resource))
+      .map((resource) => ({ resource }));
+
+    return {
+      resourceType: 'Bundle',
+      type: 'collection',
+      id: `${jobId}-${patientId}`,
+      total: entries.length,
+      entry: entries,
+    };
+  }
+
+  function downloadJsonFile(fileName: string, payload: unknown) {
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+    downloadBlobFile(fileName, blob);
+  }
+
+  function downloadBlobFile(fileName: string, blob: Blob) {
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = fileName;
+    document.body.append(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+  }
+
+  async function loadIngestionPatients() {
+    if (!ingestionJobId.trim()) {
+      setIngestionErrorMessage('Start ingestion first to load patients.');
+      return;
+    }
+
+    setIngestionBusy(true);
+    setIngestionErrorMessage('');
+    try {
+      const payload = await ingestionApiRequest(`/jobs/${encodeURIComponent(ingestionJobId.trim())}/patients`);
+      const asRecord = payload as { patients?: string[] };
+      const patients = Array.isArray(asRecord.patients) ? asRecord.patients : [];
+      setIngestionPatients(patients);
+
+      if (patients.length === 0) {
+        setSelectedIngestionPatient('');
+        setSelectedPatientFhir('');
+        setIngestionStatusMessage('No patient resources found yet. Run ingestion and persist first.');
+        return;
+      }
+
+      const firstPatient = patients[0];
+      setSelectedIngestionPatient(firstPatient);
+      setIngestionStatusMessage(`Loaded ${patients.length} patients.`);
+      await loadPatientFhir(firstPatient);
+    } catch (error) {
+      setIngestionErrorMessage(toErrorMessage(error));
+    } finally {
+      setIngestionBusy(false);
+    }
+  }
+
+  async function loadPatientFhir(patientId: string) {
+    if (!ingestionJobId.trim()) {
+      setIngestionErrorMessage('Start ingestion first to load patient FHIR data.');
+      return;
+    }
+
+    setIngestionBusy(true);
+    setIngestionErrorMessage('');
+    try {
+      const payload = await ingestionApiRequest(
+        `/jobs/${encodeURIComponent(ingestionJobId.trim())}/patients/${encodeURIComponent(patientId)}/resources`,
+      ) as IngestionPatientResourcesResponse;
+      const bundle = toPatientBundle(ingestionJobId.trim(), patientId, payload);
+      setSelectedIngestionPatient(patientId);
+      setSelectedPatientFhir(JSON.stringify(bundle, null, 2));
+      setIngestionStatusMessage(`Loaded FHIR bundle preview for patient ${patientId}.`);
+    } catch (error) {
+      setIngestionErrorMessage(toErrorMessage(error));
+    } finally {
+      setIngestionBusy(false);
+    }
+  }
+
+  async function downloadSelectedPatientFhir() {
+    if (!selectedIngestionPatient) {
+      setIngestionErrorMessage('Select a patient first.');
+      return;
+    }
+
+    if (!ingestionJobId.trim()) {
+      setIngestionErrorMessage('Start ingestion first to download patient FHIR data.');
+      return;
+    }
+
+    setIngestionBusy(true);
+    setIngestionErrorMessage('');
+    try {
+      const payload = await ingestionApiRequest(
+        `/jobs/${encodeURIComponent(ingestionJobId.trim())}/patients/${encodeURIComponent(selectedIngestionPatient)}/resources`,
+      ) as IngestionPatientResourcesResponse;
+      const bundle = toPatientBundle(ingestionJobId.trim(), selectedIngestionPatient, payload);
+      downloadJsonFile(`fhir-${selectedIngestionPatient}.bundle.json`, bundle);
+      setIngestionStatusMessage(`Downloaded FHIR bundle for patient ${selectedIngestionPatient}.`);
+    } catch (error) {
+      setIngestionErrorMessage(toErrorMessage(error));
+    } finally {
+      setIngestionBusy(false);
+    }
+  }
+
+  async function downloadAllPatientsFhir() {
+    if (!ingestionJobId.trim()) {
+      setIngestionErrorMessage('Start ingestion first to download all patient FHIR data.');
+      return;
+    }
+
+    setIngestionBusy(true);
+    setIngestionErrorMessage('');
+    try {
+      let patientIds = ingestionPatients;
+      if (patientIds.length === 0) {
+        const patientsPayload = await ingestionApiRequest(
+          `/jobs/${encodeURIComponent(ingestionJobId.trim())}/patients`,
+        ) as { patients?: string[] };
+        patientIds = Array.isArray(patientsPayload.patients) ? patientsPayload.patients : [];
+        setIngestionPatients(patientIds);
+      }
+
+      if (patientIds.length === 0) {
+        setIngestionStatusMessage('No patients available for download.');
+        return;
+      }
+
+      const patientBundles = await Promise.all(
+        patientIds.map(async (patientId) => {
+          const payload = await ingestionApiRequest(
+            `/jobs/${encodeURIComponent(ingestionJobId.trim())}/patients/${encodeURIComponent(patientId)}/resources`,
+          ) as IngestionPatientResourcesResponse;
+          return {
+            patientId,
+            bundle: toPatientBundle(ingestionJobId.trim(), patientId, payload),
+          };
+        }),
+      );
+
+      const bundles = patientBundles.map((item) => item.bundle);
+
+      const exportPayload = {
+        job_id: ingestionJobId.trim(),
+        patient_count: bundles.length,
+        exported_at: new Date().toISOString(),
+        bundles,
+      };
+
+      const zip = new JSZip();
+      for (const item of patientBundles) {
+        const patientId = item.patientId || 'patient';
+        const safePatientId = patientId.replace(/[^a-zA-Z0-9._-]/g, '_');
+        zip.file(`patients/fhir-${safePatientId}.bundle.json`, JSON.stringify(item.bundle, null, 2));
+      }
+      zip.file(
+        'manifest.json',
+        JSON.stringify(
+          {
+            job_id: exportPayload.job_id,
+            patient_count: exportPayload.patient_count,
+            exported_at: exportPayload.exported_at,
+          },
+          null,
+          2,
+        ),
+      );
+
+      const zipBlob = await zip.generateAsync({ type: 'blob' });
+      downloadBlobFile(`fhir-job-${ingestionJobId.trim()}-patients.zip`, zipBlob);
+
+      setAllPatientsFhir({
+        jobId: exportPayload.job_id,
+        patientCount: exportPayload.patient_count,
+        exportedAt: exportPayload.exported_at,
+      });
+      setIngestionStatusMessage(`Downloaded ZIP export with ${bundles.length} individual patient files.`);
+    } catch (error) {
+      setIngestionErrorMessage(toErrorMessage(error));
+    } finally {
+      setIngestionBusy(false);
+    }
+  }
 
   function validateForm(): boolean {
     const nextErrors: FormErrors = {};
@@ -327,8 +864,8 @@ export function RunEvaluationWorkspace() {
     () => [
       {
         key: 'measure',
-        title: 'Auto-detect measures',
-        detail: 'Engine detects patient-related measures automatically',
+        title: 'Standard measure execution',
+        detail: 'Checks all 10 measures and derives relatedness from engine output',
         state: 'complete' as WorkflowStepState,
       },
       {
@@ -418,6 +955,52 @@ export function RunEvaluationWorkspace() {
       active: hasEvaluationCompleted,
     },
   ];
+
+  const ingestionRuntimeStatus =
+    ingestionJobSummary?.runtime?.status ?? ingestionJobSummary?.status ?? 'not_started';
+
+  const ingestionFlowSteps = [
+    {
+      key: 'upload',
+      title: 'Upload CSV',
+      completed: Boolean(ingestionInputDir),
+    },
+    {
+      key: 'inspect',
+      title: 'Inspect Dataset',
+      completed: Boolean(ingestionDatasetMeta?.row_counts),
+    },
+    {
+      key: 'normalize',
+      title: 'Normalize to FHIR',
+      completed:
+        ingestionRuntimeStatus === 'completed' ||
+        ingestionRuntimeStatus === 'partially_completed',
+      active:
+        ingestionRuntimeStatus === 'running' ||
+        ingestionRuntimeStatus === 'pending' ||
+        ingestionRuntimeStatus === 'started',
+    },
+    {
+      key: 'persist',
+      title: 'Persist Resources',
+      completed: (ingestionJobSummary?.resources_persisted ?? 0) > 0,
+    },
+    {
+      key: 'patients',
+      title: 'Load Patients',
+      completed: ingestionPatients.length > 0,
+    },
+    {
+      key: 'download',
+      title: 'Download FHIR',
+      completed: Boolean(allPatientsFhir),
+    },
+  ];
+
+  const ingestionCompletionPercent = Math.round(
+    (ingestionFlowSteps.filter((step) => step.completed).length / ingestionFlowSteps.length) * 100,
+  );
 
   const canRunInMode = config.mode === 'real';
   const isRunDisabled =
@@ -521,7 +1104,7 @@ export function RunEvaluationWorkspace() {
         recommendedAction,
         gapRows: gaps,
       };
-    });
+    }).filter((row) => row.outcome !== 'not_in_population');
   }, [
     latestResult?.measureId,
     rawResultRows,
@@ -761,8 +1344,8 @@ export function RunEvaluationWorkspace() {
 
           <section className="selection-summary" aria-label="Automatic measure detection">
             <p>
-              <span>Measure mode:</span>
-              <strong>Auto-detect related measures</strong>
+              <span>Execution policy:</span>
+              <strong>Standard engine-verified policy</strong>
             </p>
           </section>
 
@@ -798,8 +1381,8 @@ export function RunEvaluationWorkspace() {
 
           <section className="selection-summary" aria-label="Input summary">
             <p>
-              <span>Measure detection:</span>
-              <strong>Automatic</strong>
+              <span>Measure strategy:</span>
+              <strong>All 10 evaluated, related measures inferred from results</strong>
             </p>
             <p>
               <span>Patient bundles:</span>
@@ -838,6 +1421,301 @@ export function RunEvaluationWorkspace() {
             </button>
           </div>
         </form>
+
+        <section className="panel form-layout" aria-label="Data ingestion workflow">
+          <h2>Data Ingestion (Synthea CSV -&gt; FHIR)</h2>
+          <p className="field-helper">
+            Upload CSV files, normalize to FHIR, review patient bundles, and download normalized output.
+          </p>
+
+          <section className="selection-summary" aria-label="Dataset details">
+            <p>
+              <span>Dataset source:</span>
+              <strong>{ingestionInputDir ? 'Uploaded CSV files' : 'Not uploaded yet'}</strong>
+            </p>
+            <p>
+              <span>Current job ID:</span>
+              <strong>{ingestionJobId || 'Not started'}</strong>
+            </p>
+            <p>
+              <span>Rows discovered:</span>
+              <strong>{ingestionDatasetMeta?.total_rows ?? 0}</strong>
+            </p>
+            <p>
+              <span>Patients normalized:</span>
+              <strong>{ingestionPatients.length}</strong>
+            </p>
+          </section>
+
+          <div className="form-field">
+            <label htmlFor="ingestionFiles">Or upload Synthea CSV files</label>
+            <input
+              id="ingestionFiles"
+              type="file"
+              multiple
+              accept=".csv,text/csv"
+              onChange={(event) => setIngestionFiles(Array.from(event.target.files ?? []))}
+            />
+            <p className="field-helper">Upload all required Synthea CSV files. The app uses the returned temporary dataset automatically.</p>
+          </div>
+
+          <div className="form-actions">
+            <button type="button" className="secondary-button" onClick={uploadIngestionCsvFiles} disabled={ingestionBusy}>
+              Upload CSV Files
+            </button>
+            <button type="button" className="secondary-button" onClick={inspectIngestionDataset} disabled={ingestionBusy}>
+              Inspect Dataset
+            </button>
+            <button type="button" className="primary-button" onClick={startIngestionJob} disabled={ingestionBusy}>
+              Start Ingestion
+            </button>
+            <button type="button" className="secondary-button" onClick={refreshIngestionJob} disabled={ingestionBusy}>
+              Refresh Status
+            </button>
+            <button type="button" className="secondary-button" onClick={persistIngestionResources} disabled={ingestionBusy}>
+              Persist Resources
+            </button>
+            <button type="button" className="secondary-button" onClick={loadIngestionValidation} disabled={ingestionBusy}>
+              Load Validation
+            </button>
+            <button type="button" className="secondary-button" onClick={loadIngestionPatients} disabled={ingestionBusy}>
+              Load Patients
+            </button>
+            <button type="button" className="secondary-button" onClick={downloadAllPatientsFhir} disabled={ingestionBusy || !ingestionJobId.trim()}>
+              Download All FHIR
+            </button>
+          </div>
+
+          {ingestionStatusMessage ? <p className="field-helper">{ingestionStatusMessage}</p> : null}
+          {ingestionErrorMessage ? <p className="field-error">{ingestionErrorMessage}</p> : null}
+
+          <section className="summary-block" aria-label="Ingestion flow progress">
+            <div className="workflow-panel-header">
+              <h3>Ingestion flow progress</h3>
+              <p>{ingestionCompletionPercent}% complete</p>
+            </div>
+            <div className="workflow-progress-track" aria-hidden="true">
+              <span style={{ width: `${ingestionCompletionPercent}%` }} />
+            </div>
+            <div className="upload-process-steps">
+              {ingestionFlowSteps.map((step) => (
+                <span
+                  key={step.key}
+                  className={`upload-step-chip ${step.completed || step.active ? 'active' : ''}`}
+                >
+                  {step.title}
+                </span>
+              ))}
+            </div>
+            <p className="field-helper">
+              Live status: <strong>{ingestionRuntimeStatus}</strong>
+              {ingestionJobQuery.isFetching ? ' (auto-refreshing...)' : ''}
+            </p>
+          </section>
+
+          {ingestionDatasetMeta?.row_counts ? (
+            <section>
+              <h3>Dataset file summary</h3>
+              <div className="table-wrap">
+                <table className="results-table">
+                  <thead>
+                    <tr>
+                      <th>CSV File</th>
+                      <th>Rows</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {Object.entries(ingestionDatasetMeta.row_counts).map(([fileName, rowCount]) => (
+                      <tr key={fileName}>
+                        <td>{fileName}</td>
+                        <td>{rowCount}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              {Array.isArray(ingestionDatasetMeta.missing_required_files) && ingestionDatasetMeta.missing_required_files.length > 0 ? (
+                <p className="field-error">
+                  Missing required files: {ingestionDatasetMeta.missing_required_files.join(', ')}
+                </p>
+              ) : null}
+            </section>
+          ) : null}
+
+          {ingestionJobSummary ? (
+            <section>
+              <h3>Ingestion job status</h3>
+              <div className="summary-grid">
+                <article className="summary-card">
+                  <p>Job Status</p>
+                  <strong>{ingestionJobSummary.runtime?.status ?? ingestionJobSummary.status ?? 'unknown'}</strong>
+                </article>
+                <article className="summary-card">
+                  <p>Generated Resources</p>
+                  <strong>{ingestionJobSummary.resources_generated ?? 0}</strong>
+                </article>
+                <article className="summary-card">
+                  <p>Persisted Resources</p>
+                  <strong>{ingestionJobSummary.resources_persisted ?? 0}</strong>
+                </article>
+                <article className="summary-card">
+                  <p>Warnings / Errors</p>
+                  <strong>{`${ingestionJobSummary.warning_count ?? 0} / ${ingestionJobSummary.error_count ?? 0}`}</strong>
+                </article>
+              </div>
+            </section>
+          ) : null}
+
+          {Array.isArray(ingestionJobSummary?.runtime?.stages) && ingestionJobSummary.runtime.stages.length > 0 ? (
+            <section>
+              <h3>Pipeline stage progress</h3>
+              <div className="table-wrap">
+                <table className="results-table">
+                  <thead>
+                    <tr>
+                      <th>Stage</th>
+                      <th>Status</th>
+                      <th>Details</th>
+                      <th>Elapsed (s)</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {ingestionJobSummary.runtime.stages.map((stage) => (
+                      <tr key={stage.name}>
+                        <td>{stage.name}</td>
+                        <td>
+                          <span className={`outcome-pill tone-${toBadgeTone(stage.status)}`}>
+                            {stage.status}
+                          </span>
+                        </td>
+                        <td>{stage.details ?? 'n/a'}</td>
+                        <td>{typeof stage.elapsed_seconds === 'number' ? stage.elapsed_seconds.toFixed(2) : 'n/a'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          ) : null}
+
+          <section>
+            <h3>Validation issues</h3>
+            {ingestionValidationIssues.length === 0 ? (
+              <p className="field-helper">No validation issues loaded yet.</p>
+            ) : (
+              <div className="table-wrap">
+                <table className="results-table">
+                  <thead>
+                    <tr>
+                      <th>Severity</th>
+                      <th>Category</th>
+                      <th>Source File</th>
+                      <th>Source Record</th>
+                      <th>Diagnostic</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {ingestionValidationIssues.map((issue) => (
+                      <tr key={issue.id}>
+                        <td>{issue.severity}</td>
+                        <td>{issue.issue_category}</td>
+                        <td>{issue.source_file ?? 'n/a'}</td>
+                        <td>{issue.source_record_id ?? 'n/a'}</td>
+                        <td>{issue.diagnostic}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </section>
+
+          <section>
+            <h3>Live activity feed</h3>
+            {ingestionLog.length === 0 ? (
+              <p className="field-helper">No live events yet. Start ingestion to see streamed updates.</p>
+            ) : (
+              <div className="table-wrap">
+                <table className="results-table">
+                  <thead>
+                    <tr>
+                      <th>Time</th>
+                      <th>Event</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {ingestionLog.map((entry, index) => (
+                      <tr key={`${entry.at}-${index}`}>
+                        <td>{entry.at}</td>
+                        <td>{entry.message}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </section>
+
+          {ingestionPatients.length > 0 ? (
+            <section className="form-field" aria-label="Patient FHIR output">
+              <label htmlFor="ingestionPatientSelect">Patient FHIR preview</label>
+              <select
+                id="ingestionPatientSelect"
+                value={selectedIngestionPatient}
+                onChange={(event) => {
+                  const patientId = event.target.value;
+                  setSelectedIngestionPatient(patientId);
+                  void loadPatientFhir(patientId);
+                }}
+              >
+                {ingestionPatients.map((patientId) => (
+                  <option key={patientId} value={patientId}>
+                    {patientId}
+                  </option>
+                ))}
+              </select>
+              <div className="form-actions">
+                <button
+                  type="button"
+                  className="secondary-button"
+                  onClick={() => void loadPatientFhir(selectedIngestionPatient)}
+                  disabled={ingestionBusy || !selectedIngestionPatient}
+                >
+                  Load Selected Patient FHIR
+                </button>
+                <button
+                  type="button"
+                  className="secondary-button"
+                  onClick={downloadSelectedPatientFhir}
+                  disabled={ingestionBusy || !selectedIngestionPatient}
+                >
+                  Download Selected FHIR
+                </button>
+              </div>
+              <details>
+                <summary className="field-helper">View selected patient bundle JSON</summary>
+                <pre>{selectedPatientFhir || 'No patient bundle loaded yet.'}</pre>
+              </details>
+            </section>
+          ) : null}
+
+          {allPatientsFhir ? (
+            <section className="selection-summary" aria-label="All patient export summary">
+              <p>
+                <span>All-patient export job:</span>
+                <strong>{allPatientsFhir.jobId}</strong>
+              </p>
+              <p>
+                <span>Patients exported:</span>
+                <strong>{allPatientsFhir.patientCount}</strong>
+              </p>
+              <p>
+                <span>Exported at:</span>
+                <strong>{new Date(allPatientsFhir.exportedAt).toLocaleString()}</strong>
+              </p>
+            </section>
+          ) : null}
+        </section>
 
         <section className="panel">
           <h2>Results</h2>

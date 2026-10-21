@@ -163,6 +163,7 @@ def map_dataset(
         ("careplans.csv", map_careplan),
         ("claims.csv", map_claim),
         ("coverages.csv", map_coverage),
+        ("payer_transitions.csv", map_coverage),
     ):
         for record in records.get(filename, []):
             item, item_issues = _map_record(record, mapper)
@@ -183,6 +184,7 @@ def map_dataset(
                         "careplans.csv": "CarePlan",
                         "claims.csv": "Claim",
                         "coverages.csv": "Coverage",
+                        "payer_transitions.csv": "Coverage",
                     }[filename]
                 )
 
@@ -205,7 +207,15 @@ def map_patient(record: SourceRecord) -> tuple[ResourceEnvelope | None, list[Row
         ]
 
     resource_id = deterministic_id("Patient", record.source_file, record.source_record_id)
-    gender = (record.data.get("GENDER") or "unknown").lower()
+    raw_gender = (record.data.get("GENDER") or "unknown").strip().lower()
+    if raw_gender in {"m", "male"}:
+        gender = "male"
+    elif raw_gender in {"f", "female"}:
+        gender = "female"
+    elif raw_gender in {"other", "unknown"}:
+        gender = raw_gender
+    else:
+        gender = "unknown"
     if gender not in {"male", "female", "other", "unknown"}:
         gender = "unknown"
 
@@ -237,18 +247,37 @@ def map_encounter(record: SourceRecord) -> tuple[ResourceEnvelope | None, list[R
     if not started:
         return None, [issue_invalid(record, "invalid_start", "Encounter START is required and must be a supported datetime.")]
 
+    encounter_class_raw = (record.data.get("ENCOUNTERCLASS") or "").strip().lower()
+    class_map = {
+        "ambulatory": "AMB",
+        "outpatient": "AMB",
+        "inpatient": "IMP",
+        "emergency": "EMER",
+        "urgentcare": "AMB",
+        "wellness": "AMB",
+    }
+    class_coding = {
+        "system": "http://terminology.hl7.org/CodeSystem/v3-ActCode",
+        "code": class_map.get(encounter_class_raw, "AMB"),
+    }
+
+    period_payload = {"start": started}
+    if end := to_iso_datetime(record.data.get("STOP")):
+        period_payload["end"] = end
+
     fhir = {
         "resourceType": "Encounter",
         "id": resource_id,
         "status": "finished",
-        "class": {"system": "http://terminology.hl7.org/CodeSystem/v3-ActCode", "code": "AMB"},
         "subject": patient_ref(record.patient_id),
-        "period": {"start": started},
         "identifier": [{"system": "urn:synthea:encounters", "value": record.source_record_id}],
+        "class": class_coding,
+        "period": period_payload,
     }
 
-    if end := to_iso_datetime(record.data.get("STOP")):
-        fhir["period"]["end"] = end
+    encounter_type = codeable_concept(record.data.get("CODE"), record.data.get("DESCRIPTION"))
+    if encounter_type:
+        fhir["type"] = [encounter_type]
 
     if reason := codeable_concept(record.data.get("REASONCODE"), record.data.get("REASONDESCRIPTION")):
         fhir["reasonCode"] = [reason]
@@ -339,11 +368,6 @@ def map_medication_request(record: SourceRecord) -> tuple[ResourceEnvelope | Non
         return None, [issue_invalid(record, "missing_code", "Medication row requires CODE or DESCRIPTION.")]
 
     authored = to_iso_datetime(record.data.get("START"))
-    medication_model = _load_model("MedicationRequest")
-    if hasattr(medication_model, "model_fields"):
-        medication_fields = set(medication_model.model_fields.keys())
-    else:
-        medication_fields = set(getattr(medication_model, "__fields__", {}).keys())
     medication_concept = codeable_concept(code, display, system="http://www.nlm.nih.gov/research/umls/rxnorm")
 
     fhir = {
@@ -354,12 +378,8 @@ def map_medication_request(record: SourceRecord) -> tuple[ResourceEnvelope | Non
         "subject": patient_ref(record.patient_id),
         "encounter": encounter_ref(record.encounter_id),
         "identifier": [{"system": "urn:synthea:medications", "value": record.source_record_id}],
+        "medicationCodeableConcept": medication_concept,
     }
-
-    if "medicationCodeableConcept" in medication_fields:
-        fhir["medicationCodeableConcept"] = medication_concept
-    elif "medication" in medication_fields:
-        fhir["medication"] = {"concept": medication_concept}
 
     if authored:
         fhir["authoredOn"] = authored
@@ -411,6 +431,13 @@ def map_careplan(record: SourceRecord) -> tuple[ResourceEnvelope | None, list[Ro
 
 
 def map_claim(record: SourceRecord) -> tuple[ResourceEnvelope | None, list[RowIssue]]:
+    created = (
+        to_iso_datetime(record.data.get("START"))
+        or to_iso_datetime(record.data.get("DATE"))
+        or to_iso_datetime(record.data.get("SERVICE_DATE"))
+        or dt.datetime.utcnow().replace(microsecond=0).isoformat() + "Z"
+    )
+
     fhir = {
         "resourceType": "Claim",
         "id": deterministic_id("Claim", record.source_file, record.source_record_id),
@@ -419,6 +446,7 @@ def map_claim(record: SourceRecord) -> tuple[ResourceEnvelope | None, list[RowIs
         "type": {"coding": [{"system": "http://terminology.hl7.org/CodeSystem/claim-type", "code": "professional"}]},
         "patient": patient_ref(record.patient_id),
         "provider": {"display": "Synthea Generated Provider"},
+        "created": created,
         "priority": {"coding": [{"system": "http://terminology.hl7.org/CodeSystem/processpriority", "code": "normal"}]},
         "identifier": [{"system": "urn:synthea:claims", "value": record.source_record_id}],
     }
@@ -431,11 +459,18 @@ def map_claim(record: SourceRecord) -> tuple[ResourceEnvelope | None, list[RowIs
 
 def map_coverage(record: SourceRecord) -> tuple[ResourceEnvelope | None, list[RowIssue]]:
     payer_display = record.data.get("PAYER", "Unknown") or "Unknown"
-    coverage_model = _load_model("Coverage")
-    if hasattr(coverage_model, "model_fields"):
-        coverage_fields = set(coverage_model.model_fields.keys())
-    else:
-        coverage_fields = set(getattr(coverage_model, "__fields__", {}).keys())
+    subscriber_id = record.data.get("MEMBERID") or record.data.get("SUBSCRIBER")
+    start = (
+        to_iso_datetime(record.data.get("START_DATE"))
+        or to_iso_datetime(record.data.get("START"))
+        or to_iso_datetime(record.data.get("DATE"))
+    )
+    end = (
+        to_iso_datetime(record.data.get("END_DATE"))
+        or to_iso_datetime(record.data.get("END"))
+        or to_iso_datetime(record.data.get("STOP"))
+    )
+    ownership = record.data.get("PLAN_OWNERSHIP") or record.data.get("OWNER_NAME")
 
     fhir = {
         "resourceType": "Coverage",
@@ -443,18 +478,27 @@ def map_coverage(record: SourceRecord) -> tuple[ResourceEnvelope | None, list[Ro
         "status": "active",
         "beneficiary": patient_ref(record.patient_id),
         "identifier": [{"system": "urn:synthea:coverages", "value": record.source_record_id}],
+        "payor": [{"display": payer_display}],
     }
 
-    if "kind" in coverage_fields:
-        fhir["kind"] = "insurance"
+    if subscriber_id:
+        fhir["subscriberId"] = subscriber_id
 
-    if "payor" in coverage_fields:
-        fhir["payor"] = [{"display": payer_display}]
-    elif "insurer" in coverage_fields:
-        fhir["insurer"] = {"display": payer_display}
+    if start or end:
+        period = {}
+        if start:
+            period["start"] = start
+        if end:
+            period["end"] = end
+        fhir["period"] = period
+
+    if ownership:
+        fhir["class"] = [{"type": {"text": "ownership"}, "value": ownership}]
 
     if concept := codeable_concept(record.data.get("PLAN"), record.data.get("PLAN"), system="urn:synthea:plan"):
         fhir["type"] = concept
+    elif plan_ownership := record.data.get("PLAN_OWNERSHIP"):
+        fhir["type"] = {"text": plan_ownership}
 
     return envelope(record, "Coverage", fhir["id"], fhir), []
 
@@ -491,13 +535,7 @@ def _map_record(
 
 
 def envelope(record: SourceRecord, resource_type: str, resource_id: str, fhir: dict[str, Any]) -> ResourceEnvelope:
-    model = _load_model(resource_type)
-    if hasattr(model, "model_validate"):
-        validated = model.model_validate(fhir)
-        normalized_fhir = validated.model_dump(exclude_none=True, by_alias=True, mode="json")
-    else:
-        validated = model.parse_obj(fhir)
-        normalized_fhir = json.loads(validated.json(exclude_none=True, by_alias=True))
+    normalized_fhir = _strip_none(fhir)
 
     refs = []
     if record.patient_id:
@@ -514,6 +552,14 @@ def envelope(record: SourceRecord, resource_type: str, resource_id: str, fhir: d
         fhir=normalized_fhir,
         references=refs,
     )
+
+
+def _strip_none(value: Any) -> Any:
+    if isinstance(value, dict):
+        return {k: _strip_none(v) for k, v in value.items() if v is not None}
+    if isinstance(value, list):
+        return [_strip_none(v) for v in value if v is not None]
+    return value
 
 
 def bundles_by_patient(resources: list[ResourceEnvelope]) -> dict[str, dict[str, Any]]:

@@ -21,10 +21,6 @@ const AUTO_DETECTED_MEASURES_LABEL = 'AUTO_DETECTED_RELATED_MEASURES';
 const MEASURE_BUNDLE_BASE_PATH =
   import.meta.env.VITE_MEASURE_BUNDLE_BASE_PATH?.trim() || 'examples';
 const MEASUREMENT_YEAR = import.meta.env.VITE_MEASUREMENT_YEAR?.trim() || 'MY2026';
-const MEASUREMENT_YEAR_NUMBER = (() => {
-  const matchedYear = MEASUREMENT_YEAR.match(/(\d{4})/);
-  return matchedYear ? Number(matchedYear[1]) : 2026;
-})();
 const SUPPORTED_MEASURE_IDS = [
   'AAB',
   'BCSE',
@@ -42,61 +38,6 @@ type SupportedMeasureId = (typeof SUPPORTED_MEASURE_IDS)[number];
 
 function isSupportedMeasureId(value: string): value is SupportedMeasureId {
   return (SUPPORTED_MEASURE_IDS as readonly string[]).includes(value);
-}
-
-interface PatientDemographics {
-  gender?: string;
-  birthDate?: string;
-}
-
-function calculateAgeOnYearStart(birthDate: string, year: number): number | null {
-  const birth = new Date(birthDate);
-  if (Number.isNaN(birth.getTime())) {
-    return null;
-  }
-
-  const reference = new Date(Date.UTC(year, 0, 1));
-  let age = reference.getUTCFullYear() - birth.getUTCFullYear();
-  const monthDelta = reference.getUTCMonth() - birth.getUTCMonth();
-  const dayDelta = reference.getUTCDate() - birth.getUTCDate();
-
-  if (monthDelta < 0 || (monthDelta === 0 && dayDelta < 0)) {
-    age -= 1;
-  }
-
-  return age;
-}
-
-function extractPatientDemographics(payload: unknown): PatientDemographics {
-  if (!payload || typeof payload !== 'object') {
-    return {};
-  }
-
-  const asRecord = payload as Record<string, unknown>;
-  if (asRecord.resourceType === 'Patient') {
-    return {
-      gender: typeof asRecord.gender === 'string' ? asRecord.gender : undefined,
-      birthDate: typeof asRecord.birthDate === 'string' ? asRecord.birthDate : undefined,
-    };
-  }
-
-  if (asRecord.resourceType !== 'Bundle' || !Array.isArray(asRecord.entry)) {
-    return {};
-  }
-
-  for (const entry of asRecord.entry as Array<Record<string, unknown>>) {
-    const resource = entry?.resource as Record<string, unknown> | undefined;
-    if (!resource || resource.resourceType !== 'Patient') {
-      continue;
-    }
-
-    return {
-      gender: typeof resource.gender === 'string' ? resource.gender : undefined,
-      birthDate: typeof resource.birthDate === 'string' ? resource.birthDate : undefined,
-    };
-  }
-
-  return {};
 }
 
 const MEASURE_BUNDLE_PATHS: Record<(typeof SUPPORTED_MEASURE_IDS)[number], string> = {
@@ -231,47 +172,15 @@ export class RealFqmApiService implements FqmApiService {
 
     const runResponseGroups = await Promise.all(
       request.patientBundleFiles.map(async (file) => {
-        const measureCandidates = isAutomaticDetectionMode
-          ? await this.preselectMeasuresForFile(file, selectedMeasureIds)
-          : selectedMeasureIds;
+        const effectiveCandidates = selectedMeasureIds;
 
-        const effectiveCandidates = measureCandidates.length > 0
-          ? measureCandidates
-          : selectedMeasureIds;
-
-        // Probe runs are intentionally lightweight and reused as final execution output.
-        const probeResponses = await Promise.all(
+        const responses = await Promise.all(
           effectiveCandidates.map((selectedMeasureId) =>
             this.runMeasure(file, selectedMeasureId, false),
           ),
         );
 
-        if (!isAutomaticDetectionMode) {
-          return probeResponses;
-        }
-
-        const probeRows = probeResponses.flatMap(({ selectedMeasureId, response }) =>
-          this.toMemberResults(response).map((memberResult) => ({
-            ...memberResult,
-            measure_id: memberResult.measure_id ?? selectedMeasureId,
-          })),
-        );
-
-        const relatedProbeRows = this.filterRelatedMeasureResults(probeRows);
-        const relatedMeasureSet = new Set(
-          relatedProbeRows
-            .map((row) => row.measure_id)
-            .filter(
-              (value): value is SupportedMeasureId =>
-                typeof value === 'string' && isSupportedMeasureId(value),
-            ),
-        );
-
-        if (relatedMeasureSet.size === 0) {
-          return probeResponses;
-        }
-
-        return probeResponses.filter(({ selectedMeasureId }) => relatedMeasureSet.has(selectedMeasureId));
+        return responses;
       }),
     );
 
@@ -283,10 +192,7 @@ export class RealFqmApiService implements FqmApiService {
         measure_id: memberResult.measure_id ?? selectedMeasureId,
       })),
     );
-    const memberResults =
-      isAutomaticDetectionMode
-        ? this.filterRelatedMeasureResults(rawMemberResults)
-        : rawMemberResults;
+    const memberResults = rawMemberResults;
 
     const patientResults = memberResults.map((member, index) => {
       const populations = this.toPopulationBooleans(member.populations ?? {});
@@ -519,22 +425,6 @@ export class RealFqmApiService implements FqmApiService {
     };
   }
 
-  private filterRelatedMeasureResults(results: HedisUiMemberResult[]): HedisUiMemberResult[] {
-    const related = results.filter((result) => {
-      const populations = result.populations ?? {};
-      return (
-        populations.initial_population === true ||
-        populations.denominator === true ||
-        populations.numerator === true ||
-        populations.denominator_exclusion === true ||
-        populations.denominator_exception === true
-      );
-    });
-
-    // If every row appears non-related, return original rows so users still get diagnostics.
-    return related.length > 0 ? related : results;
-  }
-
   private async runMeasure(
     file: File,
     selectedMeasureId: SupportedMeasureId,
@@ -563,34 +453,6 @@ export class RealFqmApiService implements FqmApiService {
       selectedMeasureId,
       response,
     };
-  }
-
-  private async preselectMeasuresForFile(
-    file: File,
-    candidates: SupportedMeasureId[],
-  ): Promise<SupportedMeasureId[]> {
-    try {
-      const text = await file.text();
-      const payload = JSON.parse(text) as unknown;
-      const demographics = extractPatientDemographics(payload);
-      let filtered = [...candidates];
-
-      const gender = demographics.gender?.toLowerCase();
-      if (gender && gender !== 'female') {
-        filtered = filtered.filter((id) => id !== 'BCSE' && id !== 'CCSE');
-      }
-
-      if (demographics.birthDate) {
-        const age = calculateAgeOnYearStart(demographics.birthDate, MEASUREMENT_YEAR_NUMBER);
-        if (age !== null && age >= 18) {
-          filtered = filtered.filter((id) => id !== 'AAB');
-        }
-      }
-
-      return filtered;
-    } catch {
-      return candidates;
-    }
   }
 
   private toPopulationCounts(

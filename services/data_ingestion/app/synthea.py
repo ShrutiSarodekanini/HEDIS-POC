@@ -18,6 +18,9 @@ SUPPORTED_FILES: dict[str, dict[str, Any]] = {
     "careplans.csv": {"required": False, "id_col": "Id", "patient_col": "PATIENT", "encounter_col": "ENCOUNTER"},
     "claims.csv": {"required": False, "id_col": "Id", "patient_col": "PATIENTID"},
     "coverages.csv": {"required": False, "id_col": "Id", "patient_col": "PATIENT"},
+    # Synthea commonly emits payer_transitions.csv instead of coverages.csv.
+    # Use row fallback IDs to avoid collapsing multiple transitions under one member id.
+    "payer_transitions.csv": {"required": False, "id_col": "__rowid__", "patient_col": "PATIENT"},
 }
 
 

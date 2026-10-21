@@ -188,7 +188,10 @@ def run_conversion(job_id: str, input_dir: str) -> None:
             "Immunization": len(parsed.records_by_file.get("immunizations.csv", [])),
             "CarePlan": len(parsed.records_by_file.get("careplans.csv", [])),
             "Claim": len(parsed.records_by_file.get("claims.csv", [])),
-            "Coverage": len(parsed.records_by_file.get("coverages.csv", [])),
+            "Coverage": (
+                len(parsed.records_by_file.get("coverages.csv", []))
+                + len(parsed.records_by_file.get("payer_transitions.csv", []))
+            ),
         }
         job_manager.initialize_resource_progress(
             job_id,
@@ -373,26 +376,54 @@ def run_conversion(job_id: str, input_dir: str) -> None:
 
 
 def run_persist_stage(job_id: str) -> int:
+    if job_manager.get_state(job_id) is None:
+        with job_manager._lock:
+            job_manager._states[job_id] = RuntimeState(
+                job_id=job_id,
+                status="running",
+                stages={stage: StageState(name=stage) for stage in STAGES},
+            )
+
     stage = job_manager.set_stage
     stage(job_id, "postgresql_storage", "running", "Marking validated resources as persisted")
     _emit(f"[pipeline] job={job_id} persist_stage_started")
     with session_scope() as session:
         persisted = mark_validated_resources_persisted(session, job_id)
 
+        from sqlalchemy import func, select
+        from .models import FhirResource
+
+        total_persisted = (
+            session.execute(
+                select(func.count())
+                .select_from(FhirResource)
+                .where((FhirResource.job_id == job_id) & (FhirResource.persisted == True))
+            ).scalar()
+            or 0
+        )
+
         from .models import ConversionJob
 
         job = session.get(ConversionJob, job_id)
         if job:
             summary = job.summary or {}
-            summary["resources_persisted"] = persisted
+            summary["resources_persisted"] = total_persisted
             job.summary = summary
-            job.resources_persisted = persisted
+            job.resources_persisted = total_persisted
             if job.status == "completed" and persisted == 0:
                 job.status = "partially_completed"
 
-    stage(job_id, "postgresql_storage", "completed", f"Persisted {persisted} resources")
-    _emit(f"[pipeline] job={job_id} persist_stage_finished persisted={persisted}")
-    return persisted
+    stage(
+        job_id,
+        "postgresql_storage",
+        "completed",
+        f"Persisted {persisted} resources (total persisted: {total_persisted})",
+    )
+    _emit(
+        f"[pipeline] job={job_id} persist_stage_finished "
+        f"persisted_delta={persisted} persisted_total={total_persisted}"
+    )
+    return total_persisted
 
 
 def launch_job(job_id: str, input_dir: str) -> None:
