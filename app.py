@@ -13,8 +13,8 @@ from pathlib import Path
 from fastapi import Depends, FastAPI, HTTPException
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, Field
-from sqlalchemy import select
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy import select, text
+from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from common.config import AppConfig
@@ -26,16 +26,14 @@ from common.evidence import (
     prepare_evidence_data,
 )
 from common.repository import Repository, row_to_dict
-from common.measure_performance import compare_measure, get_measure_catalog
 from common.models import CareGap, Measure, Member
-from common.star_rating import (
+from services.star_modeler.main import (
     CMS_MEASURE_SET_URL,
     CMS_RATING_YEAR,
     CMS_TECHNICAL_NOTES_URL,
-    FinalizedMeasureResult,
-    assign_star_rating,
-    compare_star_ratings,
-    get_star_config,
+    assign_star_from_sqlalchemy,
+    has_cutpoints_sqlalchemy,
+    load_cutpoints_sqlalchemy,
 )
 
 
@@ -43,11 +41,6 @@ class GenerateEvidenceRequest(BaseModel):
     member_id: str = Field(min_length=1)
     care_gap_id: str = Field(min_length=1)
     format: str = Field(min_length=1)
-
-
-class MeasureComparisonRequest(BaseModel):
-    measure_code: str = Field(min_length=1, max_length=10)
-    selected_gap_ids: list[str] = Field(default_factory=list, max_length=100)
 
 
 class FinalizedMeasureResultRequest(BaseModel):
@@ -81,27 +74,54 @@ class StarDashboardRequest(BaseModel):
     selected_gap_ids: list[str] = Field(default_factory=list)
 
 
-def _finalized_result(request: FinalizedMeasureResultRequest) -> FinalizedMeasureResult:
-    return FinalizedMeasureResult(**request.model_dump())
-
-
 def _is_closed_status(status: str | None) -> bool:
     normalized = (status or "").strip().lower()
     return normalized in {"closed", "complete", "completed", "resolved"}
-
-
-def _star_from_rate(rate_percent: float | None) -> float | None:
-    if rate_percent is None:
-        return None
-    raw = 1.0 + 4.0 * (rate_percent / 100.0)
-    bounded = min(5.0, max(1.0, raw))
-    return round(bounded, 2)
 
 
 def _gap_rate(closed_count: int, total_count: int) -> float | None:
     if total_count <= 0:
         return None
     return round((closed_count / total_count) * 100.0, 2)
+
+
+def _load_dashboard_rows(session: Session) -> list[dict[str, object]]:
+    """Read gap rows from whichever schema is present in the connected database."""
+    try:
+        rows = session.execute(
+            text(
+                """SELECT g.care_gap_id,
+                          g.member_id,
+                          g.measure_id,
+                          g.measurement_year,
+                          g.status,
+                          m.name AS measure_name,
+                          mb.first_name,
+                          mb.last_name
+                     FROM care_gaps g
+                     JOIN measures m ON g.measure_id = m.measure_id
+                     JOIN members mb ON g.member_id = mb.member_id"""
+            )
+        ).mappings().all()
+        return [dict(r) for r in rows]
+    except SQLAlchemyError:
+        session.rollback()
+
+    rows = session.execute(
+        text(
+            """SELECT g.gap_id::text AS care_gap_id,
+                      COALESCE(p.mrn, p.patient_id) AS member_id,
+                      g.measure_id,
+                      g.measurement_year,
+                      g.status,
+                      g.measure_id AS measure_name,
+                      NULL::text AS first_name,
+                      NULL::text AS last_name
+                 FROM care_gap g
+                 JOIN patient p ON g.patient_id = p.patient_id"""
+        )
+    ).mappings().all()
+    return [dict(r) for r in rows]
 
 
 def _build_star_dashboard(
@@ -112,34 +132,25 @@ def _build_star_dashboard(
 ) -> dict[str, object]:
     selected_set = set(selected_gap_ids)
 
-    rows = session.execute(
-        select(
-            CareGap.care_gap_id,
-            CareGap.member_id,
-            CareGap.measure_id,
-            CareGap.status,
-            Measure.name,
-            Member.first_name,
-            Member.last_name,
-        ).join(Measure, CareGap.measure_id == Measure.measure_id)
-         .join(Member, CareGap.member_id == Member.member_id)
-    ).all()
+    rows = _load_dashboard_rows(session)
 
     measure_stats: dict[str, dict[str, object]] = {}
     patient_stats: dict[str, dict[str, object]] = {}
     gaps_by_measure: dict[str, list[dict[str, object]]] = defaultdict(list)
 
     for row in rows:
-        gap_id = row.care_gap_id
-        m_id = row.measure_id
-        p_id = row.member_id
-        is_closed = _is_closed_status(row.status)
+        gap_id = str(row["care_gap_id"])
+        m_id = str(row["measure_id"])
+        measurement_year = int(row["measurement_year"])
+        p_id = str(row["member_id"])
+        is_closed = _is_closed_status(str(row.get("status") or ""))
         projected_closed = is_closed or (gap_id in selected_set)
 
         if m_id not in measure_stats:
             measure_stats[m_id] = {
                 "measure_id": m_id,
-                "measure_name": row.name,
+                "measurement_year": measurement_year,
+                "measure_name": str(row.get("measure_name") or m_id),
                 "total": 0,
                 "baseline_closed": 0,
                 "projected_closed": 0,
@@ -154,13 +165,14 @@ def _build_star_dashboard(
         patient_key = f"{p_id}:{m_id}"
         if patient_key not in patient_stats:
             full_name = " ".join(
-                part for part in [row.first_name, row.last_name] if part
+                part for part in [row.get("first_name"), row.get("last_name")] if part
             ).strip() or p_id
             patient_stats[patient_key] = {
                 "member_id": p_id,
                 "member_name": full_name,
                 "measure_id": m_id,
-                "measure_name": row.name,
+                "measurement_year": measurement_year,
+                "measure_name": str(row.get("measure_name") or m_id),
                 "total": 0,
                 "baseline_closed": 0,
                 "projected_closed": 0,
@@ -177,7 +189,7 @@ def _build_star_dashboard(
                 "care_gap_id": gap_id,
                 "member_id": p_id,
                 "member_name": patient_stats[patient_key]["member_name"],
-                "status": row.status,
+                "status": row.get("status"),
                 "is_closed": is_closed,
                 "selected_for_projection": gap_id in selected_set,
             }
@@ -185,14 +197,38 @@ def _build_star_dashboard(
 
     measure_cards: list[dict[str, object]] = []
     for stat in measure_stats.values():
+        measure_code = str(stat["measure_id"])
+        measurement_year = int(stat["measurement_year"])
+        total = int(stat["total"])
+        baseline_closed = int(stat["baseline_closed"])
+        projected_closed = int(stat["projected_closed"])
         baseline_rate = _gap_rate(int(stat["baseline_closed"]), int(stat["total"]))
         projected_rate = _gap_rate(int(stat["projected_closed"]), int(stat["total"]))
-        star_eligible = get_star_config(str(stat["measure_id"]), CMS_RATING_YEAR) is not None
-        baseline_star = _star_from_rate(baseline_rate) if star_eligible else None
-        projected_star = _star_from_rate(projected_rate) if star_eligible else None
+        star_eligible = has_cutpoints_sqlalchemy(
+            session,
+            measure_code=measure_code,
+            measurement_year=measurement_year,
+        )
+        baseline_result = assign_star_from_sqlalchemy(
+            session,
+            measure_code=measure_code,
+            measurement_year=measurement_year,
+            scoring_value=baseline_rate,
+            denominator=total,
+        )
+        projected_result = assign_star_from_sqlalchemy(
+            session,
+            measure_code=measure_code,
+            measurement_year=measurement_year,
+            scoring_value=projected_rate,
+            denominator=total,
+        )
+        baseline_star = baseline_result.assigned_star_rating
+        projected_star = projected_result.assigned_star_rating
         measure_cards.append(
             {
                 "measure_id": stat["measure_id"],
+                "measurement_year": measurement_year,
                 "measure_name": stat["measure_name"],
                 "star_eligible": star_eligible,
                 "rating_note": (
@@ -200,9 +236,9 @@ def _build_star_dashboard(
                     if star_eligible
                     else "No verified CMS star mapping configured for this measure."
                 ),
-                "total_gaps": stat["total"],
-                "baseline_closed": stat["baseline_closed"],
-                "projected_closed": stat["projected_closed"],
+                "total_gaps": total,
+                "baseline_closed": baseline_closed,
+                "projected_closed": projected_closed,
                 "baseline_rate": baseline_rate,
                 "projected_rate": projected_rate,
                 "baseline_star": baseline_star,
@@ -239,21 +275,45 @@ def _build_star_dashboard(
 
     patient_rows: list[dict[str, object]] = []
     for stat in patient_stats.values():
+        measure_code = str(stat["measure_id"])
+        measurement_year = int(stat["measurement_year"])
+        total = int(stat["total"])
+        baseline_closed = int(stat["baseline_closed"])
+        projected_closed = int(stat["projected_closed"])
         baseline_rate = _gap_rate(int(stat["baseline_closed"]), int(stat["total"]))
         projected_rate = _gap_rate(int(stat["projected_closed"]), int(stat["total"]))
-        star_eligible = get_star_config(str(stat["measure_id"]), CMS_RATING_YEAR) is not None
-        baseline_star = _star_from_rate(baseline_rate) if star_eligible else None
-        projected_star = _star_from_rate(projected_rate) if star_eligible else None
+        star_eligible = has_cutpoints_sqlalchemy(
+            session,
+            measure_code=measure_code,
+            measurement_year=measurement_year,
+        )
+        baseline_result = assign_star_from_sqlalchemy(
+            session,
+            measure_code=measure_code,
+            measurement_year=measurement_year,
+            scoring_value=baseline_rate,
+            denominator=total,
+        )
+        projected_result = assign_star_from_sqlalchemy(
+            session,
+            measure_code=measure_code,
+            measurement_year=measurement_year,
+            scoring_value=projected_rate,
+            denominator=total,
+        )
+        baseline_star = baseline_result.assigned_star_rating
+        projected_star = projected_result.assigned_star_rating
         patient_rows.append(
             {
                 "member_id": stat["member_id"],
                 "member_name": stat["member_name"],
                 "measure_id": stat["measure_id"],
+                "measurement_year": measurement_year,
                 "measure_name": stat["measure_name"],
                 "star_eligible": star_eligible,
-                "total_gaps": stat["total"],
-                "baseline_closed": stat["baseline_closed"],
-                "projected_closed": stat["projected_closed"],
+                "total_gaps": total,
+                "baseline_closed": baseline_closed,
+                "projected_closed": projected_closed,
                 "baseline_rate": baseline_rate,
                 "projected_rate": projected_rate,
                 "baseline_star": baseline_star,
@@ -291,38 +351,26 @@ def _build_star_dashboard(
                 {
                     "measure_id": str(item["measure_id"]),
                     "measure_name": str(item["measure_name"]),
-                    "two_star_min": next(
-                        (
-                            point.minimum_value
-                            for point in (get_star_config(str(item["measure_id"]), CMS_RATING_YEAR).cut_points)
-                            if point.stars == 2
-                        ),
-                        None,
-                    ),
-                    "three_star_min": next(
-                        (
-                            point.minimum_value
-                            for point in (get_star_config(str(item["measure_id"]), CMS_RATING_YEAR).cut_points)
-                            if point.stars == 3
-                        ),
-                        None,
-                    ),
-                    "four_star_min": next(
-                        (
-                            point.minimum_value
-                            for point in (get_star_config(str(item["measure_id"]), CMS_RATING_YEAR).cut_points)
-                            if point.stars == 4
-                        ),
-                        None,
-                    ),
-                    "five_star_min": next(
-                        (
-                            point.minimum_value
-                            for point in (get_star_config(str(item["measure_id"]), CMS_RATING_YEAR).cut_points)
-                            if point.stars == 5
-                        ),
-                        None,
-                    ),
+                    "two_star_min": next((v for s, v in load_cutpoints_sqlalchemy(
+                        session,
+                        measure_code=str(item["measure_id"]),
+                        measurement_year=int(item["measurement_year"]),
+                    ) if s == 2), None),
+                    "three_star_min": next((v for s, v in load_cutpoints_sqlalchemy(
+                        session,
+                        measure_code=str(item["measure_id"]),
+                        measurement_year=int(item["measurement_year"]),
+                    ) if s == 3), None),
+                    "four_star_min": next((v for s, v in load_cutpoints_sqlalchemy(
+                        session,
+                        measure_code=str(item["measure_id"]),
+                        measurement_year=int(item["measurement_year"]),
+                    ) if s == 4), None),
+                    "five_star_min": next((v for s, v in load_cutpoints_sqlalchemy(
+                        session,
+                        measure_code=str(item["measure_id"]),
+                        measurement_year=int(item["measurement_year"]),
+                    ) if s == 5), None),
                 }
                 for item in measure_cards
                 if bool(item["star_eligible"])
@@ -542,7 +590,7 @@ def _process_gap_automation(repo: Repository, cfg: AppConfig) -> dict[str, objec
             provenance="app:/automation/gap-processor",
         ):
             try:
-                baseline_payload = compare_measure(measure_code, [])
+                baseline_payload = compare_measure(repo.session, measure_code, [])
             except Exception as exc:
                 baseline_payload = {
                     "calculation_status": "unavailable",
@@ -573,7 +621,7 @@ def _process_gap_automation(repo: Repository, cfg: AppConfig) -> dict[str, objec
                 provenance="app:/automation/gap-processor",
             ):
                 try:
-                    compare_payload = compare_measure(measure_code, [care_gap_id])
+                    compare_payload = compare_measure(repo.session, measure_code, [care_gap_id])
                 except Exception as exc:
                     compare_payload = {
                         "calculation_status": "unavailable",
@@ -659,8 +707,8 @@ def create_app(
     app.state.config = cfg
 
     @app.get("/", response_class=HTMLResponse)
-    def measure_comparison_page():
-        page_path = Path(__file__).parent / "ui" / "measure_comparison.html"
+    def home_page():
+        page_path = Path(__file__).parent / "ui" / "star_results.html"
         return HTMLResponse(page_path.read_text(encoding="utf-8"))
 
     @app.get("/star-results", response_class=HTMLResponse)
@@ -668,34 +716,17 @@ def create_app(
         page_path = Path(__file__).parent / "ui" / "star_results.html"
         return HTMLResponse(page_path.read_text(encoding="utf-8"))
 
-    @app.get("/api/measure-performance/measures")
-    def measure_performance_measures():
-        return get_measure_catalog()
-
-    @app.get("/api/measure-performance/{measure_code}/gaps")
-    def measure_performance_gaps(measure_code: str):
-        try:
-            comparison = compare_measure(measure_code, [])
-        except KeyError as exc:
-            raise HTTPException(status_code=404, detail=str(exc)) from exc
-        return comparison["care_gaps"]
-
-    @app.post("/api/measure-performance/compare")
-    def measure_performance_compare(request: MeasureComparisonRequest):
-        try:
-            return compare_measure(request.measure_code, request.selected_gap_ids)
-        except KeyError as exc:
-            raise HTTPException(status_code=404, detail=str(exc)) from exc
-        except ValueError as exc:
-            raise HTTPException(status_code=400, detail=str(exc)) from exc
-
     @app.post("/api/star-rating/calculate")
     def star_rating_calculate(
         request: StarRatingRequest,
         session: Session = Depends(database.get_session),
     ):
-        rating = assign_star_rating(
-            _finalized_result(request.result), request.cms_rating_year
+        rating = assign_star_from_sqlalchemy(
+            session,
+            measure_code=request.result.measure_code,
+            measurement_year=request.result.measurement_year,
+            scoring_value=request.result.scoring_value,
+            denominator=request.result.denominator,
         )
         response_payload = rating.to_dict()
 
@@ -733,12 +764,113 @@ def create_app(
         return response_payload
 
     @app.post("/api/star-rating/compare")
-    def star_rating_compare(request: StarRatingComparisonRequest):
-        return compare_star_ratings(
-            _finalized_result(request.before),
-            _finalized_result(request.after),
-            request.cms_rating_year,
+    def star_rating_compare(
+        request: StarRatingComparisonRequest,
+        session: Session = Depends(database.get_session),
+    ):
+        before_result = assign_star_from_sqlalchemy(
+            session,
+            measure_code=request.before.measure_code,
+            measurement_year=request.before.measurement_year,
+            scoring_value=request.before.scoring_value,
+            denominator=request.before.denominator,
         )
+        after_result = assign_star_from_sqlalchemy(
+            session,
+            measure_code=request.after.measure_code,
+            measurement_year=request.after.measurement_year,
+            scoring_value=request.after.scoring_value,
+            denominator=request.after.denominator,
+        )
+        return {
+            "before": before_result.to_dict(),
+            "after": after_result.to_dict(),
+            "star_rating_changed": (
+                before_result.rating_status == "assigned"
+                and after_result.rating_status == "assigned"
+                and before_result.assigned_star_rating != after_result.assigned_star_rating
+            ),
+        }
+
+    @app.get("/api/star-rating/catalog")
+    def star_rating_catalog(session: Session = Depends(database.get_session)):
+        cut_rows = session.execute(
+            text(
+                """SELECT measure_id, measurement_year, star_rating, rate_low_pct
+                     FROM star_cutpoint
+                    WHERE rate_low_pct IS NOT NULL
+                    ORDER BY measure_id, measurement_year, star_rating"""
+            )
+        ).all()
+        weight_rows = session.execute(
+            text(
+                """SELECT measure_id, measurement_year, weight
+                     FROM measure_star_weight
+                    WHERE star_year = :star_year"""
+            ),
+            {"star_year": CMS_RATING_YEAR},
+        ).all()
+        weights = {
+            (str(row[0]), int(row[1])): int(row[2])
+            for row in weight_rows
+            if row[2] is not None
+        }
+
+        names: dict[tuple[str, int], str] = {}
+        try:
+            name_rows = session.execute(
+                text(
+                    """SELECT measure_id, measurement_year, name
+                         FROM measures"""
+                )
+            ).all()
+            names = {
+                (str(row[0]), int(row[1])): str(row[2])
+                for row in name_rows
+                if row[2]
+            }
+        except SQLAlchemyError:
+            session.rollback()
+            try:
+                name_rows = session.execute(
+                    text(
+                        """SELECT measure_id, measurement_year, min(name) AS name
+                             FROM measure_rule
+                         GROUP BY measure_id, measurement_year"""
+                    )
+                ).all()
+                names = {
+                    (str(row[0]), int(row[1])): str(row[2])
+                    for row in name_rows
+                    if row[2]
+                }
+            except SQLAlchemyError:
+                session.rollback()
+
+        grouped: dict[tuple[str, int], dict] = {}
+        for row in cut_rows:
+            key = (str(row[0]), int(row[1]))
+            if key not in grouped:
+                grouped[key] = {
+                    "measure_code": key[0],
+                    "measurement_year": key[1],
+                    "measure_name": names.get(key, key[0]),
+                    "weight": weights.get(key),
+                    "cut_points": [],
+                }
+            grouped[key]["cut_points"].append(
+                {
+                    "star": int(row[2]),
+                    "minimum_rate": float(row[3]),
+                }
+            )
+
+        return {
+            "cms_rating_year": CMS_RATING_YEAR,
+            "cms_measure_set_url": CMS_MEASURE_SET_URL,
+            "cms_technical_notes_url": CMS_TECHNICAL_NOTES_URL,
+            "measures": list(grouped.values()),
+        }
 
     @app.post("/api/evidence/generate")
     def generate_evidence(

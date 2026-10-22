@@ -54,13 +54,16 @@ class Database:
             connection.execute(text("SELECT 1"))
             migration_context = MigrationContext.configure(connection)
             current_heads = set(migration_context.get_current_heads())
-            config = Config(
-                str(Path(__file__).resolve().parents[1] / "alembic.ini")
-            )
+            repo_root = Path(__file__).resolve().parents[1]
+            db_alembic = repo_root / "db" / "alembic.ini"
+            root_alembic = repo_root / "alembic.ini"
+            config_path = db_alembic if db_alembic.exists() else root_alembic
+            config = Config(str(config_path))
             expected_heads = set(ScriptDirectory.from_config(config).get_heads())
             if current_heads != expected_heads:
+                upgrade_cmd = "alembic -c db/alembic.ini upgrade head" if config_path == db_alembic else "alembic upgrade head"
                 raise RuntimeError(
-                    "Database migrations are not current. Run: alembic upgrade head. "
+                    f"Database migrations are not current. Run: {upgrade_cmd}. "
                     f"Current revisions: {sorted(current_heads)}; "
                     f"expected: {sorted(expected_heads)}"
                 )

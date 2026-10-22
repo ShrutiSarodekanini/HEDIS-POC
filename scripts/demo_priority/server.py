@@ -40,6 +40,8 @@ from services.gap_priority import scoring  # noqa: E402
 from services.gap_priority.config import load_rules  # noqa: E402
 from services.gap_priority.inputs import read_inputs  # noqa: E402
 from services.gap_priority.runner import score_all  # noqa: E402
+from common.evidence import generate_document, prepare_evidence_data  # noqa: E402
+from services.star_modeler.main import CMS_RATING_YEAR, assign_star_from_cutpoints  # noqa: E402
 
 PORT = 8771
 PAGE = Path(__file__).with_name("index.html")
@@ -64,6 +66,100 @@ def _rounded(numerator: int, denominator: int) -> int:
     return (200 * numerator + denominator) // (2 * denominator) if denominator else 0
 
 
+def _rate_pct(numerator: int, denominator: int) -> float | None:
+    if denominator <= 0:
+        return None
+    return round(100 * numerator / denominator, 2)
+
+
+def _star_result(
+    measure_id: str,
+    measurement_year: int,
+    numerator: int,
+    denominator: int,
+    cut_points: list[tuple[int, float]],
+):
+    rate = _rate_pct(numerator, denominator)
+    if rate is None:
+        return None
+    return assign_star_from_cutpoints(
+        measure_code=measure_id,
+        measurement_year=measurement_year,
+        scoring_value=rate,
+        denominator=denominator,
+        cut_points=cut_points,
+    )
+
+
+def _next_cut_for_star(cut_points: list[tuple[int, float]], current_star: int | None) -> float | None:
+    if current_star is None:
+        return None
+    next_star = current_star + 1
+    for stars, threshold in cut_points:
+        if stars == next_star:
+            return float(threshold)
+    return None
+
+
+def _generate_gap_evidence_document(conn, gap_id: str) -> dict | None:
+    row = conn.execute(
+        """SELECT p.mrn, p.birth_date, p.gender, g.gap_id, g.status, g.measurement_year, g.missing_element,
+                     g.opened_at::date, g.measure_id
+              FROM care_gap g
+              JOIN patient p ON p.patient_id = g.patient_id
+             WHERE g.gap_id = %s""",
+        (gap_id,),
+    ).fetchone()
+    if not row:
+        return None
+
+    member = {
+        "member_id": row[0],
+        "date_of_birth": row[1],
+        "gender": row[2],
+    }
+    care_gap = {
+        "care_gap_id": str(row[3]),
+        "description": row[6],
+        "status": row[4],
+        "date_identified": row[7],
+        "measurement_year": row[5],
+    }
+    measure = {
+        "measure_id": row[8],
+        "name": row[8],
+        "description": "HEDIS measure",
+    }
+
+    evidence_rows = conn.execute(
+        """SELECT status, proposed_finding, passage_citation, extraction_model_version, decided_at
+               FROM evidence_proposal
+              WHERE gap_id = %s
+              ORDER BY decided_at DESC NULLS LAST
+              LIMIT 8""",
+        (gap_id,),
+    ).fetchall()
+    supporting_rows = [
+        {
+            "source_type": "EvidenceProposal",
+            "source_date": row_[4] or date.today().isoformat(),
+            "fact_key": row_[0] or "proposed",
+            "fact_value": row_[1] or row_[2] or "No finding text",
+            "provenance": row_[3] or "demo_priority",
+        }
+        for row_ in evidence_rows
+    ]
+
+    data = prepare_evidence_data(member, care_gap, measure, supporting_rows)
+    out_dir = ROOT / "generated_evidence"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    file_name = f"EVID-{str(gap_id).replace('-', '')[:12].upper()}-{int(time.time())}.pdf"
+    destination = out_dir / file_name
+    generate_document("pdf", destination, data)
+    audit(conn, "evidence", str(gap_id), "evidence.document_generated", {"file_name": file_name}, actor="demo_priority")
+    return {"file_name": file_name, "file_path": str(destination.resolve())}
+
+
 @app.get("/api/summary")
 def summary(as_of: date | None = None) -> dict:
     rules = load_rules()
@@ -79,11 +175,16 @@ def summary(as_of: date | None = None) -> dict:
     for (measure_id, _year), m in sorted(measures.items()):
         value = scoring.measure_value(m, rules)
         rounded = _rounded(m.numerator, m.denominator)
-        cuts = {star: float(low) for star, low in m.cut_points}
-        stars = max((s for s, low in cuts.items() if rounded >= low), default=None) if cuts else None
+        rate = _rate_pct(m.numerator, m.denominator)
+        cut_points = [(int(star), float(low)) for star, low in m.cut_points]
+        star_result = _star_result(measure_id, m.measurement_year, m.numerator, m.denominator, cut_points)
+        stars = star_result.assigned_star_rating if star_result and star_result.rating_status == "assigned" else None
+        next_cut = _next_cut_for_star(cut_points, stars)
         out.append({"measure": measure_id, "weight": m.weight, "numerator": m.numerator, "denominator": m.denominator,
-                    "rate": round(100 * m.numerator / m.denominator, 1) if m.denominator else None,
-                    "rounded": rounded, "stars": stars, "next_cut": cuts.get(stars + 1) if stars else None,
+                    "rate": rate,
+                    "rounded": rounded, "stars": stars, "next_cut": next_cut,
+                    "star_status": star_result.rating_status if star_result else "unavailable",
+                    "cms_rating_year": CMS_RATING_YEAR,
                     "value": round(value.value, 4), "value_reason": value.reason,
                     "open_gaps": open_gaps.get(measure_id, 0)})
     return {"measures": out, "tiers": tiers, "last_scored_at": last, "rules_version": rules.version}
@@ -154,10 +255,13 @@ def breakdown(key: str, as_of: date | None = None) -> dict:
     m = measures[(gap.measure_id, gap.measurement_year)]
     value = scoring.measure_value(m, rules)
     rounded = _rounded(m.numerator, m.denominator)
-    cuts = {star: float(low) for star, low in m.cut_points}
-    stars = max((st for st, low in cuts.items() if rounded >= low), default=None) if cuts else None
-    next_cut = cuts.get(stars + 1) if stars else None
-    target = math.ceil((next_cut - 0.5) * m.denominator / 100) if next_cut else None
+    rate = _rate_pct(m.numerator, m.denominator)
+    cut_points = [(int(star), float(low)) for star, low in m.cut_points]
+    star_result = _star_result(gap.measure_id, gap.measurement_year, m.numerator, m.denominator, cut_points)
+    stars = star_result.assigned_star_rating if star_result and star_result.rating_status == "assigned" else None
+    next_cut = _next_cut_for_star(cut_points, stars)
+    target = math.ceil((next_cut / 100) * m.denominator) if next_cut is not None else None
+    needed = max((target - m.numerator), 0) if target is not None else None
     return {
         "key": gap.key, "measure": gap.measure_id, "as_of": as_of,
         "likelihood": {"steps": steps, "raw": round(raw, 4), "min": rules.likelihood_min, "max": rules.likelihood_max,
@@ -165,9 +269,11 @@ def breakdown(key: str, as_of: date | None = None) -> dict:
         "engagement": {"steps": eng_steps, "cap": rules.engagement_cap,
                        "result": round(scoring.engagement(gap, as_of, rules), 4)},
         "value": {"weight": m.weight, "numerator": m.numerator, "denominator": m.denominator,
-                  "rate": round(100 * m.numerator / m.denominator, 2) if m.denominator else None,
+                  "rate": rate,
                   "rounded": rounded, "stars": stars, "next_cut": next_cut, "target": target,
-                  "needed": (target - m.numerator) if target else None, "divisor": rules.value_divisor,
+                  "needed": needed, "divisor": rules.value_divisor,
+                  "cms_rating_year": CMS_RATING_YEAR,
+                  "star_status": star_result.rating_status if star_result else "unavailable",
                   "reason": value.reason, "result": round(value.value, 4), "non_star_value": rules.non_star_value},
         "composite": round(likelihood * value.value, 4),
         "channel": scoring.channel(gap, as_of, rules),
@@ -251,6 +357,8 @@ def save(key: str, body: SaveIn) -> dict:
     if not run_ or not run_["kept"]:
         raise HTTPException(409, "Nothing to save: run 'Find evidence with AI' first and keep at least one finding.")
     saved = skipped = 0
+    generated_document = None
+    generated_document_error = None
     with db.connect() as conn:
         for c in run_["kept"]:
             exists = conn.execute(
@@ -287,8 +395,21 @@ def save(key: str, body: SaveIn) -> dict:
                    updated_at = now()
                WHERE d.gap_id = %s""", (run_["gap_id"],))
         conn.commit()
+        try:
+            generated_document = _generate_gap_evidence_document(conn, str(run_["gap_id"]))
+            if generated_document is not None:
+                conn.commit()
+        except Exception as exc:  # pragma: no cover - best effort side effect
+            conn.rollback()
+            generated_document_error = type(exc).__name__
         result = score_all(conn, body.as_of, load_rules())
-    return {"saved": saved, "skipped_already_saved": skipped, "tiers": result.tiers}
+    return {
+        "saved": saved,
+        "skipped_already_saved": skipped,
+        "tiers": result.tiers,
+        "generated_document": generated_document,
+        "generated_document_error": generated_document_error,
+    }
 
 
 @app.post("/api/score")
