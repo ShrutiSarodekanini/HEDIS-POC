@@ -1,0 +1,63 @@
+[
+  {
+    "file": "mixed_digital_and_scanned.pdf",
+    "purpose": "PDF whose page 1 has a text layer and page 2 is image-only; intake must route per page (text extraction for page 1, OCR for page 2).",
+    "mime_type": "application/pdf",
+    "source_docs": [
+      "D-1003",
+      "D-202"
+    ],
+    "expected_behavior": "2 pages; page 1 text layer, page 2 needs OCR",
+    "sha256": "3d1cd946250798848fd95f1a8e0617518a90e84c4ef59380736079cf8650df61"
+  },
+  {
+    "file": "portal_upload_bundle.zip",
+    "purpose": "Member portal upload as a zip archive; intake must unpack and process each member file.",
+    "mime_type": "application/zip",
+    "source_docs": [
+      "D-1102",
+      "D-502"
+    ],
+    "expected_behavior": "2 entries: D-1102.png and D-502.jpg",
+    "sha256": "0d2f8cd4b9f968d781ef4c5366eedce3f39c3d32d31d138bef0117c208a7d84e"
+  },
+  {
+    "file": "email_with_attachment.eml",
+    "purpose": "Plain MIME email with a PDF attachment; intake must extract the attachment.",
+    "mime_type": "message/rfc822",
+    "source_docs": [
+      "D-901"
+    ],
+    "expected_behavior": "1 attachment: D-901.pdf",
+    "sha256": "9cabd0ebf377b42e59f06dc6266075c7bd60a3dbb5c3047ccb61847b9bcbfaa5"
+  },
+  {
+    "file": "spoofed_extension.pdf",
+    "purpose": "JPEG bytes saved with a .pdf name; intake must detect the real type from content, not the extension.",
+    "mime_type": "image/jpeg",
+    "source_docs": [
+      "D-301"
+    ],
+    "expected_behavior": "Detected as image/jpeg despite .pdf extension",
+    "sha256": "47764baec274e0ffcf67513c8e1e6c9c8d004dc33ebe041aa75306c214ddd232"
+  },
+  {
+    "file": "duplicate_copy_of_D-1003.pdf",
+    "purpose": "Byte-identical copy of D-1003.pdf; intake must dedupe by content hash.",
+    "mime_type": "application/pdf",
+    "source_docs": [
+      "D-1003"
+    ],
+    "expected_behavior": "Same sha256 as D-1003.pdf; flagged as exact duplicate",
+    "sha256": "37117a3c83e25af51916e5daec38fa499e834b5e7cbabfacf05b55e1f9776e70"
+  },
+  {
+    "file": null,
+    "purpose": "Antivirus test: EICAR test file.",
+    "mime_type": null,
+    "source_docs": [],
+    "expected_behavior": "Quarantined or rejected by the scanner",
+    "sha256": null,
+    "note": "create at test time"
+  }
+]

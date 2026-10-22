@@ -1,0 +1,25 @@
+# Lakeside vitals workbook (XLSX, first sheet). Recognised by its exact header list.
+# A row with a blood pressure becomes one loaded record (value 'systolic/diastolic', pulse kept in raw).
+# A row whose only content is the Notes column goes to AI extraction as a small text document.
+name: lakeside_vitals
+version: 1
+record_type: vital_sign
+match:
+  - Member ID
+  - Visit Date
+  - Systolic
+  - Diastolic
+  - Pulse
+  - Notes
+columns:
+  Member ID: member_id
+  Visit Date: observed_on
+  Systolic: systolic
+  Diastolic: diastolic
+  Pulse: pulse
+  Notes: notes
+date_formats:
+  - "%Y-%m-%d"
+value_maps: {}
+free_text_columns:
+  - Notes

@@ -1,0 +1,687 @@
+# Seed measure library for the HEDIS POC, measurement year 2026.
+# Prompt templates use {placeholder} fields. The caller fills them from the gap record.
+# {last_event_date} is the date of the last known event for the gap (for example the last BP or HbA1c).
+# When the gap has no last known event, the caller substitutes the first day of the measurement year.
+measurement_year: 2026
+rule_version: v1
+source: "Plain-language POC rules built from public NCQA notices, CMS eCQM specs and CMS Star Ratings Technical Notes. Not the licensed NCQA specification."
+sme_review: {status: pending, reviewer: null, date: null}
+
+measures:
+  # ------------------------------------------------------------------ COL-E
+  - code: COL-E
+    name: Colorectal Cancer Screening
+    kind: member_numerator
+    population:
+      age_min: 46
+      age_max: 75
+      age_basis: "age on 2026-12-31"
+      age_min_months: null
+      sex: any
+      condition: null
+    stars:
+      in_star_ratings: true
+      star_measure_id: C02
+      weight: 1
+      scoring_note: "Part C C02. Scored on the same ages 46 to 75."
+    windows:
+      - {evidence_type: colonoscopy, from: "2017-01-01", to: "2026-12-31", relative: "MY-9 to MY"}
+      - {evidence_type: ct_colonography, from: "2022-01-01", to: "2026-12-31", relative: "MY-4 to MY"}
+      - {evidence_type: flexible_sigmoidoscopy, from: "2022-01-01", to: "2026-12-31", relative: "MY-4 to MY"}
+      - {evidence_type: stool_dna_with_fit, from: "2024-01-01", to: "2026-12-31", relative: "MY-2 to MY"}
+      - {evidence_type: fobt_or_fit, from: "2026-01-01", to: "2026-12-31", relative: "MY"}
+      - {evidence_type: colorectal_cancer, from: null, to: "2026-12-31", relative: "any time up to end of MY"}
+      - {evidence_type: total_colectomy, from: null, to: "2026-12-31", relative: "any time up to end of MY"}
+      - {evidence_type: hospice, from: "2026-01-01", to: "2026-12-31", relative: "MY"}
+      - {evidence_type: palliative_care, from: "2026-01-01", to: "2026-12-31", relative: "MY"}
+    most_recent_counts: false
+    thresholds: null
+    allowed_evidence_types:
+      numerator:
+        - colonoscopy
+        - ct_colonography
+        - flexible_sigmoidoscopy
+        - stool_dna_with_fit
+        - fobt_or_fit
+      exclusion:
+        - colorectal_cancer
+        - total_colectomy
+        - hospice
+        - death
+        - palliative_care
+        - frailty_and_advanced_illness_age_66_plus
+        - institutional_snp_or_long_term_institution_age_66_plus
+    ai_role: "Find past screening tests that close the gap, and colorectal cancer or total colectomy history that removes the member."
+    rule_text:
+      counts:
+        - "Colonoscopy from 2017-01-01 to 2026-12-31 (this year or the 9 years before)."
+        - "CT colonography from 2022-01-01 to 2026-12-31."
+        - "Flexible sigmoidoscopy from 2022-01-01 to 2026-12-31."
+        - "Stool DNA with FIT (for example Cologuard) from 2024-01-01 to 2026-12-31."
+        - "FOBT or FIT from 2026-01-01 to 2026-12-31."
+        - "Lab tests are dated by collection, result or claim date, not order date. A year alone is enough for procedures."
+      does_not_count:
+        - "Ordered, referred, planned or recommended but not done."
+        - "Patient declined."
+        - "A test done on a family member."
+        - "Any test outside its window."
+        - "Digital rectal exam, or an in-office FOBT on a rectal exam sample."
+        - "History of colonoscopy with no date, or a vague date such as a few years ago."
+      exclusions:
+        - "Colorectal cancer, any time up to 2026-12-31."
+        - "Total colectomy, any time up to 2026-12-31."
+        - "Hospice, death or palliative care in 2026."
+        - "Age 66 or older with frailty and advanced illness."
+        - "Age 66 or older in an institutional special needs plan (I-SNP) or living long term in an institution."
+    prompt_template: |
+      Counts: colonoscopy {colonoscopy_from} to {window_end}; CT colonography or flexible sigmoidoscopy {ct_colonography_from} to {window_end}; stool DNA with FIT (Cologuard) {stool_dna_from} to {window_end}; FOBT or FIT {fit_from} to {window_end}. A year alone is a valid date for a past procedure. Ordered, referred, recommended or declined tests do not count. A digital rectal exam or an in-office FOBT on a rectal exam sample does not count. 'History of colonoscopy' with no date does not count.
+      Exclusions: colorectal cancer or total colectomy at any time up to {window_end}; hospice or palliative care in {measurement_year}; frailty AND advanced illness if the member is 66 or older.
+    prompt_placeholders:
+      - measurement_year
+      - window_end
+      - colonoscopy_from
+      - ct_colonography_from
+      - stool_dna_from
+      - fit_from
+    verify_before_use:
+      - "Age strata (46 to 49 or 46 to 50) differ between CMS sources."
+      - "No public rule excludes diagnostic colonoscopies. Colonoscopy appears to count regardless of why it was done."
+      - "Confirm against the licensed MY 2026 text."
+
+  # ------------------------------------------------------------------ BCS-E
+  - code: BCS-E
+    name: Breast Cancer Screening
+    kind: member_numerator
+    population:
+      age_min: 42
+      age_max: 74
+      age_basis: "age on 2026-12-31"
+      age_min_months: null
+      sex: female
+      condition: null
+    stars:
+      in_star_ratings: true
+      star_measure_id: C01
+      weight: 1
+      scoring_note: "Part C C01. The measure counts ages 42 to 74 in two bands (42 to 51 and 52 to 74), but Star Ratings score only the 52 to 74 band. Use that band's rate for the star projection."
+    windows:
+      - {evidence_type: mammogram, from: "2024-10-01", to: "2026-12-31", relative: "October 1 of MY-2 to end of MY"}
+      - {evidence_type: bilateral_mastectomy, from: null, to: "2026-12-31", relative: "any time up to end of MY"}
+      - {evidence_type: gender_affirming_chest_surgery_with_gender_dysphoria, from: null, to: "2026-12-31", relative: "any time up to end of MY"}
+      - {evidence_type: hospice, from: "2026-01-01", to: "2026-12-31", relative: "MY"}
+      - {evidence_type: palliative_care, from: "2026-01-01", to: "2026-12-31", relative: "MY"}
+    most_recent_counts: false
+    thresholds: null
+    allowed_evidence_types:
+      numerator:
+        - mammogram
+      exclusion:
+        - bilateral_mastectomy
+        - gender_affirming_chest_surgery_with_gender_dysphoria
+        - hospice
+        - death
+        - palliative_care
+        - frailty_and_advanced_illness_age_66_plus
+        - institutional_snp_or_long_term_institution_age_66_plus
+    ai_role: "Find mammograms that close the gap, and bilateral mastectomy history that removes the member."
+    rule_text:
+      counts:
+        - "A mammogram from 2024-10-01 to 2026-12-31 (October 1 two years before, through the end of this year)."
+      does_not_count:
+        - "Ordered or scheduled mammogram."
+        - "Breast ultrasound, MRI or biopsy on its own."
+        - "A mammogram before 2024-10-01."
+        - "A date too vague to place in the window. Mammogram in 2024 could be before October 1, so it does not qualify."
+        - "Mammogram done at an outside facility with no date."
+      exclusions:
+        - "Bilateral mastectomy, or a left and a right mastectomy on the same or different dates. An undated history of bilateral mastectomy is acceptable."
+        - "Gender-affirming chest surgery together with a gender dysphoria diagnosis."
+        - "Hospice, death or palliative care in 2026."
+        - "Age 66 or older with frailty and advanced illness."
+        - "Age 66 or older in an institutional special needs plan (I-SNP) or living long term in an institution."
+    prompt_template: |
+      Counts: a mammogram dated {mammogram_from} to {window_end} (October 1 two years before the measurement year through the end of {measurement_year}). Ordered or scheduled mammograms, breast ultrasound, MRI or biopsy on their own, and any mammogram before {mammogram_from} do not count. A date too vague to place in the window, such as 'mammogram in 2024', does not count. 'Done at an outside facility' with no date does not count.
+      Exclusions: bilateral mastectomy, or a left and a right mastectomy on the same or different dates (an undated history of bilateral mastectomy is acceptable); gender-affirming chest surgery together with a gender dysphoria diagnosis; hospice or palliative care in {measurement_year}; frailty AND advanced illness if the member is 66 or older.
+    prompt_placeholders:
+      - measurement_year
+      - window_end
+      - mammogram_from
+    verify_before_use:
+      - "Whether 3D mammography (tomosynthesis) is in the mammography value set."
+      - "Star weight for the 2028 Stars, which use MY 2026 data."
+      - "Confirm against the licensed MY 2026 text."
+
+  # ------------------------------------------------------------------ CCS-E
+  - code: CCS-E
+    name: Cervical Cancer Screening
+    kind: member_numerator
+    population:
+      age_min: 24
+      age_max: 64
+      age_basis: "age on 2026-12-31"
+      age_min_months: null
+      sex: female
+      condition: null
+    stars:
+      in_star_ratings: false
+      star_measure_id: null
+      weight: null
+      scoring_note: "Health Plan Ratings and QRS only. Not a Star Ratings measure, rate only."
+    windows:
+      - {evidence_type: cervical_cytology, from: "2024-01-01", to: "2026-12-31", relative: "MY-2 to MY"}
+      - {evidence_type: hrhpv_test_age_30_plus, from: "2022-01-01", to: "2026-12-31", relative: "MY-4 to MY, member age 30 or older on the test date"}
+      - {evidence_type: hysterectomy_no_residual_cervix, from: null, to: "2026-12-31", relative: "any time up to end of MY"}
+      - {evidence_type: absence_of_cervix, from: null, to: "2026-12-31", relative: "any time up to end of MY"}
+      - {evidence_type: hospice, from: "2026-01-01", to: "2026-12-31", relative: "MY"}
+      - {evidence_type: palliative_care, from: "2026-01-01", to: "2026-12-31", relative: "MY"}
+    most_recent_counts: false
+    thresholds: null
+    allowed_evidence_types:
+      numerator:
+        - cervical_cytology
+        - hrhpv_test_age_30_plus
+      exclusion:
+        - hysterectomy_no_residual_cervix
+        - absence_of_cervix
+        - hospice
+        - death
+        - palliative_care
+    ai_role: "Find Pap and high-risk HPV results that close the gap, and hysterectomy with the cervix removed. The frailty rule does not apply."
+    rule_text:
+      counts:
+        - "Cervical cytology (Pap) with a result from 2024-01-01 to 2026-12-31."
+        - "High-risk HPV test with a result from 2022-01-01 to 2026-12-31, if the person was 30 or older on the test date. A co-test counts through its HPV part."
+      does_not_count:
+        - "Pap due, ordered, scheduled or referred."
+        - "A test with no result recorded."
+        - "HPV test done before age 30, or before 2022."
+        - "Pap before 2024."
+        - "Patient says she had a Pap, with no date or result."
+      exclusions:
+        - "Hysterectomy with no remaining cervix (total or radical), any time."
+        - "Absence of the cervix, from birth or acquired, any time."
+        - "Hospice, death or palliative care in 2026. The frailty rule does not apply to this measure."
+        - "Not an exclusion: a supracervical or partial hysterectomy (the cervix remains), or a hysterectomy with no sign the cervix was removed."
+    prompt_template: |
+      Counts: cervical cytology (Pap) with a result {cytology_from} to {window_end}; high-risk HPV test with a result {hrhpv_from} to {window_end} if the member was 30 or older on the test date. A co-test counts through its HPV part. Patient-reported tests without a date or result do not count. Ordered, due, scheduled or referred tests do not count.
+      Exclusions: hysterectomy with no remaining cervix (total or radical) at any time, or absence of the cervix. A supracervical or partial hysterectomy is NOT an exclusion because the cervix remains, and neither is a hysterectomy with no sign the cervix was removed. Hospice or palliative care in {measurement_year}. There is no frailty exclusion for this measure.
+    prompt_placeholders:
+      - measurement_year
+      - window_end
+      - cytology_from
+      - hrhpv_from
+    verify_before_use:
+      - "Whether colposcopy, biopsy or HPV genotyping alone count (assumed not)."
+      - "The exact self-collected HPV codes added for MY 2026."
+
+  # ------------------------------------------------------------------ EED
+  - code: EED
+    name: Eye Exam for Patients With Diabetes
+    kind: member_numerator
+    population:
+      age_min: 18
+      age_max: 75
+      age_basis: "age on 2026-12-31"
+      age_min_months: null
+      sex: any
+      condition: "diabetes type 1 or 2"
+    stars:
+      in_star_ratings: true
+      star_measure_id: C11
+      weight: 1
+      scoring_note: "Part C C11."
+    windows:
+      - {evidence_type: retinal_or_dilated_eye_exam, from: "2026-01-01", to: "2026-12-31", relative: "MY"}
+      - {evidence_type: retinal_exam_negative_for_retinopathy_prior_year, from: "2025-01-01", to: "2025-12-31", relative: "MY-1, result must show no retinopathy"}
+      - {evidence_type: retinal_imaging_read_by_reading_center, from: "2026-01-01", to: "2026-12-31", relative: "MY"}
+      - {evidence_type: autonomous_ai_retinal_exam, from: "2026-01-01", to: "2026-12-31", relative: "MY"}
+      - {evidence_type: both_eyes_absent, from: null, to: "2026-12-31", relative: "any time up to end of MY"}
+      - {evidence_type: hospice, from: "2026-01-01", to: "2026-12-31", relative: "MY"}
+      - {evidence_type: palliative_care, from: "2026-01-01", to: "2026-12-31", relative: "MY"}
+    most_recent_counts: false
+    thresholds: null
+    allowed_evidence_types:
+      numerator:
+        - retinal_or_dilated_eye_exam
+        - retinal_exam_negative_for_retinopathy_prior_year
+        - retinal_imaging_read_by_reading_center
+        - autonomous_ai_retinal_exam
+      exclusion:
+        - both_eyes_absent
+        - hospice
+        - death
+        - palliative_care
+        - frailty_and_advanced_illness_age_66_plus
+        - institutional_snp_or_long_term_institution_age_66_plus
+        - no_diabetes_with_pcos_gestational_or_steroid_induced_diabetes
+    ai_role: "Find retinal or dilated eye exams that close the gap, and loss of both eyes that removes the member."
+    rule_text:
+      counts:
+        - "A retinal or dilated eye exam by an optometrist or ophthalmologist in 2026, with any result."
+        - "A retinal exam by an eye care professional in 2025 showing no retinopathy."
+        - "Retinal imaging read by a qualified reading center in 2026."
+        - "An autonomous AI retinal exam in 2026."
+        - "Some coded results (for example CPT II 3072F, or left and right eye findings) accept any provider type."
+        - "If one eye was removed, an exam of the other eye is enough."
+      does_not_count:
+        - "Referral or eye exam due."
+        - "An exam with no date or no result."
+        - "A visual acuity check or non-retinal exam by a primary care provider."
+        - "An exam before 2025, or a 2025 exam that found retinopathy or has no result."
+        - "Blindness is not an exclusion."
+      exclusions:
+        - "Both eyes absent or removed, any time."
+        - "Hospice, death or palliative care in 2026."
+        - "Age 66 or older with frailty and advanced illness."
+        - "Age 66 or older in an institutional special needs plan (I-SNP) or living long term in an institution."
+        - "No diabetes diagnosis, but polycystic ovary syndrome, gestational or steroid-induced diabetes (unconfirmed for this measure)."
+    prompt_template: |
+      Counts: a retinal or dilated eye exam by an optometrist or ophthalmologist dated {eye_exam_from} to {window_end}, with any result; a retinal exam by an eye care professional dated {negative_exam_from} to {negative_exam_to} that shows NO retinopathy; retinal imaging read by a qualified reading center in {measurement_year}; an autonomous AI retinal exam in {measurement_year}. If one eye was removed, an exam of the other eye is enough. A referral, an 'eye exam due' note, an exam with no date or no result, a visual acuity check, and a non-retinal exam by a primary care provider do not count. A prior-year exam that found retinopathy does not count.
+      Exclusions: both eyes absent or removed at any time (blindness is NOT an exclusion); hospice or palliative care in {measurement_year}; frailty AND advanced illness if the member is 66 or older.
+    prompt_placeholders:
+      - measurement_year
+      - window_end
+      - eye_exam_from
+      - negative_exam_from
+      - negative_exam_to
+    verify_before_use:
+      - "Whether the polycystic ovary, gestational or steroid-induced diabetes exclusion still applies in MY 2026."
+      - "Any MY 2026 changes in the licensed text (none found in public notices)."
+
+  # ------------------------------------------------------------------ GSD
+  - code: GSD
+    name: Glycemic Status Assessment for Patients With Diabetes
+    kind: member_numerator
+    population:
+      age_min: 18
+      age_max: 75
+      age_basis: "age on 2026-12-31"
+      age_min_months: null
+      sex: any
+      condition: "diabetes type 1 or 2"
+    stars:
+      in_star_ratings: true
+      star_measure_id: C12
+      weight: 3
+      scoring_note: "Part C C12. Stars use the over-9.0% poor-control indicator, reverse scored (lower rate is better), not the under-8.0% indicator. Track both indicators and use the over-9.0% one for the star projection."
+    windows:
+      - {evidence_type: hba1c, from: "2026-01-01", to: "2026-12-31", relative: "MY, after the last known event"}
+      - {evidence_type: gmi, from: "2026-01-01", to: "2026-12-31", relative: "MY, after the last known event, dated by the last day of the CGM date range"}
+      - {evidence_type: hospice, from: "2026-01-01", to: "2026-12-31", relative: "MY"}
+      - {evidence_type: palliative_care, from: "2026-01-01", to: "2026-12-31", relative: "MY"}
+    most_recent_counts: true
+    thresholds: {hba1c_lt: 8.0, poor_control_gt: 9.0}
+    allowed_evidence_types:
+      numerator:
+        - hba1c
+        - gmi
+      exclusion:
+        - hospice
+        - death
+        - palliative_care
+        - frailty_and_advanced_illness_age_66_plus
+        - institutional_snp_or_long_term_institution_age_66_plus
+        - no_diabetes_with_pcos_gestational_or_steroid_induced_diabetes
+    ai_role: "Find the latest dated HbA1c or GMI value in 2026, and exclusions that remove the member."
+    rule_text:
+      counts:
+        - "Use the most recent HbA1c or GMI dated in 2026. If several are on the same date, use the lowest."
+        - "Indicator under 8.0% (higher rate is better): that latest result is below 8.0%."
+        - "Indicator over 9.0% (poor control, lower rate is better): the latest result is above 9.0%, or there is no result, or the result has no value."
+        - "A GMI must state the CGM date range it covers. The last day of that range is the test date. A patient-collected GMI in the record is acceptable."
+      does_not_count:
+        - "Ordered, due or pending tests."
+        - "Undated results, or results outside 2026."
+        - "Ranges or thresholds without a number, such as A1c under 7 or around 7."
+        - "A GMI without its CGM date range."
+        - "An earlier 2026 result when a later 2026 result exists. Only the latest counts."
+      exclusions:
+        - "Hospice, death or palliative care in 2026."
+        - "Age 66 or older with frailty and advanced illness. There is no age 81 and older frailty-only rule."
+        - "Age 66 or older in an institutional special needs plan (I-SNP) or living long term in an institution."
+        - "No diabetes diagnosis, but polycystic ovary syndrome, gestational or steroid-induced diabetes."
+        - "There is no kidney failure or dialysis exclusion."
+    prompt_template: |
+      Counts: an HbA1c or GMI result dated after {last_event_date} and on or before {window_end} that is under {hba1c_lt}%. It must have a numeric value and a date. Only the most recent result in {measurement_year} counts; if several results share a date, the lowest is used. A GMI must state the CGM date range it covers, and the last day of that range is its date. Ordered, due or pending tests, approximate values (such as 'around 7' or 'under 7') and results without a date do not count.
+      Exclusions (member is 66 or older): frailty AND advanced illness such as dementia; hospice or palliative care. Also exclude a member with no diabetes diagnosis who has polycystic ovary syndrome, gestational diabetes or steroid-induced diabetes.
+    prompt_placeholders:
+      - measurement_year
+      - last_event_date
+      - window_end
+      - hba1c_lt
+    verify_before_use:
+      - "CPT II codes for the result bands (3044F, 3051F, 3052F, 3046F); only 3046F is named in the NCQA text."
+      - "Star treatment for the 2028 Stars (MY 2026 data)."
+
+  # ------------------------------------------------------------------ BPD
+  - code: BPD
+    name: Blood Pressure Control for Patients With Diabetes
+    kind: member_numerator
+    population:
+      age_min: 18
+      age_max: 75
+      age_basis: "age on 2026-12-31"
+      age_min_months: null
+      sex: any
+      condition: "diabetes type 1 or 2"
+    stars:
+      in_star_ratings: false
+      star_measure_id: null
+      weight: null
+      scoring_note: "Health Plan Ratings only. Not a Star Ratings measure, rate only."
+    windows:
+      - {evidence_type: blood_pressure_reading, from: "2026-01-01", to: "2026-12-31", relative: "MY, after the last known event, most recent reading"}
+      - {evidence_type: hospice, from: "2026-01-01", to: "2026-12-31", relative: "MY"}
+      - {evidence_type: palliative_care, from: "2026-01-01", to: "2026-12-31", relative: "MY"}
+    most_recent_counts: true
+    thresholds: {systolic_lt: 140, diastolic_lt: 90}
+    allowed_evidence_types:
+      numerator:
+        - blood_pressure_reading
+      exclusion:
+        - hospice
+        - death
+        - palliative_care
+        - frailty_and_advanced_illness_age_66_plus
+        - institutional_snp_or_long_term_institution_age_66_plus
+        - no_diabetes_with_pcos_gestational_or_steroid_induced_diabetes
+    ai_role: "Find the latest dated blood pressure reading in 2026, and exclusions that remove the member."
+    rule_text:
+      counts:
+        - "The most recent blood pressure reading in 2026 under 140/90, using the same reading rules as CBP."
+        - "Several readings on one date: use the lowest systolic and the lowest diastolic, even from different readings."
+        - "No link to a diagnosis date, unlike CBP."
+        - "Member-reported readings count when the values and date are recorded."
+      does_not_count:
+        - "Everything listed for CBP: undated readings, readings with only one value, and readings without numbers such as BP stable."
+        - "Readings taken in the ER or during a hospital stay."
+        - "Diabetes flowsheets without dates or values."
+      exclusions:
+        - "Hospice, death or palliative care in 2026."
+        - "Age 66 or older with frailty and advanced illness."
+        - "Age 66 or older in an institutional special needs plan (I-SNP) or living long term in an institution."
+        - "No kidney failure or pregnancy exclusion was found, unlike CBP."
+    prompt_template: |
+      Counts: a blood pressure reading dated after {last_event_date} and on or before {window_end} with systolic under {systolic_lt} AND diastolic under {diastolic_lt}. Only the most recent reading in {measurement_year} counts. Readings in the emergency department or during a hospital stay do not count. Undated readings and readings without both numbers do not count. A member-reported reading counts only when it has its own exact numbers and its own date; a summary such as 'readings around 125/80' or a diabetes flowsheet without dates or values does not count.
+      Exclusions: hospice or palliative care in {measurement_year}; frailty AND advanced illness if the member is 66 or older.
+    prompt_placeholders:
+      - measurement_year
+      - last_event_date
+      - window_end
+      - systolic_lt
+      - diastolic_lt
+    verify_before_use:
+      - "Whether BPD has kidney-related exclusions (the payer guide lists none)."
+      - "Exactly how diabetes is identified for BPD in MY 2026."
+
+  # ------------------------------------------------------------------ KED
+  - code: KED
+    name: Kidney Health Evaluation for Patients With Diabetes
+    kind: two_part
+    population:
+      age_min: 18
+      age_max: 85
+      age_basis: "age on 2026-12-31"
+      age_min_months: null
+      sex: any
+      condition: "diabetes type 1 or 2"
+    stars:
+      in_star_ratings: true
+      star_measure_id: C13
+      weight: 1
+      scoring_note: "Part C C13, added in the 2026 Stars. The member needs both parts (eGFR and uACR); one part alone shows as Partially evidenced."
+    windows:
+      - {evidence_type: egfr, from: "2026-01-01", to: "2026-12-31", relative: "MY"}
+      - {evidence_type: uacr_ratio, from: "2026-01-01", to: "2026-12-31", relative: "MY"}
+      - {evidence_type: urine_albumin_quantitative, from: "2026-01-01", to: "2026-12-31", relative: "MY, paired with urine creatinine within 4 days"}
+      - {evidence_type: urine_creatinine, from: "2026-01-01", to: "2026-12-31", relative: "MY, paired with urine albumin within 4 days"}
+      - {evidence_type: esrd_or_dialysis, from: null, to: "2026-12-31", relative: "any time up to end of MY"}
+      - {evidence_type: hospice, from: "2026-01-01", to: "2026-12-31", relative: "MY"}
+      - {evidence_type: palliative_care, from: "2026-01-01", to: "2026-12-31", relative: "MY"}
+    most_recent_counts: false
+    thresholds: {uacr_unit: "mg/g", albumin_creatinine_max_days_apart: 4}
+    allowed_evidence_types:
+      numerator:
+        - egfr
+        - uacr_ratio
+        - urine_albumin_quantitative
+        - urine_creatinine
+      exclusion:
+        - esrd_or_dialysis
+        - hospice
+        - death
+        - palliative_care
+        - frailty_age_66_80_with_advanced_illness_or_age_81_plus_frailty_alone
+        - institutional_snp_or_long_term_institution_age_66_plus
+        - no_diabetes_with_pcos_gestational_or_steroid_induced_diabetes
+    ai_role: "Find eGFR and uACR results in 2026 (each test as its own finding), and kidney failure or dialysis that removes the member."
+    rule_text:
+      counts:
+        - "Both tests in 2026, on the same or different dates."
+        - "1. An eGFR."
+        - "2. A uACR: either a reported quantitative albumin-to-creatinine ratio in mg/g, or a quantitative urine albumin and a urine creatinine taken no more than 4 days apart (May 10 and May 14 counts; May 10 and May 15 does not)."
+      does_not_count:
+        - "Only one of the two tests. The gap shows as Partially evidenced."
+        - "Urine albumin without urine creatinine, or the two more than 4 days apart."
+        - "Dipstick or semi-quantitative results, or UACR negative with no number."
+        - "Ordered or pending tests, or results outside 2026."
+        - "Serum creatinine alone, unless a calculated eGFR is reported."
+        - "Renal function normal with no values."
+      exclusions:
+        - "Kidney failure (ESRD) or dialysis, any time up to 2026-12-31."
+        - "Hospice, death or palliative care in 2026."
+        - "Age 66 to 80 with frailty and advanced illness, or age 81 and older with frailty alone."
+        - "Age 66 or older in an institutional special needs plan (I-SNP) or living long term in an institution."
+        - "No diabetes diagnosis, but polycystic ovary syndrome, gestational or steroid-induced diabetes."
+    prompt_template: |
+      Counts: BOTH an eGFR result in {measurement_year} AND a uACR in {measurement_year} (window {ked_from} to {window_end}). A uACR is a reported albumin-to-creatinine ratio in {uacr_unit}, or a quantitative urine albumin and a urine creatinine taken no more than {albumin_creatinine_max_days_apart} days apart. Report each test as its own finding with evidence_type 'egfr', 'uacr_ratio' (only for a ratio in {uacr_unit}), 'urine_albumin_quantitative' or 'urine_creatinine'. Dipstick or semi-quantitative results, serum creatinine alone, 'renal function normal' with no values, and ordered or pending tests do not count.
+      Exclusions: ESRD or dialysis at any time; hospice or palliative care in {measurement_year}; frailty AND advanced illness if the member is 66 to 80, or frailty alone if the member is 81 or older.
+    prompt_placeholders:
+      - measurement_year
+      - window_end
+      - ked_from
+      - uacr_unit
+      - albumin_creatinine_max_days_apart
+    verify_before_use:
+      - "Whether nephrectomy and kidney transplant are still exclusions (they were in the 2020 draft)."
+      - "How MY 2026 identifies diabetes for KED."
+      - "Exact eGFR LOINC codes."
+
+  # ------------------------------------------------------------------ CBP
+  - code: CBP
+    name: Controlling High Blood Pressure
+    kind: member_numerator
+    population:
+      age_min: 18
+      age_max: 85
+      age_basis: "age on 2026-12-31"
+      age_min_months: null
+      sex: any
+      condition: hypertension
+    stars:
+      in_star_ratings: true
+      star_measure_id: C14
+      weight: 3
+      scoring_note: "Part C C14."
+    windows:
+      - {evidence_type: blood_pressure_reading, from: "2026-01-01", to: "2026-12-31", relative: "MY, after the last known event, most recent reading"}
+      - {evidence_type: esrd_or_dialysis, from: null, to: "2026-12-31", relative: "any time up to end of MY"}
+      - {evidence_type: kidney_transplant, from: null, to: "2026-12-31", relative: "any time up to end of MY"}
+      - {evidence_type: nephrectomy, from: null, to: "2026-12-31", relative: "any time up to end of MY"}
+      - {evidence_type: pregnancy, from: "2026-01-01", to: "2026-12-31", relative: "MY"}
+      - {evidence_type: hospice, from: "2026-01-01", to: "2026-12-31", relative: "MY"}
+      - {evidence_type: palliative_care, from: "2026-01-01", to: "2026-12-31", relative: "MY"}
+    most_recent_counts: true
+    thresholds: {systolic_lt: 140, diastolic_lt: 90}
+    allowed_evidence_types:
+      numerator:
+        - blood_pressure_reading
+      exclusion:
+        - esrd_or_dialysis
+        - kidney_transplant
+        - nephrectomy
+        - pregnancy
+        - hospice
+        - death
+        - palliative_care
+        - frailty_age_66_80_with_advanced_illness_or_age_81_plus_frailty_alone
+        - institutional_snp_or_long_term_institution_age_66_plus
+    ai_role: "Find the latest dated blood pressure reading in 2026, and kidney failure, transplant, pregnancy or other exclusions that remove the member."
+    rule_text:
+      counts:
+        - "The most recent blood pressure reading in 2026, with systolic under 140 and diastolic under 90. 140/90, 139/90 and 140/89 all fail."
+        - "Several readings on one date: use the lowest systolic and the lowest diastolic, even from different readings (160/80 and 120/90 give 120/80)."
+        - "Readings from office, telehealth, e-visit or non-acute inpatient settings."
+        - "Readings the member took with a digital device, if both values and the date are recorded in the chart."
+        - "Readings taken the same day as a vaccine, injection, TB test or dilated eye exam."
+        - "No reading in 2026 means the measure is not met."
+      does_not_count:
+        - "Undated readings."
+        - "BP stable or well controlled with no numbers, or ranges such as 130s/80s."
+        - "A reading with only one value."
+        - "Home readings reported verbally without values and a date in the chart."
+        - "Readings taken in the ER or during a hospital stay."
+        - "Readings on the day of a test or procedure that needs a diet or medication change (colonoscopy, dialysis, infusion, chemotherapy, nebulizer). A fasting blood test is the exception."
+      exclusions:
+        - "Kidney failure (ESRD), dialysis, kidney transplant or nephrectomy, any time up to 2026-12-31."
+        - "Pregnancy in 2026."
+        - "Hospice, death or palliative care in 2026."
+        - "Age 66 to 80 with frailty and advanced illness, or age 81 and older with frailty alone."
+        - "Age 66 or older in an institutional special needs plan (I-SNP) or living long term in an institution."
+    prompt_template: |
+      Counts: a blood pressure reading dated after {last_event_date} and on or before {window_end} with systolic under {systolic_lt} AND diastolic under {diastolic_lt}. Only the most recent reading in {measurement_year} counts. Readings in the emergency department or during a hospital stay do not count. Undated readings and readings without both numbers do not count. A home reading counts only when it has its own exact numbers and its own date; a summary such as 'readings around 125/80' or 'BP stable' does not count. Readings taken on the day of a test or procedure that needs a diet or medication change (such as colonoscopy, dialysis or infusion) do not count.
+      Exclusions: ESRD, dialysis, kidney transplant or nephrectomy at any time; pregnancy in {measurement_year}; hospice or palliative care in {measurement_year}; frailty AND advanced illness if the member is 66 to 80, or frailty alone if the member is 81 or older.
+    prompt_placeholders:
+      - measurement_year
+      - last_event_date
+      - window_end
+      - systolic_lt
+      - diastolic_lt
+    verify_before_use:
+      - "How NCQA identifies hypertension (thought to be two visits with a hypertension diagnosis between 2025-01-01 and 2026-06-30). Researcher recall, not confirmed."
+      - "Whether the reading must be on or after the second hypertension diagnosis (payer guide only)."
+      - "The kidney-related exclusions and nephrectomy come from a payer guide. CMS165 does not list nephrectomy."
+
+  # ------------------------------------------------------------------ SPD
+  - code: SPD
+    name: Statin Therapy for Patients With Diabetes (SPD-E)
+    kind: exclusion_focused
+    population:
+      age_min: 40
+      age_max: 75
+      age_basis: "age on 2026-12-31"
+      age_min_months: null
+      sex: any
+      condition: "diabetes"
+    stars:
+      in_star_ratings: false
+      star_measure_id: null
+      weight: null
+      scoring_note: "Not a Star Ratings measure. Part D SUPD is a different measure. Rate only."
+    windows:
+      - {evidence_type: statin_muscle_symptoms, from: "2026-01-01", to: "2026-12-31", relative: "MY (myalgia, myositis, myopathy or rhabdomyolysis)"}
+      - {evidence_type: statin_caused_muscle_symptoms_any_time, from: null, to: "2026-12-31", relative: "any time up to end of MY"}
+      - {evidence_type: pregnancy_ivf_or_clomiphene, from: "2025-01-01", to: "2026-12-31", relative: "MY-1 to MY"}
+      - {evidence_type: esrd_or_dialysis, from: "2025-01-01", to: "2026-12-31", relative: "MY-1 to MY"}
+      - {evidence_type: cirrhosis, from: "2025-01-01", to: "2026-12-31", relative: "MY-1 to MY"}
+      - {evidence_type: ascvd_history, from: "2025-01-01", to: "2026-12-31", relative: "MY-1 to MY (heart attack, bypass or revascularization in MY-1, or two ASCVD diagnoses in MY-1 or MY)"}
+      - {evidence_type: hospice, from: "2026-01-01", to: "2026-12-31", relative: "MY"}
+      - {evidence_type: palliative_care, from: "2026-01-01", to: "2026-12-31", relative: "MY"}
+    most_recent_counts: false
+    thresholds: {statin_days_covered_pct_min: 80}
+    allowed_evidence_types:
+      numerator: []
+      exclusion:
+        - statin_muscle_symptoms
+        - statin_caused_muscle_symptoms_any_time
+        - pregnancy_ivf_or_clomiphene
+        - esrd_or_dialysis
+        - cirrhosis
+        - ascvd_history
+        - hospice
+        - death
+        - palliative_care
+        - frailty_and_advanced_illness_age_66_plus
+    ai_role: "Exclusions and heart disease (ASCVD) history only. The numerator comes from pharmacy fills, so the AI does not close SPD gaps."
+    rule_text:
+      counts:
+        - "Rate 1: at least one statin dispensed by a pharmacy in 2026, any strength."
+        - "Rate 2: of those, statin supply covers at least 80% of the days from the first 2026 fill to 2026-12-31."
+        - "Evidence is a pharmacy fill. The AI does not return numerator evidence."
+      does_not_count:
+        - "On atorvastatin in a medication list without a pharmacy fill."
+        - "Statin prescribed, ordered or recommended."
+        - "Patient declined a statin. This is not an exclusion either."
+        - "Ezetimibe or fibrates on their own."
+      exclusions:
+        - "Heart or vascular disease (ASCVD): heart attack or bypass, stent or other revascularization in 2025, or two ASCVD diagnoses in 2025 or 2026. This removes the member."
+        - "Myalgia, myositis, myopathy or rhabdomyolysis in 2026."
+        - "Muscle pain or rhabdomyolysis caused by a statin, any time."
+        - "Pregnancy, IVF, clomiphene, kidney failure (ESRD), dialysis or cirrhosis in 2025 or 2026."
+        - "Hospice, death or palliative care in 2026."
+        - "Age 66 or older with frailty and advanced illness. No institutional special needs plan or long-term institution rule for MY 2026."
+    prompt_template: |
+      Numerator comes from pharmacy fills, not notes. Do not return numerator evidence. A statin in a medication list, a statin prescribed or recommended, ezetimibe and fibrates do not count.
+      Exclusions: muscle pain, myopathy or rhabdomyolysis caused by a statin at any time; myalgia, myositis, myopathy or rhabdomyolysis in {measurement_year}; pregnancy, IVF, clomiphene, ESRD, dialysis or cirrhosis from {condition_from} to {window_end}; heart or vascular disease (ASCVD), meaning a heart attack, bypass, stent or other revascularization in {prior_year}, or two ASCVD diagnoses from {condition_from} to {window_end}; hospice or palliative care in {measurement_year}; frailty AND advanced illness if the member is 66 or older. Declining a statin is NOT an exclusion.
+    prompt_placeholders:
+      - measurement_year
+      - prior_year
+      - window_end
+      - condition_from
+    verify_before_use:
+      - "Final MY 2026 text (based on the public-comment draft; NCQA's blog confirms the main changes)."
+      - "Whether a clinical record without a pharmacy fill can count (assumed not)."
+      - "Whether the polycystic ovary and prediabetes rules still apply."
+
+  # ------------------------------------------------------------------ AAB
+  - code: AAB
+    name: Avoidance of Antibiotic Treatment for Acute Bronchitis/Bronchiolitis
+    kind: episode_inverse
+    population:
+      age_min: null
+      age_max: null
+      age_basis: "age on episode date"
+      age_min_months: 3
+      sex: any
+      condition: "acute bronchitis or bronchiolitis visit"
+    stars:
+      in_star_ratings: false
+      star_measure_id: null
+      weight: null
+      scoring_note: "Health Plan Ratings and QRS only. Not a Star Ratings measure. Counted per bronchitis visit, not per member. Higher rate is better: the rate is the share of visits with no antibiotic dispensed."
+    windows:
+      - {evidence_type: bronchitis_visit_intake_period, from: "2025-07-01", to: "2026-06-30", relative: "intake period, thought to be 7/1 of MY-1 to 6/30 of MY (unconfirmed)"}
+      - {evidence_type: hospice, from: "2026-01-01", to: "2026-12-31", relative: "MY"}
+      - {evidence_type: death, from: "2026-01-01", to: "2026-12-31", relative: "MY"}
+    most_recent_counts: false
+    thresholds: {antibiotic_days_after_visit: 3, prior_antibiotic_lookback_days: 30, comorbid_lookback_months: 12, competing_diagnosis_days_after_visit: 3}
+    allowed_evidence_types:
+      numerator: []
+      exclusion:
+        - hospice
+        - death
+    ai_role: "Required exclusions only: hospice or death. Competing diagnoses and comorbid conditions come from claims; anything the AI sees about them is information only, not supplemental data."
+    rule_text:
+      counts:
+        - "The bad outcome: an antibiotic dispensed from the visit date to 3 days after."
+        - "The reported rate is the share of visits with no antibiotic dispensed (higher is better)."
+        - "A prescription written but never filled does not count against the plan."
+      does_not_count:
+        - "Patient requested antibiotics, without a fill."
+        - "Cough medicines or other non-antibiotics."
+      exclusions:
+        - "Required: hospice and death. Palliative care and frailty are unconfirmed."
+        - "Per visit, from claims: comorbid conditions in the prior 12 months (such as HIV, cancer, COPD, emphysema, cystic fibrosis or immune disorders), and competing diagnoses from the visit date to 3 days after (such as pharyngitis and other infections)."
+        - "Supplemental data, which includes approved AI evidence, is accepted only for the required exclusions."
+    prompt_template: |
+      Numerator comes from pharmacy claims, not notes. Do not return numerator evidence. Antibiotic requests without a fill and cough medicines do not count.
+      Exclusions: look ONLY for hospice enrollment or death of the member in {measurement_year} (window {window_start} to {window_end}). Return nothing else. Competing diagnoses such as acute sinusitis and comorbid conditions such as COPD are NOT exclusions you may return; they come from claims.
+    prompt_placeholders:
+      - measurement_year
+      - window_start
+      - window_end
+    verify_before_use:
+      - "The intake period, age bands and the one-visit-per-31-days rule for MY 2026."
+      - "The contents of the competing diagnosis and comorbid condition lists (not public)."
+      - "Whether palliative care or frailty exclusions apply."
+      - "The supplemental-data limit comes from a payer guide. Confirm before deciding AAB's AI role."

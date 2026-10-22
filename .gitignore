@@ -1,3 +1,9 @@
+# Local secrets and environment
+.env
+.env.local
+.env.*.local
+!.env.example
+
 # Python
 __pycache__/
 *.py[cod]
@@ -32,16 +38,18 @@ env/
 *.swo
 *~
 
-# Environment variables
-.env
-.env.local
-.env.*.local
+# IDE workspace settings (can contain secrets/local paths)
+.vscode/settings.json
+.vscode/launch.json
 
 # Database
 *.db
 *.sqlite
 *.sqlite3
 hedis_poc.db
+
+# Uploaded originals and page images (contain patient data)
+data/intake_store/
 
 # Uploaded datasets (temporary runtime artifacts)
 .uploaded_datasets/
@@ -66,6 +74,10 @@ connection_*.log
 # OS files
 Thumbs.db
 .DS_Store
+
+# MacOS specifics
+.AppleDouble
+.LSOverride
 
 # Node (UI)
 ui/node_modules/
@@ -97,16 +109,7 @@ logs/
 package-lock.json
 npm-debug.log
 
-# IDE workspace settings (can contain secrets/local paths)
-.vscode/settings.json
-.vscode/launch.json
-
-# MacOS specifics
-.AppleDouble
-.LSOverride
-
 # Temporary directories
 tmp/
 temp/
 cache/
-
