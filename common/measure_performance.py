@@ -1,280 +1,217 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any
 
-from common.star_rating import (
+from sqlalchemy import text
+from sqlalchemy.orm import Session
+
+from services.star_modeler.main import (
     CMS_MEASURE_SET_URL,
     CMS_RATING_YEAR,
     CMS_TECHNICAL_NOTES_URL,
-    FinalizedMeasureResult,
-    assign_star_rating,
-    get_star_config,
+    assign_star_from_sqlalchemy,
+    has_cutpoints_sqlalchemy,
 )
 
-MOCK_DATA_DISCLAIMER = (
-    "Performance inputs are mock POC data. Star assignments use the official CMS "
-    "2027 measure-level cut points and are not official plan results."
+LIVE_DATA_DISCLAIMER = (
+    "Performance inputs are derived from the database state. "
+    "Star assignments use thresholds in star_cutpoint."
 )
-@dataclass(frozen=True)
-class MockGap:
-    gap_id: str
-    description: str
-    evidence_status: str
-    in_measurement_period: bool = True
-    duplicate_of: str | None = None
-
-    @property
-    def eligible_for_closure(self) -> bool:
-        return (
-            self.evidence_status == "approved"
-            and self.in_measurement_period
-            and self.duplicate_of is None
-        )
-
-
-@dataclass(frozen=True)
-class MockMeasure:
-    code: str
-    name: str
-    denominator: int
-    numerator: int
-    measurement_year: int
-    gaps: tuple[MockGap, ...]
-
-
-def _approved_gaps(code: str, count: int) -> tuple[MockGap, ...]:
-    return tuple(
-        MockGap(
-            gap_id=f"{code}-GAP-{index:02d}",
-            description=f"Eligible mock care gap {index}",
-            evidence_status="approved",
-        )
-        for index in range(1, count + 1)
-    )
-
-
-MOCK_MEASURES: tuple[MockMeasure, ...] = (
-    MockMeasure(
-        "GSD",
-        "Glycemic Status Assessment for Patients With Diabetes",
-        100,
-        65,
-        2026,
-        _approved_gaps("GSD", 5)
-        + (
-            MockGap("GSD-GAP-06", "Awaiting human evidence review", "pending"),
-            MockGap("GSD-GAP-07", "Evidence was rejected", "rejected"),
-        ),
-    ),
-    MockMeasure(
-        "EED",
-        "Eye Exam for Patients With Diabetes",
-        100,
-        58,
-        2026,
-        _approved_gaps("EED", 4)
-        + (MockGap("EED-GAP-05", "Evidence is outside the measurement period", "approved", False),),
-    ),
-    MockMeasure(
-        "BPD",
-        "Blood Pressure Control for Patients With Diabetes",
-        100,
-        62,
-        2026,
-        _approved_gaps("BPD", 3),
-    ),
-    MockMeasure(
-        "KED",
-        "Kidney Health Evaluation for Patients With Diabetes",
-        0,
-        0,
-        2026,
-        (),
-    ),
-    MockMeasure(
-        "CBP",
-        "Controlling High Blood Pressure",
-        100,
-        72,
-        2026,
-        _approved_gaps("CBP", 8)
-        + (MockGap("CBP-GAP-09", "Duplicate of CBP-GAP-01", "approved", duplicate_of="CBP-GAP-01"),),
-    ),
-    MockMeasure(
-        "BCS-E",
-        "Breast Cancer Screening",
-        100,
-        68,
-        2026,
-        _approved_gaps("BCS-E", 6),
-    ),
-    MockMeasure(
-        "COL-E",
-        "Colorectal Cancer Screening",
-        100,
-        65,
-        2026,
-        _approved_gaps("COL-E", 5),
-    ),
-    MockMeasure("CCS-E", "Cervical Cancer Screening", 100, 61, 2026, _approved_gaps("CCS-E", 4)),
-    MockMeasure("SPD", "Statin Therapy for Patients With Diabetes", 100, 55, 2026, _approved_gaps("SPD", 3)),
-    MockMeasure(
-        "AAB",
-        "Avoidance of Antibiotic Treatment for Acute Bronchitis/Bronchiolitis",
-        100,
-        80,
-        2026,
-        _approved_gaps("AAB", 2),
-    ),
-)
-
-_MEASURES_BY_CODE = {measure.code: measure for measure in MOCK_MEASURES}
 
 
 def calculate_rate(numerator: int, denominator: int) -> float | None:
-    """Return a percentage, or None when there is no eligible denominator."""
-    if denominator == 0:
+    """Return a percentage, or None when denominator is not positive."""
+    if denominator <= 0:
         return None
-    return numerator / denominator * 100
+    return round((numerator / denominator) * 100, 2)
 
 
-def _star_rating(measure: MockMeasure, rate: float | None) -> int | None:
-    if rate is None:
-        return None
-    result = assign_star_rating(
-        FinalizedMeasureResult(
-            measure_code=measure.code,
-            measurement_year=measure.measurement_year,
-            scoring_value=rate,
-            denominator=measure.denominator,
-        ),
-        CMS_RATING_YEAR,
-    )
-    return result.assigned_star_rating
-
-
-def _metric_payload(numerator: int, denominator: int, open_gaps: int, measure: MockMeasure) -> dict[str, Any]:
+def _metric_payload(
+    session: Session,
+    *,
+    measure_code: str,
+    measurement_year: int,
+    numerator: int,
+    denominator: int,
+    open_gaps: int,
+) -> dict[str, Any]:
     rate = calculate_rate(numerator, denominator)
+    star = assign_star_from_sqlalchemy(
+        session,
+        measure_code=measure_code,
+        measurement_year=measurement_year,
+        scoring_value=rate,
+        denominator=denominator,
+    )
     return {
         "numerator": numerator,
         "denominator": denominator,
         "performance_rate": rate,
         "open_care_gaps": open_gaps,
-        "sample_star_rating": _star_rating(measure, rate),
+        "sample_star_rating": star.assigned_star_rating,
+        "star_rating_status": star.rating_status,
     }
 
 
-def get_measure_catalog() -> list[dict[str, Any]]:
-    return [
-        {
-            "code": measure.code,
-            "name": measure.name,
-            "measurement_year": measure.measurement_year,
-            "star_eligible": get_star_config(measure.code, CMS_RATING_YEAR) is not None,
-        }
-        for measure in MOCK_MEASURES
-    ]
+def get_measure_catalog(session: Session) -> list[dict[str, Any]]:
+    """List measures from the database with star-cutpoint availability."""
+    rows = session.execute(
+        text(
+            """SELECT measure_id, name, measurement_year
+                 FROM measures
+                ORDER BY measure_id"""
+        )
+    ).all()
+
+    out: list[dict[str, Any]] = []
+    for row in rows:
+        measure_code = str(row[0])
+        measurement_year = int(row[2])
+        out.append(
+            {
+                "code": measure_code,
+                "name": str(row[1]),
+                "measurement_year": measurement_year,
+                "star_eligible": has_cutpoints_sqlalchemy(
+                    session,
+                    measure_code=measure_code,
+                    measurement_year=measurement_year,
+                ),
+            }
+        )
+    return out
 
 
-def compare_measure(measure_code: str, selected_gap_ids: list[str]) -> dict[str, Any]:
-    measure = _MEASURES_BY_CODE.get(measure_code.upper())
-    if measure is None:
-        raise KeyError(f"Unknown mock measure code: {measure_code}")
+def compare_measure(
+    session: Session,
+    measure_code: str,
+    selected_gap_ids: list[str],
+) -> dict[str, Any]:
+    """Compare baseline and projected performance for one measure from live DB rows."""
+    code = measure_code.upper().strip()
+    measure_row = session.execute(
+        text(
+            """SELECT measure_id, name, measurement_year
+                 FROM measures
+                WHERE upper(measure_id) = :code"""
+        ),
+        {"code": code},
+    ).first()
+    if measure_row is None:
+        raise KeyError(f"Unknown measure code: {measure_code}")
 
-    gaps_by_id = {gap.gap_id: gap for gap in measure.gaps}
+    actual_code = str(measure_row[0])
+    measurement_year = int(measure_row[2])
+
+    gap_rows = session.execute(
+        text(
+            """SELECT care_gap_id, description, status
+                 FROM care_gaps
+                WHERE upper(measure_id) = :code
+                ORDER BY care_gap_id"""
+        ),
+        {"code": code},
+    ).all()
+
+    gaps_by_id = {str(row[0]): row for row in gap_rows}
     unique_selected_ids = list(dict.fromkeys(selected_gap_ids))
     unknown_gap_ids = [gap_id for gap_id in unique_selected_ids if gap_id not in gaps_by_id]
     if unknown_gap_ids:
         raise ValueError(
-            f"Selected care gap(s) do not belong to measure {measure.code}: "
+            f"Selected care gap(s) do not belong to measure {actual_code}: "
             + ", ".join(unknown_gap_ids)
         )
 
-    selected_gaps = [gaps_by_id[gap_id] for gap_id in unique_selected_ids]
-    eligible_gaps = [gap for gap in selected_gaps if gap.eligible_for_closure]
-    warnings = [
-        f"{gap.gap_id} was not counted because evidence status is {gap.evidence_status}."
-        for gap in selected_gaps
-        if gap.evidence_status != "approved"
-    ]
-    warnings.extend(
-        f"{gap.gap_id} was not counted because evidence is outside the measurement period."
-        for gap in selected_gaps
-        if gap.evidence_status == "approved" and not gap.in_measurement_period
-    )
-    warnings.extend(
-        f"{gap.gap_id} was not counted because it duplicates {gap.duplicate_of}."
-        for gap in selected_gaps
-        if gap.duplicate_of is not None
-    )
+    total_gaps = len(gap_rows)
+    closed_statuses = {"closed", "complete", "completed", "resolved"}
+    baseline_closed = sum(1 for row in gap_rows if str(row[2] or "").strip().lower() in closed_statuses)
+
+    warnings: list[str] = []
+    eligible_selected: list[str] = []
+    for gap_id in unique_selected_ids:
+        status = str(gaps_by_id[gap_id][2] or "").strip().lower()
+        if status in closed_statuses:
+            warnings.append(f"{gap_id} was not counted because it is already closed.")
+            continue
+        eligible_selected.append(gap_id)
 
     baseline = _metric_payload(
-        measure.numerator, measure.denominator, len(measure.gaps), measure
+        session,
+        measure_code=actual_code,
+        measurement_year=measurement_year,
+        numerator=baseline_closed,
+        denominator=total_gaps,
+        open_gaps=total_gaps - baseline_closed,
     )
-    recalculated_numerator = measure.numerator + len(eligible_gaps)
+    recalculated_closed = baseline_closed + len(eligible_selected)
     recalculated = _metric_payload(
-        recalculated_numerator,
-        measure.denominator,
-        len(measure.gaps) - len(eligible_gaps),
-        measure,
+        session,
+        measure_code=actual_code,
+        measurement_year=measurement_year,
+        numerator=recalculated_closed,
+        denominator=total_gaps,
+        open_gaps=max(total_gaps - recalculated_closed, 0),
     )
+
     baseline_rate = baseline["performance_rate"]
     recalculated_rate = recalculated["performance_rate"]
     absolute_change = (
         None
         if baseline_rate is None or recalculated_rate is None
-        else recalculated_rate - baseline_rate
+        else round(recalculated_rate - baseline_rate, 2)
     )
     relative_improvement = (
         None
         if baseline_rate in (None, 0) or recalculated_rate is None
-        else (recalculated_rate - baseline_rate) / baseline_rate * 100
+        else round(((recalculated_rate - baseline_rate) / baseline_rate) * 100, 2)
     )
+
+    baseline_star = baseline["sample_star_rating"]
+    recalculated_star = recalculated["sample_star_rating"]
     star_changed = (
-        baseline["sample_star_rating"] is not None
-        and baseline["sample_star_rating"] != recalculated["sample_star_rating"]
+        baseline_star is not None
+        and recalculated_star is not None
+        and baseline_star != recalculated_star
     )
-    star_config = get_star_config(measure.code, CMS_RATING_YEAR)
 
     return {
-        "disclaimer": MOCK_DATA_DISCLAIMER,
+        "disclaimer": LIVE_DATA_DISCLAIMER,
         "calculation_status": "completed",
         "last_calculated_at": datetime.now(timezone.utc).isoformat(),
         "measure": {
-            "code": measure.code,
-            "name": measure.name,
-            "measurement_year": measure.measurement_year,
+            "code": actual_code,
+            "name": str(measure_row[1]),
+            "measurement_year": measurement_year,
             "cms_rating_year": CMS_RATING_YEAR,
             "cms_measure_set_url": CMS_MEASURE_SET_URL,
             "cms_technical_notes_url": CMS_TECHNICAL_NOTES_URL,
-            "rating_methodology": (
-                star_config.methodology
-                if star_config
-                else "No verified CMS Star mapping is configured for this measure and rating year."
+            "rating_methodology": "Database star_cutpoint thresholds",
+            "star_rating_verified": has_cutpoints_sqlalchemy(
+                session,
+                measure_code=actual_code,
+                measurement_year=measurement_year,
             ),
-            "star_rating_verified": star_config is not None,
         },
         "baseline": baseline,
         "recalculated": recalculated,
         "changes": {
             "performance_rate_change_percentage_points": absolute_change,
             "relative_improvement_percent": relative_improvement,
-            "gaps_closed": len(eligible_gaps),
+            "gaps_closed": len(eligible_selected),
             "star_rating_changed": star_changed,
         },
         "selected_gap_ids": unique_selected_ids,
-        "eligible_gap_ids": [gap.gap_id for gap in eligible_gaps],
+        "eligible_gap_ids": eligible_selected,
         "warnings": warnings,
         "care_gaps": [
             {
-                "gap_id": gap.gap_id,
-                "description": gap.description,
-                "evidence_status": gap.evidence_status,
-                "in_measurement_period": gap.in_measurement_period,
-                "eligible_for_closure": gap.eligible_for_closure,
+                "gap_id": str(row[0]),
+                "description": str(row[1]),
+                "evidence_status": str(row[2]),
+                "in_measurement_period": True,
+                "eligible_for_closure": str(row[2] or "").strip().lower() not in closed_statuses,
             }
-            for gap in measure.gaps
+            for row in gap_rows
         ],
     }

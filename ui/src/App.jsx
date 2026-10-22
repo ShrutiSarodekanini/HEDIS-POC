@@ -1,443 +1,432 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
+import HedisSidebarLayout from "./components/HedisSidebarLayout";
 
-async function fetchJson(url, options) {
-  const response = await fetch(url, options);
-  const data = await response.json();
-  if (!response.ok) {
-    throw new Error(data?.detail || "Request failed");
-  }
-  return data;
-}
-
-function fmtStar(value) {
-  if (value == null || Number.isNaN(Number(value))) return "N/A";
-  return Number(value).toFixed(2);
-}
-
-function fmtRate(value) {
-  if (value == null || Number.isNaN(Number(value))) return "N/A";
-  return `${Number(value).toFixed(2)}%`;
-}
-
-function fmtThreshold(value) {
-  if (value == null || Number.isNaN(Number(value))) return "N/A";
-  return `${Number(value).toFixed(2)}%`;
-}
-
-function deltaClass(delta) {
-  if (delta == null) return "neutral";
-  if (delta > 0) return "up";
-  if (delta < 0) return "down";
-  return "neutral";
-}
-
-function deltaText(delta) {
-  if (delta == null || Number.isNaN(Number(delta))) return "N/A";
-  const num = Number(delta);
-  return `${num >= 0 ? "+" : ""}${num.toFixed(2)}`;
-}
-
-function MetricCard({ title, baseline, projected, delta }) {
+function StarResult({ title, result }) {
+  if (!result) return null;
   return (
-    <article className="metric-card">
-      <p>{title}</p>
-      <h3>
-        {fmtStar(baseline)}
-        <span className="arrow">&rarr;</span>
-        {fmtStar(projected)}
-      </h3>
-      <strong className={`delta ${deltaClass(delta)}`}>Delta {deltaText(delta)}</strong>
-    </article>
+    <div className="result-box">
+      <h3>{title}</h3>
+      <p><strong>Status:</strong> {result.rating_status}</p>
+      <p><strong>Measure:</strong> {result.measure_code}</p>
+      <p><strong>Measurement Year:</strong> {result.measurement_year}</p>
+      <p><strong>CMS Rating Year:</strong> {result.cms_rating_year}</p>
+      <p><strong>Input Score:</strong> {String(result.input_scoring_value ?? "N/A")}</p>
+      <p><strong>Applied Score:</strong> {String(result.applied_scoring_value ?? "N/A")}</p>
+      <p><strong>Assigned Star:</strong> {String(result.assigned_star_rating ?? "N/A")}</p>
+      <p><strong>Explanation:</strong> {result.explanation}</p>
+    </div>
   );
 }
 
+function formatRanges(cutPoints) {
+  const sorted = [...cutPoints].sort((a, b) => a.star - b.star);
+  const byStar = new Map(sorted.map((c) => [c.star, c.minimum_rate]));
+  const out = [];
+  for (let star = 1; star <= 5; star += 1) {
+    const min = star === 1 ? 0.1 : byStar.get(star);
+    if (min == null) {
+      out.push({ star, label: "N/A" });
+      continue;
+    }
+    const nextMin = byStar.get(star + 1);
+    const max = nextMin == null ? 100 : Math.max(min, Number((nextMin - 0.1).toFixed(1)));
+    out.push({ star, label: `${min}% to ${max}%` });
+  }
+  return out;
+}
+
 export default function App() {
-  const bootstrapped = useRef(false);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+  const [activePage, setActivePage] = useState("star-calculation");
+
+  const [catalogLoading, setCatalogLoading] = useState(true);
+  const [catalogError, setCatalogError] = useState("");
+  const [catalog, setCatalog] = useState({ cms_rating_year: 2027, measures: [] });
+
+  const [dashboardLoading, setDashboardLoading] = useState(true);
+  const [dashboardError, setDashboardError] = useState("");
   const [dashboard, setDashboard] = useState(null);
-  const [selectedMeasureId, setSelectedMeasureId] = useState("");
+
+  const [selectedMeasureCode, setSelectedMeasureCode] = useState("");
   const [selectedGapIds, setSelectedGapIds] = useState([]);
-  const [simulateLoading, setSimulateLoading] = useState(false);
-  const [seedSummary, setSeedSummary] = useState(null);
 
-  async function seedSampleData() {
-    const summary = await fetchJson("/api/star-dashboard/seed-sample-data", {
-      method: "POST",
-    });
-    setSeedSummary(summary);
-  }
+  const [calcLoading, setCalcLoading] = useState(false);
+  const [calcError, setCalcError] = useState("");
+  const [calcResult, setCalcResult] = useState(null);
 
-  async function loadDashboard(measureId, gapIds) {
-    const payload = {
-      measure_id: measureId || null,
-      selected_gap_ids: gapIds || [],
-    };
-    return fetchJson("/api/star-dashboard/calculate", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
-  }
+  const [compareLoading, setCompareLoading] = useState(false);
+  const [compareError, setCompareError] = useState("");
+  const [compareResult, setCompareResult] = useState(null);
+
+  const selectedMeasureCard = useMemo(() => {
+    if (!dashboard || !selectedMeasureCode) return null;
+    return dashboard.measure_cards.find((m) => m.measure_id === selectedMeasureCode) || null;
+  }, [dashboard, selectedMeasureCode]);
+
+  const selectedMeasureDetail = useMemo(
+    () => catalog.measures.find((m) => m.measure_code === selectedMeasureCode) || null,
+    [catalog.measures, selectedMeasureCode]
+  );
+
+  const navItems = useMemo(
+    () => [
+      {
+        key: "star-calculation",
+        label: "Star Calculation",
+      },
+    ],
+    []
+  );
 
   useEffect(() => {
-    async function bootstrap() {
-      if (bootstrapped.current) return;
-      bootstrapped.current = true;
-      setLoading(true);
-      setError("");
+    async function loadInitial() {
+      setCatalogLoading(true);
+      setDashboardLoading(true);
       try {
-        await seedSampleData();
-        const data = await loadDashboard(null, []);
-        setDashboard(data);
-        if (data.measure_cards?.length) {
-          const first = data.measure_cards[0].measure_id;
-          setSelectedMeasureId(first);
-          const focused = await loadDashboard(first, []);
-          setDashboard(focused);
+        const [catalogRes, dashRes] = await Promise.all([
+          fetch("/api/star-rating/catalog"),
+          fetch("/api/star-dashboard/calculate", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({}),
+          }),
+        ]);
+
+        const catalogPayload = await catalogRes.json();
+        if (!catalogRes.ok) {
+          setCatalogError(catalogPayload.detail || "Failed to load measure catalog.");
+        } else {
+          setCatalog(catalogPayload);
         }
-      } catch (err) {
-        setError(err.message);
+
+        const dashPayload = await dashRes.json();
+        if (!dashRes.ok) {
+          setDashboardError(dashPayload.detail || "Failed to load live measure values.");
+        } else {
+          setDashboard(dashPayload);
+          const firstMeasure = dashPayload.measure_cards?.[0]?.measure_id;
+          if (firstMeasure) {
+            setSelectedMeasureCode(firstMeasure);
+          }
+        }
+      } catch (error) {
+        setCatalogError(String(error));
+        setDashboardError(String(error));
       } finally {
-        setLoading(false);
+        setCatalogLoading(false);
+        setDashboardLoading(false);
       }
     }
-    bootstrap();
+    loadInitial();
   }, []);
 
-  const selectedMeasure = useMemo(() => {
-    if (!dashboard || !selectedMeasureId) return null;
-    return dashboard.measure_cards.find((m) => m.measure_id === selectedMeasureId) || null;
-  }, [dashboard, selectedMeasureId]);
+  async function refreshDashboard(measureCode, gapIds) {
+    setDashboardLoading(true);
+    setDashboardError("");
+    try {
+      const response = await fetch("/api/star-dashboard/calculate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ measure_id: measureCode || null, selected_gap_ids: gapIds || [] }),
+      });
+      const payload = await response.json();
+      if (!response.ok) {
+        setDashboardError(payload.detail || "Failed to refresh dashboard values.");
+        return;
+      }
+      setDashboard(payload);
+    } catch (error) {
+      setDashboardError(String(error));
+    } finally {
+      setDashboardLoading(false);
+    }
+  }
 
-  const selectedMeasureGaps = useMemo(() => {
-    if (!dashboard?.selected_measure_gaps) return [];
-    const sorted = [...dashboard.selected_measure_gaps].sort((a, b) => {
-      if (a.is_closed !== b.is_closed) return a.is_closed ? 1 : -1;
-      return String(a.care_gap_id).localeCompare(String(b.care_gap_id));
+  async function changeMeasure(nextMeasureCode) {
+    setSelectedMeasureCode(nextMeasureCode);
+    setSelectedGapIds([]);
+    await refreshDashboard(nextMeasureCode, []);
+    setCalcResult(null);
+    setCompareResult(null);
+    setCalcError("");
+    setCompareError("");
+  }
+
+  function toggleGap(gapId, checked) {
+    setSelectedGapIds((current) => {
+      if (checked) {
+        return [...current, gapId];
+      }
+      return current.filter((id) => id !== gapId);
     });
-    return sorted.slice(0, 160);
-  }, [dashboard]);
+  }
 
-  const patientRows = useMemo(() => dashboard?.patient_rows || [], [dashboard]);
+  async function applySelectedGaps() {
+    await refreshDashboard(selectedMeasureCode, selectedGapIds);
+    setCompareResult(null);
+    setCompareError("");
+  }
 
-  async function selectMeasure(measureId) {
-    setSelectedMeasureId(measureId);
-    setSelectedGapIds([]);
-    setSimulateLoading(true);
-    setError("");
+  async function runDirectCalculation() {
+    if (!selectedMeasureCard) {
+      setCalcError("Select a measure first.");
+      return;
+    }
+    setCalcLoading(true);
+    setCalcError("");
+    setCalcResult(null);
     try {
-      const data = await loadDashboard(measureId, []);
-      setDashboard(data);
-    } catch (err) {
-      setError(err.message);
+      const response = await fetch("/api/star-rating/calculate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          cms_rating_year: catalog.cms_rating_year,
+          result: {
+            measure_code: selectedMeasureCard.measure_id,
+            measurement_year: selectedMeasureCard.measurement_year,
+            scoring_value: selectedMeasureCard.baseline_rate,
+            denominator: selectedMeasureCard.total_gaps,
+            result_status: "completed",
+            scoring_value_kind: "cms_scoring_value",
+          },
+        }),
+      });
+      const payload = await response.json();
+      if (!response.ok) {
+        setCalcError(payload.detail || "Star calculation failed.");
+        return;
+      }
+      setCalcResult(payload);
+    } catch (error) {
+      setCalcError(String(error));
     } finally {
-      setSimulateLoading(false);
+      setCalcLoading(false);
     }
   }
 
-  function toggleGap(gapId) {
-    setSelectedGapIds((current) =>
-      current.includes(gapId)
-        ? current.filter((id) => id !== gapId)
-        : [...current, gapId]
-    );
-  }
-
-  async function runProjection() {
-    if (!selectedMeasureId) return;
-    setSimulateLoading(true);
-    setError("");
-    try {
-      const data = await loadDashboard(selectedMeasureId, selectedGapIds);
-      setDashboard(data);
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setSimulateLoading(false);
+  async function runComparison() {
+    if (!selectedMeasureCard) {
+      setCompareError("Select a measure first.");
+      return;
     }
-  }
-
-  async function resetProjection() {
-    if (!selectedMeasureId) return;
-    setSelectedGapIds([]);
-    setSimulateLoading(true);
-    setError("");
+    setCompareLoading(true);
+    setCompareError("");
+    setCompareResult(null);
     try {
-      const data = await loadDashboard(selectedMeasureId, []);
-      setDashboard(data);
-    } catch (err) {
-      setError(err.message);
+      const response = await fetch("/api/star-rating/compare", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          cms_rating_year: catalog.cms_rating_year,
+          before: {
+            measure_code: selectedMeasureCard.measure_id,
+            measurement_year: selectedMeasureCard.measurement_year,
+            scoring_value: selectedMeasureCard.baseline_rate,
+            denominator: selectedMeasureCard.total_gaps,
+            result_status: "completed",
+            scoring_value_kind: "cms_scoring_value",
+          },
+          after: {
+            measure_code: selectedMeasureCard.measure_id,
+            measurement_year: selectedMeasureCard.measurement_year,
+            scoring_value: selectedMeasureCard.projected_rate,
+            denominator: selectedMeasureCard.total_gaps,
+            result_status: "completed",
+            scoring_value_kind: "cms_scoring_value",
+          },
+        }),
+      });
+      const payload = await response.json();
+      if (!response.ok) {
+        setCompareError(payload.detail || "Comparison failed.");
+        return;
+      }
+      setCompareResult(payload);
+    } catch (error) {
+      setCompareError(String(error));
     } finally {
-      setSimulateLoading(false);
+      setCompareLoading(false);
     }
-  }
-
-  if (loading) {
-    return (
-      <div className="app-shell">
-        <div className="loading-screen">Preparing realistic dashboard data...</div>
-      </div>
-    );
   }
 
   return (
-    <div className="app-shell">
+    <HedisSidebarLayout
+      title="Star Calculation Dashboard"
+      items={navItems}
+      activeKey={activePage}
+      onSelect={setActivePage}
+    >
+      <main className="star-app">
       <header className="hero">
-        <div>
-          <h1>Population Star Analytics</h1>
-          <p>
-            Real-time simulation of star movement from care-gap closure using current patient data.
-          </p>
-        </div>
-        <div className="hero-chip">Database-driven projection</div>
+        <h1>Star Calculation Dashboard</h1>
+        <p>All values come from live measure data, star cut points, and weights from the backend.</p>
       </header>
 
-      {seedSummary && (
-        <div className="seed-banner">
-          Sample data ready: +{seedSummary.inserted_members} members, +{seedSummary.inserted_measures} measures,
-          +{seedSummary.inserted_care_gaps} care gaps.
-        </div>
-      )}
+      {dashboard ? (
+        <section className="panel summary-panel">
+          <div className="summary-grid">
+            <div className="summary-card">
+              <span>Rated Measures</span>
+              <strong>{dashboard.overall?.rated_measure_count ?? 0}</strong>
+            </div>
+            <div className="summary-card">
+              <span>Baseline Overall Star</span>
+              <strong>{dashboard.overall?.baseline_star ?? "N/A"}</strong>
+            </div>
+            <div className="summary-card">
+              <span>Projected Overall Star</span>
+              <strong>{dashboard.overall?.projected_star ?? "N/A"}</strong>
+            </div>
+            <div className="summary-card">
+              <span>Overall Delta</span>
+              <strong>{dashboard.overall?.star_delta ?? "N/A"}</strong>
+            </div>
+          </div>
+        </section>
+      ) : null}
 
-      {error && <p className="error-box">{error}</p>}
-
-      {dashboard && (
-        <>
-          <section className="overall-grid">
-            <MetricCard
-              title="Overall Star (Measure Average)"
-              baseline={dashboard.overall?.baseline_star}
-              projected={dashboard.overall?.projected_star}
-              delta={dashboard.overall?.star_delta}
-            />
-            <article className="metric-card small">
-              <p>Rated Measures</p>
-              <h3>{dashboard.overall?.rated_measure_count ?? 0}</h3>
-              <strong className="delta neutral">Based on available measure data</strong>
-            </article>
-            <article className="metric-card small">
-              <p>Selected Gaps for Projection</p>
-              <h3>{selectedGapIds.length}</h3>
-              <strong className="delta neutral">Applies to focused measure only</strong>
-            </article>
-          </section>
-
-          <section className="board">
-            <div className="panel measures">
-              <div className="panel-head">
-                <h2>Measure Performance and Star Shift</h2>
-                <button onClick={() => selectMeasure(selectedMeasureId)} disabled={simulateLoading}>
-                  Refresh
-                </button>
-              </div>
+      <div className="main-grid">
+        <section className="panel">
+          <h2>All Measures, Weights, and Star Ranges</h2>
+          {catalogLoading ? <p>Loading measure catalog...</p> : null}
+          {catalogError ? <p className="error">{catalogError}</p> : null}
+          {!catalogLoading && !catalogError ? (
+            <>
+              <p className="note">
+                CMS Year {catalog.cms_rating_year}. <a href={catalog.cms_technical_notes_url} target="_blank" rel="noreferrer">Technical Notes</a>
+                {" | "}
+                <a href={catalog.cms_measure_set_url} target="_blank" rel="noreferrer">Measure Set</a>
+              </p>
               <div className="table-wrap">
-                <table>
+                <table className="cutpoint-table">
                   <thead>
                     <tr>
                       <th>Measure</th>
-                      <th>Star Eligibility</th>
-                      <th>Gaps (Closed/Total)</th>
-                      <th>Rate</th>
-                      <th>Star</th>
-                      <th>Star Delta</th>
+                      <th>MY</th>
+                      <th>Weight</th>
+                      <th>1 Star</th>
+                      <th>2 Star</th>
+                      <th>3 Star</th>
+                      <th>4 Star</th>
+                      <th>5 Star</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {dashboard.measure_cards.map((row) => (
-                      <tr
-                        key={row.measure_id}
-                        className={row.measure_id === selectedMeasureId ? "active-row" : ""}
-                        onClick={() => selectMeasure(row.measure_id)}
-                      >
-                        <td>
-                          <strong>{row.measure_id}</strong>
-                          <small>{row.measure_name}</small>
-                        </td>
-                        <td>
-                          <strong>{row.star_eligible ? "Mapped" : "Not Mapped"}</strong>
-                          <small>{row.rating_note}</small>
-                        </td>
-                        <td>
-                          {row.baseline_closed}/{row.total_gaps}
-                          <span className="projected"> &rarr; {row.projected_closed}/{row.total_gaps}</span>
-                        </td>
-                        <td>
-                          {fmtRate(row.baseline_rate)}
-                          <span className="projected"> &rarr; {fmtRate(row.projected_rate)}</span>
-                        </td>
-                        <td>
-                          {fmtStar(row.baseline_star)}
-                          <span className="projected"> &rarr; {fmtStar(row.projected_star)}</span>
-                        </td>
-                        <td className={`delta ${deltaClass(row.star_delta)}`}>{deltaText(row.star_delta)}</td>
-                      </tr>
-                    ))}
+                    {catalog.measures.map((measure) => {
+                      const ranges = formatRanges(measure.cut_points || []);
+                      return (
+                        <tr key={`${measure.measure_code}-${measure.measurement_year}`}>
+                          <td>{measure.measure_code} ({measure.measure_name || measure.measure_code})</td>
+                          <td>{measure.measurement_year}</td>
+                          <td>{measure.weight ?? "N/A"}</td>
+                          <td>{ranges[0].label}</td>
+                          <td>{ranges[1].label}</td>
+                          <td>{ranges[2].label}</td>
+                          <td>{ranges[3].label}</td>
+                          <td>{ranges[4].label}</td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
-            </div>
+            </>
+          ) : null}
+        </section>
 
-            <div className="panel simulation">
-              <div className="panel-head">
-                <h2>Gap Closure Simulator</h2>
-                <span className="selected-tag">{selectedMeasure ? selectedMeasure.measure_id : "No measure"}</span>
+        <div className="right-col">
+          <section className="panel">
+            <h2>Direct Star Calculation</h2>
+            <label>
+              Measure
+              <select value={selectedMeasureCode} onChange={(e) => changeMeasure(e.target.value)}>
+                {(dashboard?.measure_cards || []).map((measure) => {
+                  const m = catalog.measures.find((c) => c.measure_code === measure.measure_id && c.measurement_year === measure.measurement_year);
+                  return (
+                    <option value={measure.measure_id} key={measure.measure_id}>
+                      {measure.measure_id} ({m?.measure_name || measure.measure_name || measure.measure_id})
+                    </option>
+                  );
+                })}
+              </select>
+            </label>
+
+            {dashboardLoading ? <p>Loading live values...</p> : null}
+            {dashboardError ? <p className="error">{dashboardError}</p> : null}
+
+            {selectedMeasureCard ? (
+              <div className="result-box">
+                <p><strong>Measure:</strong> {selectedMeasureCard.measure_id} ({selectedMeasureDetail?.measure_name || selectedMeasureCard.measure_name || selectedMeasureCard.measure_id})</p>
+                <p><strong>Measurement Year:</strong> {selectedMeasureCard.measurement_year}</p>
+                <p><strong>Weight:</strong> {selectedMeasureDetail?.weight ?? "N/A"}</p>
+                <p><strong>Total Gaps (denominator):</strong> {selectedMeasureCard.total_gaps}</p>
+                <p><strong>Closed Gaps (numerator):</strong> {selectedMeasureCard.baseline_closed}</p>
+                <p><strong>Current Rate:</strong> {selectedMeasureCard.baseline_rate ?? "N/A"}%</p>
+                <p><strong>Current Projected Star:</strong> {selectedMeasureCard.baseline_star ?? "N/A"}</p>
               </div>
-              {selectedMeasure ? (
-                <>
-                  <p className="subtext">
-                    Select open gaps to project star movement. Small changes like 2.10 &rarr; 2.11 are shown with two decimals.
-                  </p>
-                  <div className="sim-summary">
-                    <div>
-                      <span>Current Star</span>
-                      <strong>{fmtStar(selectedMeasure.baseline_star)}</strong>
-                    </div>
-                    <div>
-                      <span>Projected Star</span>
-                      <strong>{fmtStar(selectedMeasure.projected_star)}</strong>
-                    </div>
-                    <div>
-                      <span>Delta</span>
-                      <strong className={`delta ${deltaClass(selectedMeasure.star_delta)}`}>
-                        {deltaText(selectedMeasure.star_delta)}
-                      </strong>
-                    </div>
-                  </div>
-                  <div className="gap-list">
-                    {selectedMeasureGaps.map((gap) => (
-                      <label key={gap.care_gap_id} className={gap.is_closed ? "gap-item closed" : "gap-item"}>
-                        <input
-                          type="checkbox"
-                          disabled={gap.is_closed}
-                          checked={selectedGapIds.includes(gap.care_gap_id)}
-                          onChange={() => toggleGap(gap.care_gap_id)}
-                        />
-                        <div>
-                          <strong>{gap.care_gap_id}</strong>
-                          <small>
-                            {gap.member_name} ({gap.member_id}) | {gap.status}
-                          </small>
-                        </div>
-                      </label>
-                    ))}
-                  </div>
-                  <div className="action-row">
-                    <button onClick={runProjection} disabled={simulateLoading}>
-                      {simulateLoading ? "Calculating..." : "Run Projection"}
-                    </button>
-                    <button className="ghost" onClick={resetProjection} disabled={simulateLoading}>
-                      Reset
-                    </button>
-                  </div>
-                </>
-              ) : (
-                <p className="subtext">Select a measure from the table to start simulation.</p>
-              )}
+            ) : null}
+
+            <button onClick={runDirectCalculation} disabled={calcLoading || !selectedMeasureCard}>
+              {calcLoading ? "Calculating..." : "Calculate Current Star (Actual Values)"}
+            </button>
+            <div className="calc-result-slot">
+              {calcError ? <p className="error">{calcError}</p> : null}
+              <StarResult title="Calculation Result" result={calcResult} />
             </div>
           </section>
+        </div>
+      </div>
 
-          <section className="panel patients">
-            <div className="panel-head">
-              <h2>Patient-Level Star Impact</h2>
-              <span>{patientRows.length} rows</span>
-            </div>
-            {dashboard.cms_reference && (
-              <div className="cms-reference">
-                <h3>
-                  CMS {dashboard.cms_reference.cms_rating_year} Reference Used for Measure Calculations
-                </h3>
-                <p>{dashboard.cms_reference.note}</p>
-                <p>
-                  <strong>Mapped measures in current data:</strong>{" "}
-                  {dashboard.cms_reference.mapped_measure_ids?.length
-                    ? dashboard.cms_reference.mapped_measure_ids.join(", ")
-                    : "None"}
-                </p>
-                <p>
-                  <a href={dashboard.cms_reference.technical_notes_url} target="_blank" rel="noreferrer">
-                    CMS 2027 Technical Notes
-                  </a>
-                  {" | "}
-                  <a href={dashboard.cms_reference.measure_set_url} target="_blank" rel="noreferrer">
-                    CMS 2027 Measures and Weights
-                  </a>
-                </p>
-                {Array.isArray(dashboard.cms_reference.star_cut_points) &&
-                  dashboard.cms_reference.star_cut_points.length > 0 && (
-                    <>
-                      <p>
-                        <strong>What star for how many percentage?</strong> Values below the 2-star threshold are 1 star.
-                      </p>
-                      <div className="table-wrap cms-cutpoints">
-                        <table>
-                          <thead>
-                            <tr>
-                              <th>Measure</th>
-                              <th>2 Star Min</th>
-                              <th>3 Star Min</th>
-                              <th>4 Star Min</th>
-                              <th>5 Star Min</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {dashboard.cms_reference.star_cut_points.map((row) => (
-                              <tr key={`cp-${row.measure_id}`}>
-                                <td>
-                                  <strong>{row.measure_id}</strong>
-                                  <small>{row.measure_name}</small>
-                                </td>
-                                <td>{fmtThreshold(row.two_star_min)}</td>
-                                <td>{fmtThreshold(row.three_star_min)}</td>
-                                <td>{fmtThreshold(row.four_star_min)}</td>
-                                <td>{fmtThreshold(row.five_star_min)}</td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    </>
-                  )}
-              </div>
-            )}
-            <div className="table-wrap">
-              <table>
-                <thead>
-                  <tr>
-                    <th>Patient</th>
-                    <th>Measure</th>
-                    <th>Eligibility</th>
-                    <th>Rate</th>
-                    <th>Star</th>
-                    <th>Delta</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {patientRows.map((row) => (
-                    <tr key={`${row.member_id}-${row.measure_id}`}>
-                      <td>
-                        <strong>{row.member_name}</strong>
-                        <small>{row.member_id}</small>
-                      </td>
-                      <td>{row.measure_id}</td>
-                      <td>{row.star_eligible ? "Mapped" : "Not Mapped"}</td>
-                      <td>
-                        {fmtRate(row.baseline_rate)}
-                        <span className="projected"> &rarr; {fmtRate(row.projected_rate)}</span>
-                      </td>
-                      <td>
-                        {fmtStar(row.baseline_star)}
-                        <span className="projected"> &rarr; {fmtStar(row.projected_star)}</span>
-                      </td>
-                      <td className={`delta ${deltaClass(row.star_delta)}`}>{deltaText(row.star_delta)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </section>
-        </>
-      )}
-    </div>
+      <section className="panel full-width-panel">
+        <h2>Before vs After Comparison</h2>
+        <p className="note">Select open gaps to simulate closure, then compare actual before/after star values.</p>
+
+        <div className="gap-grid">
+          {(dashboard?.selected_measure_gaps || []).length ? (
+            dashboard.selected_measure_gaps.map((gap) => (
+              <label key={gap.care_gap_id} className="gap-item">
+                <input
+                  type="checkbox"
+                  checked={selectedGapIds.includes(gap.care_gap_id)}
+                  disabled={gap.is_closed}
+                  onChange={(e) => toggleGap(gap.care_gap_id, e.target.checked)}
+                />
+                <span>
+                  {gap.care_gap_id} {gap.is_closed ? "(already closed)" : "(open)"}
+                </span>
+              </label>
+            ))
+          ) : (
+            <p>No gaps available for this measure.</p>
+          )}
+        </div>
+
+        <div className="action-row">
+          <button onClick={applySelectedGaps} disabled={dashboardLoading || !selectedMeasureCode}>Apply Selected Closures</button>
+          <button onClick={runComparison} disabled={compareLoading || !selectedMeasureCard}>
+            {compareLoading ? "Comparing..." : "Compare Before vs After (Actual Values)"}
+          </button>
+        </div>
+
+        {selectedMeasureCard ? (
+          <div className="result-box">
+            <p><strong>Before Rate:</strong> {selectedMeasureCard.baseline_rate ?? "N/A"}%</p>
+            <p><strong>After Rate:</strong> {selectedMeasureCard.projected_rate ?? "N/A"}%</p>
+            <p><strong>Before Star:</strong> {selectedMeasureCard.baseline_star ?? "N/A"}</p>
+            <p><strong>After Star:</strong> {selectedMeasureCard.projected_star ?? "N/A"}</p>
+            <p><strong>Selected Closures:</strong> {selectedGapIds.length}</p>
+          </div>
+        ) : null}
+
+        {compareError ? <p className="error">{compareError}</p> : null}
+        {compareResult ? (
+          <div className="compare-results-row">
+            <StarResult title="Before" result={compareResult.before} />
+            <StarResult title="After" result={compareResult.after} />
+          </div>
+        ) : null}
+        {compareResult ? <p><strong>Star Changed:</strong> {String(compareResult.star_rating_changed)}</p> : null}
+      </section>
+      </main>
+    </HedisSidebarLayout>
   );
 }

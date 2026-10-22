@@ -19,15 +19,16 @@ httpx
 fhir.resources>=8.0,<9.0
 
 # Document intake and conversion (US-02)
-cryptography      # encrypted storage of uploaded files
-pypdfium2         # PDF text with character positions, page rendering
+cryptography
+pypdfium2
 pypdf
 python-docx
 openpyxl
 Pillow
-pillow-heif       # iPhone HEIC photos
+pillow-heif
 numpy
-pytesseract       # Tesseract OCR wrapper
+pytesseract
+reportlab
 
 # Star rating and mock evidence documents (Pradeep)
 reportlab

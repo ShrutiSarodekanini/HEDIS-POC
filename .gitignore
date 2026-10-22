@@ -64,7 +64,6 @@ services/measure_calc/engine/examples/**/patients/*.json
 *.pyo
 *.pyd
 generated_evidence/
-data/
 API_TESTING_GUIDE.md
 tests/
 env/
@@ -80,3 +79,6 @@ ui/node_modules/
 ui/dist/
 *.log
 .vscode/.history/
+
+# Star rating app (Pradeep)
+

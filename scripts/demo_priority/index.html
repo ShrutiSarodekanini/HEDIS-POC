@@ -165,7 +165,7 @@ async function select(key) {
         $("span", {}, "Done / eligible"), $("span", { class: "v" }, `${V.numerator} / ${V.denominator}`),
         $("span", {}, "Rate (CMS rounds to a whole %)"), $("span", { class: "v" }, `${f(V.rate)}% → ${V.rounded}%`),
         $("span", {}, "Stars now"), $("span", { class: "v" }, V.stars + " ★"),
-        ...(V.next_cut != null ? [$("span", {}, `Next star needs ${V.next_cut}% (from ${V.next_cut - 0.5}%)`), $("span", { class: "v" }, `${V.target} done`)] : []),
+        ...(V.next_cut != null ? [$("span", {}, `Next star threshold is ${V.next_cut}%`), $("span", { class: "v" }, `${V.target} done`)] : []),
         $("span", {}, "Measure weight"), $("span", { class: "v" }, V.weight)),
        $("div", { class: "formula" }, V.reason.startsWith("Protects")
          ? `${V.reason}: counted as 1 closure → ${V.weight} ÷ 1 ÷ ${V.divisor} = ${f(V.result, 3)}`
@@ -220,6 +220,11 @@ async function saveEvidence(key) {
   const r = await res.json();
   if (!res.ok) { msg.textContent = " " + (r.detail || "Save failed"); return; }
   msg.textContent = ` Saved ${r.saved}${r.skipped_already_saved ? `, ${r.skipped_already_saved} already saved` : ""}. Re-scored: ${r.tiers.high} high, ${r.tiers.medium} medium, ${r.tiers.low} low.`;
+  if (r.generated_document?.file_name) {
+    msg.textContent += ` Generated evidence document: ${r.generated_document.file_name}.`;
+  } else if (r.generated_document_error) {
+    msg.textContent += " Evidence document generation skipped.";
+  }
   await loadSummary(); await loadRows();
   const sel = state.selected; const keep = document.getElementById("evout").innerHTML;
   await select(sel); document.getElementById("evout").innerHTML = keep;
