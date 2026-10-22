@@ -1,20 +1,115 @@
 # Local secrets and environment
 .env
-.env.*
+.env.local
+.env.*.local
 !.env.example
 
 # Python
 __pycache__/
 *.py[cod]
-.venv/
-venv/
-.pytest_cache/
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
 
-# Editors and OS
+# Virtual environments
+venv/
+ENV/
+env/
+.venv/
+
+# IDE
 .vscode/
 .idea/
-Thumbs.db
-.DS_Store
+*.swp
+*.swo
+*~
+
+# IDE workspace settings (can contain secrets/local paths)
+.vscode/settings.json
+.vscode/launch.json
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+hedis_poc.db
 
 # Uploaded originals and page images (contain patient data)
 data/intake_store/
+
+# Uploaded datasets (temporary runtime artifacts)
+.uploaded_datasets/
+
+# Testing & Coverage
+.pytest_cache/
+.coverage
+coverage.xml
+htmlcov/
+
+# Benchmark & Diagnostic Output
+benchmark_results/
+diagnostics_*.txt
+connection_*.log
+
+# Temporary files
+*.tmp
+*.temp
+*.bak
+~*
+
+# OS files
+Thumbs.db
+.DS_Store
+
+# MacOS specifics
+.AppleDouble
+.LSOverride
+
+# Node (UI)
+ui/node_modules/
+
+# Large datasets
+datasets/
+test_data/
+*.zip
+
+# Log files
+*.log
+logs/
+
+# Python linting & type checking
+.mypy_cache/
+.bandit
+.flake8
+
+# Jupyter notebooks
+.ipynb_checkpoints/
+*.ipynb_checkpoints/
+
+# Database backups/dumps
+*.sql
+*.dump
+*.backup
+
+# Package managers
+package-lock.json
+npm-debug.log
+
+# Temporary directories
+tmp/
+temp/
+cache/
