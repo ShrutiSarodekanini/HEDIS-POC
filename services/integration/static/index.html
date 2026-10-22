@@ -1,0 +1,379 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>HEDIS POC: work list</title>
+<style>
+/* Copy of scripts/demo_priority/index.html with an Upload tab, document upload and approve or reject added. */
+:root {
+  --bg: #f3f6f7; --surface: #ffffff; --sunk: #f7f9fa; --ink: #15232c; --muted: #586a75; --line: #d6dfe3;
+  --accent: #0b6870; --accent-soft: #e0eff0;
+  --high: #b42318; --high-soft: #fdecea; --med: #8a5a00; --med-soft: #fbf0d9; --low: #475467; --low-soft: #eef1f4;
+  --good: #1f7a3d; --good-soft: #e3f3e8;
+  --font: "Segoe UI", system-ui, -apple-system, sans-serif; --mono: "Cascadia Mono", Consolas, ui-monospace, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0e161b; --surface: #152027; --sunk: #111b21; --ink: #e2eaee; --muted: #9aaeb8; --line: #263741;
+    --accent: #5cc3c9; --accent-soft: #15343a;
+    --high: #f19a90; --high-soft: #3a1714; --med: #e8bf6a; --med-soft: #33290f; --low: #b8c4cc; --low-soft: #1d2a31;
+    --good: #7fd39a; --good-soft: #17321f; color-scheme: dark;
+  }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 14px/1.5 var(--font); }
+header { display: flex; flex-wrap: wrap; gap: 10px 18px; align-items: center; padding: 12px 20px; background: var(--surface); border-bottom: 1px solid var(--line); }
+header h1 { font-size: 1.1rem; margin: 0; }
+.chip { font: 0.76rem var(--mono); padding: 2px 9px; border-radius: 999px; border: 1px solid var(--line); background: var(--sunk); }
+.tabs { margin-left: auto; }
+button, select, input[type=file], input[type=text] { font: inherit; font-size: 0.85rem; border-radius: 6px; padding: 5px 10px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); }
+button { cursor: pointer; }
+button.primary { background: var(--accent); border-color: var(--accent); color: var(--surface); font-weight: 600; }
+button.good { border-color: var(--good); color: var(--good); } button.bad { border-color: var(--high); color: var(--high); }
+button:disabled { opacity: 0.5; cursor: default; }
+button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.wrap { padding: 16px 20px; display: grid; gap: 16px; }
+.cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 10px; }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; display: grid; gap: 2px; }
+.card .m { font-weight: 600; } .card .s { font-size: 1.15rem; font-weight: 600; } .card .n { font-size: 0.8rem; color: var(--muted); }
+.card .p { font-size: 0.8rem; color: var(--good); font-weight: 600; }
+.card.key { border-color: var(--high); } .card.protect { border-color: var(--med); }
+.bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.bar .lbl { color: var(--muted); font-size: 0.85rem; }
+.seg button { border-radius: 0; margin-left: -1px; }
+.seg button:first-child { border-radius: 6px 0 0 6px; } .seg button:last-child { border-radius: 0 6px 6px 0; }
+.seg button[aria-pressed="true"] { background: var(--accent-soft); color: var(--accent); border-color: var(--accent); position: relative; }
+.main { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: 16px; align-items: start; }
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; min-width: 0; }
+.list { max-height: 640px; overflow: auto; }
+table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+th, td { text-align: left; padding: 7px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { position: sticky; top: 0; background: var(--sunk); font-weight: 600; color: var(--muted); font-size: 0.78rem; }
+td.num { font-variant-numeric: tabular-nums; font-family: var(--mono); font-size: 0.8rem; }
+td.key { font-family: var(--mono); font-size: 0.8rem; }
+tr.row { cursor: pointer; } tr.row:hover { background: var(--accent-soft); } tr.row[aria-selected="true"] { background: var(--accent-soft); box-shadow: inset 3px 0 0 var(--accent); }
+.pill { font-size: 0.75rem; padding: 1px 8px; border-radius: 999px; font-weight: 600; }
+.high, .rejected { background: var(--high-soft); color: var(--high); } .medium, .proposed { background: var(--med-soft); color: var(--med); }
+.low { background: var(--low-soft); color: var(--low); } .confirmed { background: var(--good-soft); color: var(--good); }
+.reason { color: var(--muted); font-size: 0.8rem; }
+.detail { padding: 14px 16px; display: grid; gap: 14px; }
+.detail h2 { margin: 0; font-size: 1rem; overflow-wrap: anywhere; }
+.detail h3 { margin: 0 0 4px; font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
+.calc { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 12px; font-size: 0.85rem; }
+.calc .v { font-family: var(--mono); text-align: right; }
+.calc .tot { border-top: 1px solid var(--line); padding-top: 3px; font-weight: 600; }
+.plus { color: var(--good); } .minus { color: var(--high); }
+.note { font-size: 0.8rem; color: var(--muted); }
+.formula { background: var(--sunk); border: 1px solid var(--line); border-radius: 6px; padding: 8px 10px; font: 0.82rem var(--mono); }
+.empty { padding: 30px; color: var(--muted); text-align: center; }
+details { border: 1px solid var(--line); border-radius: 6px; background: var(--sunk); margin-top: 6px; min-width: 0; }
+summary { cursor: pointer; padding: 5px 9px; font-size: 0.82rem; }
+details pre { margin: 0; padding: 8px 10px; border-top: 1px solid var(--line); font: 0.76rem/1.45 var(--mono); white-space: pre-wrap; overflow-wrap: anywhere; max-height: 360px; overflow-y: auto; }
+.found { border-radius: 6px; padding: 7px 9px; margin-top: 6px; font-size: 0.85rem; display: grid; gap: 4px; background: var(--sunk); border: 1px solid var(--line); }
+.found.kept { background: var(--good-soft); } .found.dropped { background: var(--high-soft); }
+.decide { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.decide input { flex: 1 1 160px; }
+.toast { font-size: 0.82rem; color: var(--muted); }
+.upload { padding: 16px; display: grid; gap: 12px; max-width: 760px; }
+.steps { display: grid; gap: 4px; font-size: 0.85rem; }
+.steps .done { color: var(--good); } .steps .now { font-weight: 600; } .steps .fail { color: var(--high); font-weight: 600; }
+[hidden] { display: none !important; }
+@media (max-width: 900px) { .main { grid-template-columns: minmax(0, 1fr); } .tabs { margin-left: 0; } }
+</style>
+</head>
+<body>
+<header>
+  <h1>HEDIS POC</h1>
+  <span class="chip" id="rules">rules ...</span>
+  <span class="chip" id="last">last run ...</span>
+  <span class="chip" id="ai" title="OpenRouter key and model check, refreshed every 5 minutes">AI: checking...</span>
+  <div class="seg tabs" id="tabs"></div>
+  <span class="toast" id="toast" role="status" aria-live="polite"></span>
+</header>
+
+<section class="wrap" id="tab-upload" hidden>
+  <div class="panel upload">
+    <h2 style="margin:0;font-size:1rem">Upload a Synthea batch</h2>
+    <p class="note">Choose a .zip of Synthea CSV files (patients.csv, encounters.csv, observations.csv and so on). The batch is converted to FHIR,
+      loaded, run through the measure engine for BCS-E, COL-E, EED, GSD, KED and CBP, and prioritized; then the stored documents of its patients are attached. This takes about 40 minutes for 250 patients; you can leave and come back to this tab.</p>
+    <div class="bar">
+      <input type="file" id="zip" accept=".zip">
+      <button type="button" class="primary" id="send">Upload and run</button>
+    </div>
+    <div class="steps" id="steps"></div>
+    <details id="countsbox" hidden><summary>Counts so far</summary><pre id="counts"></pre></details>
+  </div>
+</section>
+
+<section class="wrap" id="tab-work">
+  <div class="cards" id="cards"></div>
+  <div class="bar">
+    <span class="lbl">Work list for</span>
+    <div class="seg" id="roles"></div>
+    <span class="lbl">Tier</span>
+    <div class="seg" id="tiers"></div>
+    <label class="lbl" for="measure">Measure</label>
+    <select id="measure"><option value="">All</option></select>
+    <span class="toast" id="count"></span>
+  </div>
+  <div class="main">
+    <div class="panel list"><table><thead><tr><th>Tier</th><th>Gap</th><th>Measure</th><th>Composite</th><th>Likely</th><th>Value</th><th>Engaged</th><th>Next action / why</th></tr></thead><tbody id="rows"></tbody></table></div>
+    <div class="panel" id="detail"><p class="empty">Click a gap to see how its score was built.</p></div>
+  </div>
+</section>
+
+<script>
+const $ = (tag, attrs = {}, ...kids) => { const el = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs)) k === "class" ? el.className = v : k.startsWith("on") ? el.addEventListener(k.slice(2), v) : el.setAttribute(k, v);
+  for (const c of kids.flat()) if (c != null) el.append(c); return el; };
+const f = (n, d = 2) => n == null ? "n/a" : Number(n).toFixed(d);
+const short = key => /^[0-9a-f]{8}-/.test(key) ? key.slice(0, 8) : key;
+const CH = { abstractor_review: "Approve the evidence", chart_review: "Check the chart", point_of_care_alert: "Remind the doctor at the visit",
+  mailed_fit_kit: "Mail a FIT kit", member_outreach_call: "Call the member", provider_gap_list: "Doctor's gap list" };
+const state = { role: "", tier: "", measure: "", selected: null, tab: "work" };
+const toast = text => { document.getElementById("toast").textContent = text; };
+
+async function api(url, options) {
+  const res = await fetch(url, options);
+  let body = null; try { body = await res.json(); } catch (_) { body = {}; }
+  if (!res.ok) throw new Error((body && body.detail && (typeof body.detail === "string" ? body.detail : JSON.stringify(body.detail))) || `HTTP ${res.status}`);
+  return body;
+}
+
+function seg(id, options, key, onchange) {
+  const box = document.getElementById(id);
+  box.replaceChildren(...options.map(([value, label]) => $("button", { type: "button", "aria-pressed": String(state[key] === value),
+    onclick: () => { state[key] = value; [...box.children].forEach((b, i) => b.setAttribute("aria-pressed", String(options[i][0] === value))); onchange(); } }, label)));
+}
+
+function showTab() {
+  document.getElementById("tab-work").hidden = state.tab !== "work";
+  document.getElementById("tab-upload").hidden = state.tab !== "upload";
+}
+
+// ---------------------------------------------------------------- measures and work list
+
+async function loadSummary() {
+  const s = await api("/api/measures");
+  document.getElementById("rules").textContent = "rules " + s.rules_version;
+  document.getElementById("last").textContent = s.last_scored_at ? "last run " + s.last_scored_at.slice(0, 19).replace("T", " ") : "not scored yet";
+  document.getElementById("cards").replaceChildren(...s.measures.map(m => {
+    const cls = "card" + (m.value_reason.startsWith("Worth a whole") ? " key" : m.value_reason.startsWith("Protects") ? " protect" : "");
+    return $("div", { class: cls },
+      $("span", { class: "m" }, m.measure + (m.weight ? ` · weight ${m.weight}` : "")),
+      $("span", { class: "s" }, m.stars != null ? `${m.stars} ★ · ${f(m.rate, 1)}%` : `${f(m.rate, 1)}% · no star`),
+      $("span", { class: "n" }, `${m.numerator} of ${m.denominator} done · ${m.value_reason}`),
+      m.confirmed_pending_engine || m.excluded_pending_engine ? $("span", { class: "p" }, `projected ${f(m.projected_rate, 1)}% · ${m.projected_stars ?? "?"} ★ with ${m.confirmed_pending_engine} confirmed done, ${m.excluded_pending_engine} confirmed excluded`) : null,
+      $("span", { class: "n" }, `value ${f(m.value, 3)} · ${m.open_gaps} open gaps`));
+  }));
+  if (!s.measures.length) document.getElementById("cards").replaceChildren($("p", { class: "note" }, "No measure results yet. Upload a Synthea batch first."));
+  const sel = document.getElementById("measure");
+  if (sel.options.length === 1) s.measures.forEach(m => sel.append($("option", { value: m.measure }, m.measure)));
+  const t = s.tiers || {};
+  seg("tiers", [["", `All (${Object.values(t).reduce((a, b) => a + b, 0)})`], ["high", `High (${t.high || 0})`], ["medium", `Medium (${t.medium || 0})`], ["low", `Low (${t.low || 0})`]], "tier", loadRows);
+}
+
+async function loadRows() {
+  const q = new URLSearchParams({ ...(state.role && { role: state.role }), ...(state.tier && { tier: state.tier }), ...(state.measure && { measure: state.measure }) });
+  const rows = await api("/api/gaps?" + q);
+  document.getElementById("count").textContent = `${rows.length} gaps`;
+  document.getElementById("rows").replaceChildren(...rows.map(r => $("tr", { class: "row", tabindex: "0", "data-key": r.key, "aria-selected": String(state.selected === r.key),
+      onclick: () => select(r.key), onkeydown: e => e.key === "Enter" && select(r.key) },
+    $("td", {}, $("span", { class: "pill " + r.tier }, r.tier)), $("td", { class: "key", title: r.key }, short(r.key)), $("td", {}, r.measure),
+    $("td", { class: "num" }, f(r.composite, 3)), $("td", { class: "num" }, f(r.likelihood)), $("td", { class: "num" }, f(r.value, 3)),
+    $("td", { class: "num" }, f(r.engagement, 1)),
+    $("td", {}, CH[r.channel] || r.channel, $("div", { class: "reason" }, (r.reasons || []).join(" · "))))));
+  if (!rows.length) document.getElementById("rows").replaceChildren($("tr", {}, $("td", { colspan: "8", class: "empty" }, "No gaps match. Upload a Synthea batch, or change the filters.")));
+}
+
+// ---------------------------------------------------------------- one gap
+
+function calc(steps, total, label, extra) {
+  return $("div", { class: "calc" }, ...steps.flatMap((s, i) => [$("span", {}, s.label),
+    $("span", { class: "v " + (i === 0 ? "" : s.change >= 0 ? "plus" : "minus") }, (i === 0 ? "" : s.change >= 0 ? "+" : "") + f(s.change))]),
+    extra || null, $("span", { class: "tot" }, label), $("span", { class: "v tot" }, f(total)));
+}
+
+function scoreSections(d) {
+  if (!d) return [$("p", { class: "note" }, "This gap has no score yet.")];
+  const L = d.likelihood, E = d.engagement, V = d.value;
+  const clamp = L.raw !== L.result ? [$("span", { class: "note" }, `kept between ${L.min} and ${L.max}`), $("span", { class: "v note" }, f(L.raw))] : [];
+  const valueBody = V.weight
+    ? [$("div", { class: "calc" },
+        $("span", {}, "Done / eligible"), $("span", { class: "v" }, `${V.numerator} / ${V.denominator}`),
+        $("span", {}, "Rate (CMS rounds to a whole %)"), $("span", { class: "v" }, `${f(V.rate)}% → ${V.rounded}%`),
+        $("span", {}, "Stars now"), $("span", { class: "v" }, (V.stars ?? "n/a") + " ★"),
+        ...(V.next_cut != null ? [$("span", {}, `Next star needs ${V.next_cut}% (from ${V.next_cut - 0.5}%)`), $("span", { class: "v" }, `${V.target} done`)] : []),
+        $("span", {}, "Measure weight"), $("span", { class: "v" }, V.weight)),
+       $("div", { class: "formula" }, V.reason.startsWith("Protects")
+         ? `${V.reason}: counted as 1 closure → ${V.weight} ÷ 1 ÷ ${V.divisor} = ${f(V.result, 3)}`
+         : V.needed ? `${V.reason} → ${V.weight} ÷ ${V.needed} ÷ ${V.divisor} = ${f(V.result, 3)}` : `${V.reason} → ${f(V.result, 3)}`)]
+    : [$("div", { class: "formula" }, `${V.reason} → fixed small value ${f(V.non_star_value)}`)];
+  return [
+    $("div", {}, $("h3", {}, "1 · How likely it closes"), calc(L.steps, L.result, "closure_likelihood_score", clamp.length ? clamp : null)),
+    $("div", {}, $("h3", {}, "2 · How much it helps the stars"), ...valueBody),
+    $("div", {}, $("h3", {}, "3 · Priority"), $("div", { class: "formula" }, `composite = ${f(L.result)} × ${f(V.result, 3)} = ${f(d.composite, 4)}`),
+      $("p", { class: "note" }, "Tier comes from the rank of this number among all gaps: top 20% High, next 30% Medium, rest Low; evidence waiting is never below Medium.")),
+    $("div", {}, $("h3", {}, "4 · How reachable"), calc(E.steps, E.result, "engagement_score (max 1.0)")),
+    $("div", {}, $("h3", {}, "5 · Next action"), $("p", {}, CH[d.channel] || d.channel)),
+  ];
+}
+
+function documentSection(d) {
+  return $("div", {}, $("h3", {}, "6 · Documents for this patient"),
+    d.documents.length
+      ? $("div", { class: "note" }, d.documents.map(x => `${x.document_id} (${x.doc_type || x.conversion_status || "?"}${x.page_count ? `, ${x.page_count} page(s)` : ""}${x.near_duplicate_of ? ", near duplicate" : ""})`).join(" · "))
+      : $("p", { class: "note" }, "No documents for this patient."));
+}
+
+function evidenceItem(e) {
+  const box = $("div", { class: "found" },
+    $("div", {}, $("span", { class: "pill " + e.status }, e.status), " ", $("b", {}, `${e.evidence_kind || ""} · ${e.evidence_type || ""} · ${e.service_date_raw || ""} · ${e.document_id || ""} p${e.page_no ?? "?"}`)),
+    $("div", {}, `“${e.excerpt}”`),
+    $("div", { class: "note" }, `confidence ${e.confidence} · ${e.reason || ""}${e.decision_reason ? " · decision: " + e.decision_reason : ""}`));
+  if (e.status === "proposed") {
+    const reason = $("input", { type: "text", placeholder: "Reason (needed to reject)", "aria-label": "Reason for the decision" });
+    const msg = $("span", { class: "note", role: "status" });
+    const decide = decision => async () => {
+      msg.textContent = " Saving and re-scoring...";
+      try {
+        const r = await api(`/api/evidence/${e.evidence_id}/decision`, { method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ decision, reason: reason.value }) });
+        toast(`Evidence ${r.status}. Gap is now ${r.review_status}. Re-scored: ${r.tiers.high} high, ${r.tiers.medium} medium, ${r.tiers.low} low.`);
+        await refreshAll(true);
+      } catch (err) { msg.textContent = " " + err.message; }
+    };
+    box.append($("div", { class: "decide" }, reason,
+      $("button", { type: "button", class: "good", onclick: decide("confirm") }, "Approve"),
+      $("button", { type: "button", class: "bad", onclick: decide("reject") }, "Reject"), msg));
+  }
+  return box;
+}
+
+async function select(key, keepAi) {
+  state.selected = key;
+  document.querySelectorAll("tr.row").forEach(tr => tr.setAttribute("aria-selected", String(tr.dataset.key === key)));
+  const box = document.getElementById("detail");
+  const kept = keepAi && document.getElementById("evout") ? document.getElementById("evout").innerHTML : null;
+  let d;
+  try { d = await api(`/api/gaps/${encodeURIComponent(key)}`); }
+  catch (e) { box.replaceChildren($("p", { class: "empty" }, e.message)); return; }
+  const g = d.gap;
+  box.replaceChildren($("div", { class: "detail" },
+    $("h2", {}, `${short(g.key)} · ${g.measure_id}`),
+    $("p", { class: "note" }, `${g.missing_element} · deadline ${g.deadline_date} · review status ${g.review_status}`),
+    ...scoreSections(d.breakdown),
+    documentSection(d),
+    $("div", {}, $("h3", {}, "7 · Evidence"),
+      d.evidence.length ? d.evidence.map(evidenceItem) : $("p", { class: "note" }, "No evidence yet."),
+      $("p", { class: "note" }, "Review with AI sends this patient's pages and the measure rule to the model on OpenRouter (synthetic data only). Kept findings are saved as proposed for a person to approve or reject."),
+      d.documents.length
+        ? $("button", { type: "button", class: "primary", onclick: () => runExtract(g.key) }, "Review with AI")
+        : $("div", { class: "bar" }, $("button", { type: "button", class: "primary", disabled: "" }, "Review with AI"),
+            $("span", { class: "note" }, "No documents for this patient")),
+      $("div", { id: "evout" }))));
+  if (kept) document.getElementById("evout").innerHTML = kept;
+}
+
+const block = (label, text, open) => $("details", open ? { open: "" } : {}, $("summary", {}, label), $("pre", {}, text));
+
+async function runExtract(key) {
+  const out = document.getElementById("evout");
+  out.replaceChildren($("p", { class: "note" }, "Asking the model... usually 5 to 30 seconds per call."));
+  let r;
+  try { r = await api(`/api/gaps/${encodeURIComponent(key)}/evidence`, { method: "POST" }); }
+  catch (e) { out.replaceChildren($("p", { class: "note" }, e.message)); return; }
+  if (r.note) { out.replaceChildren($("p", { class: "note" }, r.note)); return; }
+  const kids = [
+    $("p", { class: "note" }, `${r.pages.length} page(s) sent: ` + r.pages.map(p => `${p.document_id} p${p.page_no} (${p.doc_type || "?"}, ${p.method}${p.handwritten ? ", handwritten" : ""})`).join(" · ")),
+    ...r.calls.flatMap((c, i) => [
+      block(`Call ${i + 1}: user prompt sent`, c.request ? c.request.messages[1].content : "", false),
+      block(`Call ${i + 1}: system prompt`, c.request ? c.request.messages[0].content : "", false),
+      block(`Call ${i + 1}: raw response (HTTP ${c.status ?? "?"}, ${c.seconds ?? "?"}s)`, JSON.stringify(c.response, null, 2), false),
+      c.error ? $("p", { class: "note" }, "Failed: " + c.error) : block(`Call ${i + 1}: the model's answer`, (() => { try { return JSON.stringify(JSON.parse(c.answer), null, 2); } catch (_) { return c.answer; } })(), true)]),
+    $("h3", { style: "margin-top:10px" }, `Validator: ${r.kept.length} kept, ${r.dropped.length} dropped · saved ${r.saved} as proposed${r.skipped_already_saved ? `, ${r.skipped_already_saved} already saved` : ""}`),
+    ...r.kept.map(k => $("div", { class: "found kept" }, $("b", {}, `Kept · ${k.evidence_kind} · ${k.evidence_type} · ${k.service_date_raw} · ${k.document_id} p${k.page_no}`),
+      $("div", {}, `“${k.excerpt}”`), $("div", { class: "note" }, `characters ${k.char_start} to ${k.char_end} · confidence ${k.confidence} · ${k.reason}`))),
+    ...r.dropped.map(x => $("div", { class: "found dropped" }, $("b", {}, `Dropped · ${x.evidence_type || "?"} · ${x.document_id || "?"}`),
+      $("div", {}, `“${x.excerpt}”`), $("div", { class: "note" }, "Reason: " + x.reason))),
+  ];
+  if (!r.kept.length && !r.dropped.length) kids.push($("p", { class: "note" }, "The model found no evidence."));
+  out.replaceChildren(...kids);
+  if (r.saved) { toast(`Saved ${r.saved} proposed finding(s). Re-scored: ${r.tiers.high} high, ${r.tiers.medium} medium, ${r.tiers.low} low.`); await refreshAll(true); }
+}
+
+async function refreshAll(keepAi) {
+  await loadSummary(); await loadRows();
+  if (state.selected) await select(state.selected, keepAi);
+}
+
+// ---------------------------------------------------------------- upload a batch
+
+const STEPS = [["received", "Received"], ["converting", "CSV to FHIR (ingestion)"], ["persisting", "Persist resources (ingestion)"],
+  ["loading", "Loading clinical tables"], ["measuring", "Measure engine and gaps"], ["prioritizing", "Prioritizing"],
+  ["attaching", "Attach stored evidence"], ["done", "Done"]];
+
+function attachNote(c) {
+  if (!c) return "";
+  if (c.documents && c.documents.skipped) return ` (skipped: ${c.documents.skipped})`;
+  if (c.documents) return ` (${c.documents.attached} attached, ${c.documents.already_attached} already attached, ${c.documents.not_in_batch} not in batch, ${c.documents.failed.length} failed)`;
+  return c.attaching ? ` (attaching ${c.attaching})` : "";
+}
+
+// The page works without storage (private mode, blocked storage): it then just forgets the last batch.
+const BATCH_KEY = "hedis-integration-last-batch";
+function remembered() { try { return localStorage.getItem(BATCH_KEY); } catch (_) { return null; } }
+function remember(id) { try { id ? localStorage.setItem(BATCH_KEY, id) : localStorage.removeItem(BATCH_KEY); } catch (_) { /* no storage */ } }
+
+function showBatch(b) {
+  const at = STEPS.findIndex(([s]) => s === b.step);
+  document.getElementById("steps").replaceChildren(...STEPS.map(([s, label], i) => $("div", {
+    class: b.status === "failed" && s === b.step ? "fail" : i < at || b.status === "prioritized" ? "done" : i === at ? "now" : "" },
+    `${i < at || b.status === "prioritized" ? "✓" : b.status === "failed" && s === b.step ? "✗" : i === at ? "…" : "·"} ${label}${s === "attaching" ? attachNote(b.counts) : ""}`)),
+    $("div", { class: b.status === "failed" ? "fail" : "note" }, b.status === "failed" ? `Failed while ${b.step}: ${b.error}` : `Batch ${b.batch_id} · ${b.status}`));
+  document.getElementById("countsbox").hidden = false;
+  document.getElementById("counts").textContent = JSON.stringify(b.counts, null, 2);
+}
+
+async function poll(batchId) {
+  try {
+    const b = await api(`/api/batches/${batchId}`);
+    showBatch(b);
+    if (b.status === "running") { setTimeout(() => poll(batchId), 3000); return; }
+    document.getElementById("send").disabled = false;
+    if (b.status === "prioritized") { toast("Batch prioritized. The work list is up to date."); await refreshAll(); }
+  } catch (e) { toast(e.message); setTimeout(() => poll(batchId), 5000); }
+}
+
+document.getElementById("send").addEventListener("click", async () => {
+  const file = document.getElementById("zip").files[0];
+  if (!file) { toast("Choose a .zip file first."); return; }
+  const form = new FormData(); form.append("file", file);
+  document.getElementById("send").disabled = true; toast("Uploading...");
+  try { const r = await api("/api/batches", { method: "POST", body: form }); remember(r.batch_id); toast(`Batch ${r.batch_id} started.`); poll(r.batch_id); }
+  catch (e) { toast(e.message); document.getElementById("send").disabled = false; }
+});
+
+document.getElementById("measure").addEventListener("change", e => { state.measure = e.target.value; loadRows(); });
+seg("tabs", [["work", "Work list"], ["upload", "Upload"]], "tab", showTab);
+seg("roles", [["", "Everyone"], ["reviewer", "Reviewer"], ["outreach", "Outreach team"], ["doctor", "Doctor's office"]], "role", loadRows);
+loadSummary().then(loadRows).catch(e => toast(e.message));
+
+function aiStatus(o) {
+  if (!o) return "AI: not checked";
+  if (!o.reachable) return `AI: OpenRouter not reachable (${o.error})`;
+  if (o.key_valid === false) return o.error ? `AI: ${o.error}` : "AI: OpenRouter did not accept the key";
+  if (o.model_listed === false) return `AI: model ${o.model} is not offered by OpenRouter`;
+  return `AI: connected (${o.model})`;
+}
+api("/api/health").then(h => { document.getElementById("ai").textContent = aiStatus(h.openrouter); })
+  .catch(() => { document.getElementById("ai").textContent = "AI: status unknown"; });
+const lastBatch = remembered();
+if (lastBatch) api(`/api/batches/${encodeURIComponent(lastBatch)}`).then(b => {
+  showBatch(b);
+  if (b.status === "running") { document.getElementById("send").disabled = true; poll(b.batch_id); }
+}).catch(() => remember(null));
+</script>
+</body>
+</html>

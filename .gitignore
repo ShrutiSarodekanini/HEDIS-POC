@@ -47,6 +47,7 @@ coverage-percent-script
 # Local/generated datasets and outputs
 exports/
 .uploaded_datasets/
+.integration_work/
 
 # Local runtime and debug artifacts
 *.db
