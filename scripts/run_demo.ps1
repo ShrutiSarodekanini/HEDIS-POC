@@ -16,9 +16,10 @@
 # and listens on http://localhost:8780 (INTEGRATION_PORT changes it). -Setup there creates the schema and tables,
 # loads reference data only (no patients) and builds the measure engine (needs Node 20). -EvidenceDir <folder> sets
 # INTEGRATION_EVIDENCE_DIR for the app: after a batch is prioritized, the folder's documents (listed in its
-# manifest.json) are attached to their patients.
+# manifest.json) are attached to their patients. -UiDir <folder> picks the screen set the app serves (for example
+# services/integration/ui/redesign); without it the original page in services/integration/static is served.
 
-param([switch]$Setup, [switch]$Integration, [string]$Schema = "integ", [string]$EvidenceDir = "")
+param([switch]$Setup, [switch]$Integration, [string]$Schema = "integ", [string]$EvidenceDir = "", [string]$UiDir = "")
 
 $ErrorActionPreference = "Stop"
 $RepoRoot = Split-Path -Parent $PSScriptRoot
@@ -88,6 +89,11 @@ if ($Integration) {
         if (-not (Test-Path (Join-Path $EvidenceDir "manifest.json"))) { throw "No manifest.json in $EvidenceDir." }
         $env:INTEGRATION_EVIDENCE_DIR = (Resolve-Path $EvidenceDir).Path
         Write-Host "Stored evidence: $env:INTEGRATION_EVIDENCE_DIR" -ForegroundColor Cyan
+    }
+    if ($UiDir) {
+        if (-not (Test-Path (Join-Path $UiDir "index.html"))) { throw "No index.html in $UiDir." }
+        $env:INTEGRATION_UI_DIR = (Resolve-Path $UiDir).Path
+        Write-Host "Screens: $env:INTEGRATION_UI_DIR" -ForegroundColor Cyan
     }
     if ($envText -notmatch "(?m)^\s*EXTRACTION_MODEL\s*=\s*\S" -and -not $env:EXTRACTION_MODEL) {
         Write-Host ("Warning: EXTRACTION_MODEL is not set in .env, so the code default model is used. " +

@@ -66,6 +66,14 @@ def measures(conn: psycopg.Connection, as_of: date) -> dict:
                 WHERE g.status = 'open' AND coalesce(d.review_status, 'open') <> ALL(%s::text[]) GROUP BY 1""",
             (OFF_LIST,)).fetchall()}
         last = cur.execute("SELECT max(scored_at) AS last FROM gap_priority_score").fetchone()["last"]
+        names = {r["measure_id"]: r["name"] for r in cur.execute(
+            "SELECT measure_id, name FROM measure_rule WHERE measurement_year = %s", (SETTINGS.measurement_year,))}
+        by_model = cur.execute(
+            """SELECT extraction_model_version AS model,
+                      count(*) FILTER (WHERE status = 'proposed') AS proposed,
+                      count(*) FILTER (WHERE status = 'confirmed') AS confirmed,
+                      count(*) FILTER (WHERE status = 'rejected') AS rejected
+                 FROM evidence_proposal GROUP BY 1 ORDER BY 1""").fetchall()
     out = []
     for r in rates:
         measure_id, num, den = r["measure_id"], r["numerator"], r["denominator"]
@@ -76,7 +84,8 @@ def measures(conn: psycopg.Connection, as_of: date) -> dict:
         value = scoring.measure_value(m, rules)
         cut_points = [(star, float(low)) for star, low in m.cut_points] if m else []
         out.append({
-            "measure": measure_id, "weight": m.weight if m else None, "numerator": num, "denominator": den,
+            "measure": measure_id, "name": names.get(measure_id, measure_id),
+            "weight": m.weight if m else None, "numerator": num, "denominator": den,
             "rate": round(100 * num / den, 1) if den else None, "rounded": rounded_rate(num, den),
             **_stars(measure_id, num, den, cut_points),
             "confirmed_pending_engine": confirmed, "excluded_pending_engine": excluded,
@@ -84,8 +93,13 @@ def measures(conn: psycopg.Connection, as_of: date) -> dict:
             "projected_stars": _stars(measure_id, projected_num, projected_den, cut_points)["stars"],
             "value": round(value.value, 4), "value_reason": value.reason,
             "open_gaps": gaps.get(measure_id, {}).get("open_gaps", 0)})
+    for m in by_model:
+        decided = m["confirmed"] + m["rejected"]
+        m["acceptance_rate"] = round(100 * m["confirmed"] / decided, 1) if decided else None
+    evidence = {"proposed": sum(m["proposed"] for m in by_model), "confirmed": sum(m["confirmed"] for m in by_model),
+                "rejected": sum(m["rejected"] for m in by_model), "by_model": by_model}
     return {"measures": out, "tiers": tiers, "last_scored_at": last, "rules_version": rules.version,
-            "cms_rating_year": CMS_RATING_YEAR}
+            "cms_rating_year": CMS_RATING_YEAR, "evidence": evidence}
 
 
 def work_list(conn: psycopg.Connection, role: str | None, tier: str | None, measure: str | None,
@@ -95,11 +109,17 @@ def work_list(conn: psycopg.Connection, role: str | None, tier: str | None, meas
     rows = conn.execute(
         """SELECT coalesce(d.seed_code, s.gap_id::text), s.gap_id::text, g.measure_id, s.priority_tier,
                   s.composite_score, s.closure_likelihood_score, s.financial_value_score, s.engagement_score,
-                  s.recommended_channel, r.reasons, r.action_reason
+                  s.recommended_channel, r.reasons, r.action_reason,
+                  g.patient_id, mr.name, g.missing_element, coalesce(d.review_status, 'open'),
+                  coalesce(d.pending_count, 0),
+                  (SELECT min(e.period_start)::date FROM encounter e
+                    WHERE e.patient_id = g.patient_id AND e.period_start > now()),
+                  EXISTS (SELECT 1 FROM document_reference dr WHERE dr.patient_id = g.patient_id)
              FROM v_gap_priority_latest s
              JOIN care_gap g ON g.gap_id = s.gap_id
              LEFT JOIN care_gap_detail d ON d.gap_id = s.gap_id
              LEFT JOIN gap_priority_reason r ON r.score_pk = s.score_pk
+             LEFT JOIN measure_rule mr ON mr.measure_id = g.measure_id AND mr.measurement_year = g.measurement_year
             WHERE g.status = 'open' AND coalesce(d.review_status, 'open') <> ALL(%(off)s::text[])
               AND (%(tier)s::text IS NULL OR s.priority_tier = %(tier)s::text)
               AND (%(measure)s::text IS NULL OR g.measure_id = %(measure)s::text)
@@ -109,7 +129,8 @@ def work_list(conn: psycopg.Connection, role: str | None, tier: str | None, meas
             LIMIT %(limit)s""",
         {"off": OFF_LIST, "tier": tier, "measure": measure, "channels": channels, "limit": limit}).fetchall()
     keys = ("key", "gap_id", "measure", "tier", "composite", "likelihood", "value", "engagement", "channel",
-            "reasons", "action")
+            "reasons", "action", "patient_id", "measure_name", "missing_element", "review_status", "pending_count",
+            "next_visit", "has_documents")
     return [dict(zip(keys, r)) for r in rows]
 
 

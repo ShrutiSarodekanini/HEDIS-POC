@@ -128,11 +128,13 @@ def _save_proposed(conn: psycopg.Connection, gap_id: uuid.UUID, kept: list[dict]
     return saved, skipped
 
 
-def decide(conn: psycopg.Connection, evidence_id: str, decision: str, reason: str | None) -> dict:
+def decide(conn: psycopg.Connection, evidence_id: str, decision: str, reason: str | None,
+           reviewer: str | None = None) -> dict:
     """Record a confirm or reject, update the proposal and its gap, then re-score.
 
-    Raises LookupError for an unknown proposal, ValueError for a bad decision or a reject without a reason, and
-    Conflict when the proposal was already decided."""
+    reviewer is the ID typed on the review screen; without one the configured reviewer is recorded (the POC has no
+    sign-in yet). Raises LookupError for an unknown proposal, ValueError for a bad decision, a reject without a reason
+    or an unusable reviewer ID, and Conflict when the proposal was already decided."""
     status = DECISIONS.get(decision)
     if status is None:
         raise ValueError("decision must be 'confirm' or 'reject'")
@@ -150,7 +152,9 @@ def decide(conn: psycopg.Connection, evidence_id: str, decision: str, reason: st
     gap_id, current = row
     if current != "proposed":
         raise Conflict(f"evidence {evidence_id} is already {current}")
-    reviewer = SETTINGS.reviewer
+    reviewer = (reviewer or "").strip() or SETTINGS.reviewer
+    if len(reviewer) > 64 or not all(ch.isalnum() or ch in "._-@" for ch in reviewer):
+        raise ValueError("reviewer ID may use letters, digits and . _ - @ only, up to 64 characters")
     conn.execute(
         """INSERT INTO review_decisions (evidence_id, reviewer, decision, reject_reason_code, reason)
            VALUES (%s, %s, %s, %s, %s)""",

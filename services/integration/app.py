@@ -18,6 +18,7 @@ import psycopg
 import uvicorn
 from fastapi import Depends, FastAPI, File, HTTPException, Request, UploadFile
 from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from services.document_intake import api as intake_api
@@ -29,8 +30,9 @@ from .config import SETTINGS
 
 log = logging.getLogger(__name__)
 
-PAGE = Path(__file__).with_name("static") / "index.html"
+UI_DIR = SETTINGS.ui_dir or Path(__file__).with_name("static")   # which screen set this app serves
 app = FastAPI(title="HEDIS POC integration", version="0.1.0")
+app.mount("/assets", StaticFiles(directory=UI_DIR), name="assets")
 
 
 def get_conn() -> Iterator[psycopg.Connection]:
@@ -64,7 +66,7 @@ def _server_error(request: Request, exc: Exception) -> JSONResponse:
 
 @app.get("/", response_class=HTMLResponse)
 def page() -> str:
-    return PAGE.read_text(encoding="utf-8")
+    return (UI_DIR / "index.html").read_text(encoding="utf-8")
 
 
 @app.post("/api/batches", status_code=202)
@@ -113,11 +115,12 @@ def find_evidence(gap_id: str, conn: psycopg.Connection = Depends(get_conn)) -> 
 class DecisionIn(BaseModel):
     decision: Literal["confirm", "reject"]
     reason: str | None = None
+    reviewer: str | None = None
 
 
 @app.post("/api/evidence/{proposal_id}/decision")
 def decide(proposal_id: str, body: DecisionIn, conn: psycopg.Connection = Depends(get_conn)) -> dict:
-    return evidence.decide(conn, proposal_id, body.decision, body.reason)
+    return evidence.decide(conn, proposal_id, body.decision, body.reason, body.reviewer)
 
 
 @app.get("/api/health")

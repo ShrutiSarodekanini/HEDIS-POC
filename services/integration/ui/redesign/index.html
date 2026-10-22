@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>HEDIS Ops Console</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="/assets/styles.css">
+</head>
+<body>
+<header class="topbar">
+  <div class="brand"><span class="brand-mark" aria-hidden="true">✓</span>HEDIS Ops Console</div>
+  <div class="topbar-right">
+    <span class="chip chip-warn">POC · SYNTHEA DATA ONLY</span>
+    <span class="avatar" id="avatar" title="Reviewer ID used on decisions">?</span>
+  </div>
+</header>
+
+<div class="shell">
+  <nav class="sidebar" aria-label="Main">
+    <span class="nav-item disabled" title="Not part of this screen set yet"><span class="nav-icon">▦</span>Dashboard</span>
+    <span class="nav-item disabled" title="Not part of this screen set yet"><span class="nav-icon">⤓</span>Run Ingestion</span>
+    <span class="nav-item disabled" title="Not part of this screen set yet"><span class="nav-icon">◎</span>Run Gap Calculation</span>
+    <a class="nav-item" href="#prioritization" data-view="prioritization"><span class="nav-icon">≡</span>Prioritization</a>
+    <a class="nav-item" href="#evidence" data-view="evidence"><span class="nav-icon">▤</span>Evidence Review</a>
+  </nav>
+
+  <main class="main">
+    <!-- Prioritization -->
+    <section id="view-prioritization" class="view" hidden>
+      <div class="page-head">
+        <div>
+          <h1>Prioritization</h1>
+          <p class="sub">Score open gaps and generate the ranked outreach worklist</p>
+        </div>
+        <span class="layer">LAYER 6 OF 8</span>
+      </div>
+
+      <div class="grid-2">
+        <article class="card">
+          <h2>Run scoring</h2>
+          <p class="mono muted" id="rules-version">loading…</p>
+          <p class="label-strong">Explainable, not a black box: average of each factor over the current worklist</p>
+          <div class="factors" id="factors"></div>
+          <p class="note">Each gap keeps its three contributing factors alongside the composite score and tier, so a
+            provider or auditor can see why a gap ranked where it did.</p>
+          <button type="button" class="btn btn-primary" id="refresh">Refresh worklist</button>
+          <p class="note small">Scoring runs on its own after every upload and every review decision.</p>
+        </article>
+
+        <article class="card">
+          <h2>Worklist summary</h2>
+          <p class="muted small" id="summary-line">loading…</p>
+          <div class="tiers" id="tiers"></div>
+          <p class="label-strong">Recommended channel mix</p>
+          <div class="bars" id="channels"></div>
+        </article>
+      </div>
+
+      <article class="card">
+        <div class="card-head">
+          <h2>Prioritized outreach worklist</h2>
+          <div class="pills" role="group" aria-label="Filter by tier">
+            <button type="button" class="pill active" data-tier="">All</button>
+            <button type="button" class="pill pill-high" data-tier="high">High</button>
+            <button type="button" class="pill pill-medium" data-tier="medium">Medium</button>
+            <button type="button" class="pill pill-low" data-tier="low">Low</button>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table class="table">
+            <thead><tr><th>Patient / measure</th><th>Missing element</th><th>Tier</th><th>Score</th><th>Channel</th>
+              <th>Next visit</th></tr></thead>
+            <tbody id="worklist"></tbody>
+          </table>
+        </div>
+        <p class="note small">Click a row to open its evidence on the Evidence Review screen.</p>
+      </article>
+    </section>
+
+    <!-- Evidence Review -->
+    <section id="view-evidence" class="view" hidden>
+      <div class="page-head">
+        <div>
+          <h1>Evidence Review</h1>
+          <p class="sub">AI-proposed findings from chart text, confirmed or rejected by a named reviewer</p>
+        </div>
+        <span class="layer">LAYER 5 OF 8</span>
+      </div>
+
+      <div class="grid-2">
+        <article class="card">
+          <h2>Run AI evidence extraction</h2>
+          <label class="field-label" for="model">Extraction model version</label>
+          <select id="model" class="input" disabled><option>loading…</option></select>
+          <label class="field-label" for="scope">Scope: one open gap whose patient has documents</label>
+          <select id="scope" class="input"></select>
+          <button type="button" class="btn btn-primary" id="run-extraction">Run extraction</button>
+          <p class="note small" id="run-result" role="status"></p>
+          <p class="label-strong">Acceptance rate by model</p>
+          <div id="acceptance" class="stack"></div>
+        </article>
+
+        <article class="card">
+          <h2>Audit-first by design</h2>
+          <p class="muted small">Enforced by a database constraint, not a UI promise</p>
+          <pre class="code">CHECK (
+  (status = 'proposed') = (reviewer_id IS NULL)
+)
+CHECK (status IN ('proposed', 'confirmed', 'rejected'))</pre>
+          <p class="body">Every AI finding starts as <b>proposed</b>. It can become <b>confirmed</b> or
+            <b>rejected</b> only with a reviewer ID, and a database trigger also requires a matching review decision,
+            so the audit trail is structural, not something application code could skip.</p>
+          <div class="tiers">
+            <div class="tile tile-medium"><span>PROPOSED</span><b id="n-proposed">–</b></div>
+            <div class="tile tile-high"><span>CONFIRMED</span><b id="n-confirmed">–</b></div>
+            <div class="tile tile-bad"><span>REJECTED</span><b id="n-rejected">–</b></div>
+          </div>
+        </article>
+      </div>
+
+      <article class="card">
+        <h2>Review queue</h2>
+        <p class="muted small" id="queue-line">loading…</p>
+        <div id="queue" class="stack"></div>
+      </article>
+    </section>
+  </main>
+</div>
+
+<div class="toast" id="toast" role="status" hidden></div>
+<script src="/assets/app.js"></script>
+</body>
+</html>

@@ -19,6 +19,7 @@ class Settings:
     engine_chunk: int              # patient bundles per engine call, to keep Node memory bounded
     work_dir: Path                 # temporary bundles and uploads, removed after each step
     evidence_dir: Path | None      # stored documents with manifest.json; None skips the attach step
+    ui_dir: Path | None            # screen set served at "/" (index.html plus /assets); None serves static/
     port: int
 
 
@@ -31,6 +32,7 @@ def load_settings() -> Settings:
         engine_chunk=int(os.environ.get("INTEGRATION_ENGINE_CHUNK", "50")),
         work_dir=Path(os.environ.get("INTEGRATION_WORK_DIR", REPO_ROOT / ".integration_work")),
         evidence_dir=Path(evidence) if (evidence := os.environ.get("INTEGRATION_EVIDENCE_DIR", "").strip()) else None,
+        ui_dir=Path(ui) if (ui := os.environ.get("INTEGRATION_UI_DIR", "").strip()) else None,
         port=int(os.environ.get("INTEGRATION_PORT", "8780")),
     )
 
