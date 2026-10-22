@@ -126,7 +126,7 @@ class NCPDPPharmacyAdapter(SourceAdapter):
     @staticmethod
     def _parse_line(line: str) -> dict[str, str]:
         values = [value.strip() for value in line.rstrip("\r\n").split("|")]
-        if values and values[0].lower() in {"patient_id", "member_id"}:
+        if values and values[0].lower() in {"transaction_code", "patient_id", "member_id"}:
             return {}
         keys = [
             "transaction_code", "service_date", "rx_number", "ndc", "quantity",

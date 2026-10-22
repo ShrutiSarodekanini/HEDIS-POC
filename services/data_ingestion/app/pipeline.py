@@ -34,6 +34,7 @@ from .models import (
     SupplyDelivery,
 )
 from .repository import (
+    batch_fetch_fhir_resources,
     complete_job,
     bulk_upsert_resources,
     create_job,
@@ -657,6 +658,7 @@ def run_conversion(job_id: str, input_dir: str, adapter_name: str = "synthea_csv
                         upsert_resource(
                             session,
                             job_id=job_id,
+                            batch_id=job_manager.ensure_state(job_id).batch_id,
                             resource_type=resource.resource_type,
                             resource_id=resource.resource_id,
                             patient_id=resource.patient_id,
@@ -686,13 +688,17 @@ def run_conversion(job_id: str, input_dir: str, adapter_name: str = "synthea_csv
                     session.flush()
                     _emit(f"[pipeline] job={job_id} validation_no_external: flush completed successfully")
                     
+                    # Batch-fetch all FhirResource rows to avoid N+1 queries
+                    _emit(f"[pipeline] job={job_id} validation_no_external: batch-fetching {len(mapped.resources)} FHIR resources")
+                    resource_ids = [resource.resource_id for resource in mapped.resources]
+                    fhir_resources_by_id = batch_fetch_fhir_resources(session, resource_ids)
+                    _emit(f"[pipeline] job={job_id} validation_no_external: fetched {len(fhir_resources_by_id)} FHIR resources")
+                    
                     # Now perform extraction on flushed resources
                     _emit(f"[pipeline] job={job_id} validation_no_external: extracting denormalized data")
                     extraction_count = 0
                     for resource in mapped.resources:
-                        fhir_res = session.execute(
-                            select(FhirResource).where(FhirResource.resource_id == resource.resource_id)
-                        ).scalar_one_or_none()
+                        fhir_res = fhir_resources_by_id.get(resource.resource_id)
                         if fhir_res:
                             if resource.resource_type == "Patient":
                                 extract_patient_from_fhir(session, fhir_res, resource.fhir)

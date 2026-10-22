@@ -1,30 +1,112 @@
 # Python
 __pycache__/
 *.py[cod]
-.pytest_cache/
-.venv/
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual environments
 venv/
+ENV/
 env/
+.venv/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+hedis_poc.db
+
+# Uploaded datasets (temporary runtime artifacts)
+.uploaded_datasets/
+
+# Testing & Coverage
+.pytest_cache/
 .coverage
 coverage.xml
 htmlcov/
-build/
-dist/
-*.egg-info/
 
-# Local environment
-.env
+# Benchmark & Diagnostic Output
+benchmark_results/
+diagnostics_*.txt
+connection_*.log
 
-# Local sqlite fallback
-*.db
-
-# Runtime-uploaded datasets
-.uploaded_datasets/
-
-# Node dependencies and runtime logs
-node_modules/
-*.log
+# Temporary files
+*.tmp
+*.temp
+*.bak
+~*
 
 # OS files
-.DS_Store
 Thumbs.db
+.DS_Store
+
+# Node (UI)
+ui/node_modules/
+
+# Large datasets
+datasets/
+test_data/
+*.zip
+
+# Log files
+*.log
+logs/
+
+# Python linting & type checking
+.mypy_cache/
+.bandit
+.flake8
+
+# Jupyter notebooks
+.ipynb_checkpoints/
+*.ipynb_checkpoints/
+
+# Database backups/dumps
+*.sql
+*.dump
+*.backup
+
+# Package managers
+package-lock.json
+npm-debug.log
+
+# IDE workspace settings (can contain secrets/local paths)
+.vscode/settings.json
+.vscode/launch.json
+
+# MacOS specifics
+.AppleDouble
+.LSOverride
+
+# Temporary directories
+tmp/
+temp/
+cache/
+

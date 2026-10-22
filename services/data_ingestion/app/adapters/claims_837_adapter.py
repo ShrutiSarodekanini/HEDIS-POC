@@ -195,6 +195,8 @@ class Claims837Adapter(SourceAdapter):
         for segment in segments:
             if segment[0] == segment_id and qualifier in segment:
                 index = segment.index(qualifier) + 1
+                if segment_id == "DTP" and index < len(segment) and segment[index] in {"D8", "DT", "RD8"}:
+                    index += 1
                 return segment[index] if index < len(segment) else None
         return None
 

@@ -284,9 +284,51 @@ def map_patient(record: SourceRecord) -> tuple[ResourceEnvelope | None, list[Row
         ]
 
     resource_id = deterministic_id("Patient", record.source_file, record.source_record_id)
-    gender = (record.data.get("GENDER") or "unknown").lower()
-    if gender not in {"male", "female", "other", "unknown"}:
-        gender = "unknown"
+    
+    # Extract and normalize gender
+    gender_raw = record.data.get("GENDER") or ""
+    gender_raw = str(gender_raw).strip() if gender_raw else ""
+    gender = "unknown"  # Default
+    
+    if gender_raw:
+        gender_lower = gender_raw.lower()
+        # Handle full words (male, female, other)
+        if gender_lower in {"male", "female", "other"}:
+            gender = gender_lower
+        # Handle single letter codes (M, F, O)
+        elif gender_lower in {"m"}:
+            gender = "male"
+        elif gender_lower in {"f"}:
+            gender = "female"
+        elif gender_lower in {"o"}:
+            gender = "other"
+        # Fallback: if it's not recognized, keep "unknown"
+
+    # Build marital status if available (Synthea stores as "M", "S", "D", "W", etc.)
+    marital_status = None
+    marital_raw = record.data.get("MARITAL", "").strip()
+    if marital_raw:
+        # Map Synthea marital codes to FHIR display names
+        marital_map = {"M": "Married", "S": "Single", "D": "Divorced", "W": "Widowed"}
+        marital_display = marital_map.get(marital_raw, marital_raw)
+        marital_status = {
+            "coding": [{"system": "http://terminology.hl7.org/CodeSystem/v3-MaritalStatus", "code": marital_raw, "display": marital_display}]
+        }
+
+    # Build address if available
+    address = None
+    address_line = record.data.get("ADDRESS", "").strip()
+    city = record.data.get("CITY", "").strip()
+    state = record.data.get("STATE", "").strip()
+    zip_code = record.data.get("ZIP", "").strip()
+    
+    if address_line or city or state:
+        address = {
+            "line": [address_line] if address_line else [],
+            "city": city,
+            "state": state,
+            "postalCode": zip_code,
+        }
 
     fhir = {
         "resourceType": "Patient",
@@ -296,6 +338,12 @@ def map_patient(record: SourceRecord) -> tuple[ResourceEnvelope | None, list[Row
         "gender": gender,
         "birthDate": birth_date,
     }
+
+    # Add optional fields if present
+    if marital_status:
+        fhir["maritalStatus"] = marital_status
+    if address:
+        fhir["address"] = [address]
 
     return (
         ResourceEnvelope(

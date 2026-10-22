@@ -25,6 +25,29 @@ def _touch(row: Any) -> None:
     row.updated_at = dt.datetime.now(dt.timezone.utc)
 
 
+def batch_fetch_fhir_resources(
+    session: Session, resource_ids: list[str]
+) -> dict[str, FhirResource]:
+    """
+    Batch-fetch FhirResource rows by resource_id to avoid N+1 queries.
+    
+    Args:
+        session: SQLAlchemy session
+        resource_ids: List of resource IDs to fetch
+    
+    Returns:
+        Dict mapping resource_id -> FhirResource row
+    """
+    if not resource_ids:
+        return {}
+    
+    rows = session.execute(
+        select(FhirResource).where(FhirResource.resource_id.in_(resource_ids))
+    ).scalars().all()
+    
+    return {row.resource_id: row for row in rows}
+
+
 def extract_additional_resource(session: Session, fhir_resource: FhirResource, resource_json: dict[str, Any]) -> None:
     from .models import AllergyIntolerance, BasicResource, Claim, Device, ImagingStudy, Organization, Practitioner, SupplyDelivery
 
@@ -607,6 +630,7 @@ def extract_coverage_from_fhir(
         existing.source_file = fhir_resource.source_file
         existing.source_record_id = fhir_resource.source_record_id
         existing.fhir_resource_pk = fhir_resource.id
+        existing.batch_id = fhir_resource.batch_id
     else:
         # Create new record
         coverage_row = Coverage(
@@ -623,6 +647,7 @@ def extract_coverage_from_fhir(
             source_file=fhir_resource.source_file,
             source_record_id=fhir_resource.source_record_id,
             fhir_resource_pk=fhir_resource.id,
+            batch_id=fhir_resource.batch_id,
         )
         session.add(coverage_row)
 
@@ -644,9 +669,12 @@ def extract_patient_from_fhir(
     name = None
     if name_parts and name_parts[0]:
         name_data = _as_dict(name_parts[0])
-        given = _as_list(name_data.get("given"))
-        family = name_data.get("family", "")
-        name = f"{' '.join(given)} {family}".strip() if given else family
+        # Try to get name from text field first (Synthea format), fallback to given/family
+        name = name_data.get("text")
+        if not name:
+            given = _as_list(name_data.get("given"))
+            family = name_data.get("family", "")
+            name = f"{' '.join(given)} {family}".strip() if given else family
     
     # Extract birth date
     birth_date = resource_json.get("birthDate")
@@ -699,6 +727,7 @@ def extract_patient_from_fhir(
         existing.email = email
         existing.source_file = fhir_resource.source_file
         existing.fhir_resource_pk = fhir_resource.id
+        existing.batch_id = fhir_resource.batch_id
     else:
         patient_row = Patient(
             patient_id=patient_id,
@@ -711,6 +740,7 @@ def extract_patient_from_fhir(
             email=email,
             source_file=fhir_resource.source_file,
             fhir_resource_pk=fhir_resource.id,
+            batch_id=fhir_resource.batch_id,
         )
         session.add(patient_row)
 
@@ -792,6 +822,7 @@ def extract_encounter_from_fhir(
         existing.reason_display = reason_display
         existing.source_file = fhir_resource.source_file
         existing.fhir_resource_pk = fhir_resource.id
+        existing.batch_id = fhir_resource.batch_id
     else:
         encounter_row = Encounter(
             encounter_id=encounter_id,
@@ -806,6 +837,7 @@ def extract_encounter_from_fhir(
             reason_display=reason_display,
             source_file=fhir_resource.source_file,
             fhir_resource_pk=fhir_resource.id,
+            batch_id=fhir_resource.batch_id,
         )
         session.add(encounter_row)
 
@@ -878,6 +910,7 @@ def extract_condition_from_fhir(
         existing.status = status
         existing.source_file = fhir_resource.source_file
         existing.fhir_resource_pk = fhir_resource.id
+        existing.batch_id = fhir_resource.batch_id
     else:
         condition_row = Condition(
             condition_id=condition_id,
@@ -891,6 +924,7 @@ def extract_condition_from_fhir(
             status=status,
             source_file=fhir_resource.source_file,
             fhir_resource_pk=fhir_resource.id,
+            batch_id=fhir_resource.batch_id,
         )
         session.add(condition_row)
 
@@ -964,6 +998,7 @@ def extract_observation_from_fhir(
         existing.status = status
         existing.source_file = fhir_resource.source_file
         existing.fhir_resource_pk = fhir_resource.id
+        existing.batch_id = fhir_resource.batch_id
     else:
         observation_row = Observation(
             observation_id=observation_id,
@@ -978,6 +1013,7 @@ def extract_observation_from_fhir(
             status=status,
             source_file=fhir_resource.source_file,
             fhir_resource_pk=fhir_resource.id,
+            batch_id=fhir_resource.batch_id,
         )
         session.add(observation_row)
 
@@ -1043,6 +1079,7 @@ def extract_procedure_from_fhir(
         existing.location = location_name
         existing.source_file = fhir_resource.source_file
         existing.fhir_resource_pk = fhir_resource.id
+        existing.batch_id = fhir_resource.batch_id
     else:
         procedure_row = Procedure(
             procedure_id=procedure_id,
@@ -1056,6 +1093,7 @@ def extract_procedure_from_fhir(
             location=location_name,
             source_file=fhir_resource.source_file,
             fhir_resource_pk=fhir_resource.id,
+            batch_id=fhir_resource.batch_id,
         )
         session.add(procedure_row)
 
@@ -1124,6 +1162,7 @@ def extract_medication_from_fhir(
         existing.dosage_text = dosage_text
         existing.source_file = fhir_resource.source_file
         existing.fhir_resource_pk = fhir_resource.id
+        existing.batch_id = fhir_resource.batch_id
     else:
         medication_row = Medication(
             medication_request_id=medication_request_id,
@@ -1138,6 +1177,7 @@ def extract_medication_from_fhir(
             dosage_text=dosage_text,
             source_file=fhir_resource.source_file,
             fhir_resource_pk=fhir_resource.id,
+            batch_id=fhir_resource.batch_id,
         )
         session.add(medication_row)
 
@@ -1200,6 +1240,7 @@ def extract_immunization_from_fhir(
         existing.lot_number = lot_number
         existing.source_file = fhir_resource.source_file
         existing.fhir_resource_pk = fhir_resource.id
+        existing.batch_id = fhir_resource.batch_id
     else:
         immunization_row = Immunization(
             immunization_id=immunization_id,
@@ -1213,5 +1254,6 @@ def extract_immunization_from_fhir(
             lot_number=lot_number,
             source_file=fhir_resource.source_file,
             fhir_resource_pk=fhir_resource.id,
+            batch_id=fhir_resource.batch_id,
         )
         session.add(immunization_row)

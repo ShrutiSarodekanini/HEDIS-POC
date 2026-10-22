@@ -1,0 +1,3 @@
+transaction_code|service_date|rx_number|ndc|quantity|fill_number|response_code|patient_id|member_id|drug_name
+B1|20261021|RX-10001|00093015098|30|0|P|MEMBER-001||Lisinopril 10 MG Oral Tablet
+B1|20261021|RX-10002|00078171410|90|1|APPROVED|MEMBER-001||Metformin 500 MG Oral Tablet
