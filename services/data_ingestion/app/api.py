@@ -19,6 +19,7 @@ from .repository import (
     as_job_dict,
     as_resource_dict,
     clear_jobs_for_input_dir,
+    enqueue_domain_event,
     list_issues_for_job,
     list_jobs,
     list_resources_for_job,
@@ -500,3 +501,346 @@ def get_coverage_gaps(coverage_id: str) -> dict:
             "continuous_enrollment_compliant": cov.continuous_enrollment_compliant,
             "is_hedis_violation": cov.gap_detected and cov.gap_days and cov.gap_days > 45,
         }
+
+
+@router.get("/dq/runs")
+def list_dq_runs(job_id: str | None = None, batch_id: str | None = None, limit: int = 100) -> dict:
+    from sqlalchemy import select
+    from .models import DqRun
+
+    with session_scope() as session:
+        query = select(DqRun)
+        if job_id:
+            query = query.where(DqRun.job_id == job_id)
+        if batch_id:
+            query = query.where(DqRun.batch_id == batch_id)
+        rows = session.execute(query.order_by(DqRun.started_at.desc()).limit(limit)).scalars().all()
+        runs = [
+            {
+                "id": row.id,
+                "job_id": row.job_id,
+                "batch_id": row.batch_id,
+                "trigger_event_id": row.trigger_event_id,
+                "status": row.status,
+                "summary": row.summary_json,
+                "error_text": row.error_text,
+                "started_at": row.started_at.isoformat() if row.started_at else None,
+                "completed_at": row.completed_at.isoformat() if row.completed_at else None,
+            }
+            for row in rows
+        ]
+    return {"dq_runs": runs}
+
+
+@router.get("/dq/runs/{dq_run_id}/anomalies")
+def list_dq_run_anomalies(dq_run_id: int, limit: int = 500) -> dict:
+    from sqlalchemy import select
+    from .models import DataAnomaly
+
+    with session_scope() as session:
+        rows = session.execute(
+            select(DataAnomaly)
+            .where(DataAnomaly.dq_run_id == dq_run_id)
+            .order_by(DataAnomaly.detected_at.desc())
+            .limit(limit)
+        ).scalars().all()
+        anomalies = [
+            {
+                "id": row.id,
+                "dq_run_id": row.dq_run_id,
+                "batch_id": row.batch_id,
+                "job_id": row.job_id,
+                "patient_id": row.patient_id,
+                "resource_type": row.resource_type,
+                "anomaly_type": row.anomaly_type,
+                "severity": row.severity,
+                "status": row.status,
+                "details": row.details_json,
+                "detected_at": row.detected_at.isoformat() if row.detected_at else None,
+                "resolved_at": row.resolved_at.isoformat() if row.resolved_at else None,
+            }
+            for row in rows
+        ]
+    return {"dq_run_id": dq_run_id, "anomalies": anomalies}
+
+
+@router.get("/dq/runs/{dq_run_id}/checks")
+def list_dq_run_checks(dq_run_id: int, limit: int = 1000) -> dict:
+    from sqlalchemy import select
+    from .models import DqCheckResult
+
+    with session_scope() as session:
+        rows = session.execute(
+            select(DqCheckResult)
+            .where(DqCheckResult.dq_run_id == dq_run_id)
+            .order_by(DqCheckResult.created_at.desc())
+            .limit(limit)
+        ).scalars().all()
+        checks = [
+            {
+                "id": row.id,
+                "dq_run_id": row.dq_run_id,
+                "batch_id": row.batch_id,
+                "check_name": row.check_name,
+                "resource_type": row.resource_type,
+                "status": row.status,
+                "metric_name": row.metric_name,
+                "metric_value": row.metric_value,
+                "threshold_value": row.threshold_value,
+                "details": row.details_json,
+                "created_at": row.created_at.isoformat() if row.created_at else None,
+            }
+            for row in rows
+        ]
+    return {"dq_run_id": dq_run_id, "checks": checks}
+
+
+@router.get("/batches")
+def list_batches(limit: int = 100) -> dict:
+    from sqlalchemy import select
+    from .models import ConversionJob, SourceBatch
+
+    with session_scope() as session:
+        rows = session.execute(
+            select(SourceBatch).order_by(SourceBatch.started_at.desc()).limit(limit)
+        ).scalars().all()
+        batches = []
+        for row in rows:
+            latest_job = session.execute(
+                select(ConversionJob)
+                .where(ConversionJob.batch_id == row.id)
+                .order_by(ConversionJob.started_at.desc())
+                .limit(1)
+            ).scalar_one_or_none()
+            batches.append(
+                {
+                    "batch_id": row.id,
+                    "job_id": latest_job.id if latest_job else None,
+                    "source_system": row.source_system,
+                    "source_format": row.source_format,
+                    "adapter_name": row.adapter_name,
+                    "status": row.status,
+                    "resource_count": row.resource_count,
+                    "resource_count_validated": row.resource_count_validated,
+                    "started_at": row.started_at.isoformat() if row.started_at else None,
+                    "completed_at": row.completed_at.isoformat() if row.completed_at else None,
+                }
+            )
+    return {"batches": batches}
+
+
+@router.get("/config/measures")
+def get_measure_config() -> dict:
+    import json
+
+    rules_path = Path(__file__).resolve().parents[2] / "data_quality" / "config" / "dq_rules.json"
+    if not rules_path.exists():
+        return {"measures": []}
+    data = json.loads(rules_path.read_text(encoding="utf-8"))
+    measures = []
+    def _phase(rule: dict) -> int:
+        value = rule.get("phase", 99)
+        try:
+            return int(value)
+        except (TypeError, ValueError):
+            return 99
+    if isinstance(data, dict):
+        for measure_id, rule in sorted(data.items(), key=lambda item: (_phase(item[1]), item[0])):
+            if not isinstance(rule, dict):
+                continue
+            measures.append(
+                {
+                    "measure_id": measure_id,
+                    "phase": rule.get("phase"),
+                    "description": rule.get("description"),
+                    "required_resource_types": rule.get("required_resource_types", []),
+                    "observation_codes": rule.get("observation_codes", []),
+                    "required_condition_codes": rule.get("required_condition_codes", []),
+                    "required_procedure_codes": rule.get("required_procedure_codes", []),
+                    "required_medication_codes": rule.get("required_medication_codes", []),
+                    "required_immunization_codes": rule.get("required_immunization_codes", []),
+                    "clinical_evidence_mode": rule.get("clinical_evidence_mode", "any"),
+                    "min_distinct_patients_with_evidence": rule.get("min_distinct_patients_with_evidence"),
+                    "requires_unit": rule.get("requires_unit"),
+                    "value_range": rule.get("value_range", {}),
+                    "volume_drop_threshold_pct": rule.get("volume_drop_threshold_pct"),
+                    "volume_spike_threshold_pct": rule.get("volume_spike_threshold_pct"),
+                    "denominator_drop_threshold_pct": rule.get("denominator_drop_threshold_pct"),
+                }
+            )
+    return {"measures": measures}
+
+
+@router.get("/measures")
+def get_measures(batch_id: str | None = None) -> dict:
+    configured = get_measure_config().get("measures", [])
+    measure_ids = [item.get("measure_id") for item in configured if item.get("measure_id")]
+    return {"batch_id": batch_id, "measures": measure_ids}
+
+
+@router.post("/run-checks")
+def run_checks(job_id: str, batch_id: str, measure_id: str | None = None, force_rerun: bool = True) -> dict:
+    from .models import ConversionJob
+    from services.data_quality.main import process_event_by_id
+
+    with session_scope() as session:
+        job = session.get(ConversionJob, job_id)
+        if job is None:
+            raise HTTPException(status_code=404, detail="Job not found")
+        if job.batch_id != batch_id:
+            raise HTTPException(status_code=400, detail="batch_id does not match job")
+        event = enqueue_domain_event(
+            session,
+            event_type="ingestion.completed",
+            batch_id=batch_id,
+            job_id=job_id,
+            payload_json={
+                "manual_run": True,
+                "force_rerun": force_rerun,
+                "measure_id": measure_id,
+            },
+        )
+        event_id = event.id
+
+    processed = process_event_by_id(event_id)
+    return {
+        "event_id": event_id,
+        "processed": processed,
+        "job_id": job_id,
+        "batch_id": batch_id,
+        "measure_id": measure_id,
+    }
+
+
+@router.get("/summary")
+def get_dq_summary(dq_run_id: int | None = None, batch_id: str | None = None, job_id: str | None = None) -> dict:
+    from sqlalchemy import func, select
+    from .models import DataAnomaly, DqCheckResult, DqRun
+
+    with session_scope() as session:
+        run_query = select(DqRun)
+        if dq_run_id:
+            run_query = run_query.where(DqRun.id == dq_run_id)
+        elif batch_id:
+            run_query = run_query.where(DqRun.batch_id == batch_id).order_by(DqRun.started_at.desc())
+        elif job_id:
+            run_query = run_query.where(DqRun.job_id == job_id).order_by(DqRun.started_at.desc())
+        else:
+            run_query = run_query.order_by(DqRun.started_at.desc())
+        run = session.execute(run_query.limit(1)).scalar_one_or_none()
+        if run is None:
+            return {"dq_run": None, "kpis": {}, "severity_counts": {}, "anomaly_type_counts": {}}
+
+        severity_rows = session.execute(
+            select(DataAnomaly.severity, func.count(DataAnomaly.id))
+            .where(DataAnomaly.dq_run_id == run.id)
+            .group_by(DataAnomaly.severity)
+        ).all()
+        severity_counts = {severity: count for severity, count in severity_rows}
+
+        type_rows = session.execute(
+            select(DataAnomaly.anomaly_type, func.count(DataAnomaly.id))
+            .where(DataAnomaly.dq_run_id == run.id)
+            .group_by(DataAnomaly.anomaly_type)
+        ).all()
+        anomaly_type_counts = {anomaly_type: count for anomaly_type, count in type_rows}
+
+        check_rows = session.execute(
+            select(DqCheckResult.status, func.count(DqCheckResult.id))
+            .where(DqCheckResult.dq_run_id == run.id)
+            .group_by(DqCheckResult.status)
+        ).all()
+        check_counts = {status: count for status, count in check_rows}
+
+        return {
+            "dq_run": {
+                "id": run.id,
+                "job_id": run.job_id,
+                "batch_id": run.batch_id,
+                "status": run.status,
+                "started_at": run.started_at.isoformat() if run.started_at else None,
+                "completed_at": run.completed_at.isoformat() if run.completed_at else None,
+                "summary": run.summary_json,
+            },
+            "kpis": {
+                "total_anomalies": sum(severity_counts.values()),
+                "critical_anomalies": severity_counts.get("critical", 0),
+                "high_anomalies": severity_counts.get("high", 0),
+                "failed_checks": check_counts.get("failed", 0),
+                "passed_checks": check_counts.get("passed", 0),
+            },
+            "severity_counts": severity_counts,
+            "anomaly_type_counts": anomaly_type_counts,
+        }
+
+
+@router.get("/anomalies")
+def list_anomalies(
+    dq_run_id: int | None = None,
+    batch_id: str | None = None,
+    severity: str | None = None,
+    anomaly_type: str | None = None,
+    limit: int = 500,
+) -> dict:
+    from sqlalchemy import select
+    from .models import DataAnomaly
+
+    with session_scope() as session:
+        query = select(DataAnomaly)
+        if dq_run_id is not None:
+            query = query.where(DataAnomaly.dq_run_id == dq_run_id)
+        if batch_id:
+            query = query.where(DataAnomaly.batch_id == batch_id)
+        if severity:
+            query = query.where(DataAnomaly.severity == severity)
+        if anomaly_type:
+            query = query.where(DataAnomaly.anomaly_type == anomaly_type)
+
+        rows = session.execute(
+            query.order_by(DataAnomaly.detected_at.desc()).limit(limit)
+        ).scalars().all()
+        anomalies = [
+            {
+                "id": row.id,
+                "dq_run_id": row.dq_run_id,
+                "batch_id": row.batch_id,
+                "job_id": row.job_id,
+                "patient_id": row.patient_id,
+                "resource_type": row.resource_type,
+                "anomaly_type": row.anomaly_type,
+                "severity": row.severity,
+                "status": row.status,
+                "details": row.details_json,
+                "detected_at": row.detected_at.isoformat() if row.detected_at else None,
+            }
+            for row in rows
+        ]
+    return {"anomalies": anomalies}
+
+
+@router.get("/trends/anomalies-by-batch")
+def anomalies_by_batch(limit: int = 30) -> dict:
+    from sqlalchemy import func, select
+    from .models import DataAnomaly, DqRun
+
+    with session_scope() as session:
+        rows = session.execute(
+            select(
+                DataAnomaly.batch_id,
+                DqRun.started_at,
+                func.count(DataAnomaly.id),
+            )
+            .join(DqRun, DqRun.id == DataAnomaly.dq_run_id)
+            .group_by(DataAnomaly.batch_id, DqRun.started_at)
+            .order_by(DqRun.started_at.desc())
+            .limit(limit)
+        ).all()
+        trends = [
+            {
+                "batch_id": batch_id,
+                "run_started_at": started_at.isoformat() if started_at else None,
+                "anomaly_count": anomaly_count,
+            }
+            for batch_id, started_at, anomaly_count in rows
+        ]
+    return {"trends": trends}

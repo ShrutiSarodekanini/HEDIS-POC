@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { api } from '../services/api';
+import { setIngestionActivity } from '../services/ingestionState';
 
 export default function RunIngestion() {
   const [sourceSystem, setSourceSystem] = useState('Synthea CSV');
@@ -30,6 +31,12 @@ export default function RunIngestion() {
               ? 'Partially completed'
               : status.status
         );
+        const restoredStatus = String(status.status || '').toLowerCase();
+        if (['completed', 'partially_completed', 'failed', 'interrupted'].includes(restoredStatus)) {
+          setIngestionActivity(false);
+        } else {
+          setIngestionActivity(true, latestJob.id);
+        }
       } catch {
         // The page remains ready for a new ingestion if no previous job is available.
       }
@@ -67,7 +74,7 @@ export default function RunIngestion() {
   const handleInspect = async () => {
     try {
       const path = inputDir.trim() || '/data/synthea/output/fhir';
-      const response = await api(`/api/inspect?path=${encodeURIComponent(path)}`);
+      const response = await api(`/api/datasets/inspect?input_dir=${encodeURIComponent(path)}`);
       setInspectResult(JSON.stringify(response, null, 2));
     } catch (error) {
       setInspectResult(`Error: ${error.message}`);
@@ -97,10 +104,12 @@ export default function RunIngestion() {
       setJobId(response.job_id);
       setJobStatus(response);
       setRunBadge('Running');
+      setIngestionActivity(true, response.job_id);
       pollJobStatus(response.job_id);
     } catch (error) {
       setRunBadge('Error');
       setInspectResult(`Error: ${error.message}`);
+      setIngestionActivity(false);
     }
   };
 
@@ -111,6 +120,7 @@ export default function RunIngestion() {
     const poll = async () => {
       if (attempts >= maxAttempts) {
         setRunBadge('Timeout');
+        setIngestionActivity(false);
         return;
       }
       
@@ -120,8 +130,10 @@ export default function RunIngestion() {
         
         if (['completed', 'partially_completed', 'failed'].includes(response.status)) {
           setRunBadge(response.status === 'completed' ? 'Completed' : response.status === 'partially_completed' ? 'Partially completed' : 'Failed');
+          setIngestionActivity(false);
         } else {
           setRunBadge(response.status);
+          setIngestionActivity(true, id);
           attempts++;
           setTimeout(poll, 5000);
         }
