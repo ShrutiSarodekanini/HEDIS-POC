@@ -6,23 +6,79 @@ import time
 from dataclasses import dataclass, field
 from typing import Any
 
+from sqlalchemy import select, tuple_, update
+
+from .adapters import registry
 from .config import settings
 from .db import session_scope
-from .mapping import bundles_by_patient, map_dataset
+from pydantic import ValidationError
+
+from .mapping import bundles_by_patient, map_dataset, map_source_record, normalize_resource, validation_issue
+from .models import (
+    AllergyIntolerance,
+    BasicResource,
+    Claim,
+    Condition,
+    Coverage,
+    Device,
+    Encounter,
+    FhirResource,
+    ImagingStudy,
+    Immunization,
+    Medication,
+    Observation,
+    Organization,
+    Patient,
+    Practitioner,
+    Procedure,
+    SupplyDelivery,
+)
 from .repository import (
+    batch_fetch_fhir_resources,
     complete_job,
+    bulk_upsert_resources,
     create_job,
+    extract_coverage_from_fhir,
+    extract_additional_resource,
+    extract_patient_from_fhir,
+    extract_encounter_from_fhir,
+    extract_condition_from_fhir,
+    extract_observation_from_fhir,
+    extract_procedure_from_fhir,
+    extract_medication_from_fhir,
+    extract_immunization_from_fhir,
     mark_validated_resources_persisted,
     persist_row_issues,
     persist_validation_messages,
     start_job,
     upsert_resource,
 )
-from .synthea import parse_dataset
 from .validator import validate_resources
 
 
 STAGES = ["csv_input", "mapping", "fhir_generation", "validation", "postgresql_storage"]
+RESOURCE_BATCH_SIZE = 1000
+FILE_RESOURCE_TYPES = {
+    "patients.csv": "Patient",
+    "encounters.csv": "Encounter",
+    "conditions.csv": "Condition",
+    "observations.csv": "Observation",
+    "procedures.csv": "Procedure",
+    "medications.csv": "MedicationRequest",
+    "immunizations.csv": "Immunization",
+    "careplans.csv": "CarePlan",
+    "claims.csv": "Claim",
+    "coverages.csv": "Coverage",
+    "allergies.csv": "AllergyIntolerance",
+    "claims_transactions.csv": "Basic",
+    "devices.csv": "Device",
+    "imaging_studies.csv": "ImagingStudy",
+    "organizations.csv": "Organization",
+    "payer_transitions.csv": "Coverage",
+    "payers.csv": "Organization",
+    "providers.csv": "Practitioner",
+    "supplies.csv": "SupplyDelivery",
+}
 
 logger = logging.getLogger("uvicorn.error")
 
@@ -45,6 +101,7 @@ class StageState:
 @dataclass
 class RuntimeState:
     job_id: str
+    batch_id: str | None = None
     status: str = "pending"
     stages: dict[str, StageState] = field(default_factory=dict)
     started_at: float = field(default_factory=time.time)
@@ -57,13 +114,15 @@ class JobManager:
         self._states: dict[str, RuntimeState] = {}
         self._lock = threading.Lock()
 
-    def create_job(self, input_dir: str) -> str:
+    def create_job(self, input_dir: str, adapter_name: str = "synthea_csv") -> str:
         with session_scope() as session:
-            job = create_job(session, input_dir)
+            job = create_job(session, input_dir, adapter_name)
             job_id = job.id
+            batch_id = job.batch_id
 
         state = RuntimeState(
             job_id=job_id,
+            batch_id=batch_id,
             status="pending",
             stages={stage: StageState(name=stage) for stage in STAGES},
         )
@@ -74,6 +133,18 @@ class JobManager:
     def get_state(self, job_id: str) -> RuntimeState | None:
         with self._lock:
             return self._states.get(job_id)
+
+    def ensure_state(self, job_id: str) -> RuntimeState:
+        with self._lock:
+            state = self._states.get(job_id)
+            if state is None:
+                state = RuntimeState(
+                    job_id=job_id,
+                    status="pending",
+                    stages={stage: StageState(name=stage) for stage in STAGES},
+                )
+                self._states[job_id] = state
+            return state
 
     def set_stage(self, job_id: str, stage: str, status: str, details: str = "") -> None:
         with self._lock:
@@ -130,7 +201,11 @@ class JobManager:
 
     def record_resource_progress(self, job_id: str, resource_type: str, status: str, processed: bool = True) -> None:
         with self._lock:
-            entry = self._states[job_id].resource_progress[resource_type]
+            entry = self._states[job_id].resource_progress.setdefault(
+                resource_type,
+                {"total": 0, "processed": 0, "validation_processed": 0, "warnings": 0, "rejected": 0},
+            )
+            entry["status"] = status
             if processed:
                 entry["processed"] += 1
             elif status in {"validated", "unavailable", "partial", "failed"}:
@@ -140,15 +215,76 @@ class JobManager:
             if status == "failed":
                 entry["rejected"] += 1
 
+    def count_resource(self, job_id: str, resource_type: str) -> None:
+        with self._lock:
+            entry = self._states[job_id].resource_progress.setdefault(
+                resource_type,
+                {"total": 0, "processed": 0, "validation_processed": 0, "warnings": 0, "rejected": 0},
+            )
+            entry["total"] += 1
+
 
 job_manager = JobManager()
 
 
-def run_conversion(job_id: str, input_dir: str) -> None:
+def _extract_denormalized(session: Any, row: Any, resource: Any) -> None:
+    extractors = {
+        "Patient": extract_patient_from_fhir,
+        "Encounter": extract_encounter_from_fhir,
+        "Condition": extract_condition_from_fhir,
+        "Observation": extract_observation_from_fhir,
+        "Procedure": extract_procedure_from_fhir,
+        "MedicationRequest": extract_medication_from_fhir,
+        "Immunization": extract_immunization_from_fhir,
+        "Coverage": extract_coverage_from_fhir,
+        "AllergyIntolerance": extract_additional_resource,
+        "Basic": extract_additional_resource,
+        "Claim": extract_additional_resource,
+        "Device": extract_additional_resource,
+        "ImagingStudy": extract_additional_resource,
+        "Organization": extract_additional_resource,
+        "Practitioner": extract_additional_resource,
+        "SupplyDelivery": extract_additional_resource,
+    }
+    extractor = extractors.get(resource.resource_type)
+    if extractor:
+        extractor(session, row, resource.fhir)
+        model_by_type = {
+            "Patient": Patient,
+            "Encounter": Encounter,
+            "Condition": Condition,
+            "Observation": Observation,
+            "Procedure": Procedure,
+            "MedicationRequest": Medication,
+            "Immunization": Immunization,
+            "Coverage": Coverage,
+            "AllergyIntolerance": AllergyIntolerance,
+            "Claim": Claim,
+            "Device": Device,
+            "ImagingStudy": ImagingStudy,
+            "Organization": Organization,
+            "Practitioner": Practitioner,
+            "SupplyDelivery": SupplyDelivery,
+            "Basic": BasicResource,
+        }
+        model = model_by_type.get(resource.resource_type)
+        if model is not None and row.batch_id:
+            session.execute(
+                update(model)
+                .where(model.fhir_resource_pk == row.id)
+                .values(batch_id=row.batch_id)
+            )
+
+
+def _run_streaming_conversion(job_id: str, input_dir: str, adapter: Any) -> None:
     stage = job_manager.set_stage
-    job_manager.set_job_status(job_id, "running")
-    conversion_started_at = time.time()
-    _emit(f"[pipeline] job={job_id} conversion_started input_dir={input_dir}")
+    started_at = time.time()
+    issue_buffer: list[Any] = []
+    warning_count = 0
+    error_count = 0
+    mapping_seconds = 0.0
+    validation_seconds = 0.0
+    persistence_seconds = 0.0
 
     summary: dict[str, Any] = {
         "total_source_records": 0,
@@ -160,14 +296,226 @@ def run_conversion(job_id: str, input_dir: str) -> None:
         "patients": 0,
         "bundles": {},
         "files": {},
+        "adapter": adapter.adapter_name,
+        "streaming": True,
+        "batch_size": RESOURCE_BATCH_SIZE,
+    }
+
+    def collect_issue(issue: Any) -> None:
+        nonlocal warning_count, error_count
+        issue_buffer.append(issue)
+        issue_resource_type = FILE_RESOURCE_TYPES.get(issue.source_file)
+        if issue_resource_type:
+            job_manager.record_resource_progress(job_id, issue_resource_type, "failed")
+        if issue.severity == "warning":
+            warning_count += 1
+        elif issue.severity == "error":
+            error_count += 1
+
+    try:
+        stage(job_id, "csv_input", "running", f"Streaming input using '{adapter.adapter_name}' adapter")
+        metadata, records = adapter.stream(input_dir, collect_issue)
+        summary["total_source_records"] = sum(metadata.row_counts.values())
+        summary["patients"] = metadata.row_counts.get("patients.csv", 0)
+        summary["files"] = {
+            "found": metadata.found_files,
+            "missing_required": metadata.missing_required_files,
+            "row_counts": metadata.row_counts,
+        }
+        stage(job_id, "csv_input", "completed", f"Discovered {len(metadata.found_files)} supported files")
+
+        resource_types: dict[str, int] = {}
+        for filename, count in metadata.row_counts.items():
+            resource_type = FILE_RESOURCE_TYPES.get(filename)
+            if resource_type:
+                resource_types[resource_type] = resource_types.get(resource_type, 0) + count
+        job_manager.initialize_resource_progress(
+            job_id,
+            {resource_type: total for resource_type, total in resource_types.items() if total},
+        )
+        stage(job_id, "mapping", "running", "Mapping and persisting records in bounded batches")
+        stage(job_id, "validation", "running", "Validating resources during streaming")
+
+        coverage_records: list[Any] = []
+        batch: list[Any] = []
+        mapped_count = 0
+        validated_count = 0
+
+        def persist_batch(session: Any) -> None:
+            nonlocal batch, validated_count, error_count, validation_seconds, persistence_seconds
+            if not batch and not issue_buffer:
+                return
+            persist_row_issues(session, job_id, issue_buffer)
+            issue_buffer.clear()
+            valid_batch: list[Any] = []
+            validation_start = time.perf_counter()
+            for resource in batch:
+                try:
+                    normalize_resource(resource)
+                    valid_batch.append(resource)
+                    validated_count += 1
+                    job_manager.record_resource_progress(job_id, resource.resource_type, "validated", processed=False)
+                except ValidationError as exc:
+                    issue = validation_issue(resource, exc)
+                    persist_row_issues(session, job_id, [issue])
+                    error_count += 1
+                    job_manager.record_resource_progress(job_id, resource.resource_type, "failed", processed=False)
+            validation_seconds += time.perf_counter() - validation_start
+            persistence_start = time.perf_counter()
+            if valid_batch:
+                bulk_upsert_resources(
+                    session,
+                    job_id=job_id,
+                    batch_id=job_manager.ensure_state(job_id).batch_id,
+                    resources=valid_batch,
+                )
+                session.flush()
+                resource_keys = [(resource.resource_type, resource.resource_id) for resource in valid_batch]
+                rows_by_key = {
+                    (row.resource_type, row.resource_id): row
+                    for row in session.execute(
+                        select(FhirResource).where(
+                            FhirResource.job_id == job_id,
+                            tuple_(FhirResource.resource_type, FhirResource.resource_id).in_(resource_keys),
+                        )
+                    ).scalars()
+                }
+                for resource in valid_batch:
+                    row = rows_by_key.get((resource.resource_type, resource.resource_id))
+                    if row:
+                        _extract_denormalized(session, row, resource)
+            session.flush()
+            session.commit()
+            persistence_seconds += time.perf_counter() - persistence_start
+            batch = []
+
+        with session_scope() as session:
+            for record in records:
+                if record.source_file == "coverages.csv":
+                    coverage_records.append(record)
+                    continue
+                mapping_start = time.perf_counter()
+                resource, issues = map_source_record(record, validate=False)
+                mapping_seconds += time.perf_counter() - mapping_start
+                issue_buffer.extend(issues)
+                for issue in issues:
+                    if issue.severity == "warning":
+                        warning_count += 1
+                    elif issue.severity == "error":
+                        error_count += 1
+                resource_type = record.data.get("resourceType") or FILE_RESOURCE_TYPES[record.source_file]
+                if record.source_file.startswith(("fhir:", "ccda:", "claims837:", "ncpdp:")):
+                    job_manager.count_resource(job_id, resource_type)
+                if resource:
+                    job_manager.record_resource_progress(job_id, resource_type, "mapped")
+                    batch.append(resource)
+                    mapped_count += 1
+                else:
+                    job_manager.record_resource_progress(job_id, resource_type, "failed")
+                if len(batch) >= RESOURCE_BATCH_SIZE:
+                    persist_batch(session)
+
+            coverage_by_patient: dict[str | None, list[Any]] = {}
+            for record in coverage_records:
+                coverage_by_patient.setdefault(record.patient_id, []).append(record)
+            for record in coverage_records:
+                mapping_start = time.perf_counter()
+                resource, issues = map_source_record(record, coverage_by_patient, validate=False)
+                mapping_seconds += time.perf_counter() - mapping_start
+                issue_buffer.extend(issues)
+                for issue in issues:
+                    if issue.severity == "warning":
+                        warning_count += 1
+                    elif issue.severity == "error":
+                        error_count += 1
+                if resource:
+                    batch.append(resource)
+                    mapped_count += 1
+                else:
+                    job_manager.record_resource_progress(job_id, "Coverage", "failed")
+                if len(batch) >= RESOURCE_BATCH_SIZE:
+                    persist_batch(session)
+            persist_batch(session)
+
+        summary["total_source_records"] = sum(metadata.row_counts.values())
+        summary["resources_generated"] = mapped_count
+        summary["resources_validated"] = validated_count
+        summary["resources_persisted"] = validated_count
+        summary["warning_count"] = warning_count
+        summary["error_count"] = error_count
+        summary["timings"] = {
+            "mapping_seconds": round(mapping_seconds, 3),
+            "validation_seconds": round(validation_seconds, 3),
+            "database_insertion_seconds": round(persistence_seconds, 3),
+            "csv_reading_seconds": round(time.time() - started_at - mapping_seconds - validation_seconds - persistence_seconds, 3),
+        }
+        stage(job_id, "mapping", "completed", f"Mapped {mapped_count} resources")
+        stage(job_id, "validation", "completed", f"Validated {validated_count} resources during streaming")
+        stage(job_id, "fhir_generation", "completed", f"Generated {mapped_count} resources without retaining the full dataset")
+        stage(job_id, "postgresql_storage", "completed", f"Persisted {validated_count} resources during ingestion")
+
+        final_status = "partially_completed" if error_count or validated_count < mapped_count else "completed"
+        summary["timelogs"] = {
+            "conversion_started_at": started_at,
+            "conversion_completed_at": time.time(),
+            "conversion_elapsed_seconds": round(time.time() - started_at, 3),
+        }
+        with session_scope() as session:
+            complete_job(session, job_id, final_status, summary)
+        job_manager.set_job_status(job_id, final_status)
+        _emit(f"[pipeline] job={job_id} streaming_conversion_finished status={final_status} resources={mapped_count}")
+    except Exception as exc:
+        logger.exception("[pipeline] job=%s streaming_conversion_failed error=%s", job_id, exc)
+        with session_scope() as session:
+            summary["error_count"] = error_count + 1
+            summary["error"] = str(exc)
+            complete_job(session, job_id, "failed", summary)
+        job_manager.set_job_status(job_id, "failed")
+
+
+def run_conversion(job_id: str, input_dir: str, adapter_name: str = "synthea_csv") -> None:
+    stage = job_manager.set_stage
+    job_manager.set_job_status(job_id, "running")
+    conversion_started_at = time.time()
+    _emit(f"[pipeline] job={job_id} conversion_started input_dir={input_dir} adapter={adapter_name}")
+
+    summary: dict[str, Any] = {
+        "total_source_records": 0,
+        "resources_generated": 0,
+        "resources_validated": 0,
+        "resources_persisted": 0,
+        "warning_count": 0,
+        "error_count": 0,
+        "patients": 0,
+        "bundles": {},
+        "files": {},
+        "adapter": adapter_name,
     }
 
     try:
         with session_scope() as session:
             start_job(session, job_id)
 
-        stage(job_id, "csv_input", "running", "Parsing CSV files")
-        parsed = parse_dataset(input_dir)
+        stage(job_id, "csv_input", "running", f"Parsing input source using '{adapter_name}' adapter")
+        
+        # Get adapter from registry
+        adapter = registry.get_adapter(adapter_name)
+        if adapter is None:
+            stage(job_id, "csv_input", "failed", f"Adapter '{adapter_name}' not found. Available: {registry.list_adapters()}")
+            job_manager.set_job_status(job_id, "failed")
+            with session_scope() as session:
+                complete_job(session, job_id, "failed", {
+                    **summary,
+                    "error": f"Adapter '{adapter_name}' not registered"
+                })
+            return
+
+        if not settings.validation_require_external:
+            _run_streaming_conversion(job_id, input_dir, adapter)
+            return
+        
+        # Parse using selected adapter
+        parsed = adapter.parse(input_dir)
         summary["total_source_records"] = parsed.total_rows
         summary["files"] = {
             "found": parsed.metadata.found_files,
@@ -188,10 +536,7 @@ def run_conversion(job_id: str, input_dir: str) -> None:
             "Immunization": len(parsed.records_by_file.get("immunizations.csv", [])),
             "CarePlan": len(parsed.records_by_file.get("careplans.csv", [])),
             "Claim": len(parsed.records_by_file.get("claims.csv", [])),
-            "Coverage": (
-                len(parsed.records_by_file.get("coverages.csv", []))
-                + len(parsed.records_by_file.get("payer_transitions.csv", []))
-            ),
+            "Coverage": len(parsed.records_by_file.get("coverages.csv", [])),
         }
         job_manager.initialize_resource_progress(
             job_id,
@@ -245,6 +590,7 @@ def run_conversion(job_id: str, input_dir: str) -> None:
                         row = upsert_resource(
                             session,
                             job_id=job_id,
+                            batch_id=job_manager.ensure_state(job_id).batch_id,
                             resource_type=resource.resource_type,
                             resource_id=resource.resource_id,
                             patient_id=resource.patient_id,
@@ -257,9 +603,28 @@ def run_conversion(job_id: str, input_dir: str) -> None:
                             metadata_json={"references": resource.references},
                         )
 
+                        # Extract denormalized data from FHIR resources
+                        if resource.resource_type == "Patient":
+                            extract_patient_from_fhir(session, row, resource.fhir)
+                        elif resource.resource_type == "Encounter":
+                            extract_encounter_from_fhir(session, row, resource.fhir)
+                        elif resource.resource_type == "Condition":
+                            extract_condition_from_fhir(session, row, resource.fhir)
+                        elif resource.resource_type == "Observation":
+                            extract_observation_from_fhir(session, row, resource.fhir)
+                        elif resource.resource_type == "Procedure":
+                            extract_procedure_from_fhir(session, row, resource.fhir)
+                        elif resource.resource_type == "Medication":
+                            extract_medication_from_fhir(session, row, resource.fhir)
+                        elif resource.resource_type == "Immunization":
+                            extract_immunization_from_fhir(session, row, resource.fhir)
+                        elif resource.resource_type == "Coverage":
+                            extract_coverage_from_fhir(session, row, resource.fhir)
+
                         persist_validation_messages(
                             session,
                             job_id=job_id,
+                            batch_id=job_manager.ensure_state(job_id).batch_id,
                             resource_pk=row.id,
                             resource_type=resource.resource_type,
                             resource_id=resource.resource_id,
@@ -274,6 +639,10 @@ def run_conversion(job_id: str, input_dir: str) -> None:
                         resource_count += 1
                         if resource_count % 10000 == 0:
                             _emit(f"[pipeline] job={job_id} validation_external: upserted {resource_count}/{len(mapped.resources)}")
+                        if resource_count % RESOURCE_BATCH_SIZE == 0:
+                            session.flush()
+                            session.commit()
+                            _emit(f"[pipeline] job={job_id} validation_external: committed {resource_count} resources")
                     
                     _emit(f"[pipeline] job={job_id} validation_external: completed upsert of {resource_count} resources")
             except Exception as e:
@@ -289,6 +658,7 @@ def run_conversion(job_id: str, input_dir: str) -> None:
                         upsert_resource(
                             session,
                             job_id=job_id,
+                            batch_id=job_manager.ensure_state(job_id).batch_id,
                             resource_type=resource.resource_type,
                             resource_id=resource.resource_id,
                             patient_id=resource.patient_id,
@@ -301,13 +671,60 @@ def run_conversion(job_id: str, input_dir: str) -> None:
                             metadata_json={"references": resource.references},
                             flush=False,
                         )
+                        
+                        # Extract denormalized data from FHIR resources (deferred flush)
+                        # Note: We pass None for FhirResource since flush=False means it's not in DB yet
+                        # Extraction will happen after session.flush()
+                        
                         resource_count += 1
                         if resource_count % 10000 == 0:
                             _emit(f"[pipeline] job={job_id} validation_no_external: upserted {resource_count}/{len(mapped.resources)}")
+                        if resource_count % RESOURCE_BATCH_SIZE == 0:
+                            session.flush()
+                            session.commit()
+                            _emit(f"[pipeline] job={job_id} validation_no_external: committed {resource_count} resources")
                     
                     _emit(f"[pipeline] job={job_id} validation_no_external: flushing {resource_count} resources to database")
                     session.flush()
                     _emit(f"[pipeline] job={job_id} validation_no_external: flush completed successfully")
+                    
+                    # Batch-fetch all FhirResource rows to avoid N+1 queries
+                    _emit(f"[pipeline] job={job_id} validation_no_external: batch-fetching {len(mapped.resources)} FHIR resources")
+                    resource_ids = [resource.resource_id for resource in mapped.resources]
+                    fhir_resources_by_id = batch_fetch_fhir_resources(session, resource_ids)
+                    _emit(f"[pipeline] job={job_id} validation_no_external: fetched {len(fhir_resources_by_id)} FHIR resources")
+                    
+                    # Now perform extraction on flushed resources
+                    _emit(f"[pipeline] job={job_id} validation_no_external: extracting denormalized data")
+                    extraction_count = 0
+                    for resource in mapped.resources:
+                        fhir_res = fhir_resources_by_id.get(resource.resource_id)
+                        if fhir_res:
+                            if resource.resource_type == "Patient":
+                                extract_patient_from_fhir(session, fhir_res, resource.fhir)
+                            elif resource.resource_type == "Encounter":
+                                extract_encounter_from_fhir(session, fhir_res, resource.fhir)
+                            elif resource.resource_type == "Condition":
+                                extract_condition_from_fhir(session, fhir_res, resource.fhir)
+                            elif resource.resource_type == "Observation":
+                                extract_observation_from_fhir(session, fhir_res, resource.fhir)
+                            elif resource.resource_type == "Procedure":
+                                extract_procedure_from_fhir(session, fhir_res, resource.fhir)
+                            elif resource.resource_type == "Medication":
+                                extract_medication_from_fhir(session, fhir_res, resource.fhir)
+                            elif resource.resource_type == "Immunization":
+                                extract_immunization_from_fhir(session, fhir_res, resource.fhir)
+                            elif resource.resource_type == "Coverage":
+                                extract_coverage_from_fhir(session, fhir_res, resource.fhir)
+
+                        extraction_count += 1
+                        if extraction_count % RESOURCE_BATCH_SIZE == 0:
+                            session.flush()
+                            session.commit()
+                            _emit(f"[pipeline] job={job_id} validation_no_external: committed extraction {extraction_count}/{len(mapped.resources)}")
+                    
+                    session.flush()
+                    _emit(f"[pipeline] job={job_id} validation_no_external: extraction completed")
             except Exception as e:
                 _emit(f"[pipeline] job={job_id} ERROR in validation_no_external: {type(e).__name__}: {e}")
                 raise
@@ -376,56 +793,33 @@ def run_conversion(job_id: str, input_dir: str) -> None:
 
 
 def run_persist_stage(job_id: str) -> int:
-    if job_manager.get_state(job_id) is None:
-        with job_manager._lock:
-            job_manager._states[job_id] = RuntimeState(
-                job_id=job_id,
-                status="running",
-                stages={stage: StageState(name=stage) for stage in STAGES},
-            )
-
+    job_manager.ensure_state(job_id)
     stage = job_manager.set_stage
     stage(job_id, "postgresql_storage", "running", "Marking validated resources as persisted")
     _emit(f"[pipeline] job={job_id} persist_stage_started")
     with session_scope() as session:
         persisted = mark_validated_resources_persisted(session, job_id)
 
-        from sqlalchemy import func, select
-        from .models import FhirResource
-
-        total_persisted = (
-            session.execute(
-                select(func.count())
-                .select_from(FhirResource)
-                .where((FhirResource.job_id == job_id) & (FhirResource.persisted == True))
-            ).scalar()
-            or 0
-        )
-
         from .models import ConversionJob
 
         job = session.get(ConversionJob, job_id)
         if job:
             summary = job.summary or {}
-            summary["resources_persisted"] = total_persisted
+            summary["resources_persisted"] = persisted
             job.summary = summary
-            job.resources_persisted = total_persisted
+            job.resources_persisted = persisted
             if job.status == "completed" and persisted == 0:
                 job.status = "partially_completed"
 
-    stage(
-        job_id,
-        "postgresql_storage",
-        "completed",
-        f"Persisted {persisted} resources (total persisted: {total_persisted})",
-    )
-    _emit(
-        f"[pipeline] job={job_id} persist_stage_finished "
-        f"persisted_delta={persisted} persisted_total={total_persisted}"
-    )
-    return total_persisted
+    stage(job_id, "postgresql_storage", "completed", f"Persisted {persisted} resources")
+    _emit(f"[pipeline] job={job_id} persist_stage_finished persisted={persisted}")
+    return persisted
 
 
-def launch_job(job_id: str, input_dir: str) -> None:
-    thread = threading.Thread(target=run_conversion, args=(job_id, input_dir), daemon=True)
+def launch_job(job_id: str, input_dir: str, adapter_name: str = "synthea_csv") -> None:
+    def _run_full_pipeline():
+        """Run conversion and leave persistence for an explicit user action."""
+        run_conversion(job_id, input_dir, adapter_name)
+    
+    thread = threading.Thread(target=_run_full_pipeline, daemon=True)
     thread.start()

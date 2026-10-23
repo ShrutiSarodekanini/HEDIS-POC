@@ -1,0 +1,127 @@
+{
+  "CBP": {
+    "phase": 1,
+    "description": "Controlling Blood Pressure (HEDIS-like): validate systolic/diastolic observation integrity and feed continuity.",
+    "required_resource_types": ["Observation", "Coverage"],
+    "observation_codes": ["8480-6", "8462-4"],
+    "required_condition_codes": ["59621000"],
+    "clinical_evidence_mode": "any",
+    "min_distinct_patients_with_evidence": 3,
+    "requires_unit": "mm[Hg]",
+    "value_range": {
+      "min": 30.0,
+      "max": 300.0
+    },
+    "volume_drop_threshold_pct": 40,
+    "volume_spike_threshold_pct": 80,
+    "denominator_drop_threshold_pct": 10
+  },
+  "GSD": {
+    "phase": 1,
+    "description": "Glycemic Status Assessment for Patients with Diabetes (HEDIS-like): enforce A1c observation code/unit/range quality.",
+    "required_resource_types": ["Observation", "Coverage", "Condition"],
+    "observation_codes": ["4548-4", "4549-2", "17856-6"],
+    "required_condition_codes": ["44054006"],
+    "clinical_evidence_mode": "any",
+    "min_distinct_patients_with_evidence": 2,
+    "requires_unit": "%",
+    "value_range": {
+      "min": 3.0,
+      "max": 20.0
+    },
+    "volume_drop_threshold_pct": 40,
+    "volume_spike_threshold_pct": 80,
+    "denominator_drop_threshold_pct": 10
+  },
+  "WCV": {
+    "phase": 1,
+    "description": "Well-Child Visits (HEDIS-like proxy): verify expected wellness-encounter procedure evidence and payer continuity.",
+    "required_resource_types": ["Procedure", "Coverage", "Patient"],
+    "required_procedure_codes": ["410401003", "866148006"],
+    "clinical_evidence_mode": "any",
+    "min_distinct_patients_with_evidence": 2,
+    "volume_drop_threshold_pct": 40,
+    "volume_spike_threshold_pct": 80,
+    "denominator_drop_threshold_pct": 10
+  },
+  "CIS": {
+    "phase": 1,
+    "description": "Childhood Immunization Status (HEDIS-like proxy): validate vaccine event completeness across core CVX set.",
+    "required_resource_types": ["Immunization", "Coverage", "Patient"],
+    "required_immunization_codes": ["140", "20", "133", "113", "10", "208"],
+    "clinical_evidence_mode": "any",
+    "min_distinct_patients_with_evidence": 2,
+    "volume_drop_threshold_pct": 40,
+    "volume_spike_threshold_pct": 80,
+    "denominator_drop_threshold_pct": 10
+  },
+  "AAB": {
+    "phase": 2,
+    "description": "Avoidance of Antibiotic Treatment for Acute Bronchitis/Bronchiolitis (HEDIS-like proxy): monitor respiratory diagnosis and antibiotic prescribing patterns.",
+    "required_resource_types": ["Condition", "MedicationRequest", "Coverage"],
+    "required_condition_codes": ["444814009", "195662009"],
+    "required_medication_codes": ["1535362", "206905", "849574"],
+    "clinical_evidence_mode": "all",
+    "min_distinct_patients_with_evidence": 1,
+    "volume_drop_threshold_pct": 40,
+    "volume_spike_threshold_pct": 80,
+    "denominator_drop_threshold_pct": 10
+  },
+  "URI": {
+    "phase": 2,
+    "description": "Appropriate Treatment for Upper Respiratory Infection (HEDIS-like proxy): check URI diagnosis evidence and linked acute treatment events.",
+    "required_resource_types": ["Condition", "Procedure", "Coverage"],
+    "required_condition_codes": ["444814009", "195662009", "65363002"],
+    "required_procedure_codes": ["117015009", "34043003"],
+    "clinical_evidence_mode": "all",
+    "min_distinct_patients_with_evidence": 1,
+    "volume_drop_threshold_pct": 40,
+    "volume_spike_threshold_pct": 80,
+    "denominator_drop_threshold_pct": 10
+  },
+  "BPD": {
+    "phase": 2,
+    "description": "Behavioral Health and Depression Screening (HEDIS-like proxy): validate depression/anxiety screening workflow evidence.",
+    "required_resource_types": ["Procedure", "Condition", "Coverage"],
+    "required_procedure_codes": ["171207006", "715252007", "710841007"],
+    "required_condition_codes": ["72892002", "73595000"],
+    "clinical_evidence_mode": "any",
+    "min_distinct_patients_with_evidence": 1,
+    "volume_drop_threshold_pct": 40,
+    "volume_spike_threshold_pct": 80,
+    "denominator_drop_threshold_pct": 10
+  },
+  "COA": {
+    "phase": 3,
+    "description": "Care for Older Adults (HEDIS-like proxy): verify assessment-style procedures for care planning and social needs.",
+    "required_resource_types": ["Procedure", "Condition", "Coverage"],
+    "required_procedure_codes": ["710824005", "710841007", "428211000124100", "763302001"],
+    "clinical_evidence_mode": "any",
+    "min_distinct_patients_with_evidence": 1,
+    "volume_drop_threshold_pct": 40,
+    "volume_spike_threshold_pct": 80,
+    "denominator_drop_threshold_pct": 10
+  },
+  "COL": {
+    "phase": 3,
+    "description": "Colorectal Cancer Screening (HEDIS-like placeholder): keeps rule plumbing ready for official NCQA value sets.",
+    "required_resource_types": ["Procedure", "Coverage", "Patient"],
+    "required_procedure_codes": ["73761001", "430856003"],
+    "clinical_evidence_mode": "any",
+    "min_distinct_patients_with_evidence": 1,
+    "volume_drop_threshold_pct": 40,
+    "volume_spike_threshold_pct": 80,
+    "denominator_drop_threshold_pct": 10
+  },
+  "BCS": {
+    "phase": 3,
+    "description": "Breast Cancer Screening (HEDIS-like placeholder): keeps mammography evidence checks wired for incremental value-set rollout.",
+    "required_resource_types": ["Procedure", "Coverage", "Patient"],
+    "required_procedure_codes": ["24623002", "71651007"],
+    "clinical_evidence_mode": "any",
+    "min_distinct_patients_with_evidence": 1,
+    "volume_drop_threshold_pct": 40,
+    "volume_spike_threshold_pct": 80,
+    "denominator_drop_threshold_pct": 10
+  }
+}

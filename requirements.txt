@@ -2,18 +2,26 @@
 # External tools: PostgreSQL 18, Tesseract OCR 5.x (handwriting also uses a local Ollama vision model).
 
 # Database
-psycopg[binary]
-SQLAlchemy
+psycopg[binary]==3.2.3
+SQLAlchemy==2.0.36
 alembic
-python-dotenv
+python-dotenv==1.0.1
 PyYAML
 
 # API
-fastapi
-uvicorn
-python-multipart
-pydantic
-httpx
+fastapi==0.115.5
+uvicorn==0.32.1
+sqlalchemy>=2.0.44,<2.1
+psycopg[binary]>=3.2.10,<3.3
+fhir.resources==6.5.0
+pydantic==1.10.21
+python-dotenv==1.0.1
+pytest==8.3.3
+httpx==0.28.1
+python-multipart==0.0.9
+
+# FHIR
+fhir.resources==6.5.0
 
 # Data ingestion (Synthea CSV to FHIR)
 fhir.resources>=8.0,<9.0
@@ -33,5 +41,8 @@ reportlab
 # Star rating and mock evidence documents (Pradeep)
 reportlab
 
+# Data processing
+pandas>=2.2,<3
+
 # Tests
-pytest
+pytest==8.3.3

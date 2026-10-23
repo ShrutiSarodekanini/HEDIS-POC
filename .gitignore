@@ -1,85 +1,115 @@
 # Local secrets and environment
 .env
-.env.*
+.env.local
+.env.*.local
 !.env.example
 
 # Python
 __pycache__/
 *.py[cod]
-.venv/
-venv/
-.pytest_cache/
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
 
-# Editors and OS
+# Virtual environments
+venv/
+ENV/
+env/
+.venv/
+
+# IDE
 .vscode/
 .idea/
-Thumbs.db
-.DS_Store
+*.swp
+*.swo
+*~
+
+# IDE workspace settings (can contain secrets/local paths)
+.vscode/settings.json
+.vscode/launch.json
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+hedis_poc.db
 
 # Uploaded originals and page images (contain patient data)
 data/intake_store/
 
-# Measure engine (Node) and data ingestion
-node_modules/
-build/
-debug/
-services/measure_calc/engine/node_modules/
-services/measure_calc/engine/build/
-services/measure_calc/engine/debug/
-services/measure_calc/engine/coverage/
-services/measure_calc/engine/cache/
-test/unit/fixtures/elm/queries/output/*
-test/unit/fixtures/elm/output/*
-test/unit/fixtures/elm/queries/.start-translator
-coverage
-cache
-test/integration/.start-translator
-regression/output/*-*
-regression/bundles/*
-regression/default-bundles/*
-data-requirements/fqm-e-dr/*
-data-requirements/jan-2024-connectathon/*
-data-requirements/sept-2023-connectathon/*
-data-requirements/elm-parser-dr/*
-data-requirements/elm-parser-for-ecqms
-coverage-percent-script
-
-# Local/generated datasets and outputs
-exports/
+# Uploaded datasets (temporary runtime artifacts)
 .uploaded_datasets/
-.integration_work/
 
-# Local runtime and debug artifacts
-*.db
-_tmp_*
-_tmp*/
-fhir-*.bundle.json
-
-# Engine temporary generated runs/compilation outputs
-services/measure_calc/engine/examples/_tmp_fqm_synthea_runs/
-services/measure_calc/engine/examples/**/_tmp_compile_check/
-services/measure_calc/engine/examples/**/patients/*.json
-
-# Star rating app
-*.pyc
-*.pyo
-*.pyd
-generated_evidence/
-API_TESTING_GUIDE.md
-tests/
-env/
-ENV/
-.mypy_cache/
-.ruff_cache/
+# Testing & Coverage
+.pytest_cache/
 .coverage
-.coverage.*
+coverage.xml
 htmlcov/
-dist/
-*.egg-info/
+
+# Benchmark & Diagnostic Output
+benchmark_results/
+diagnostics_*.txt
+connection_*.log
+
+# Temporary files
+*.tmp
+*.temp
+*.bak
+~*
+
+# OS files
+Thumbs.db
+.DS_Store
+
+# MacOS specifics
+.AppleDouble
+.LSOverride
+
+# Node (UI)
 ui/node_modules/
-ui/dist/
+
+# Large datasets
+datasets/
+test_data/
+*.zip
+
+# Log files
 *.log
-.vscode/.history/
+logs/
 
-# Star rating app (Pradeep)
+# Python linting & type checking
+.mypy_cache/
+.bandit
+.flake8
 
+# Jupyter notebooks
+.ipynb_checkpoints/
+*.ipynb_checkpoints/
+
+# Database backups/dumps
+*.sql
+*.dump
+*.backup
+
+# Package managers
+package-lock.json
+npm-debug.log
+
+# Temporary directories
+tmp/
+temp/
+cache/
