@@ -7,6 +7,11 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
 <link rel="stylesheet" href="/assets/styles.css">
+<link rel="stylesheet" href="/assets/tabs.css">
+<link rel="stylesheet" href="/assets/tab-ingestion.css">
+<link rel="stylesheet" href="/assets/tab-calculation.css">
+<link rel="stylesheet" href="/assets/tab-quality.css">
+<link rel="stylesheet" href="/assets/tab-stars.css">
 </head>
 <body>
 <header class="topbar">
@@ -20,8 +25,10 @@
 <div class="shell">
   <nav class="sidebar" aria-label="Main">
     <a class="nav-item" href="#dashboard" data-view="dashboard"><span class="nav-icon">▦</span>Dashboard</a>
-    <a class="nav-item" href="#ingestion" data-view="ingestion"><span class="nav-icon">⤓</span>Run Ingestion</a>
-    <a class="nav-item" href="#gaps" data-view="gaps"><span class="nav-icon">◎</span>Run Gap Calculation</a>
+    <a class="nav-item" href="#ingestion" data-view="ingestion"><span class="nav-icon">⤓</span>Data Ingestion</a>
+    <a class="nav-item" href="#calculation" data-view="calculation"><span class="nav-icon">◎</span>HEDIS Calculation</a>
+    <a class="nav-item" href="#quality" data-view="quality"><span class="nav-icon">✓</span>Data Quality</a>
+    <a class="nav-item" href="#stars" data-view="stars"><span class="nav-icon">★</span>Star Rating</a>
     <a class="nav-item" href="#prioritization" data-view="prioritization"><span class="nav-icon">≡</span>Prioritization</a>
     <a class="nav-item" href="#evidence" data-view="evidence"><span class="nav-icon">▤</span>Evidence Review</a>
   </nav>
@@ -47,101 +54,72 @@
       </article>
       <article class="card">
         <div class="card-head">
-          <h2>Latest batch</h2>
-          <a class="link" href="#ingestion">Open Run Ingestion</a>
+          <h2>Latest batch across the screens</h2>
+          <a class="link" href="#ingestion">Open Data Ingestion</a>
         </div>
-        <div id="dash-batch"></div>
+        <div id="dash-flow"></div>
       </article>
     </section>
 
-    <!-- Run Ingestion -->
+    <!-- Data Ingestion (Jyothi's steps; screen in ingestion.js) -->
     <section id="view-ingestion" class="view" hidden>
       <div class="page-head">
         <div>
-          <h1>Run Ingestion</h1>
-          <p class="sub">Upload Synthea CSV files; every step after the upload runs in the background</p>
+          <h1>Data Ingestion</h1>
+          <p class="sub">Upload Synthea CSV files, convert them to FHIR and persist them; our steps then run on their own</p>
         </div>
         <span class="layer">LAYER 1 OF 8</span>
       </div>
-      <div class="grid-2">
-        <article class="card">
-          <h2>Upload a batch</h2>
-          <p class="note">One .zip of Synthea CSV files, or the CSV files themselves (patients.csv is required). It is
-            converted to FHIR, checked, loaded, measured and scored, and the stored evidence documents are attached to
-            their patients.</p>
-          <label class="field-label" for="zip">Synthea zip, or several CSV files</label>
-          <input id="zip" class="input" type="file" accept=".zip,.csv" multiple>
-          <ul id="chosen-files" class="file-list"></ul>
-          <button type="button" class="btn btn-primary" id="upload">Upload and run</button>
-          <p class="note small" id="upload-msg" role="status"></p>
-          <div class="danger" id="reset-box" hidden>
-            <p class="label-strong">Start over</p>
-            <p class="note">Empties this copy's data (patients, gaps, scores, documents, AI findings, decisions) and
-              keeps the measures, rules and star cut points, so you can upload the zip again and watch every step.</p>
-            <label class="field-label" for="reset-confirm">Type <span class="mono" id="reset-schema"></span> to
-              confirm</label>
-            <input id="reset-confirm" class="input mono" autocomplete="off">
-            <button type="button" class="btn btn-reject" id="reset">Clear data and start over</button>
-            <p class="note small" id="reset-msg" role="status"></p>
-          </div>
-        </article>
-        <article class="card">
-          <div class="card-head">
-            <h2>Pipeline</h2>
-            <span class="mono muted small" id="batch-id"></span>
-          </div>
-          <ol class="steps" id="steps"></ol>
-          <p class="note small error" id="batch-error"></p>
-        </article>
-      </div>
-      <div class="grid-2">
-        <article class="card">
-          <h2>CSV files read</h2>
-          <div class="table-wrap"><table class="table compact"><thead><tr><th>File</th><th class="r">Rows</th></tr>
-            </thead><tbody id="csv-rows"></tbody></table></div>
-        </article>
-        <article class="card">
-          <h2>FHIR records and rows loaded</h2>
-          <div class="table-wrap"><table class="table compact"><thead><tr><th>FHIR resource</th>
-            <th class="r">Records</th></tr></thead><tbody id="fhir-rows"></tbody></table></div>
-          <div class="table-wrap"><table class="table compact"><thead><tr><th>Team table</th>
-            <th class="r">Rows added</th></tr></thead><tbody id="load-rows"></tbody></table></div>
-        </article>
-      </div>
+      <div id="ingestion-root" class="view-root"></div>
+      <article class="card" id="reset-card" hidden>
+        <div class="danger" id="reset-box">
+          <p class="label-strong">Start over</p>
+          <p class="note">Empties this copy's data (ingestion jobs, patients, gaps, scores, documents, AI findings,
+            decisions) and keeps the measures, rules and star cut points, so you can ingest the files again and watch
+            every step. Pallavi's separate data quality schema is not touched.</p>
+          <label class="field-label" for="reset-confirm">Type <span class="mono" id="reset-schema"></span> to
+            confirm</label>
+          <input id="reset-confirm" class="input mono" autocomplete="off">
+          <button type="button" class="btn btn-reject" id="reset">Clear data and start over</button>
+          <p class="note small" id="reset-msg" role="status"></p>
+        </div>
+      </article>
     </section>
 
-    <!-- Run Gap Calculation -->
-    <section id="view-gaps" class="view" hidden>
+    <!-- HEDIS Calculation (Jyothi's engine screen; calculation.js) -->
+    <section id="view-calculation" class="view" hidden>
       <div class="page-head">
         <div>
-          <h1>Run Gap Calculation</h1>
-          <p class="sub">Measure engine results for the latest batch, and the gaps they opened</p>
+          <h1>HEDIS Calculation</h1>
+          <p class="sub">Measure engine results per measure and per patient, and the gaps they opened</p>
         </div>
+        <span class="layer">LAYER 2 OF 8</span>
       </div>
-      <div class="grid-2">
-        <article class="card">
-          <h2>Engine run</h2>
-          <dl class="facts" id="engine-facts"></dl>
-          <p class="note small">The engine runs on its own after each upload, for the six Star measures. A gap is a
-            member in the measure who has not met it and is not excluded.</p>
-        </article>
-        <article class="card">
-          <h2>Gaps by measure</h2>
-          <div class="bars" id="gap-bars"></div>
-        </article>
-      </div>
-      <article class="card">
-        <h2>Results by measure</h2>
-        <div class="table-wrap">
-          <table class="table compact">
-            <thead><tr><th>Measure</th><th class="r">In measure</th><th class="r">Met</th><th class="r">Excluded</th>
-              <th class="r">Rate</th><th class="r">Gaps opened</th><th class="r">Closed by engine</th>
-              <th class="r">Open now</th></tr></thead>
-            <tbody id="engine-rows"></tbody>
-          </table>
+      <div id="calculation-root" class="view-root"></div>
+    </section>
+
+    <!-- Data Quality (Pallavi's checks; quality.js) -->
+    <section id="view-quality" class="view" hidden>
+      <div class="page-head">
+        <div>
+          <h1>Data Quality</h1>
+          <p class="sub">Pallavi's data quality and anomaly checks, run on her own copy of the data</p>
         </div>
-        <p class="note small" id="engine-note"></p>
-      </article>
+        <span class="layer">LAYER 3 OF 8</span>
+      </div>
+      <div id="quality-root" class="view-root"></div>
+    </section>
+
+    <!-- Star Rating (Pradeep's star results and what-if; stars.js) -->
+    <section id="view-stars" class="view" hidden>
+      <div class="page-head">
+        <div>
+          <h1>Star Rating</h1>
+          <p class="sub">Pradeep's star calculation and before and after comparison on the measure results</p>
+        </div>
+        <span class="layer">LAYER 4 OF 8</span>
+      </div>
+      <div id="stars-root" class="view-root"></div>
     </section>
 
     <!-- Prioritization -->
@@ -271,5 +249,9 @@ CHECK (status IN ('proposed', 'confirmed', 'rejected'))</pre>
 
 <div class="toast" id="toast" role="status" hidden></div>
 <script src="/assets/app.js"></script>
+<script src="/assets/ingestion.js"></script>
+<script src="/assets/calculation.js"></script>
+<script src="/assets/quality.js"></script>
+<script src="/assets/stars.js"></script>
 </body>
 </html>

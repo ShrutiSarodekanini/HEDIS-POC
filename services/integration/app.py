@@ -9,8 +9,10 @@ deliberate status code; stack traces stay in the server log. Listens on 127.0.0.
 import logging
 import re
 import shutil
+import threading
 import uuid
-from collections.abc import Iterator
+from collections.abc import AsyncIterator, Iterator
+from contextlib import asynccontextmanager
 from datetime import date
 from pathlib import Path
 from typing import Literal
@@ -22,18 +24,36 @@ from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
+from services.data_ingestion.app import api as jyothi_api
 from services.document_intake import api as intake_api
 from services.document_intake import db
 from services.gap_priority.config import load_rules
 
-from . import evidence, export, openrouter_status, pipeline, reset, work
+from . import calculation, evidence, export, openrouter_status, pallavi, pipeline, reset, stars, work
 from .config import SETTINGS
 
 log = logging.getLogger(__name__)
 
 UI_DIR = SETTINGS.ui_dir or Path(__file__).with_name("static")   # which screen set this app serves
-app = FastAPI(title="HEDIS POC integration", version="0.1.0")
+
+
+@asynccontextmanager
+async def _lifespan(_: FastAPI) -> AsyncIterator[None]:
+    stop = threading.Event()
+    threading.Thread(target=pipeline.watch_ingestion, args=(stop,), name="ingestion-watcher", daemon=True).start()
+    pallavi.start()
+    try:
+        yield
+    finally:
+        stop.set()
+        pallavi.stop()
+
+
+app = FastAPI(title="HEDIS POC integration", version="0.1.0", lifespan=_lifespan)
 app.mount("/assets", StaticFiles(directory=UI_DIR), name="assets")
+# Jyothi's ingestion and engine endpoints as they are, under their own prefix: /team/jyothi/api/...
+app.include_router(jyothi_api.router, prefix="/team/jyothi")
+app.include_router(pallavi.router)
 
 
 def get_conn() -> Iterator[psycopg.Connection]:
@@ -180,7 +200,64 @@ def health(conn: psycopg.Connection = Depends(get_conn)) -> dict:
     return {"status": "ok", "schema": schema, "migration": version, "rules_version": load_rules().version,
             "engine_built": (SETTINGS.engine_root / "build" / "cli.js").exists(),
             "evidence_dir_set": SETTINGS.evidence_dir is not None, "reset_allowed": reset.allowed(),
-            "openrouter": openrouter_status.status()}
+            "openrouter": openrouter_status.status(),
+            "team": {"jyothi": {"prefix": "/team/jyothi/api", "schema": schema}, "pallavi": pallavi.status()}}
+
+
+@app.get("/api/flow")
+def get_flow(conn: psycopg.Connection = Depends(get_conn)) -> dict:
+    return pipeline.flow(conn)
+
+
+@app.get("/api/calculation")
+def get_calculation(conn: psycopg.Connection = Depends(get_conn)) -> dict:
+    return calculation.overview(conn)
+
+
+@app.get("/api/calculation/{measure_id}/patients")
+def get_calculation_patients(measure_id: str, conn: psycopg.Connection = Depends(get_conn)) -> dict:
+    return calculation.patients(conn, measure_id)
+
+
+class CalculationIn(BaseModel):
+    measures: list[str] | None = None
+
+
+@app.post("/api/calculation/run", status_code=202)
+def run_calculation(body: CalculationIn | None = None) -> dict:
+    """Run the measure engine again for the latest finished batch (all measures, or the chosen ones)."""
+    return {"batch_id": pipeline.start_recalculation(body.measures if body else None), "status": "running"}
+
+
+@app.get("/api/stars/catalog")
+def get_star_catalog() -> dict:
+    rules = load_rules()
+    with stars.session() as s:
+        return {"measurement_year": SETTINGS.measurement_year, "star_year": rules.star_year,
+                "measures": stars.catalog(s, SETTINGS.measurement_year, rules.star_year)}
+
+
+class StarCalculationIn(BaseModel):
+    measure_id: str
+    rate: float | None = None
+    denominator: int
+
+
+@app.post("/api/stars/calculate")
+def calculate_star(body: StarCalculationIn) -> dict:
+    with stars.session() as s:
+        return stars.calculate(s, body.measure_id, SETTINGS.measurement_year, body.rate, body.denominator)
+
+
+class WhatIfIn(BaseModel):
+    measure_id: str
+    gap_ids: list[str] = []
+
+
+@app.post("/api/stars/what-if")
+def star_what_if(body: WhatIfIn) -> dict:
+    with stars.session() as s:
+        return stars.what_if(s, body.measure_id, body.gap_ids)
 
 
 app.add_api_route("/api/documents/{document_id}/pages/{page_no}/image", intake_api.get_page_image, methods=["GET"])

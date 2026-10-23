@@ -1,12 +1,16 @@
-// HEDIS Ops Console: Dashboard, Run Ingestion, Run Gap Calculation, Prioritization and Evidence Review screens on the
-// integration API. Every value comes from the API; text is added as text nodes, never as HTML.
+// HEDIS Ops Console: the shell (sidebar, routing, shared helpers), Dashboard, Prioritization and Evidence Review.
+// Data Ingestion, HEDIS Calculation, Data Quality and Star Rating live in their own files and register in TABS.
+// Every value comes from the API; text is added as text nodes, never as HTML.
 "use strict";
 
-const VIEWS = ["dashboard", "ingestion", "gaps", "prioritization", "evidence"];
+const VIEWS = ["dashboard", "ingestion", "calculation", "quality", "stars", "prioritization", "evidence"];
+// Each tab file adds { render: async () => {} } under its view name; render runs every time the tab is shown.
+const TABS = {};
 const STEPS = [
-  ["received", "Upload received"],
+  ["received", "Ingestion job persisted"],
   ["converting", "Convert CSV to FHIR and validate"],
   ["persisting", "Approve records (persist stage)"],
+  ["waiting", "Waiting for the previous batch"],
   ["loading", "Load the patient tables"],
   ["measuring", "Run the measure engine"],
   ["prioritizing", "Score and rank open gaps"],
@@ -153,20 +157,69 @@ function renderDashboard() {
       ? $("span", { class: "mcard-line" }, `Projected ${fmt(m.projected_rate, 1)}% · ${m.projected_stars ?? "-"}★ ` +
         `(${m.confirmed_pending_engine} confirmed, ${m.excluded_pending_engine} excluded)`)
       : null))
-    : [$("p", { class: "empty" }, "No measure results yet. Upload a batch on Run Ingestion.")]));
+    : [$("p", { class: "empty" }, "No measure results yet. Ingest and persist a batch on Data Ingestion.")]));
 
-  const b = state.batch;
-  byId("dash-batch").replaceChildren(b ? $("dl", { class: "facts" },
-    $("dt", {}, "Batch"), $("dd", { class: "mono" }, b.batch_id),
-    $("dt", {}, "Status"), $("dd", {}, statusText(b)),
-    $("dt", {}, "Started"), $("dd", {}, when(b.started_at)),
-    $("dt", {}, "Last update"), $("dd", {}, when(b.updated_at)),
-    $("dt", {}, "Produced"), $("dd", {}, [
-      c.conversion && `${c.conversion.resources_generated} FHIR records`,
-      c.load && `${c.load.patients} patients`,
-      c.measures && `${c.measures.gaps_open} open gaps`,
-      c.documents && `${c.documents.attached} documents`].filter(Boolean).join(" · ") || "-"))
-    : $("p", { class: "empty" }, "No batch uploaded yet."));
+  renderFlow();
+}
+
+// The latest batch across the screens: each tab's step, its state, and the rows it stored (GET /api/flow).
+async function renderFlow() {
+  const box = byId("dash-flow");
+  let f;
+  try {
+    f = await api("/api/flow");
+  } catch (err) {
+    box.replaceChildren($("p", { class: "empty error" }, `Could not load the batch: ${err.message}`));
+    return;
+  }
+  state.flow = f;
+  const b = f.batch;
+  const t = f.tables || {};
+  const c = (b && b.counts) || {};
+  const job = f.ingest_job || f.latest_ingest_job;
+  const pallavi = (state.health && state.health.team && state.health.team.pallavi) || {};
+  const n = v => Number(v || 0).toLocaleString();
+  const ourStep = b ? (b.status === "prioritized" ? "done" : b.status === "failed" ? "failed" : "running") : "pending";
+  const rows = [
+    ["Data Ingestion", "#ingestion", job ? (job.resources_persisted ? "done" : job.status === "failed" ? "failed"
+      : "running") : "pending",
+    job ? `job ${job.id.slice(0, 8)} · ${job.status} · ${n(job.resources_generated)} FHIR records, ` +
+      `${n(job.resources_persisted)} persisted` : "No ingestion job yet",
+    `conversion_jobs ${n(t.conversion_jobs)} · fhir_resources ${n(t.fhir_resources)} ` +
+      `(${n(t.fhir_resources_persisted)} persisted) · validation_issues ${n(t.validation_issues)}`],
+    ["Our steps after persist", "#ingestion", ourStep,
+      b ? `batch ${b.batch_id.slice(0, 8)} · ${statusText(b)}` : "Starts on its own when a job is persisted",
+      `patient ${n(t.patient)} · encounter ${n(t.encounter)} · observation ${n(t.observation)} · ` +
+      `fhir_resource_raw ${n(t.fhir_resource_raw)} · feed_completeness_report ${n(t.feed_completeness_report)}`],
+    ["HEDIS Calculation", "#calculation", t.engine_runs ? "done" : ourStep === "running" ? "running" : "pending",
+      c.measures ? `${Object.keys(c.measures.measures || {}).length} measures · ${n(c.measures.gaps_open)} open gaps`
+        : "Runs after the patient tables are loaded",
+      `engine_runs ${n(t.engine_runs)} · measure_result ${n(t.measure_result)} · care_gap ${n(t.care_gap)} ` +
+      `(${n(t.care_gap_open)} open) · care_gap_detail ${n(t.care_gap_detail)}`],
+    ["Data Quality", "#quality", pallavi.enabled ? (pallavi.api === "running" ? "separate" : "failed") : "pending",
+      pallavi.enabled ? `Pallavi's checks on schema ${pallavi.schema} (separate data) · API ${pallavi.api}, ` +
+        `worker ${pallavi.worker}` : "Switched off in this app",
+      "Her own tables (dq_runs, data_anomalies, dq_check_results) in her schema"],
+    ["Star Rating", "#stars", t.measure_result ? "done" : "pending",
+      "Pradeep's star functions on measure_result and care_gap (read only)",
+      `star_scenario ${n(t.star_scenario)} (written when a reviewer confirms evidence)`],
+    ["Prioritization", "#prioritization", t.gap_priority_score ? "done" : "pending",
+      c.prioritization ? `${n(c.prioritization.gaps_scored)} gaps scored (rules ${c.prioritization.rules_version})`
+        : "Scores open gaps after the engine run",
+      `gap_priority_score ${n(t.gap_priority_score)}`],
+    ["Evidence Review", "#evidence", t.document_reference ? "done" : "pending",
+      c.documents ? `${n(c.documents.attached)} documents attached` : "Stored documents attach after scoring",
+      `document_reference ${n(t.document_reference)} · evidence_proposal ${n(t.evidence_proposal)} · ` +
+      `review_decisions ${n(t.review_decisions)} · supplemental_records ${n(t.supplemental_records)}`],
+  ];
+  const mark = { done: "✓", running: "…", failed: "!", pending: "·", separate: "◇" };
+  box.replaceChildren(...[
+    $("ol", { class: "steps flow" }, ...rows.map(([name, href, cls, line, tables]) =>
+      $("li", { class: `step ${cls}` }, $("span", { class: "dot" }, mark[cls]),
+        $("span", { class: "step-name" }, $("a", { class: "link", href }, name), $("div", { class: "note small" }, line),
+          $("div", { class: "pt" }, tables)),
+        $("span", { class: "step-detail" }, cls === "separate" ? "separate data" : cls)))),
+    b && b.error ? $("p", { class: "note small error" }, b.error) : null].filter(Boolean));
 }
 
 function statusText(b) {
@@ -175,8 +228,7 @@ function statusText(b) {
   return "Finished";
 }
 
-// ---------------------------------------------------------------- run ingestion
-
+// Shared with ingestion.js: one line of detail per step from the batch counts.
 function stepDetail(key, c) {
   switch (key) {
     case "converting": return c.conversion ? `${c.conversion.resources_generated} records, ${c.conversion.errors} errors` : "";
@@ -191,69 +243,9 @@ function stepDetail(key, c) {
   }
 }
 
-function renderIngestion() {
-  const b = state.batch;
-  const c = counts();
-  byId("batch-id").textContent = b ? b.batch_id.slice(0, 8) : "";
-  const at = b ? STEPS.findIndex(s => s[0] === b.step) : -1;
-  byId("steps").replaceChildren(...STEPS.map(([key, label], i) => {
-    let cls = "pending";
-    if (b && b.status === "prioritized") cls = "done";
-    else if (b && at >= 0) cls = i < at ? "done" : i === at ? (b.status === "failed" ? "failed" : "running") : "pending";
-    const mark = { done: "✓", running: "…", failed: "!", pending: String(i + 1) }[cls];
-    return $("li", { class: `step ${cls}` }, $("span", { class: "dot" }, mark), $("span", { class: "step-name" }, label),
-      $("span", { class: "step-detail" }, b ? stepDetail(key, c) : ""));
-  }));
-  byId("batch-error").textContent = b && b.error ? b.error : "";
-
-  const rows = (obj, empty) => {
-    const entries = Object.entries(obj || {}).sort((a, x) => x[1] - a[1]);
-    return entries.length ? entries.map(([k, v]) => $("tr", {}, $("td", { class: "mono" }, k),
-      $("td", { class: "r" }, Number(v).toLocaleString())))
-      : [$("tr", {}, $("td", { colspan: "2", class: "empty" }, empty))];
-  };
-  byId("csv-rows").replaceChildren(...rows(c.conversion && c.conversion.row_counts, "No batch yet."));
-  byId("fhir-rows").replaceChildren(...rows(c.load && c.load.resource_types, "Not loaded yet."));
-  byId("load-rows").replaceChildren(...rows(c.load && c.load.inserted, "Not loaded yet."));
-}
-
-async function upload() {
-  const files = [...byId("zip").files];
-  const msg = byId("upload-msg");
-  msg.classList.remove("error");
-  const kinds = new Set(files.map(f => (f.name.match(/\.[^.]+$/) || [""])[0].toLowerCase()));
-  const problem = !files.length ? "Choose one .zip file, or the CSV files, first."
-    : [...kinds].some(k => k !== ".zip" && k !== ".csv") ? "Only a .zip file or .csv files can be uploaded."
-      : kinds.size > 1 ? "Choose either one .zip file or CSV files, not both."
-        : kinds.has(".zip") && files.length > 1 ? "Choose one .zip file at a time." : null;
-  if (problem) { msg.textContent = problem; msg.classList.add("error"); return; }
-  const form = new FormData();
-  for (const f of files) form.append(kinds.has(".zip") ? "file" : "files", f);
-  byId("upload").disabled = true;
-  msg.textContent = `Uploading ${files.length} file${files.length === 1 ? "" : "s"}…`;
-  try {
-    const r = await api("/api/batches", { method: "POST", body: form });
-    store("hedis.batch", r.batch_id);
-    msg.textContent = "Uploaded. The steps below run in the background; you can leave this page.";
-    await refresh();
-    poll();
-  } catch (err) {
-    msg.textContent = err.message;
-    msg.classList.add("error");
-  } finally {
-    byId("upload").disabled = false;
-  }
-}
-
-function listChosenFiles() {
-  const files = [...byId("zip").files];
-  byId("chosen-files").replaceChildren(...files.map(f => $("li", { class: "mono" },
-    `${f.name} · ${(f.size / 1024).toLocaleString(undefined, { maximumFractionDigits: 0 })} KB`)));
-}
-
 function renderReset() {
   const h = state.health;
-  byId("reset-box").hidden = !(h && h.reset_allowed);
+  byId("reset-card").hidden = !(h && h.reset_allowed);
   byId("reset-schema").textContent = (h && h.schema) || "";
 }
 
@@ -272,11 +264,12 @@ async function startOver() {
     const r = await api("/api/reset", { method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ confirm: typed }) });
     store("hedis.batch", "latest");
+    store("hedis.job", "");
     state.openEvidence = null;
     state.scopeGap = null;
     byId("reset-confirm").value = "";
-    msg.textContent = `Done in ${r.seconds} s. ${r.schema} is empty: upload the zip to run everything again.`;
-    toast("Data cleared. Upload the zip to start again.");
+    msg.textContent = `Done in ${r.seconds} s. ${r.schema} is empty: ingest the files again to run everything.`;
+    toast("Data cleared. Ingest the files again to start over.");
     await refresh();
   } catch (err) {
     msg.textContent = err.message;
@@ -286,6 +279,7 @@ async function startOver() {
   }
 }
 
+// While our steps run, the batch is reloaded every 3 seconds and the open tab redrawn.
 function poll() {
   clearTimeout(state.polling);
   if (!state.batch || state.batch.status !== "running") return;
@@ -296,49 +290,11 @@ function poll() {
       await refresh();
       return;
     }
-    if (currentView() === "ingestion") renderIngestion();
+    const view = currentView();
+    if (view === "dashboard") renderFlow();
+    else if (TABS[view]) await TABS[view].render();
     poll();
   }, 3000);
-}
-
-// ---------------------------------------------------------------- run gap calculation
-
-function renderGaps() {
-  const c = counts();
-  const run = c.measures || {};
-  const perMeasure = run.measures || {};
-  const now = {};
-  for (const m of (state.measures && state.measures.measures) || []) now[m.measure] = m;
-  byId("engine-facts").replaceChildren(
-    $("dt", {}, "Engine run"), $("dd", { class: "mono" }, run.engine_run_id || "-"),
-    $("dt", {}, "Patients"), $("dd", {}, String(run.patients ?? "-")),
-    $("dt", {}, "Measures"), $("dd", {}, Object.keys(perMeasure).sort().join(", ") || "-"),
-    $("dt", {}, "Batch"), $("dd", { class: "mono" }, state.batch ? state.batch.batch_id : "-"),
-    $("dt", {}, "Finished"), $("dd", {}, state.batch && state.batch.status === "prioritized"
-      ? when(state.batch.updated_at) : statusText(state.batch || { status: "running", step: "-" })));
-
-  const names = Object.keys(perMeasure).sort();
-  const totalOpen = names.reduce((s, k) => s + (perMeasure[k].gaps_open || 0), 0);
-  byId("gap-bars").replaceChildren(...(names.length ? names.map(k => bar(`${(now[k] && now[k].name) || k}`,
-    totalOpen ? perMeasure[k].gaps_open / totalOpen : 0, String(perMeasure[k].gaps_open)))
-    : [$("p", { class: "empty" }, "No engine results yet.")]));
-
-  byId("engine-rows").replaceChildren(...(names.length ? names.map(k => {
-    const r = perMeasure[k];
-    const eligible = r.denominator - r.excluded;
-    return $("tr", {}, $("td", {}, $("div", {}, (now[k] && now[k].name) || k), $("div", { class: "pt" }, k)),
-      $("td", { class: "r" }, String(r.denominator)), $("td", { class: "r" }, String(r.numerator)),
-      $("td", { class: "r" }, String(r.excluded)),
-      $("td", { class: "r" }, eligible > 0 ? `${fmt((100 * r.numerator) / eligible, 1)}%` : "-"),
-      $("td", { class: "r" }, String(r.gaps_new)), $("td", { class: "r" }, String(r.gaps_closed)),
-      $("td", { class: "r" }, String(now[k] ? now[k].open_gaps : r.gaps_open)));
-  }) : [$("tr", {}, $("td", { colspan: "8", class: "empty" }, "No engine results yet."))]));
-
-  const bcs = perMeasure["BCS-E"];
-  byId("engine-note").textContent = bcs && bcs.denominator > 0 && bcs.numerator === 0
-    ? "BCS-E shows nobody met: the engine's BCS-E logic does not yet accept the mammogram code Synthea writes " +
-      "(SNOMED 71651007). That is a change in the engine's measure files."
-    : "Open now: gaps still on the work list after review decisions.";
 }
 
 // ---------------------------------------------------------------- prioritization
@@ -789,11 +745,17 @@ async function show() {
   const view = currentView();
   for (const v of VIEWS) byId(`view-${v}`).hidden = v !== view;
   for (const a of document.querySelectorAll("[data-view]")) a.classList.toggle("active", a.dataset.view === view);
+  if (view === "ingestion") renderReset();
   if (view === "dashboard") renderDashboard();
-  else if (view === "ingestion") { renderIngestion(); renderReset(); }
-  else if (view === "gaps") renderGaps();
   else if (view === "evidence") await renderEvidence();
-  else renderPrioritization();
+  else if (view === "prioritization") renderPrioritization();
+  else if (TABS[view]) {
+    try {
+      await TABS[view].render();
+    } catch (err) {
+      byId(`${view}-root`).replaceChildren($("p", { class: "empty error" }, `Could not load this screen: ${err.message}`));
+    }
+  }
 }
 
 async function refresh() {
@@ -812,7 +774,6 @@ document.querySelectorAll(".pill").forEach(p => p.addEventListener("click", () =
   renderWorklist();
 }));
 byId("refresh").addEventListener("click", refresh);
-byId("upload").addEventListener("click", upload);
 byId("reset").addEventListener("click", startOver);
 byId("run-extraction").addEventListener("click", runExtraction);
 byId("export").addEventListener("click", exportEvidence);
@@ -820,7 +781,7 @@ byId("scope").addEventListener("change", e => {
   state.scopeGap = e.target.value; byId("run-result").textContent = ""; renderAiHistory(e.target.value);
   renderGapPanel(e.target.value, "gap-panel");
 });
-byId("zip").addEventListener("change", listChosenFiles);
 window.addEventListener("hashchange", show);
 setAvatar();
-refresh();
+// The tab scripts load after this one; start once they have registered.
+window.addEventListener("DOMContentLoaded", refresh);

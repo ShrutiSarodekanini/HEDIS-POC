@@ -142,3 +142,37 @@ def _closures_for_next_star(measure_id: str, year: int, numerator: int, denomina
     if now is None or now >= 5:
         return None
     return next((k for k in range(1, denominator - numerator + 1) if (stars(numerator + k) or 0) > now), None)
+
+
+_CATALOG = text("""
+SELECT r.measure_id, r.name, r.measurement_year, w.weight,
+       coalesce(jsonb_agg(jsonb_build_object('stars', c.star_rating, 'low', c.rate_low_pct, 'high', c.rate_high_pct)
+                          ORDER BY c.star_rating) FILTER (WHERE c.star_rating IS NOT NULL), '[]'::jsonb) AS cut_points
+  FROM measure_rule r
+  LEFT JOIN measure_star_weight w ON w.measure_id = r.measure_id AND w.measurement_year = r.measurement_year
+                                 AND w.star_year = :star_year
+  LEFT JOIN star_cutpoint c ON c.measure_id = r.measure_id AND c.measurement_year = r.measurement_year
+ WHERE r.measurement_year = :year
+ GROUP BY r.measure_id, r.name, r.measurement_year, w.weight
+ ORDER BY r.measure_id
+""")
+
+
+def catalog(s: Session, year: int, star_year: int) -> list[dict]:
+    """Every measure with its Star weight and cut points (the tables his catalog screen reads)."""
+    return [dict(r._mapping) for r in s.execute(_CATALOG, {"year": year, "star_year": star_year})]
+
+
+def calculate(s: Session, measure_id: str, year: int, rate: float | None, denominator: int) -> dict:
+    """His direct star calculation for a given rate and denominator; nothing is stored."""
+    return assign_star_from_sqlalchemy(s, measure_code=measure_id, measurement_year=year, scoring_value=rate,
+                                       denominator=denominator).to_dict()
+
+
+def what_if(s: Session, measure_id: str, gap_ids: list[str]) -> dict:
+    """His compare_measure for the chosen gaps (ids from his care_gaps view); nothing is stored. Raises LookupError
+    for a measure his measures view does not know."""
+    try:
+        return compare_measure(s, measure_id, gap_ids)
+    except KeyError as exc:
+        raise LookupError(f"measure {measure_id} has no results yet") from exc

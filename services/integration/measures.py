@@ -1,7 +1,7 @@
 """Bridge B: run the measure engine for one batch and turn its results into measure_result rows and care gaps.
 
 For each loaded patient one FHIR bundle is written from fhir_resource_raw; the fqm-execution engine then runs in
-"detailed" mode for the six Star measures, called the same way the data ingestion service's /run-request-file
+"detailed" mode for the nine measures in MEASURE_FOLDERS, called the same way the data ingestion service's /run-request-file
 endpoint calls it (same command line, root library lookup and blood pressure bundle pruning, reused from that
 module). Every patient sent must come back for every measure, or the step fails with the counts.
 
@@ -33,8 +33,11 @@ log = logging.getLogger(__name__)
 ENGINE = "fqm-execution"
 ENGINE_VERSION = "1.8.5"
 EXAMPLES = SETTINGS.engine_root / "examples"
+# AAB, CCS-E and SPD have no star cut points or weights in the reference data, so they are scored as non-Star
+# measures and their cards show no star.
 MEASURE_FOLDERS = ("independent_public_bcse", "independent_public_cole", "independent_public_eed",
-                   "independent_public_gsd", "independent_public_ked", "independent_public_cbp")
+                   "independent_public_gsd", "independent_public_ked", "independent_public_cbp",
+                   "independent_public_aab", "independent_public_ccse", "independent_public_spd")
 LIBRARY_TO_MEASURE = {
     "PublicBreastCancerScreeningTechnicalDemo": "BCS-E",
     "PublicColorectalCancerScreeningTechnicalDemo": "COL-E",
@@ -42,6 +45,9 @@ LIBRARY_TO_MEASURE = {
     "PublicGsdGlycemicStatusTechnicalDemo": "GSD",
     "PublicKidneyHealthTechnicalDemo": "KED",
     "CMS165FHIRControllingHighBP": "CBP",
+    "PublicAabAntibioticAvoidanceTechnicalDemo": "AAB",
+    "CMS124FHIRCervicalCancerScreen": "CCS-E",
+    "PublicSpdStatinTherapyTechnicalDemo": "SPD",
 }
 GAP_NAMESPACE = uuid.UUID("6f0f4a52-4f59-4b7e-9a1e-2c8d3b7e5a10")
 BP_NAMESPACE = uuid.UUID("0d8f2c3e-6a1b-4f7d-9c55-3e2b8a41d7f6")
@@ -158,7 +164,7 @@ class EngineRun:
 
 
 def measure_bundles() -> list[MeasureBundle]:
-    """The six Star measure bundles from the engine's examples, with their root library and version."""
+    """The measure bundles in MEASURE_FOLDERS, with their root library and version."""
     found = []
     for folder in MEASURE_FOLDERS:
         path = next((EXAMPLES / folder).glob("*-bundle.json"))
@@ -175,8 +181,15 @@ def measure_bundles() -> list[MeasureBundle]:
 
 
 def run_measures(conn: psycopg.Connection, patient_ids: list[str], attributed_org: dict[str, str | None],
-                 batch_label: str, settings: Settings = SETTINGS) -> EngineRun:
-    """Run the engine for these patients and write results and gaps in the caller's transaction."""
+                 batch_label: str, settings: Settings = SETTINGS, measure_ids: list[str] | None = None) -> EngineRun:
+    """Run the engine for these patients (all measures, or the chosen ones) and write results and gaps in the
+    caller's transaction."""
+    bundles = measure_bundles()
+    if measure_ids:
+        unknown = set(measure_ids) - {b.measure_id for b in bundles}
+        if unknown:
+            raise ValueError(f"unknown measure: {', '.join(sorted(unknown))}")
+        bundles = [b for b in bundles if b.measure_id in measure_ids]
     year = settings.measurement_year
     work = settings.work_dir / f"engine-{batch_label}"
     shutil.rmtree(work, ignore_errors=True)
@@ -190,7 +203,7 @@ def run_measures(conn: psycopg.Connection, patient_ids: list[str], attributed_or
              "services/measure_calc/engine/examples"))
         names = dict(conn.execute("SELECT measure_id, name FROM measure_rule WHERE measurement_year = %s",
                                   (year,)).fetchall())
-        for bundle in measure_bundles():
+        for bundle in bundles:
             populations = _evaluate(bundle, files, work, settings)
             run.measures[bundle.measure_id] = _write_results(conn, bundle, populations, attributed_org, run.run_id,
                                                              names.get(bundle.measure_id, bundle.measure_id), year)

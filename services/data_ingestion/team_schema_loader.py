@@ -174,8 +174,9 @@ _STEPS = (("fhir_resource_raw", _RAW), ("patient", _PATIENTS), ("coverage", _COV
           ("medication_request", _MEDICATIONS), ("immunization", _IMMUNIZATIONS),
           ("feed_completeness_report", _FEED_COMPLETENESS))
 
-# The resource types the six measures read.
-MEASURE_RESOURCE_TYPES = ["Patient", "Encounter", "Condition", "Observation", "Procedure", "Coverage"]
+# The resource types the measures read (AAB and SPD read medication orders).
+MEASURE_RESOURCE_TYPES = ["Patient", "Encounter", "Condition", "Observation", "Procedure", "Coverage",
+                          "MedicationRequest"]
 
 
 @dataclass(frozen=True)
@@ -199,15 +200,21 @@ def load_job(conn: psycopg.Connection, job_id: str, batch_id: UUID) -> LoadResul
     inserted: dict[str, int] = {}
     for table, sql in _STEPS:
         inserted[table] = conn.execute(sql, params).rowcount
-    patient_ids = tuple(r[0] for r in conn.execute(
-        f"""SELECT p.patient_id FROM patient p
-             WHERE p.patient_id IN (SELECT r.resource_id FROM fhir_resources r
-                                     WHERE {_APPROVED} AND r.resource_type = 'Patient')
-             ORDER BY p.patient_id""", params).fetchall())
-    attributed: dict[str, str | None] = dict.fromkeys(patient_ids)
-    attributed.update(dict(conn.execute(_ATTRIBUTION, {"patients": list(patient_ids)}).fetchall()))
+    patient_ids, attributed = job_patients(conn, job_id)
     conn.execute(
         """UPDATE source_batch SET resource_count = (SELECT count(*) FROM fhir_resource_raw WHERE batch_id = %(batch)s)
             WHERE batch_id = %(batch)s""", params)
     log.info("job %s loaded into batch %s: %s", job_id, batch_id, inserted)
     return LoadResult(batch_id, patient_ids, attributed, inserted, types)
+
+
+def job_patients(conn: psycopg.Connection, job_id: str) -> tuple[tuple[str, ...], dict[str, str | None]]:
+    """The job's approved patients already in the patient table, and each one's attributed practice."""
+    patient_ids = tuple(r[0] for r in conn.execute(
+        f"""SELECT p.patient_id FROM patient p
+             WHERE p.patient_id IN (SELECT r.resource_id FROM fhir_resources r
+                                     WHERE {_APPROVED} AND r.resource_type = 'Patient')
+             ORDER BY p.patient_id""", {"job": job_id}).fetchall())
+    attributed: dict[str, str | None] = dict.fromkeys(patient_ids)
+    attributed.update(dict(conn.execute(_ATTRIBUTION, {"patients": list(patient_ids)}).fetchall()))
+    return patient_ids, attributed

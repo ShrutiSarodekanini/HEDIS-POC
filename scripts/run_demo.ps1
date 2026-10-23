@@ -19,9 +19,12 @@
 # manifest.json) are attached to their patients. -UiDir <folder> picks the screen set the app serves (for example
 # services/integration/ui/redesign); without it the original page in services/integration/static is served.
 # -AllowReset switches on the page's "Start over" button, which empties this schema and reloads reference data.
+# Pallavi's ingestion and data quality run unchanged as two child processes of the app on their own schema
+# (-PallaviSchema, default pallavi plus the digits of -Schema, for example team20 -> pallavi20; "off" switches them off)
+# because her tables reuse the lead's names with different columns. Her API listens on INTEGRATION_PALLAVI_PORT (8793).
 
 param([switch]$Setup, [switch]$Integration, [string]$Schema = "integ", [string]$EvidenceDir = "", [string]$UiDir = "",
-      [switch]$AllowReset)
+      [switch]$AllowReset, [string]$PallaviSchema = "")
 
 $ErrorActionPreference = "Stop"
 $RepoRoot = Split-Path -Parent $PSScriptRoot
@@ -80,6 +83,13 @@ if ($Integration) {
             & npm install --no-fund --no-audit; if ($LASTEXITCODE -ne 0) { throw "Step failed: engine install" }
             & npm run build; if ($LASTEXITCODE -ne 0) { throw "Step failed: engine build" }
         } finally { Pop-Location }
+        # Pallavi's FHIR mapping needs her pins (fhir.resources 6.5 with pydantic 1); Jyothi's needs fhir.resources 8.
+        $PallaviVenv = ".integration_work\pallavi\venv"
+        Invoke-Step "Python environment for Pallavi's processes" @("-m", "venv", $PallaviVenv)
+        & "$PallaviVenv\Scripts\python.exe" -m pip install -q "fastapi==0.115.5" "uvicorn==0.32.1" "SQLAlchemy==2.0.36" `
+            "psycopg[binary]==3.2.3" "python-dotenv==1.0.1" "python-multipart==0.0.9" "fhir.resources==6.5.0" `
+            "pydantic==1.10.21" "httpx==0.28.1"
+        if ($LASTEXITCODE -ne 0) { throw "Step failed: Pallavi's Python environment" }
     }
 
     $actual = & python -c ($Plain + "print(c.execute('SELECT current_schema()').fetchone()[0])")
@@ -101,9 +111,18 @@ if ($Integration) {
         $env:INTEGRATION_ALLOW_RESET = "1"
         Write-Host "Start over is on: the page can empty schema $Schema and reload reference data." -ForegroundColor Yellow
     }
+    if (-not $PallaviSchema) { $PallaviSchema = "pallavi" + ($Schema -replace '^[^0-9]*', '') }
+    if ($PallaviSchema -ne "off") {
+        if ($PallaviSchema -notmatch '^[a-z_][a-z0-9_]*$' -or $PallaviSchema -in @("public", $Schema)) {
+            throw "-PallaviSchema must be a plain lower-case name, not public and not the team schema."
+        }
+        $env:INTEGRATION_PALLAVI_SCHEMA = $PallaviSchema
+        Write-Host "Pallavi's ingestion and data quality: schema $PallaviSchema (separate data)" -ForegroundColor Cyan
+    }
     if ($envText -notmatch "(?m)^\s*EXTRACTION_MODEL\s*=\s*\S" -and -not $env:EXTRACTION_MODEL) {
         Write-Host ("Warning: EXTRACTION_MODEL is not set in .env, so the code default model is used. " +
-            "The tested model is minimax/minimax-m3.1-flash:free.") -ForegroundColor Yellow
+            "The last tested model is recursive/flint-v1.0:free with EXTRACTION_MAX_OUTPUT_TOKENS=32768.") `
+            -ForegroundColor Yellow
     }
     $port = if ($env:INTEGRATION_PORT) { $env:INTEGRATION_PORT } else { "8780" }
     Write-Host "`n== Starting the integration app on schema $Schema. Open http://localhost:$port (Ctrl+C to stop)" `
