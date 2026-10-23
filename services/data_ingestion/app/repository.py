@@ -8,7 +8,7 @@ from sqlalchemy import case, delete, func, select, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import Session
 
-from .models import ConversionJob, FhirResource, SourceBatch, ValidationIssue
+from .models import ConversionJob, DomainEvent, FhirResource, SourceBatch, ValidationIssue
 from .synthea import RowIssue
 from .validator import ResourceValidationResult
 
@@ -19,6 +19,23 @@ def _as_dict(value: Any) -> dict[str, Any]:
 
 def _as_list(value: Any) -> list[Any]:
     return value if isinstance(value, list) else []
+
+
+def _extract_reference_id(reference_obj: dict[str, Any], expected_resource_type: str | None = None) -> str | None:
+    """Extract a stable resource ID from FHIR Reference.reference, falling back to display."""
+    reference = reference_obj.get("reference")
+    if isinstance(reference, str):
+        ref = reference.strip()
+        if ref:
+            if "/" in ref:
+                resource_id = ref.rsplit("/", 1)[-1]
+                resource_type = ref.rsplit("/", 2)[-2] if ref.count("/") >= 1 else None
+                if expected_resource_type is None or (resource_type and resource_type.lower() == expected_resource_type.lower()):
+                    return resource_id
+            return ref
+
+    display = reference_obj.get("display")
+    return display.strip() if isinstance(display, str) and display.strip() else None
 
 
 def _touch(row: Any) -> None:
@@ -67,7 +84,7 @@ def extract_additional_resource(session: Session, fhir_resource: FhirResource, r
         return
 
     subject = _as_dict(resource_json.get("patient") or resource_json.get("subject"))
-    patient_id = subject.get("display")
+    patient_id = _extract_reference_id(subject, "Patient")
     code_data = _as_dict(resource_json.get("code"))
     coding = _as_list(code_data.get("coding"))
     code_entry = _as_dict(coding[0]) if coding else {}
@@ -140,6 +157,27 @@ def create_job(session: Session, input_dir: str, adapter_name: str = "synthea_cs
     return job
 
 
+def enqueue_domain_event(
+    session: Session,
+    *,
+    event_type: str,
+    batch_id: str | None,
+    job_id: str | None,
+    payload_json: dict[str, Any],
+) -> DomainEvent:
+    row = DomainEvent(
+        event_type=event_type,
+        batch_id=batch_id,
+        job_id=job_id,
+        payload_json=payload_json,
+        status="pending",
+        attempt_count=0,
+    )
+    session.add(row)
+    session.flush()
+    return row
+
+
 def clear_jobs_for_input_dir(session: Session, input_dir: str) -> int:
     jobs = session.execute(
         select(ConversionJob).where(ConversionJob.input_dir == input_dir)
@@ -184,6 +222,25 @@ def complete_job(session: Session, job_id: str, status: str, summary: dict[str, 
         job.source_batch.resource_count = job.resources_generated
         job.source_batch.resource_count_validated = job.resources_validated
         job.source_batch.completed_at = job.completed_at
+    if status in {"completed", "partially_completed", "failed"}:
+        event_type = "ingestion.completed" if status in {"completed", "partially_completed"} else "ingestion.failed"
+        enqueue_domain_event(
+            session,
+            event_type=event_type,
+            batch_id=job.batch_id,
+            job_id=job.id,
+            payload_json={
+                "job_id": job.id,
+                "batch_id": job.batch_id,
+                "status": status,
+                "resources_generated": job.resources_generated,
+                "resources_validated": job.resources_validated,
+                "resources_persisted": job.resources_persisted,
+                "warning_count": job.warning_count,
+                "error_count": job.error_count,
+                "completed_at": job.completed_at.isoformat() if job.completed_at else None,
+            },
+        )
     return job
 
 
@@ -533,7 +590,7 @@ def extract_coverage_from_fhir(
     
     # Extract basic coverage information
     beneficiary = _as_dict(resource_json.get("beneficiary"))
-    patient_ref = beneficiary.get("display")  # Get patient ID from display
+    patient_ref = _extract_reference_id(beneficiary, "Patient")
     
     # Extract period dates
     period = _as_dict(resource_json.get("period"))
@@ -758,7 +815,7 @@ def extract_encounter_from_fhir(
         return
     
     subject = _as_dict(resource_json.get("subject"))
-    patient_id = subject.get("display")
+    patient_id = _extract_reference_id(subject, "Patient")
     
     # Extract encounter type
     encounter_type_codings = _as_list(resource_json.get("type"))
@@ -855,10 +912,10 @@ def extract_condition_from_fhir(
         return
     
     subject = _as_dict(resource_json.get("subject"))
-    patient_id = subject.get("display")
+    patient_id = _extract_reference_id(subject, "Patient")
     
     encounter = _as_dict(resource_json.get("encounter"))
-    encounter_id = encounter.get("display")
+    encounter_id = _extract_reference_id(encounter, "Encounter")
     
     # Extract code
     code_data = _as_dict(resource_json.get("code"))
@@ -942,10 +999,10 @@ def extract_observation_from_fhir(
         return
     
     subject = _as_dict(resource_json.get("subject"))
-    patient_id = subject.get("display")
+    patient_id = _extract_reference_id(subject, "Patient")
     
     encounter = _as_dict(resource_json.get("encounter"))
-    encounter_id = encounter.get("display")
+    encounter_id = _extract_reference_id(encounter, "Encounter")
     
     # Extract code
     code_data = _as_dict(resource_json.get("code"))
@@ -1031,10 +1088,10 @@ def extract_procedure_from_fhir(
         return
     
     subject = _as_dict(resource_json.get("subject"))
-    patient_id = subject.get("display")
+    patient_id = _extract_reference_id(subject, "Patient")
     
     encounter = _as_dict(resource_json.get("encounter"))
-    encounter_id = encounter.get("display")
+    encounter_id = _extract_reference_id(encounter, "Encounter")
     
     # Extract code
     code_data = _as_dict(resource_json.get("code"))
@@ -1111,10 +1168,10 @@ def extract_medication_from_fhir(
         return
     
     subject = _as_dict(resource_json.get("subject"))
-    patient_id = subject.get("display")
+    patient_id = _extract_reference_id(subject, "Patient")
     
     encounter = _as_dict(resource_json.get("encounter"))
-    encounter_id = encounter.get("display")
+    encounter_id = _extract_reference_id(encounter, "Encounter")
     
     # Extract medication code
     medication_data = _as_dict(resource_json.get("medicationCodeableConcept"))
@@ -1195,10 +1252,10 @@ def extract_immunization_from_fhir(
         return
     
     patient = _as_dict(resource_json.get("patient"))
-    patient_id = patient.get("display")
+    patient_id = _extract_reference_id(patient, "Patient")
     
     encounter = _as_dict(resource_json.get("encounter"))
-    encounter_id = encounter.get("display")
+    encounter_id = _extract_reference_id(encounter, "Encounter")
     
     # Extract vaccine code
     vaccine_data = _as_dict(resource_json.get("vaccineCode"))

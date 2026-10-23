@@ -11,9 +11,14 @@ PyYAML
 # API
 fastapi==0.115.5
 uvicorn==0.32.1
-python-multipart==0.0.9
-pydantic==1.10.15
+sqlalchemy>=2.0.44,<2.1
+psycopg[binary]>=3.2.10,<3.3
+fhir.resources==6.5.0
+pydantic==1.10.21
+python-dotenv==1.0.1
+pytest==8.3.3
 httpx==0.28.1
+python-multipart==0.0.9
 
 # FHIR
 fhir.resources==6.5.0
