@@ -22,7 +22,7 @@ Core modules:
 - `services/data_ingestion/app/models.py`: `ConversionJob`, `FhirResource`, `ValidationIssue`
 - `services/data_ingestion/app/pipeline.py`: async job orchestration and stage tracking
 - `services/data_ingestion/app/api.py`: API endpoints used by the UI
-- `ui/index.html`: simple monitoring/explorer UI
+- `ui/frontend`: active frontend workspace (Vite + React)
 
 Pipeline stages:
 
