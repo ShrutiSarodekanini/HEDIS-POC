@@ -10,9 +10,12 @@ from .config import settings
 from .db import session_scope
 from .mapping import bundles_by_patient, map_dataset
 from .repository import (
+    complete_source_batch,
     complete_job,
+    create_source_batch,
     create_job,
     mark_validated_resources_persisted,
+    persist_denormalized_resources_for_job,
     persist_row_issues,
     persist_validation_messages,
     start_job,
@@ -161,10 +164,20 @@ def run_conversion(job_id: str, input_dir: str) -> None:
         "bundles": {},
         "files": {},
     }
+    source_batch_id: str | None = None
 
     try:
         with session_scope() as session:
-            start_job(session, job_id)
+            job = start_job(session, job_id)
+            batch = create_source_batch(
+                session,
+                source_system="Synthea",
+                source_format="csv",
+                adapter_name="synthea-csv-to-fhir",
+                input_source=input_dir,
+            )
+            job.batch_id = batch.id
+            source_batch_id = batch.id
 
         stage(job_id, "csv_input", "running", "Parsing CSV files")
         parsed = parse_dataset(input_dir)
@@ -245,6 +258,7 @@ def run_conversion(job_id: str, input_dir: str) -> None:
                         row = upsert_resource(
                             session,
                             job_id=job_id,
+                            batch_id=source_batch_id,
                             resource_type=resource.resource_type,
                             resource_id=resource.resource_id,
                             patient_id=resource.patient_id,
@@ -289,6 +303,7 @@ def run_conversion(job_id: str, input_dir: str) -> None:
                         upsert_resource(
                             session,
                             job_id=job_id,
+                            batch_id=source_batch_id,
                             resource_type=resource.resource_type,
                             resource_id=resource.resource_id,
                             patient_id=resource.patient_id,
@@ -347,6 +362,13 @@ def run_conversion(job_id: str, input_dir: str) -> None:
 
         with session_scope() as session:
             complete_job(session, job_id, final_status, summary)
+            if source_batch_id:
+                complete_source_batch(
+                    session,
+                    batch_id=source_batch_id,
+                    status=("completed" if final_status == "completed" else "partially_completed"),
+                    resource_count=summary.get("resources_generated", 0),
+                )
 
         job_manager.set_job_status(job_id, final_status)
         _emit(
@@ -372,6 +394,13 @@ def run_conversion(job_id: str, input_dir: str) -> None:
                 "conversion_elapsed_seconds": round(time.time() - conversion_started_at, 3),
             }
             complete_job(session, job_id, "failed", summary)
+            if source_batch_id:
+                complete_source_batch(
+                    session,
+                    batch_id=source_batch_id,
+                    status="failed",
+                    resource_count=summary.get("resources_generated", 0),
+                )
         job_manager.set_job_status(job_id, "failed")
 
 
@@ -405,9 +434,15 @@ def run_persist_stage(job_id: str) -> int:
         from .models import ConversionJob
 
         job = session.get(ConversionJob, job_id)
+        denorm_counts = persist_denormalized_resources_for_job(
+            session,
+            job_id=job_id,
+            batch_id=(job.batch_id if job else None),
+        )
         if job:
             summary = job.summary or {}
             summary["resources_persisted"] = total_persisted
+            summary["denormalized_persist_counts"] = denorm_counts
             job.summary = summary
             job.resources_persisted = total_persisted
             if job.status == "completed" and persisted == 0:
