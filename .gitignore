@@ -83,3 +83,49 @@ ui/dist/
 
 # Star rating app (Pradeep)
 
+# Pallavi's ingestion and dashboard
+.env.local
+.env.*.local
+*.so
+.Python
+develop-eggs/
+downloads/
+eggs/
+.eggs/
+parts/
+sdist/
+var/
+wheels/
+.installed.cfg
+*.egg
+*.swp
+*.swo
+*~
+.vscode/settings.json
+.vscode/launch.json
+*.sqlite
+*.sqlite3
+hedis_poc.db
+coverage.xml
+benchmark_results/
+diagnostics_*.txt
+connection_*.log
+*.tmp
+*.temp
+*.bak
+~*
+.AppleDouble
+.LSOverride
+datasets/
+test_data/
+logs/
+.bandit
+.flake8
+.ipynb_checkpoints/
+*.ipynb_checkpoints/
+*.dump
+*.backup
+npm-debug.log
+tmp/
+temp/
+cache/
