@@ -88,15 +88,26 @@ def to_iso_date(value: str | None) -> str | None:
 def to_iso_datetime(value: str | None) -> str | None:
     if not value:
         return None
+
+    trimmed = value.strip()
     for fmt in ("%Y-%m-%d", "%Y-%m-%d %H:%M:%S", "%Y-%m-%dT%H:%M:%SZ"):
         try:
-            parsed = dt.datetime.strptime(value, fmt)
+            parsed = dt.datetime.strptime(trimmed, fmt)
             if fmt == "%Y-%m-%d":
                 parsed = parsed.replace(hour=0, minute=0, second=0)
             return parsed.isoformat() + "Z"
         except ValueError:
             continue
-    return None
+
+    # Support common ISO-8601 forms emitted by Synthea variants, including timezone offsets and milliseconds.
+    try:
+        normalized = trimmed.replace("Z", "+00:00")
+        parsed = dt.datetime.fromisoformat(normalized)
+        if parsed.tzinfo is not None:
+            parsed = parsed.astimezone(dt.timezone.utc).replace(tzinfo=None)
+        return parsed.isoformat() + "Z"
+    except ValueError:
+        return None
 
 
 def to_decimal(value: str | None) -> Decimal | None:
@@ -434,7 +445,9 @@ def map_claim(record: SourceRecord) -> tuple[ResourceEnvelope | None, list[RowIs
     created = (
         to_iso_datetime(record.data.get("START"))
         or to_iso_datetime(record.data.get("DATE"))
+        or to_iso_datetime(record.data.get("SERVICEDATE"))
         or to_iso_datetime(record.data.get("SERVICE_DATE"))
+        or to_iso_datetime(record.data.get("CURRENTILLNESSDATE"))
         or dt.datetime.utcnow().replace(microsecond=0).isoformat() + "Z"
     )
 

@@ -67,6 +67,171 @@ def test_claims_use_synthea_patientid_column(tmp_path: Path):
     assert not any(issue.code == "missing_patient_id" for issue in claim_issues)
 
 
+def test_parse_dataset_handles_bom_and_case_insensitive_headers(tmp_path: Path):
+    from services.data_ingestion.app.synthea import parse_dataset
+
+    dataset = tmp_path / "bom_case_dataset"
+    dataset.mkdir()
+    (dataset / "patients.csv").write_text("\ufeffid\npatient-1\n", encoding="utf-8")
+    (dataset / "claims.csv").write_text("\ufeffid,patientid\nclaim-1,patient-1\n", encoding="utf-8")
+
+    parsed = parse_dataset(str(dataset.resolve()))
+    assert len(parsed.records_by_file["patients.csv"]) == 1
+    assert len(parsed.records_by_file["claims.csv"]) == 1
+    assert not any(issue.code in {"missing_id_column", "missing_patient_column"} for issue in parsed.issues)
+
+
+def test_claim_mapping_uses_servicedate_column(tmp_path: Path):
+    from services.data_ingestion.app.mapping import map_dataset
+    from services.data_ingestion.app.synthea import parse_dataset
+
+    dataset = tmp_path / "claim_date_dataset"
+    dataset.mkdir()
+    (dataset / "patients.csv").write_text("Id\npatient-1\n", encoding="utf-8")
+    (dataset / "claims.csv").write_text(
+        "Id,PATIENTID,SERVICEDATE\nclaim-1,patient-1,2026-03-14\n",
+        encoding="utf-8",
+    )
+
+    parsed = parse_dataset(str(dataset.resolve()))
+    mapped = map_dataset(parsed)
+    claim = next(r for r in mapped.resources if r.resource_type == "Claim")
+    assert claim.fhir["created"].startswith("2026-03-14")
+
+
+def test_bp_bundle_pruning_keeps_bp_data_and_drops_irrelevant_entries():
+    from services.data_ingestion.app.api import _prune_bp_bundle_payload
+
+    payload = {
+        "resourceType": "Bundle",
+        "entry": [
+            {"resource": {"resourceType": "Patient", "id": "p-1"}},
+            {
+                "resource": {
+                    "resourceType": "Observation",
+                    "id": "obs-bp",
+                    "code": {"coding": [{"system": "http://loinc.org", "code": "8480-6"}]},
+                }
+            },
+            {
+                "resource": {
+                    "resourceType": "Observation",
+                    "id": "obs-a1c",
+                    "code": {"coding": [{"system": "http://loinc.org", "code": "4548-4"}]},
+                }
+            },
+            {"resource": {"resourceType": "Claim", "id": "claim-1"}},
+            {"resource": {"resourceType": "Condition", "id": "cond-1"}},
+        ],
+    }
+
+    pruned, kept_count, removed_count = _prune_bp_bundle_payload(payload)
+    kept_types = [entry["resource"]["resourceType"] for entry in pruned["entry"]]
+    kept_obs_ids = [entry["resource"].get("id") for entry in pruned["entry"] if entry["resource"].get("resourceType") == "Observation"]
+
+    assert removed_count == 2
+    assert kept_count == 3
+    assert "Claim" not in kept_types
+    assert "obs-bp" in kept_obs_ids
+    assert "obs-a1c" not in kept_obs_ids
+
+
+def test_to_member_result_aggregates_across_detailed_groups():
+    from services.data_ingestion.app.api import _to_member_result
+
+    cli_entry = {
+        "patientId": "patient-1",
+        "detailedResults": [
+            {
+                "populationResults": [
+                    {"populationType": "denominator", "result": True},
+                    {"populationType": "numerator", "result": False},
+                ]
+            },
+            {
+                "populationResults": [
+                    {"populationType": "denominator", "result": True},
+                    {"populationType": "numerator", "result": True},
+                ]
+            },
+        ],
+    }
+
+    result = _to_member_result(cli_entry, "GSD")
+
+    assert result["populations"]["denominator"] is True
+    assert result["populations"]["numerator"] is True
+    assert result["outcome"] == "numerator_met"
+    assert result["status"] == "completed"
+
+
+def test_to_member_result_supports_population_aliases():
+    from services.data_ingestion.app.api import _to_member_result
+
+    cli_entry = {
+        "patientId": "patient-2",
+        "detailedResults": [
+            {
+                "populationResults": [
+                    {"populationType": "IPP", "result": True},
+                    {"populationType": "DEN", "result": True},
+                    {"populationType": "NUM", "result": False},
+                ]
+            }
+        ],
+    }
+
+    result = _to_member_result(cli_entry, "SPD")
+
+    assert result["populations"]["initial_population"] is True
+    assert result["populations"]["denominator"] is True
+    assert result["populations"]["numerator"] is False
+    assert result["outcome"] == "numerator_not_met"
+
+
+def test_pruned_execution_results_are_non_definitive():
+    from services.data_ingestion.app.api import _to_member_result
+
+    cli_entry = {
+        "patientId": "patient-3",
+        "detailedResults": [
+            {
+                "populationResults": [
+                    {"populationType": "denominator", "result": True},
+                    {"populationType": "numerator", "result": False},
+                ]
+            }
+        ],
+    }
+
+    result = _to_member_result(cli_entry, "COLE")
+    assert result["status"] == "completed"
+    assert result["outcome"] == "numerator_not_met"
+
+    # Mirror the run_request_file non-original candidate behavior.
+    result["status"] = "unresolved"
+    result["outcome"] = "unresolved_policy"
+    result["data_quality_flags"] = [*(result.get("data_quality_flags") or []), "bundle_pruned_for_performance"]
+    result["warnings"] = [
+        *(result.get("warnings") or []),
+        "Execution used generic_soft_pruned candidate (removed 10 resources, remaining 2000).",
+        "Result is non-definitive because a pruned bundle was used.",
+    ]
+    result["errors"] = [
+        *(result.get("errors") or []),
+        {"message": "Definitive gap status requires full-bundle execution."},
+    ]
+
+    assert result["status"] == "unresolved"
+    assert result["outcome"] == "unresolved_policy"
+    assert "bundle_pruned_for_performance" in (result.get("data_quality_flags") or [])
+    assert any("non-definitive" in warning for warning in (result.get("warnings") or []))
+    assert any(
+        isinstance(error, dict) and error.get("message") == "Definitive gap status requires full-bundle execution."
+        for error in (result.get("errors") or [])
+    )
+
+
 def test_end_to_end_api_pipeline_and_rerun_idempotency(tmp_path: Path):
     db_path = tmp_path / "test_pipeline.db"
     main, db = reload_ingestion_stack(f"sqlite:///{db_path}")

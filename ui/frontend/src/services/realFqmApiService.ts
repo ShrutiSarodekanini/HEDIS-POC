@@ -24,8 +24,6 @@ const MEASUREMENT_YEAR = import.meta.env.VITE_MEASUREMENT_YEAR?.trim() || 'MY202
 const SUPPORTED_MEASURE_IDS = [
   'AAB',
   'BCSE',
-  'BPD',
-  'CBP',
   'CCSE',
   'COLE',
   'EED',
@@ -43,8 +41,6 @@ function isSupportedMeasureId(value: string): value is SupportedMeasureId {
 const MEASURE_BUNDLE_PATHS: Record<(typeof SUPPORTED_MEASURE_IDS)[number], string> = {
   AAB: `${MEASURE_BUNDLE_BASE_PATH}/independent_public_aab/PublicAabAntibioticAvoidanceTechnicalDemo-bundle.json`,
   BCSE: `${MEASURE_BUNDLE_BASE_PATH}/independent_public_bcse/PublicBreastCancerScreeningTechnicalDemo-bundle.json`,
-  BPD: `${MEASURE_BUNDLE_BASE_PATH}/independent_public_bpd/CMS165FHIRControllingHighBP-bundle.json`,
-  CBP: `${MEASURE_BUNDLE_BASE_PATH}/independent_public_cbp/CMS165FHIRControllingHighBP-bundle.json`,
   CCSE: `${MEASURE_BUNDLE_BASE_PATH}/independent_public_ccse/CMS124FHIRCervicalCancerScreen-bundle.json`,
   COLE: `${MEASURE_BUNDLE_BASE_PATH}/independent_public_cole/PublicColorectalCancerScreeningTechnicalDemo-bundle.json`,
   EED: `${MEASURE_BUNDLE_BASE_PATH}/independent_public_eed/PublicEedDiabetesEyeExamTechnicalDemo-bundle.json`,

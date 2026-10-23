@@ -2,6 +2,35 @@ import type { AppRuntimeConfig, ConnectionMode } from '../types/api';
 
 const API_BASE_URL_STORAGE_KEY = 'hedis.apiBaseUrl';
 
+function normalizeApiBaseUrl(value: string | undefined | null): string {
+  const fallback = 'http://localhost:8011/api';
+  const raw = (value ?? '').trim();
+  if (!raw) {
+    return fallback;
+  }
+
+  try {
+    const parsed = new URL(raw);
+    const path = parsed.pathname.replace(/\/+$/, '');
+
+    if (!path || path === '/') {
+      parsed.pathname = '/api';
+    } else if (path.toLowerCase() === '/api') {
+      parsed.pathname = '/api';
+    } else {
+      parsed.pathname = path;
+    }
+
+    return parsed.toString().replace(/\/$/, '');
+  } catch {
+    const trimmed = raw.replace(/\/+$/, '');
+    if (trimmed.toLowerCase().endsWith('/api')) {
+      return trimmed;
+    }
+    return `${trimmed}/api`;
+  }
+}
+
 function normalizeMode(_value: string | undefined): ConnectionMode {
   return 'real';
 }
@@ -12,7 +41,7 @@ export function getDefaultConfig(): AppRuntimeConfig {
   const envVersion = import.meta.env.VITE_APP_VERSION;
 
   return {
-    apiBaseUrl: envApiBaseUrl ?? 'http://localhost:8011/api',
+    apiBaseUrl: normalizeApiBaseUrl(envApiBaseUrl),
     mode: normalizeMode(envMode),
     version: envVersion ?? '0.1.0',
   };
@@ -23,7 +52,8 @@ export function getStoredApiBaseUrl(): string | null {
     return null;
   }
 
-  return window.localStorage.getItem(API_BASE_URL_STORAGE_KEY);
+  const value = window.localStorage.getItem(API_BASE_URL_STORAGE_KEY);
+  return value ? normalizeApiBaseUrl(value) : null;
 }
 
 export function storeApiBaseUrl(value: string): void {
@@ -31,7 +61,7 @@ export function storeApiBaseUrl(value: string): void {
     return;
   }
 
-  window.localStorage.setItem(API_BASE_URL_STORAGE_KEY, value);
+  window.localStorage.setItem(API_BASE_URL_STORAGE_KEY, normalizeApiBaseUrl(value));
 }
 
 export function clearStoredApiBaseUrl(): void {

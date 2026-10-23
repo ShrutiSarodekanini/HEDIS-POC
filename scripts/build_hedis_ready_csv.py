@@ -156,12 +156,27 @@ def keep_rows(input_file: Path, output_file: Path, selected_patient_ids: set[str
         return 0
 
     header = reader.fieldnames or []
-    if input_file.name == "patients.csv":
-        key_col = "Id"
-    elif input_file.name == "claims.csv":
-        key_col = "PATIENTID"
-    else:
-        key_col = "PATIENT"
+    expected_key_by_file = {
+        "patients.csv": "Id",
+        "claims.csv": "PATIENTID",
+        "encounters.csv": "PATIENT",
+        "conditions.csv": "PATIENT",
+        "observations.csv": "PATIENT",
+        "procedures.csv": "PATIENT",
+        "medications.csv": "PATIENT",
+        "immunizations.csv": "PATIENT",
+        "careplans.csv": "PATIENT",
+        "coverages.csv": "PATIENT",
+        "payer_transitions.csv": "PATIENT",
+    }
+    expected_key = expected_key_by_file.get(input_file.name, "PATIENT")
+    header_lookup = {h.lower(): h for h in header}
+    key_col = header_lookup.get(expected_key.lower())
+    if key_col is None:
+        raise SystemExit(
+            f"Missing expected patient key column '{expected_key}' in {input_file.name}. "
+            f"Header columns: {header}"
+        )
 
     filtered = [row for row in rows if (row.get(key_col) or "") in selected_patient_ids]
 
@@ -290,6 +305,7 @@ def main() -> None:
         "immunizations.csv",
         "careplans.csv",
         "claims.csv",
+        "payer_transitions.csv",
         "coverages.csv",
     ]
 
@@ -300,6 +316,17 @@ def main() -> None:
             continue
         dst = output_dir / filename
         row_counts[filename] = keep_rows(src, dst, selected)
+
+    # Guardrail: avoid silently producing clinically empty cohorts.
+    non_patient_files = [
+        name for name in row_counts.keys() if name != "patients.csv"
+    ]
+    non_patient_total = sum(row_counts[name] for name in non_patient_files)
+    if selected and non_patient_total == 0:
+        raise SystemExit(
+            "Filtered cohort has zero non-patient rows. "
+            "Refusing to write an unusable test cohort; check patient selection and key-column mapping."
+        )
 
     summary = {
         "measurement_year": args.measurement_year,
