@@ -92,7 +92,7 @@ describe('RunEvaluationWorkspace', () => {
 
     const user = userEvent.setup();
 
-    expect(await screen.findByText(/auto-detect related measures/i)).toBeVisible();
+    expect(await screen.findByText(/standard engine-verified policy/i)).toBeVisible();
 
     const patientFileInput = screen.getByLabelText(/patient bundle upload/i);
 
@@ -136,7 +136,7 @@ describe('RunEvaluationWorkspace', () => {
     expect(
       screen.getByText(/no evaluation results yet/i),
     ).toBeVisible();
-    expect(screen.getByText(/auto-detect related measures/i)).toBeVisible();
+    expect(screen.getByText(/standard engine-verified policy/i)).toBeVisible();
   });
 
   it('preserves duplicate member-measure rows', async () => {

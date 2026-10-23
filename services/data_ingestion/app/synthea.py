@@ -85,13 +85,31 @@ def discover_dataset(input_dir: str) -> DatasetMetadata:
 
 
 def count_rows(file_path: Path) -> int:
-    with file_path.open("r", newline="", encoding="utf-8") as handle:
+    with file_path.open("r", newline="", encoding="utf-8-sig") as handle:
         reader = csv.reader(handle)
         try:
             next(reader)
         except StopIteration:
             return 0
         return sum(1 for _ in reader)
+
+
+def _normalize_header(name: str) -> str:
+    return name.lstrip("\ufeff").strip()
+
+
+def _resolve_column_name(fieldnames: list[str], requested: str | None) -> str | None:
+    if not requested:
+        return None
+
+    requested_norm = requested.strip().lower()
+    for field in fieldnames:
+        if _normalize_header(field) == requested:
+            return field
+    for field in fieldnames:
+        if _normalize_header(field).lower() == requested_norm:
+            return field
+    return None
 
 
 def parse_dataset(input_dir: str) -> ParsedDataset:
@@ -119,7 +137,7 @@ def parse_file(file_path: Path, source_file: str, spec: dict[str, Any]) -> tuple
     records: list[SourceRecord] = []
     seen_ids: set[str] = set()
 
-    with file_path.open("r", newline="", encoding="utf-8") as handle:
+    with file_path.open("r", newline="", encoding="utf-8-sig") as handle:
         reader = csv.DictReader(handle)
         if reader.fieldnames is None:
             issues.append(
@@ -133,12 +151,45 @@ def parse_file(file_path: Path, source_file: str, spec: dict[str, Any]) -> tuple
             )
             return records, issues
 
-        for row_number, row in enumerate(reader, start=2):
-            normalized = {k.strip(): (v.strip() if isinstance(v, str) else "") for k, v in row.items() if k is not None}
+        resolved_id_col = None if id_col == "__rowid__" else _resolve_column_name(reader.fieldnames, id_col)
+        resolved_patient_col = _resolve_column_name(reader.fieldnames, patient_col)
+        resolved_encounter_col = _resolve_column_name(reader.fieldnames, encounter_col)
 
-            source_record_id = normalized.get(id_col) or f"row-{row_number}"
-            patient_id = normalized.get(patient_col) if patient_col else None
-            encounter_id = normalized.get(encounter_col) if encounter_col else None
+        if id_col != "__rowid__" and not resolved_id_col:
+            issues.append(
+                RowIssue(
+                    source_file=source_file,
+                    row_number=0,
+                    severity="warning",
+                    code="missing_id_column",
+                    message=f"Missing expected ID column '{id_col}' in header; using synthetic row IDs.",
+                )
+            )
+
+        if patient_col and not resolved_patient_col:
+            issues.append(
+                RowIssue(
+                    source_file=source_file,
+                    row_number=0,
+                    severity="error",
+                    code="missing_patient_column",
+                    message=f"Missing expected patient column '{patient_col}' in header.",
+                )
+            )
+            return records, issues
+
+        for row_number, row in enumerate(reader, start=2):
+            normalized = {
+                _normalize_header(k): (v.strip() if isinstance(v, str) else "")
+                for k, v in row.items()
+                if k is not None
+            }
+
+            source_record_id = (
+                normalized.get(_normalize_header(resolved_id_col)) if resolved_id_col else None
+            ) or f"row-{row_number}"
+            patient_id = normalized.get(_normalize_header(resolved_patient_col)) if resolved_patient_col else None
+            encounter_id = normalized.get(_normalize_header(resolved_encounter_col)) if resolved_encounter_col else None
 
             if source_record_id in seen_ids:
                 issues.append(

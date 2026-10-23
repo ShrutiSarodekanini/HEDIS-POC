@@ -35,6 +35,38 @@ router = APIRouter(prefix="/api", tags=["conversion"])
 
 _BP_MEASURE_HINTS = ("BPD", "CBP", "CMS165", "CONTROLLINGHIGHBP")
 _BP_OBSERVATION_CODES = {"8480-6", "8462-4", "85354-9"}
+_ENGINE_EXEC_TIMEOUT_SECONDS = 75
+_GENERIC_LARGE_BUNDLE_THRESHOLD = 3000
+_GENERIC_VERY_LARGE_BUNDLE_THRESHOLD = 8000
+
+_GENERIC_SOFT_KEEP_TYPES = {
+    "Patient",
+    "Encounter",
+    "Condition",
+    "Observation",
+    "Procedure",
+    "MedicationRequest",
+    "MedicationDispense",
+    "MedicationAdministration",
+    "MedicationStatement",
+    "CarePlan",
+    "ServiceRequest",
+    "DiagnosticReport",
+    "Immunization",
+    "AllergyIntolerance",
+}
+
+_GENERIC_HARD_KEEP_TYPES = {
+    "Patient",
+    "Encounter",
+    "Condition",
+    "Observation",
+    "Procedure",
+    "MedicationRequest",
+    "MedicationDispense",
+    "MedicationAdministration",
+    "MedicationStatement",
+}
 
 
 def _is_bp_measure_request(measure_id: str, bundle_path: Path) -> bool:
@@ -114,6 +146,90 @@ def _prune_bp_bundle_payload(payload: dict[str, Any]) -> tuple[dict[str, Any], i
     return pruned_payload, len(pruned_entries), removed_count
 
 
+def _bundle_entry_count(payload: dict[str, Any]) -> int:
+    if payload.get("resourceType") != "Bundle":
+        return 0
+    entries = payload.get("entry")
+    return len(entries) if isinstance(entries, list) else 0
+
+
+def _prune_bundle_by_types(
+    payload: dict[str, Any],
+    keep_types: set[str],
+) -> tuple[dict[str, Any], int, int]:
+    if payload.get("resourceType") != "Bundle":
+        return payload, 0, 0
+
+    entries = payload.get("entry")
+    if not isinstance(entries, list):
+        return payload, 0, 0
+
+    pruned_entries: list[dict[str, Any]] = []
+    removed_count = 0
+
+    for entry in entries:
+        if not isinstance(entry, dict):
+            removed_count += 1
+            continue
+
+        resource = entry.get("resource")
+        if not isinstance(resource, dict):
+            removed_count += 1
+            continue
+
+        resource_type = resource.get("resourceType")
+        if resource_type not in keep_types:
+            removed_count += 1
+            continue
+
+        pruned_entries.append(entry)
+
+    if removed_count == 0:
+        return payload, len(entries), 0
+
+    pruned_payload = dict(payload)
+    pruned_payload["entry"] = pruned_entries
+    return pruned_payload, len(pruned_entries), removed_count
+
+
+def _build_execution_payload_candidates(
+    payload: dict[str, Any],
+    measure_id: str,
+    bundle_path: Path,
+) -> list[tuple[str, dict[str, Any], int, int]]:
+    candidates: list[tuple[str, dict[str, Any], int, int]] = []
+    seen_counts: set[int] = set()
+
+    def append_candidate(label: str, candidate_payload: dict[str, Any], removed: int) -> None:
+        count = _bundle_entry_count(candidate_payload)
+        # Keep only progressively smaller payloads to avoid duplicate expensive retries.
+        if count in seen_counts:
+            return
+        seen_counts.add(count)
+        candidates.append((label, candidate_payload, count, removed))
+
+    base_count = _bundle_entry_count(payload)
+    append_candidate("original", payload, 0)
+
+    is_bp = _is_bp_measure_request(measure_id, bundle_path)
+    if is_bp:
+        bp_payload, _, bp_removed = _prune_bp_bundle_payload(payload)
+        if bp_removed > 0:
+            append_candidate("bp_pruned", bp_payload, bp_removed)
+
+    if base_count >= _GENERIC_LARGE_BUNDLE_THRESHOLD:
+        soft_payload, _, soft_removed = _prune_bundle_by_types(payload, _GENERIC_SOFT_KEEP_TYPES)
+        if soft_removed > 0:
+            append_candidate("generic_soft_pruned", soft_payload, soft_removed)
+
+    if base_count >= _GENERIC_VERY_LARGE_BUNDLE_THRESHOLD:
+        hard_payload, _, hard_removed = _prune_bundle_by_types(payload, _GENERIC_HARD_KEEP_TYPES)
+        if hard_removed > 0:
+            append_candidate("generic_hard_pruned", hard_payload, hard_removed)
+
+    return candidates
+
+
 def _maybe_prune_run_request_bundle(temp_path: Path, measure_id: str, bundle_path: Path) -> None:
     if not _is_bp_measure_request(measure_id, bundle_path):
         return
@@ -163,8 +279,6 @@ def _resolve_measure_bundle_path(measure_bundle_path: str | None) -> Path:
 def _to_member_result(cli_entry: dict, measure_id: str) -> dict:
     patient_id = cli_entry.get("patientId") or "unknown"
     detailed_results = cli_entry.get("detailedResults") or []
-    group = detailed_results[0] if detailed_results else {}
-    raw_populations = group.get("populationResults") or []
 
     population_map = {
         "initial_population": None,
@@ -176,20 +290,51 @@ def _to_member_result(cli_entry: dict, measure_id: str) -> dict:
 
     pop_key_map = {
         "initial-population": "initial_population",
+        "initial_population": "initial_population",
+        "ipp": "initial_population",
         "denominator": "denominator",
+        "den": "denominator",
         "denominator-exclusion": "denominator_exclusion",
+        "denominator_exclusion": "denominator_exclusion",
+        "denex": "denominator_exclusion",
         "denominator-exception": "denominator_exception",
+        "denominator_exception": "denominator_exception",
+        "denexcep": "denominator_exception",
         "numerator": "numerator",
+        "num": "numerator",
         "measure-population": "measure_population",
+        "measure_population": "measure_population",
         "measure-observation": "measure_observation",
+        "measure_observation": "measure_observation",
     }
 
-    for item in raw_populations:
-        pop_type = item.get("populationType")
-        key = pop_key_map.get(pop_type)
-        if key is None:
+    # Some measures produce multiple detailed groups; aggregate booleans across all groups
+    # so one false in an early group does not overwrite a true result in another group.
+    for group in detailed_results:
+        if not isinstance(group, dict):
             continue
-        population_map[key] = bool(item.get("result")) if item.get("result") is not None else None
+        raw_populations = group.get("populationResults") or []
+        if not isinstance(raw_populations, list):
+            continue
+        for item in raw_populations:
+            if not isinstance(item, dict):
+                continue
+            raw_pop_type = item.get("populationType")
+            pop_type = str(raw_pop_type).strip().lower() if raw_pop_type is not None else ""
+            key = pop_key_map.get(pop_type)
+            if key is None:
+                continue
+
+            raw_result = item.get("result")
+            if raw_result is None:
+                continue
+
+            next_value = bool(raw_result)
+            current_value = population_map.get(key)
+            if current_value is None:
+                population_map[key] = next_value
+            else:
+                population_map[key] = bool(current_value) or next_value
 
     denominator = population_map.get("denominator") is True
     numerator = population_map.get("numerator")
@@ -414,16 +559,29 @@ async def run_request_file(
         if parsed_year is None:
             parsed_year = datetime.utcnow().year
 
-        _maybe_prune_run_request_bundle(temp_path, measure_id, bundle_path)
+        try:
+            original_payload = json.loads(temp_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            original_payload = None
 
-        cmd = [
+        if not isinstance(original_payload, dict):
+            return {
+                "member_id": Path(file.filename or "patient").stem,
+                "measure_id": measure_id,
+                "status": "failed",
+                "outcome": "failed",
+                "populations": {},
+                "data_quality_flags": ["invalid_input_bundle"],
+                "warnings": [],
+                "errors": [{"message": "Input patient bundle is not valid JSON Bundle content."}],
+            }
+
+        cmd_base = [
             "node",
             str(cli_path),
             "detailed",
             "--measure-bundle",
             str(bundle_path),
-            "--patient-bundles",
-            str(temp_path),
             "--measurement-period-start",
             f"{parsed_year}-01-01",
             "--measurement-period-end",
@@ -431,58 +589,82 @@ async def run_request_file(
             "--trust-meta-profile",
             "false",
         ]
-
         if root_lib_ref:
-            cmd.extend(["--root-lib-ref", root_lib_ref])
+            cmd_base.extend(["--root-lib-ref", root_lib_ref])
 
-        completed = subprocess.run(
-            cmd,
-            cwd=engine_root,
-            text=True,
-            capture_output=True,
-            check=False,
-        )
+        execution_errors: list[str] = []
+        candidates = _build_execution_payload_candidates(original_payload, measure_id, bundle_path)
 
-        if completed.returncode != 0:
-            message = completed.stderr.strip() or completed.stdout.strip() or "Engine execution failed"
-            return {
-                "member_id": Path(file.filename or "patient").stem,
-                "measure_id": measure_id,
-                "status": "failed",
-                "outcome": "failed",
-                "populations": {},
-                "data_quality_flags": ["engine_execution_failed"],
-                "warnings": [],
-                "errors": [{"message": message[-4000:]}],
-            }
+        for label, candidate_payload, candidate_count, removed in candidates:
+            try:
+                temp_path.write_text(json.dumps(candidate_payload), encoding="utf-8")
+            except OSError:
+                execution_errors.append(f"{label}: unable to write temporary candidate bundle")
+                continue
 
-        try:
-            payload = json.loads(completed.stdout)
-        except json.JSONDecodeError as exc:
-            return {
-                "member_id": Path(file.filename or "patient").stem,
-                "measure_id": measure_id,
-                "status": "failed",
-                "outcome": "failed",
-                "populations": {},
-                "data_quality_flags": ["invalid_engine_payload"],
-                "warnings": [],
-                "errors": [{"message": f"Unable to parse engine output: {exc}"}],
-            }
+            cmd = [*cmd_base, "--patient-bundles", str(temp_path)]
+            try:
+                completed = subprocess.run(
+                    cmd,
+                    cwd=engine_root,
+                    text=True,
+                    capture_output=True,
+                    check=False,
+                    timeout=_ENGINE_EXEC_TIMEOUT_SECONDS,
+                )
+            except subprocess.TimeoutExpired:
+                execution_errors.append(
+                    f"{label}: timeout after {_ENGINE_EXEC_TIMEOUT_SECONDS}s (entries={candidate_count})"
+                )
+                continue
 
-        if not isinstance(payload, list) or not payload:
-            return {
-                "member_id": Path(file.filename or "patient").stem,
-                "measure_id": measure_id,
-                "status": "failed",
-                "outcome": "failed",
-                "populations": {},
-                "data_quality_flags": ["empty_engine_payload"],
-                "warnings": [],
-                "errors": [{"message": "Engine returned no patient result."}],
-            }
+            if completed.returncode != 0:
+                message = completed.stderr.strip() or completed.stdout.strip() or "Engine execution failed"
+                execution_errors.append(f"{label}: {message[-1500:]}")
+                continue
 
-        return _to_member_result(payload[0], measure_id)
+            try:
+                payload = json.loads(completed.stdout)
+            except json.JSONDecodeError as exc:
+                execution_errors.append(f"{label}: invalid engine payload: {exc}")
+                continue
+
+            if not isinstance(payload, list) or not payload:
+                execution_errors.append(f"{label}: engine returned empty patient result")
+                continue
+
+            result = _to_member_result(payload[0], measure_id)
+            if label != "original":
+                # Pruned payloads are performance fallbacks and may omit evidence.
+                # Do not report definitive gap closure/opening from these runs.
+                result["status"] = "unresolved"
+                result["outcome"] = "unresolved_policy"
+                result["data_quality_flags"] = [
+                    *(result.get("data_quality_flags") or []),
+                    "bundle_pruned_for_performance",
+                ]
+                result["warnings"] = [
+                    *(result.get("warnings") or []),
+                    f"Execution used {label} candidate (removed {removed} resources, remaining {candidate_count}).",
+                    "Result is non-definitive because a pruned bundle was used.",
+                ]
+                result["errors"] = [
+                    *(result.get("errors") or []),
+                    {"message": "Definitive gap status requires full-bundle execution."},
+                ]
+            return result
+
+        combined_error = " | ".join(execution_errors)[-4000:] if execution_errors else "Engine execution failed"
+        return {
+            "member_id": Path(file.filename or "patient").stem,
+            "measure_id": measure_id,
+            "status": "failed",
+            "outcome": "failed",
+            "populations": {},
+            "data_quality_flags": ["engine_execution_failed"],
+            "warnings": [],
+            "errors": [{"message": combined_error}],
+        }
     finally:
         temp_path.unlink(missing_ok=True)
 
@@ -660,11 +842,69 @@ def get_job_resources(job_id: str) -> dict:
 
 
 @router.get("/jobs/{job_id}/patients")
-def get_job_patients(job_id: str) -> dict:
+def get_job_patients(
+    job_id: str,
+    persisted_only: bool = False,
+    bundleable_only: bool = True,
+) -> dict:
     with session_scope() as session:
         resources = list_resources_for_job(session, job_id)
-        patients = sorted({r.patient_id for r in resources if r.patient_id})
-    return {"job_id": job_id, "patients": patients}
+
+        if persisted_only:
+            resources = [item for item in resources if bool(item.persisted)]
+
+        if bundleable_only:
+            resources = [item for item in resources if isinstance(item.resource_json, dict)]
+
+        patient_stats: dict[str, dict[str, Any]] = {}
+        for item in resources:
+            if not item.patient_id:
+                continue
+
+            patient_id = item.patient_id
+            stats = patient_stats.setdefault(
+                patient_id,
+                {
+                    "patient_id": patient_id,
+                    "resource_count": 0,
+                    "estimated_size_bytes": 0,
+                    "saved_at": None,
+                },
+            )
+
+            stats["resource_count"] += 1
+
+            if isinstance(item.resource_json, dict):
+                try:
+                    stats["estimated_size_bytes"] += len(
+                        json.dumps(item.resource_json, separators=(",", ":")).encode("utf-8")
+                    )
+                except (TypeError, ValueError):
+                    pass
+
+            candidate_saved_at = item.updated_at or item.created_at
+            current_saved_at = stats["saved_at"]
+            if candidate_saved_at and (current_saved_at is None or candidate_saved_at > current_saved_at):
+                stats["saved_at"] = candidate_saved_at
+
+        patients = sorted(patient_stats.keys())
+        patient_details = [
+            {
+                "patient_id": details["patient_id"],
+                "resource_count": details["resource_count"],
+                "estimated_size_bytes": details["estimated_size_bytes"],
+                "saved_at": details["saved_at"].isoformat() if details["saved_at"] else None,
+            }
+            for details in sorted(patient_stats.values(), key=lambda row: row["patient_id"])
+        ]
+
+    return {
+        "job_id": job_id,
+        "patients": patients,
+        "patient_details": patient_details,
+        "persisted_only": persisted_only,
+        "bundleable_only": bundleable_only,
+    }
 
 
 @router.get("/jobs/{job_id}/patients/{patient_id}/resources")
@@ -676,6 +916,36 @@ def get_patient_resources(job_id: str, patient_id: str) -> dict:
             if item.patient_id == patient_id
         ]
     return {"job_id": job_id, "patient_id": patient_id, "resources": resources}
+
+
+@router.get("/jobs/{job_id}/patients/{patient_id}/bundle")
+def get_patient_bundle(job_id: str, patient_id: str, persisted_only: bool = True) -> dict:
+    """Return a FHIR Bundle built from stored resources for one patient/job."""
+    with session_scope() as session:
+        rows = [item for item in list_resources_for_job(session, job_id) if item.patient_id == patient_id]
+
+    if persisted_only:
+        rows = [item for item in rows if bool(item.persisted)]
+
+    entries = [{"resource": item.resource_json} for item in rows if isinstance(item.resource_json, dict)]
+
+    if not entries:
+        detail = "No persisted resources found for this patient" if persisted_only else "No resources found for this patient"
+        raise HTTPException(status_code=404, detail=detail)
+
+    bundle = {
+        "resourceType": "Bundle",
+        "type": "collection",
+        "entry": entries,
+    }
+
+    return {
+        "job_id": job_id,
+        "patient_id": patient_id,
+        "resource_count": len(entries),
+        "persisted_only": persisted_only,
+        "bundle": bundle,
+    }
 
 
 @router.get("/jobs/{job_id}/validation")
