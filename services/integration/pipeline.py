@@ -14,15 +14,17 @@ import logging
 import shutil
 import threading
 import uuid
+from contextlib import ExitStack
 from datetime import date
 from pathlib import Path
 
 import psycopg
 from psycopg.types.json import Jsonb
+from fastapi import HTTPException
 from starlette.datastructures import UploadFile
 
 from services.data_ingestion import team_schema_loader
-from services.data_ingestion.app.api import upload_dataset_zip
+from services.data_ingestion.app.api import upload_dataset, upload_dataset_zip
 from services.data_ingestion.app.db import session_scope
 from services.data_ingestion.app.models import ConversionJob
 from services.data_ingestion.app.pipeline import job_manager, run_conversion, run_persist_stage
@@ -43,29 +45,32 @@ class StepFailed(RuntimeError):
     """A step that could not finish; the message is safe to store and show."""
 
 
-def start_batch(zip_path: Path) -> str:
-    """Record the batch, then run it in a background thread. Returns the batch_id to poll."""
+def start_batch(upload: Path) -> str:
+    """Record the batch, then run it in a background thread. upload is one .zip file or a folder of .csv files.
+    Returns the batch_id to poll."""
     batch_id = uuid.uuid4()
+    files = sorted(upload.glob("*.csv")) if upload.is_dir() else [upload]
+    received = {"upload": "csv" if upload.is_dir() else "zip", "files": len(files),
+                "bytes": sum(f.stat().st_size for f in files)}
     with db.connect() as conn:
         conn.execute("""INSERT INTO source_batch (batch_id, source_system, status, resource_count, started_at)
                         VALUES (%s, %s, 'running', 0, now())""", (batch_id, team_schema_loader.SOURCE_SYSTEM))
         conn.execute("INSERT INTO batch_run (batch_id, status, step) VALUES (%s, 'running', 'received')",
                      (str(batch_id),))
-        _event(conn, batch_id, "batch.received", {"zip_bytes": zip_path.stat().st_size})
-        audit(conn, "batch", str(batch_id), "batch.received", {"zip_bytes": zip_path.stat().st_size},
-              actor=SETTINGS.actor)
-    threading.Thread(target=run_batch, args=(zip_path, batch_id), name=f"batch-{batch_id}", daemon=True).start()
+        _event(conn, batch_id, "batch.received", received)
+        audit(conn, "batch", str(batch_id), "batch.received", received, actor=SETTINGS.actor)
+    threading.Thread(target=run_batch, args=(upload, batch_id), name=f"batch-{batch_id}", daemon=True).start()
     return str(batch_id)
 
 
-def run_batch(zip_path: Path, batch_id: uuid.UUID) -> None:
+def run_batch(upload: Path, batch_id: uuid.UUID) -> None:
     """Every step for one batch. A failure is recorded on the batch; nothing is swallowed."""
     step = "waiting"
     with _ONE_AT_A_TIME:
         try:
             step = "converting"
             _progress(batch_id, step)
-            job_id, conversion = _convert(zip_path)
+            job_id, conversion = _convert(upload)
             _progress(batch_id, "persisting", "batch.converted", {"conversion": conversion}, ingest_job_id=job_id)
 
             step = "persisting"
@@ -111,15 +116,28 @@ def run_batch(zip_path: Path, batch_id: uuid.UUID) -> None:
         except Exception as exc:  # noqa: BLE001 - every failure is recorded on the batch with its step and reason
             _fail(batch_id, step, exc)
         finally:
-            zip_path.unlink(missing_ok=True)
+            if upload.is_dir():
+                shutil.rmtree(upload, ignore_errors=True)
+            else:
+                upload.unlink(missing_ok=True)
 
 
-def _convert(zip_path: Path) -> tuple[str, dict]:
-    """The ingestion service's own upload-zip and conversion, called as they are."""
-    with zip_path.open("rb") as handle:
-        uploaded = asyncio.run(upload_dataset_zip(UploadFile(file=handle, filename=zip_path.name)))
+def _convert(upload: Path) -> tuple[str, dict]:
+    """The ingestion service's own upload (upload_dataset_zip for a zip, upload_dataset for CSV files) and
+    conversion, called as they are."""
+    try:
+        if upload.is_dir():
+            with ExitStack() as stack:
+                files = [UploadFile(file=stack.enter_context(path.open("rb")), filename=path.name)
+                         for path in sorted(upload.glob("*.csv"))]
+                uploaded = asyncio.run(upload_dataset(files))
+        else:
+            with upload.open("rb") as handle:
+                uploaded = asyncio.run(upload_dataset_zip(UploadFile(file=handle, filename=upload.name)))
+    except HTTPException as exc:
+        raise StepFailed(f"the upload was refused: {exc.detail}") from exc
     if uploaded["missing_required_files"]:
-        raise StepFailed(f"the zip is missing {', '.join(uploaded['missing_required_files'])}")
+        raise StepFailed(f"the upload is missing {', '.join(uploaded['missing_required_files'])}")
     job_id = job_manager.create_job(uploaded["input_dir"])
     try:
         run_conversion(job_id, uploaded["input_dir"])
@@ -210,9 +228,11 @@ def _event(conn: psycopg.Connection, batch_id: uuid.UUID, event_type: str, paylo
 
 
 def batch_status(conn: psycopg.Connection, batch_id: str) -> dict | None:
+    """One batch by id, or the most recently started one when batch_id is "latest"."""
     row = conn.execute(
         """SELECT batch_id, ingest_job_id, status, step, counts, error, started_at, updated_at
-             FROM batch_run WHERE batch_id = %s""", (batch_id,)).fetchone()
+             FROM batch_run WHERE batch_id = %(id)s OR %(id)s = 'latest'
+            ORDER BY started_at DESC LIMIT 1""", {"id": batch_id}).fetchone()
     if row is None:
         return None
     keys = ("batch_id", "ingest_job_id", "status", "step", "counts", "error", "started_at", "updated_at")

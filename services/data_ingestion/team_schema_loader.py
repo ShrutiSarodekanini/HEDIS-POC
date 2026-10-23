@@ -2,7 +2,8 @@
 
 Reads only the rows the ingestion service's persist stage approved (fhir_resources with persisted = true and
 lifecycle_status other than 'rejected'), and writes, in the caller's transaction: source_batch (one row),
-fhir_resource_raw (every approved resource) and patient, coverage, encounter, condition, observation and procedure.
+fhir_resource_raw (every approved resource), patient, coverage, encounter, condition, observation, procedure,
+medication_request and immunization, and one feed_completeness_report row per resource type (once per batch).
 All of it is set-based SQL over the stored JSON, so no resource passes through Python.
 
 The ingestion mapping produces no Organization or Practitioner resources and no organization on encounters, so
@@ -123,6 +124,43 @@ SELECT r.resource_id, p.patient_id, e.encounter_id, r.resource_json->>'status', 
 ON CONFLICT (procedure_id) DO NOTHING
 """
 
+_MEDICATIONS = f"""
+INSERT INTO medication_request (medication_request_id, patient_id, encounter_id, status, intent, medication_code,
+                                authored_on, batch_id)
+SELECT r.resource_id, p.patient_id, e.encounter_id, r.resource_json->>'status', r.resource_json->>'intent',
+       r.resource_json->'medicationCodeableConcept'->'coding'->0->>'code',
+       (r.resource_json->>'authoredOn')::timestamptz, %(batch)s
+  FROM fhir_resources r
+  JOIN patient p ON p.patient_id = split_part(r.resource_json->'subject'->>'reference', '/', 2)
+  LEFT JOIN encounter e ON e.encounter_id = {_ENCOUNTER_REF}
+ WHERE {_APPROVED} AND r.resource_type = 'MedicationRequest'
+ON CONFLICT (medication_request_id) DO NOTHING
+"""
+
+# Immunization points to its patient with "patient", not "subject"; the mapping gives it no encounter.
+_IMMUNIZATIONS = f"""
+INSERT INTO immunization (immunization_id, patient_id, encounter_id, status, vaccine_code, occurrence_datetime,
+                          batch_id)
+SELECT r.resource_id, p.patient_id, e.encounter_id, r.resource_json->>'status',
+       r.resource_json->'vaccineCode'->'coding'->0->>'code', (r.resource_json->>'occurrenceDateTime')::timestamptz,
+       %(batch)s
+  FROM fhir_resources r
+  JOIN patient p ON p.patient_id = split_part(r.resource_json->'patient'->>'reference', '/', 2)
+  LEFT JOIN encounter e ON e.encounter_id = {_ENCOUNTER_REF}
+ WHERE {_APPROVED} AND r.resource_type = 'Immunization'
+ON CONFLICT (immunization_id) DO NOTHING
+"""
+
+# One row per resource type in the batch, written once per batch.
+_FEED_COMPLETENESS = f"""
+INSERT INTO feed_completeness_report (batch_id, resource_type, record_count, measure_relevant, generated_at)
+SELECT %(batch)s, r.resource_type, count(*), r.resource_type = ANY(%(measure_types)s::text[]), now()
+  FROM fhir_resources r
+ WHERE {_APPROVED}
+   AND NOT EXISTS (SELECT 1 FROM feed_completeness_report f WHERE f.batch_id = %(batch)s)
+ GROUP BY r.resource_type
+"""
+
 # Attributed practice: the organization on most of the patient's encounters (none while the mapping has none).
 _ATTRIBUTION = """
 SELECT e.patient_id, mode() WITHIN GROUP (ORDER BY e.organization_id)
@@ -132,7 +170,12 @@ SELECT e.patient_id, mode() WITHIN GROUP (ORDER BY e.organization_id)
 """
 
 _STEPS = (("fhir_resource_raw", _RAW), ("patient", _PATIENTS), ("coverage", _COVERAGE), ("encounter", _ENCOUNTERS),
-          ("condition", _CONDITIONS), ("observation", _OBSERVATIONS), ("procedure", _PROCEDURES))
+          ("condition", _CONDITIONS), ("observation", _OBSERVATIONS), ("procedure", _PROCEDURES),
+          ("medication_request", _MEDICATIONS), ("immunization", _IMMUNIZATIONS),
+          ("feed_completeness_report", _FEED_COMPLETENESS))
+
+# The resource types the six measures read.
+MEASURE_RESOURCE_TYPES = ["Patient", "Encounter", "Condition", "Observation", "Procedure", "Coverage"]
 
 
 @dataclass(frozen=True)
@@ -146,7 +189,7 @@ class LoadResult:
 
 def load_job(conn: psycopg.Connection, job_id: str, batch_id: UUID) -> LoadResult:
     """Copy one ingestion job's approved resources into the clinical tables, in the caller's transaction."""
-    params = {"job": job_id, "batch": batch_id, "system": SOURCE_SYSTEM}
+    params = {"job": job_id, "batch": batch_id, "system": SOURCE_SYSTEM, "measure_types": MEASURE_RESOURCE_TYPES}
     types = dict(conn.execute(
         f"SELECT r.resource_type, count(*) FROM fhir_resources r WHERE {_APPROVED} GROUP BY 1 ORDER BY 1", params
     ).fetchall())

@@ -14,6 +14,7 @@ import json
 import logging
 import shutil
 import subprocess
+import time
 import uuid
 from dataclasses import dataclass, field
 from datetime import date
@@ -295,6 +296,27 @@ def _add_combined_bp(path: Path) -> int:
     return len(added)
 
 
+RETRY_WAIT_SECONDS = 5
+# Windows reports a killed Node process as exit 4294967295 (-1 unsigned), usually when the machine is overloaded.
+_CRASH_EXIT_CODES = {4294967295}
+
+
+def _run_engine(cmd: list[str], settings: Settings, measure_id: str, patients: int) -> subprocess.CompletedProcess:
+    """Run one engine call; a crash (negative exit code or no output at all) is retried once after 5 seconds."""
+    for attempt in (1, 2):
+        completed = subprocess.run(cmd, cwd=settings.engine_root, text=True, capture_output=True, check=False,
+                                   encoding="utf-8")
+        crashed = (completed.returncode < 0 or completed.returncode in _CRASH_EXIT_CODES
+                   or not (completed.stdout.strip() or completed.stderr.strip()))
+        if not crashed or attempt == 2:
+            return completed
+        log.warning("engine call for %s (%d patients) crashed with exit %s and %s; retrying once in %ds",
+                    measure_id, patients, completed.returncode,
+                    "no output" if not completed.stderr.strip() else "an error", RETRY_WAIT_SECONDS)
+        time.sleep(RETRY_WAIT_SECONDS)
+    return completed
+
+
 def _call_engine(bundle: MeasureBundle, root_ref: str | None, paths: list[str], settings: Settings) -> list[dict]:
     """The same command line as the ingestion service's /run-request-file, for several patient bundles at once."""
     cli = settings.engine_root / "build" / "cli.js"
@@ -306,8 +328,7 @@ def _call_engine(bundle: MeasureBundle, root_ref: str | None, paths: list[str], 
            "--trust-meta-profile", "false"]
     if root_ref:
         cmd.extend(["--root-lib-ref", root_ref])
-    completed = subprocess.run(cmd, cwd=settings.engine_root, text=True, capture_output=True, check=False,
-                               encoding="utf-8")
+    completed = _run_engine(cmd, settings, bundle.measure_id, len(paths))
     if completed.returncode != 0:
         first = (completed.stderr.strip() or completed.stdout.strip() or "no output").splitlines()[0][:300]
         raise RuntimeError(f"engine failed for {bundle.measure_id} (exit {completed.returncode}): {first}")

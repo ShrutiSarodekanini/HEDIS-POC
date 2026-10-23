@@ -1,12 +1,24 @@
-// HEDIS Ops Console: Prioritization and Evidence Review screens on the integration API.
-// Every value comes from the API; text is added as text nodes, never as HTML.
+// HEDIS Ops Console: Dashboard, Run Ingestion, Run Gap Calculation, Prioritization and Evidence Review screens on the
+// integration API. Every value comes from the API; text is added as text nodes, never as HTML.
 "use strict";
+
+const VIEWS = ["dashboard", "ingestion", "gaps", "prioritization", "evidence"];
+const STEPS = [
+  ["received", "Upload received"],
+  ["converting", "Convert CSV to FHIR and validate"],
+  ["persisting", "Approve records (persist stage)"],
+  ["loading", "Load the patient tables"],
+  ["measuring", "Run the measure engine"],
+  ["prioritizing", "Score and rank open gaps"],
+  ["attaching", "Attach stored evidence and read it"],
+];
 
 const CHANNELS = {
   abstractor_review: "Abstractor review", chart_review: "Chart review", point_of_care_alert: "Point-of-care alert",
   provider_gap_list: "Provider gap list", member_outreach_call: "Phone", mailed_fit_kit: "Mailed kit",
 };
-const state = { gaps: [], tier: "", measures: null, health: null, openEvidence: null, scopeGap: null };
+const state = { gaps: [], tier: "", measures: null, health: null, openEvidence: null, scopeGap: null, batch: null,
+  polling: null };
 
 const $ = (tag, attrs = {}, ...kids) => {
   const el = document.createElement(tag);
@@ -21,9 +33,9 @@ const $ = (tag, attrs = {}, ...kids) => {
 };
 const byId = id => document.getElementById(id);
 const num = v => (v == null ? null : Number(v));
-const fmt = (v, d = 2) => (v == null || Number.isNaN(v) ? "–" : Number(v).toFixed(d));
+const fmt = (v, d = 2) => (v == null || Number.isNaN(v) ? "-" : Number(v).toFixed(d));
 const shortPt = id => (id ? `pt-${id.slice(0, 4)}…` : "pt-?");
-const tierTag = t => $("span", { class: `tag tag-${t}` }, t ? t[0].toUpperCase() + t.slice(1) : "–");
+const tierTag = t => $("span", { class: `tag tag-${t}` }, t ? t[0].toUpperCase() + t.slice(1) : "-");
 
 async function api(path, options = {}) {
   const res = await fetch(path, options);
@@ -51,7 +63,7 @@ function store(key, value) {
 function missingText(row) {
   const text = row.missing_element || "";
   const rest = text.includes(": ") ? text.split(": ").slice(1).join(": ") : text;
-  return rest ? rest[0].toUpperCase() + rest.slice(1) : "–";
+  return rest ? rest[0].toUpperCase() + rest.slice(1) : "-";
 }
 
 function ago(iso) {
@@ -63,7 +75,7 @@ function ago(iso) {
 }
 
 function daysUntil(isoDate) {
-  if (!isoDate) return "–";
+  if (!isoDate) return "-";
   const days = Math.round((new Date(isoDate) - new Date(new Date().toDateString())) / 86400000);
   return days === 0 ? "today" : `${days} day${days === 1 ? "" : "s"}`;
 }
@@ -77,18 +89,263 @@ function bar(label, value, shown) {
 // ---------------------------------------------------------------- data
 
 async function loadAll() {
-  const [measures, gaps, health] = await Promise.all([api("/api/measures"), api("/api/gaps"),
-    api("/api/health").catch(() => null)]);
+  const [measures, gaps, health, batch] = await Promise.all([api("/api/measures"), api("/api/gaps"),
+    api("/api/health").catch(() => null), loadBatch()]);
   state.measures = measures;
   state.gaps = gaps;
   state.health = health;
+  state.batch = batch;
+}
+
+async function loadBatch() {
+  const id = store("hedis.batch") || "latest";
+  try {
+    return await api(`/api/batches/${encodeURIComponent(id)}`);
+  } catch {
+    return id === "latest" ? null : api("/api/batches/latest").catch(() => null);
+  }
+}
+
+const counts = () => (state.batch && state.batch.counts) || {};
+const when = iso => (iso ? new Date(iso).toLocaleString() : "-");
+
+// ---------------------------------------------------------------- dashboard
+
+function starRow(stars) {
+  const n = Math.max(0, Math.min(5, stars || 0));
+  return $("span", { class: "stars", title: stars ? `${stars} of 5 stars` : "No star rating" },
+    "★".repeat(n), $("span", { class: "off" }, "★".repeat(5 - n)));
+}
+
+function cutChips(m) {
+  const rounded = m.rounded || 0;
+  return $("div", { class: "cuts" }, ...(m.cut_points || []).map(c => {
+    const star = c.stars ?? c.star;
+    const low = Number(c.minimum_value ?? c.min ?? c.rate_low_pct);
+    return $("span", { class: `cut${rounded >= low ? " reached" : ""}`, title: `${star} stars from ${low}%` },
+      `${star}★ ${low}%`);
+  }));
+}
+
+function renderDashboard() {
+  const ms = (state.measures && state.measures.measures) || [];
+  const c = counts();
+  const ev = (state.measures && state.measures.evidence) || {};
+  const openGaps = ms.reduce((s, m) => s + (m.open_gaps || 0), 0);
+  const kpi = (label, value, note) => $("div", { class: "kpi" }, $("span", {}, label), $("b", {}, String(value)),
+    note ? $("small", {}, note) : null);
+  byId("kpis").replaceChildren(
+    kpi("PATIENTS LOADED", (c.load && c.load.patients) ?? "-", "in the latest batch"),
+    kpi("OPEN GAPS", openGaps, `${(state.measures && state.measures.tiers && state.measures.tiers.high) || 0} high tier`),
+    kpi("AWAITING REVIEW", ev.proposed ?? 0, "AI findings proposed"),
+    kpi("DOCUMENTS", (c.documents && c.documents.attached) ?? "-", "stored evidence attached"));
+
+  byId("star-year").textContent = state.measures ? `CMS ${state.measures.cms_rating_year} cut points` : "";
+  byId("measure-cards").replaceChildren(...(ms.length ? ms.map(m => $("div", { class: "mcard" },
+    $("div", { class: "mcard-top" }, $("span", { class: "mcard-name" }, m.name || m.measure),
+      $("span", { class: "mcard-code" }, m.measure)),
+    $("div", { class: "mcard-top" }, $("span", { class: "mcard-rate" }, m.rate == null ? "-" : `${fmt(m.rate, 1)}%`),
+      starRow(m.stars)),
+    $("span", { class: "mcard-line" }, `${m.numerator} of ${m.denominator} met · ${m.open_gaps} open gaps`),
+    cutChips(m),
+    $("span", { class: "mcard-line" }, m.value_reason || ""),
+    m.confirmed_pending_engine || m.excluded_pending_engine
+      ? $("span", { class: "mcard-line" }, `Projected ${fmt(m.projected_rate, 1)}% · ${m.projected_stars ?? "-"}★ ` +
+        `(${m.confirmed_pending_engine} confirmed, ${m.excluded_pending_engine} excluded)`)
+      : null))
+    : [$("p", { class: "empty" }, "No measure results yet. Upload a batch on Run Ingestion.")]));
+
+  const b = state.batch;
+  byId("dash-batch").replaceChildren(b ? $("dl", { class: "facts" },
+    $("dt", {}, "Batch"), $("dd", { class: "mono" }, b.batch_id),
+    $("dt", {}, "Status"), $("dd", {}, statusText(b)),
+    $("dt", {}, "Started"), $("dd", {}, when(b.started_at)),
+    $("dt", {}, "Last update"), $("dd", {}, when(b.updated_at)),
+    $("dt", {}, "Produced"), $("dd", {}, [
+      c.conversion && `${c.conversion.resources_generated} FHIR records`,
+      c.load && `${c.load.patients} patients`,
+      c.measures && `${c.measures.gaps_open} open gaps`,
+      c.documents && `${c.documents.attached} documents`].filter(Boolean).join(" · ") || "-"))
+    : $("p", { class: "empty" }, "No batch uploaded yet."));
+}
+
+function statusText(b) {
+  if (b.status === "failed") return `Failed at ${b.step}`;
+  if (b.status === "running") return `Running: ${(STEPS.find(s => s[0] === b.step) || [b.step, b.step])[1]}`;
+  return "Finished";
+}
+
+// ---------------------------------------------------------------- run ingestion
+
+function stepDetail(key, c) {
+  switch (key) {
+    case "converting": return c.conversion ? `${c.conversion.resources_generated} records, ${c.conversion.errors} errors` : "";
+    case "persisting": return c.persisted != null ? `${c.persisted} persisted` : "";
+    case "loading": return c.load ? `${c.load.patients} patients` : "";
+    case "measuring": return c.measures ? `${c.measures.gaps_open} open gaps` : "";
+    case "prioritizing": return c.prioritization ? `${c.prioritization.gaps_scored} scored` : "";
+    case "attaching":
+      if (c.documents) return `${c.documents.attached} attached, ${c.documents.failed.length} failed`;
+      return c.attaching ? String(c.attaching) : "";
+    default: return "";
+  }
+}
+
+function renderIngestion() {
+  const b = state.batch;
+  const c = counts();
+  byId("batch-id").textContent = b ? b.batch_id.slice(0, 8) : "";
+  const at = b ? STEPS.findIndex(s => s[0] === b.step) : -1;
+  byId("steps").replaceChildren(...STEPS.map(([key, label], i) => {
+    let cls = "pending";
+    if (b && b.status === "prioritized") cls = "done";
+    else if (b && at >= 0) cls = i < at ? "done" : i === at ? (b.status === "failed" ? "failed" : "running") : "pending";
+    const mark = { done: "✓", running: "…", failed: "!", pending: String(i + 1) }[cls];
+    return $("li", { class: `step ${cls}` }, $("span", { class: "dot" }, mark), $("span", { class: "step-name" }, label),
+      $("span", { class: "step-detail" }, b ? stepDetail(key, c) : ""));
+  }));
+  byId("batch-error").textContent = b && b.error ? b.error : "";
+
+  const rows = (obj, empty) => {
+    const entries = Object.entries(obj || {}).sort((a, x) => x[1] - a[1]);
+    return entries.length ? entries.map(([k, v]) => $("tr", {}, $("td", { class: "mono" }, k),
+      $("td", { class: "r" }, Number(v).toLocaleString())))
+      : [$("tr", {}, $("td", { colspan: "2", class: "empty" }, empty))];
+  };
+  byId("csv-rows").replaceChildren(...rows(c.conversion && c.conversion.row_counts, "No batch yet."));
+  byId("fhir-rows").replaceChildren(...rows(c.load && c.load.resource_types, "Not loaded yet."));
+  byId("load-rows").replaceChildren(...rows(c.load && c.load.inserted, "Not loaded yet."));
+}
+
+async function upload() {
+  const files = [...byId("zip").files];
+  const msg = byId("upload-msg");
+  msg.classList.remove("error");
+  const kinds = new Set(files.map(f => (f.name.match(/\.[^.]+$/) || [""])[0].toLowerCase()));
+  const problem = !files.length ? "Choose one .zip file, or the CSV files, first."
+    : [...kinds].some(k => k !== ".zip" && k !== ".csv") ? "Only a .zip file or .csv files can be uploaded."
+      : kinds.size > 1 ? "Choose either one .zip file or CSV files, not both."
+        : kinds.has(".zip") && files.length > 1 ? "Choose one .zip file at a time." : null;
+  if (problem) { msg.textContent = problem; msg.classList.add("error"); return; }
+  const form = new FormData();
+  for (const f of files) form.append(kinds.has(".zip") ? "file" : "files", f);
+  byId("upload").disabled = true;
+  msg.textContent = `Uploading ${files.length} file${files.length === 1 ? "" : "s"}…`;
+  try {
+    const r = await api("/api/batches", { method: "POST", body: form });
+    store("hedis.batch", r.batch_id);
+    msg.textContent = "Uploaded. The steps below run in the background; you can leave this page.";
+    await refresh();
+    poll();
+  } catch (err) {
+    msg.textContent = err.message;
+    msg.classList.add("error");
+  } finally {
+    byId("upload").disabled = false;
+  }
+}
+
+function listChosenFiles() {
+  const files = [...byId("zip").files];
+  byId("chosen-files").replaceChildren(...files.map(f => $("li", { class: "mono" },
+    `${f.name} · ${(f.size / 1024).toLocaleString(undefined, { maximumFractionDigits: 0 })} KB`)));
+}
+
+function renderReset() {
+  const h = state.health;
+  byId("reset-box").hidden = !(h && h.reset_allowed);
+  byId("reset-schema").textContent = (h && h.schema) || "";
+}
+
+async function startOver() {
+  const msg = byId("reset-msg");
+  const typed = byId("reset-confirm").value.trim();
+  msg.classList.remove("error");
+  if (!state.health || typed !== state.health.schema) {
+    msg.textContent = `Type ${state.health ? state.health.schema : "the schema name"} exactly to confirm.`;
+    msg.classList.add("error");
+    return;
+  }
+  byId("reset").disabled = true;
+  msg.textContent = "Clearing data and loading reference data again… (about half a minute)";
+  try {
+    const r = await api("/api/reset", { method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ confirm: typed }) });
+    store("hedis.batch", "latest");
+    state.openEvidence = null;
+    state.scopeGap = null;
+    byId("reset-confirm").value = "";
+    msg.textContent = `Done in ${r.seconds} s. ${r.schema} is empty: upload the zip to run everything again.`;
+    toast("Data cleared. Upload the zip to start again.");
+    await refresh();
+  } catch (err) {
+    msg.textContent = err.message;
+    msg.classList.add("error");
+  } finally {
+    byId("reset").disabled = false;
+  }
+}
+
+function poll() {
+  clearTimeout(state.polling);
+  if (!state.batch || state.batch.status !== "running") return;
+  state.polling = setTimeout(async () => {
+    state.batch = await loadBatch();
+    if (state.batch && state.batch.status !== "running") {
+      toast(state.batch.status === "failed" ? `Batch failed at ${state.batch.step}.` : "Batch finished.");
+      await refresh();
+      return;
+    }
+    if (currentView() === "ingestion") renderIngestion();
+    poll();
+  }, 3000);
+}
+
+// ---------------------------------------------------------------- run gap calculation
+
+function renderGaps() {
+  const c = counts();
+  const run = c.measures || {};
+  const perMeasure = run.measures || {};
+  const now = {};
+  for (const m of (state.measures && state.measures.measures) || []) now[m.measure] = m;
+  byId("engine-facts").replaceChildren(
+    $("dt", {}, "Engine run"), $("dd", { class: "mono" }, run.engine_run_id || "-"),
+    $("dt", {}, "Patients"), $("dd", {}, String(run.patients ?? "-")),
+    $("dt", {}, "Measures"), $("dd", {}, Object.keys(perMeasure).sort().join(", ") || "-"),
+    $("dt", {}, "Batch"), $("dd", { class: "mono" }, state.batch ? state.batch.batch_id : "-"),
+    $("dt", {}, "Finished"), $("dd", {}, state.batch && state.batch.status === "prioritized"
+      ? when(state.batch.updated_at) : statusText(state.batch || { status: "running", step: "-" })));
+
+  const names = Object.keys(perMeasure).sort();
+  const totalOpen = names.reduce((s, k) => s + (perMeasure[k].gaps_open || 0), 0);
+  byId("gap-bars").replaceChildren(...(names.length ? names.map(k => bar(`${(now[k] && now[k].name) || k}`,
+    totalOpen ? perMeasure[k].gaps_open / totalOpen : 0, String(perMeasure[k].gaps_open)))
+    : [$("p", { class: "empty" }, "No engine results yet.")]));
+
+  byId("engine-rows").replaceChildren(...(names.length ? names.map(k => {
+    const r = perMeasure[k];
+    const eligible = r.denominator - r.excluded;
+    return $("tr", {}, $("td", {}, $("div", {}, (now[k] && now[k].name) || k), $("div", { class: "pt" }, k)),
+      $("td", { class: "r" }, String(r.denominator)), $("td", { class: "r" }, String(r.numerator)),
+      $("td", { class: "r" }, String(r.excluded)),
+      $("td", { class: "r" }, eligible > 0 ? `${fmt((100 * r.numerator) / eligible, 1)}%` : "-"),
+      $("td", { class: "r" }, String(r.gaps_new)), $("td", { class: "r" }, String(r.gaps_closed)),
+      $("td", { class: "r" }, String(now[k] ? now[k].open_gaps : r.gaps_open)));
+  }) : [$("tr", {}, $("td", { colspan: "8", class: "empty" }, "No engine results yet."))]));
+
+  const bcs = perMeasure["BCS-E"];
+  byId("engine-note").textContent = bcs && bcs.denominator > 0 && bcs.numerator === 0
+    ? "BCS-E shows nobody met: the engine's BCS-E logic does not yet accept the mammogram code Synthea writes " +
+      "(SNOMED 71651007). That is a change in the engine's measure files."
+    : "Open now: gaps still on the work list after review decisions.";
 }
 
 // ---------------------------------------------------------------- prioritization
 
 function renderPrioritization() {
   const m = state.measures;
-  byId("rules-version").textContent = m ? `rules ${m.rules_version}` : "–";
+  byId("rules-version").textContent = m ? `rules ${m.rules_version}` : "-";
   const gaps = state.gaps;
   const avg = key => (gaps.length ? gaps.reduce((s, g) => s + num(g[key]), 0) / gaps.length : null);
   const factors = byId("factors");
@@ -125,21 +382,116 @@ function renderWorklist() {
     return;
   }
   body.replaceChildren(...rows.map(g => $("tr", {
-    tabindex: "0", title: "Open on Evidence Review",
-    onclick: () => openOnEvidence(g.gap_id),
-    onkeydown: e => { if (e.key === "Enter") openOnEvidence(g.gap_id); },
+    tabindex: "0", title: "Show the gap panel", class: state.prioGap === g.gap_id ? "selected" : null,
+    onclick: () => showPrioPanel(g.gap_id),
+    onkeydown: e => { if (e.key === "Enter") showPrioPanel(g.gap_id); },
   },
   $("td", {}, $("div", { class: "pt" }, shortPt(g.patient_id)), $("div", {}, g.measure_name || g.measure)),
   $("td", {}, missingText(g)),
   $("td", {}, tierTag(g.tier)),
   $("td", { class: "num" }, fmt(num(g.composite))),
-  $("td", {}, CHANNELS[g.channel] || g.channel || "–"),
+  $("td", {}, CHANNELS[g.channel] || g.channel || "-"),
   $("td", {}, daysUntil(g.next_visit)))));
 }
 
 function openOnEvidence(gapId) {
   state.scopeGap = gapId;
   location.hash = "evidence";
+}
+
+async function showPrioPanel(gapId) {
+  state.prioGap = gapId;
+  renderWorklist();
+  byId("prio-panel-card").hidden = false;
+  await renderGapPanel(gapId, "prio-panel");
+  byId("prio-panel").prepend($("button", { type: "button", class: "btn btn-primary",
+    onclick: () => openOnEvidence(gapId) }, "Open on Evidence Review"));
+  byId("prio-panel-card").scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+// ---------------------------------------------------------------- gap panel (as on the PR #9 demo page)
+
+async function renderGapPanel(gapId, containerId) {
+  const box = byId(containerId);
+  if (!gapId) { box.replaceChildren($("p", { class: "empty" }, "Choose a gap.")); return; }
+  const d = await api(`/api/gaps/${encodeURIComponent(gapId)}`).catch(err => ({ error: err.message }));
+  if (d.error) { box.replaceChildren($("p", { class: "empty error" }, d.error)); return; }
+  const g = d.gap;
+  const b = d.breakdown;
+  const sec = (n, title, ...kids) => $("section", { class: "psec" }, $("h3", {}, `${n} · ${title}`), ...kids);
+  const kv = rows => $("dl", { class: "facts" }, ...rows.flatMap(([k, v]) => [$("dt", {}, k), $("dd", {}, v ?? "-")]));
+  const steps = (list, total, label) => $("div", { class: "calc" }, ...list.flatMap((s, i) => [
+    $("span", {}, s.label), $("span", { class: "v" }, `${i && s.change >= 0 ? "+" : ""}${fmt(s.change)}`)]),
+  $("span", { class: "tot" }, label), $("span", { class: "v tot" }, fmt(total)));
+  const parts = [sec(1, "Gap", kv([
+    ["Measure", `${g.measure_name || g.measure_id} (${g.measure_id})`], ["Patient", shortPt(g.patient_id)],
+    ["Missing", g.missing_element], ["Deadline", niceDate(g.deadline_date)],
+    ["Last event", g.last_relevant_event_date
+      ? `${niceDate(g.last_relevant_event_date)} ${g.last_relevant_event_description || ""}` : "none recorded"],
+    ["Review status", (g.review_status || "").replaceAll("_", " ")]]))];
+  if (!b) {
+    parts.push($("p", { class: "note" }, "This gap has no score (it is off the work list or not scored yet)."));
+  } else {
+    const L = b.likelihood, V = b.value, E = b.engagement;
+    parts.push(
+      sec(2, "How likely it closes", steps(L.steps, L.result, "Closure likelihood"),
+        L.raw !== L.result ? $("p", { class: "note small" }, `Raw ${fmt(L.raw)}, kept between ${L.min} and ${L.max}.`) : null),
+      sec(3, "How much it helps the stars", V.weight ? kv([
+        ["Done / eligible", `${V.numerator} / ${V.denominator}`],
+        ["Rate (whole percent, as the score uses)", `${fmt(V.rate)}% → ${V.rounded}%`],
+        ["Stars now", `${V.stars ?? "-"}`],
+        ["Next star", V.next_cut != null ? `${V.next_cut}% (${V.target} done, ${V.needed} more)` : "already at the top"],
+        ["Measure weight", String(V.weight)]]) : null,
+      $("p", { class: "formula" }, V.needed
+        ? `${V.reason} → ${V.weight} ÷ ${V.needed} ÷ ${V.divisor} = ${fmt(V.result, 3)}` : `${V.reason} → ${fmt(V.result, 3)}`)),
+      sec(4, "How reachable", steps(E.steps, E.result, `Engagement (max ${E.cap})`)),
+      sec(5, "Priority", $("p", { class: "formula" },
+        `composite = ${fmt(L.result)} × ${fmt(V.result, 3)} = ${fmt(b.composite, 4)}`),
+      kv([["Tier", g.tier || "-"], ["Next action", CHANNELS[b.channel] || b.channel],
+        ["Why", Array.isArray(g.reasons) ? g.reasons.join(" · ") : g.reasons], ["Action reason", g.action_reason]])));
+  }
+  parts.push(sec(6, "AI details", ...aiDetails(gapId, d.ai_runs || [])));
+  box.replaceChildren(...parts);
+}
+
+const block = (label, text, open = false) => $("details", open ? { open: "" } : {}, $("summary", {}, label),
+  $("pre", { class: "code wrap" }, text || "-"));
+const pretty = text => { try { return JSON.stringify(JSON.parse(text), null, 2); } catch { return text; } };
+const pageList = pages => (pages || []).map(p => `${p.document_id} p${p.page_no} (${p.method}` +
+  `${p.handwritten ? ", handwritten" : ""})`).join(" · ") || "none";
+
+function aiDetails(gapId, runs) {
+  const out = [];
+  const last = state.lastRun && state.lastRun.gapId === gapId ? state.lastRun.r : null;
+  if (last) {
+    out.push($("p", { class: "label-strong" }, `The run just made (run ${last.run_id})`),
+      $("p", { class: "note small" }, `Pages sent: ${last.pages.map(p => `${p.document_id} p${p.page_no} (${p.method})`).join(" · ") || "none"}`));
+    last.calls.forEach((c, i) => {
+      const msgs = (c.request && c.request.messages) || [];
+      out.push(block(`Call ${i + 1}: prompt sent (system and user)`,
+        msgs.map(m => `[${m.role}]\n${m.content}`).join("\n\n")),
+      c.error ? $("p", { class: "note small error" }, `Call ${i + 1} failed: ${c.error}`)
+        : block(`Call ${i + 1}: the model's answer (HTTP ${c.status ?? "?"}, ${c.seconds ?? "?"} s)`, pretty(c.answer), true));
+    });
+    out.push(...last.kept.map(k => $("p", { class: "found kept" }, $("b", {}, "Kept: "),
+      `${typeName(k.evidence_type)}, ${k.document_id} p${k.page_no}: “${k.excerpt}”`)),
+    ...last.dropped.map(x => $("p", { class: "found dropped" }, $("b", {}, "Dropped: "),
+      `${typeName(x.evidence_type || "?")}, ${x.document_id || "?"}: ${x.reason}`)));
+  }
+  const earlier = last ? runs.filter(a => a.run_id !== last.run_id) : runs;
+  if (earlier.length) out.push($("p", { class: "label-strong" }, last ? "Earlier runs" : "Runs on this gap"));
+  for (const a of earlier) {
+    out.push($("div", { class: `ai-run ai-${a.status}` },
+      $("div", {}, `Run ${a.run_id} · ${when(a.started_at)} · ${a.model_name} · ${a.status.replace("_", " ")} · ` +
+        `${a.kept} kept, ${a.dropped_count} dropped · prompt ${a.prompt_version || "?"}`),
+      $("p", { class: "note small" }, `Pages sent: ${pageList(a.pages_sent)}`),
+      a.error ? $("p", { class: "note small error" }, a.error) : null,
+      block("Raw answer", pretty(a.raw_response)),
+      ...(a.dropped || []).map(x => $("p", { class: "note small" }, $("b", {}, `Dropped ${typeName(x.evidence_type || "?")}: `),
+        x.reason + (x.evidence_id ? ` (evidence ${x.evidence_id.slice(0, 8)})` : "")))));
+  }
+  if (!out.length) out.push($("p", { class: "empty" }, "No AI runs on this gap yet."));
+  return out;
 }
 
 // ---------------------------------------------------------------- evidence review
@@ -170,17 +522,66 @@ async function renderEvidence() {
     $("span", {}, r.model), $("b", {}, r.acceptance_rate == null ? "no decisions" : `${fmt(r.acceptance_rate, 1)}%`)))
     : [$("p", { class: "empty" }, "No findings decided yet.")]));
 
-  await renderQueue();
+  renderExports(ev);
+  await Promise.all([renderQueue(), renderAiHistory(scope.value), renderGapPanel(scope.value, "gap-panel")]);
+}
+
+async function renderAiHistory(gapId) {
+  const box = byId("ai-history");
+  if (!gapId) { box.replaceChildren($("p", { class: "empty" }, "Choose a gap to see its AI runs.")); return; }
+  const d = await api(`/api/gaps/${encodeURIComponent(gapId)}`).catch(() => null);
+  const runs = (d && d.ai_runs) || [];
+  if (!runs.length) { box.replaceChildren($("p", { class: "empty" }, "No AI runs for this gap yet.")); return; }
+  box.replaceChildren(...runs.map(a => {
+    const tokens = a.prompt_tokens == null ? "tokens n/a" : `${a.prompt_tokens} + ${a.output_tokens ?? 0} tokens`;
+    const line = `${when(a.started_at)} · ${a.model_name} · ${a.status.replace("_", " ")} · ${a.kept} kept, ` +
+      `${a.dropped_count} dropped · ${tokens} · ${a.duration_ms == null ? "n/a" : (a.duration_ms / 1000).toFixed(1)} s`;
+    return $("div", { class: `ai-run ai-${a.status}` }, $("div", {}, line),
+      a.error ? $("p", { class: "note small error" }, a.error) : null,
+      a.dropped_count ? $("details", {}, $("summary", {}, `Dropped findings (${a.dropped_count})`),
+        ...(a.dropped || []).map(x => $("p", { class: "note small" },
+          $("b", {}, `${(x.evidence_type || "?").replaceAll("_", " ")}: `), x.reason))) : null);
+  }));
+}
+
+function renderExports(ev) {
+  const unexported = ev.supplemental_unexported || 0;
+  const waiting = ev.supplemental_waiting_for_parts || 0;
+  byId("export").textContent = `Export approved evidence (${unexported} ready` +
+    `${waiting ? `, ${waiting} waiting for the other part of a two-part rule` : ""})`;
+  byId("export").disabled = !unexported;
+  const list = ev.exports || [];
+  byId("exports").replaceChildren(...(list.length ? list.map(x => $("div", { class: "model-row" },
+    $("span", {}, `#${x.id} · ${when(x.run_at)}`), $("b", { class: "mono" }, `${x.row_count} rows · ${x.file_sha256}`)))
+    : [$("p", { class: "empty" }, `No exports yet. ${ev.supplemental_total || 0} supplemental records in total.`)]));
+}
+
+async function exportEvidence() {
+  const out = byId("export-result");
+  byId("export").disabled = true;
+  out.classList.remove("error");
+  out.textContent = "Exporting…";
+  try {
+    const r = await api("/api/supplemental/export", { method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ reviewer: store("hedis.reviewer") || null }) });
+    out.textContent = r.rows ? `Exported ${r.rows} record${r.rows === 1 ? "" : "s"} to ` +
+      `${r.file_path.split(/[\\/]/).pop()} (sha256 ${r.sha256.slice(0, 12)})` : "Nothing new to export.";
+    await refresh();
+  } catch (err) {
+    out.textContent = err.message;
+    out.classList.add("error");
+    byId("export").disabled = false;
+  }
 }
 
 async function renderQueue() {
   const pending = state.gaps.filter(g => g.pending_count > 0);
   const details = await Promise.all(pending.map(g => api(`/api/gaps/${g.gap_id}`).catch(() => null)));
   const items = [];
-  details.forEach((d, i) => {
-    if (!d) return;
-    for (const e of d.evidence) if (e.status === "proposed") items.push({ gap: pending[i], ev: e });
-  });
+  for (const d of details) {
+    if (!d) continue;
+    for (const e of d.evidence) if (e.status === "proposed") items.push({ gap: d.gap, ev: e, impact: d.impact });
+  }
   byId("queue-line").textContent = `${items.length} proposed finding${items.length === 1 ? "" : "s"} waiting for a reviewer`;
   const queue = byId("queue");
   if (!items.length) {
@@ -191,8 +592,11 @@ async function renderQueue() {
   queue.replaceChildren(...items.map(item => queueCard(item)));
 }
 
-function queueCard({ gap, ev }) {
+function queueCard({ gap, ev, impact }) {
   const open = state.openEvidence === ev.evidence_id;
+  const sec = (label, ...kids) => $("div", { class: "fsec" }, $("span", { class: "fsec-label" }, label),
+    $("div", { class: "fsec-body" }, ...kids));
+  const a = ev.attempt;
   const card = $("div", {
     class: `qcard${open ? " open" : ""}`, tabindex: open ? null : "0",
     onclick: open ? null : () => { state.openEvidence = ev.evidence_id; renderQueue(); },
@@ -200,25 +604,107 @@ function queueCard({ gap, ev }) {
   },
   open ? $("span", { class: "open-label" }, "OPEN FOR REVIEW") : null,
   $("div", { class: "qtop" },
-    $("span", { class: "qtitle" }, `${shortPt(gap.patient_id)} · ${gap.measure_name || gap.measure}`),
-    $("div", { class: "qmodel" }, $("span", { class: "conf" }, `${fmt(num(ev.confidence))} confidence`),
-      $("div", {}, ev.model || ""))),
-  $("p", { class: "quote" }, `“${ev.excerpt || ""}”`),
-  $("p", { class: "finding" }, "Proposed finding: ", $("b", {}, findingText(ev))),
-  ev.document_id ? $("a", {
-    class: "src-link", target: "_blank", rel: "noopener",
-    href: `/api/documents/${encodeURIComponent(ev.document_id)}/pages/${ev.page_no || 1}/image`,
-    onclick: e => e.stopPropagation(),
-  }, `View source: ${ev.document_id}, page ${ev.page_no || 1}`) : null,
+    $("span", { class: "qtitle" }, `${shortPt(gap.patient_id)} · ${gap.measure_name || gap.measure_id}`),
+    $("div", { class: "qmodel" }, $("span", { class: "conf" }, `${fmt(num(ev.confidence))} confidence`))),
+  sec("GAP", `${gap.measure_name || gap.measure_id} · ${gap.missing_element} · deadline ${niceDate(gap.deadline_date)}` +
+    ` · `, tierTag(gap.tier)),
+  sec("FINDING", $("b", {}, findingSentence(ev, gap))),
+  sec("WHY", ev.reason ? `${ev.reason}` : "The model gave no reason.",
+    $("span", { class: "note small" }, " (the model's explanation, not a fact)")),
+  sec("CHECK", checkLine(ev)),
+  sec("QUOTE", quoteBlock(ev)),
+  sec("IMPACT", impactLine(ev, impact) || "Not available."),
+  sec("AI RUN", a ? `${a.model} · ${when(a.started_at)} · ${a.duration_ms == null ? "n/a" : (a.duration_ms / 1000).toFixed(1)} s` +
+    ` · ${a.kept} kept, ${a.dropped} dropped` : `${ev.model || "model unknown"} (no attempt recorded)`),
   open ? decisionForm(ev) : null);
   return card;
 }
 
-function findingText(ev) {
-  const parts = [ev.evidence_type && ev.evidence_type.replaceAll("_", " "), ev.value,
-    ev.service_date_raw ? `on ${ev.service_date_raw}` : null].filter(Boolean).join(" ");
-  const kind = ev.evidence_kind === "exclusion" ? "excludes the member from the measure" : "meets the numerator";
-  return parts ? `${parts}: ${kind}` : (ev.proposed_finding || "–");
+const TYPE_NAMES = {
+  colonoscopy: "Colonoscopy", fobt_or_fit: "Stool blood test (FIT)", hba1c: "HbA1c blood test",
+  egfr: "Kidney blood test (eGFR)", uacr_ratio: "Kidney urine test (uACR)", mammogram: "Mammogram",
+  retinal_or_dilated_eye_exam: "Diabetic eye exam", blood_pressure_reading: "Blood pressure", hospice: "Hospice care",
+  esrd_or_dialysis: "Dialysis for kidney failure",
+  frailty_and_advanced_illness_age_66_plus: "Frailty and serious illness",
+  frailty_age_66_80_with_advanced_illness_or_age_81_plus_frailty_alone: "Frailty and serious illness",
+};
+const typeName = t => TYPE_NAMES[t] || (t || "").replaceAll("_", " ");
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+function niceDate(iso) {
+  const m = /^(\d{4})(?:-(\d{2}))?(?:-(\d{2}))?/.exec(iso || "");
+  if (!m) return iso || "-";
+  if (!m[2]) return m[1];
+  if (!m[3]) return `${MONTHS[Number(m[2]) - 1]} ${m[1]}`;
+  return `${Number(m[3])} ${MONTHS[Number(m[2]) - 1]} ${m[1]}`;
+}
+
+// Built only from stored fields: the type's plain name, the service date as written, the value and the outcome.
+function findingSentence(ev, gap) {
+  const measure = gap.measure_name || gap.measure_id;
+  const part = ev.part ? ` (${ev.part.replace("_", " ")} part)` : "";
+  const when = ev.service_date_raw ? ` on ${niceDate(ev.service_date_raw)}` : "";
+  const value = ev.value ? ` (${ev.value})` : "";
+  const head = `${typeName(ev.evidence_type)}${part}${when}${value}.`;
+  const rc = ev.rule_check || {};
+  if (ev.evidence_kind === "exclusion") {
+    return `${head} This removes the patient from ${measure}, so they no longer count against the rate.`;
+  }
+  const n = rc.part_label && /part (\d+) of (\d+)/.exec(rc.part_label);
+  if (n) return `${head} This is ${n[1]} of ${n[2]} tests ${measure} needs.`;
+  return `${head} This counts for ${measure}, so the gap can be closed once you confirm it.`;
+}
+
+function checkLine(ev) {
+  const rc = ev.rule_check || {};
+  const lines = [];
+  if (rc.window_to || rc.window_from) {
+    const span = rc.window_from ? `${niceDate(rc.window_from)} to ${niceDate(rc.window_to)}` : `any time up to ${niceDate(rc.window_to)}`;
+    const served = rc.service_date_from === rc.service_date_to ? niceDate(rc.service_date_from)
+      : `${niceDate(rc.service_date_from)} to ${niceDate(rc.service_date_to)}`;
+    lines.push($("div", {}, `Window ${span}${rc.window_text ? ` (${rc.window_text})` : ""}: service date ${served} is `,
+      $("b", { class: rc.inside_window ? "ok" : "error" }, rc.inside_window ? "inside" : "outside")));
+  } else {
+    lines.push($("div", {}, "No date window in the rule for this type."));
+  }
+  if (rc.part_label) {
+    lines.push($("div", {}, $("b", {}, rc.part_label), ": ", ...(rc.parts || []).flatMap((p, i) => [i ? " · " : "",
+      `${p.name} `, $("span", { class: `pstat pstat-${p.status}` }, p.status)])));
+  }
+  return $("div", {}, ...lines);
+}
+
+function quoteBlock(ev) {
+  const c = ev.context;
+  const text = c ? $("p", { class: "ctx" }, c.starts_mid_page ? "…" : "", c.text.slice(0, c.quote_start),
+    $("mark", {}, c.text.slice(c.quote_start, c.quote_end)), c.text.slice(c.quote_end), c.ends_mid_page ? "…" : "")
+    : $("p", { class: "quote" }, `“${ev.excerpt || ""}”`);
+  return $("div", {}, text, ev.document_id ? $("a", {
+    class: "src-link", target: "_blank", rel: "noopener",
+    href: `/api/documents/${encodeURIComponent(ev.document_id)}/pages/${ev.page_no || 1}/image`,
+    onclick: e => e.stopPropagation(),
+  }, `${ev.document_id}, page ${ev.page_no || 1}: view the page image`) : null);
+}
+
+// Rates and stars from Pradeep's what-if (compare_measure); an exclusion uses his rate and star functions directly.
+function impactLine(ev, impact) {
+  if (!impact) return null;
+  if (!impact.available) return $("p", { class: "note small" }, `Impact if confirmed: ${impact.note}`);
+  const pts = v => (v == null ? "n/a" : `${v >= 0 ? "+" : ""}${fmt(v)} points`);
+  const pct = v => (v == null ? "n/a" : `${fmt(v)}%`);
+  const star = v => (v == null ? "?" : v);
+  if (ev.evidence_kind === "exclusion") {
+    const x = impact.exclusion;
+    return $("p", { class: "note small impact" }, "Impact if confirmed (patient leaves the denominator): ",
+      $("b", {}, `rate ${pct(impact.rate_now)} → ${pct(x.rate_after)} (${pts(x.change_points)})`),
+      ` · stars ${star(impact.stars_now)} → ${star(x.stars_after)}`);
+  }
+  const next = impact.closures_for_next_star == null
+    ? (impact.stars_after >= 5 ? "already 5 stars" : "the next star is out of reach with the open gaps")
+    : `${impact.closures_for_next_star} more closure${impact.closures_for_next_star === 1 ? "" : "s"} for the next star`;
+  return $("p", { class: "note small impact" }, "Impact if confirmed: ",
+    $("b", {}, `rate ${pct(impact.rate_now)} → ${pct(impact.rate_after)} (${pts(impact.change_points)})`),
+    ` · stars ${star(impact.stars_now)} → ${star(impact.stars_after)} · ${next}`);
 }
 
 function decisionForm(ev) {
@@ -242,7 +728,7 @@ function decisionForm(ev) {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ decision, reason: notes.value.trim() || null, reviewer: rid }),
       });
-      toast(decision === "confirm" ? "Finding confirmed. The gap waits for the engine to close it."
+      toast(decision === "confirm" ? "Finding confirmed. The gap waits for its other parts or for the engine."
         : "Finding rejected.");
       state.openEvidence = null;
       await refresh();
@@ -275,6 +761,7 @@ async function runExtraction() {
       `the checks${r.skipped_already_saved ? `, ${r.skipped_already_saved} already proposed` : ""}` +
       `${failed ? `, ${failed} model call${failed === 1 ? "" : "s"} failed` : ""}.`;
     if (failed) out.classList.add("error");
+    state.lastRun = { gapId, r };
     state.scopeGap = gapId;
     await refresh();
   } catch (err) {
@@ -294,20 +781,26 @@ function setAvatar() {
 }
 
 function currentView() {
-  return location.hash === "#evidence" ? "evidence" : "prioritization";
+  const v = location.hash.slice(1);
+  return VIEWS.includes(v) ? v : "dashboard";
 }
 
 async function show() {
   const view = currentView();
-  for (const v of ["prioritization", "evidence"]) byId(`view-${v}`).hidden = v !== view;
+  for (const v of VIEWS) byId(`view-${v}`).hidden = v !== view;
   for (const a of document.querySelectorAll("[data-view]")) a.classList.toggle("active", a.dataset.view === view);
-  if (view === "evidence") await renderEvidence(); else renderPrioritization();
+  if (view === "dashboard") renderDashboard();
+  else if (view === "ingestion") { renderIngestion(); renderReset(); }
+  else if (view === "gaps") renderGaps();
+  else if (view === "evidence") await renderEvidence();
+  else renderPrioritization();
 }
 
 async function refresh() {
   try {
     await loadAll();
     await show();
+    poll();
   } catch (err) {
     toast(`Could not load data: ${err.message}`);
   }
@@ -319,8 +812,15 @@ document.querySelectorAll(".pill").forEach(p => p.addEventListener("click", () =
   renderWorklist();
 }));
 byId("refresh").addEventListener("click", refresh);
+byId("upload").addEventListener("click", upload);
+byId("reset").addEventListener("click", startOver);
 byId("run-extraction").addEventListener("click", runExtraction);
-byId("scope").addEventListener("change", e => { state.scopeGap = e.target.value; byId("run-result").textContent = ""; });
+byId("export").addEventListener("click", exportEvidence);
+byId("scope").addEventListener("change", e => {
+  state.scopeGap = e.target.value; byId("run-result").textContent = ""; renderAiHistory(e.target.value);
+  renderGapPanel(e.target.value, "gap-panel");
+});
+byId("zip").addEventListener("change", listChosenFiles);
 window.addEventListener("hashchange", show);
 setAvatar();
 refresh();

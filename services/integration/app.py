@@ -7,6 +7,7 @@ deliberate status code; stack traces stay in the server log. Listens on 127.0.0.
 """
 
 import logging
+import re
 import shutil
 import uuid
 from collections.abc import Iterator
@@ -25,7 +26,7 @@ from services.document_intake import api as intake_api
 from services.document_intake import db
 from services.gap_priority.config import load_rules
 
-from . import evidence, openrouter_status, pipeline, work
+from . import evidence, export, openrouter_status, pipeline, reset, work
 from .config import SETTINGS
 
 log = logging.getLogger(__name__)
@@ -52,6 +53,11 @@ def _conflict(_: Request, exc: evidence.Conflict) -> JSONResponse:
     return JSONResponse(status_code=409, content={"detail": str(exc)})
 
 
+@app.exception_handler(reset.ResetRefused)
+def _reset_refused(_: Request, exc: reset.ResetRefused) -> JSONResponse:
+    return JSONResponse(status_code=403, content={"detail": str(exc)})
+
+
 @app.exception_handler(ValueError)
 def _bad_request(_: Request, exc: ValueError) -> JSONResponse:
     return JSONResponse(status_code=400, content={"detail": str(exc)})
@@ -70,14 +76,36 @@ def page() -> str:
 
 
 @app.post("/api/batches", status_code=202)
-def upload_batch(file: UploadFile = File(...)) -> dict:
-    if not (file.filename or "").lower().endswith(".zip"):
-        raise HTTPException(400, "Upload a .zip file of Synthea CSV files.")
-    target = SETTINGS.work_dir / "uploads" / f"{uuid.uuid4()}.zip"
-    target.parent.mkdir(parents=True, exist_ok=True)
-    with target.open("wb") as handle:
-        shutil.copyfileobj(file.file, handle)
-    return {"batch_id": pipeline.start_batch(target), "status": "running"}
+def upload_batch(file: UploadFile | None = File(None), files: list[UploadFile] | None = File(None)) -> dict:
+    """One .zip of Synthea CSV files, or several .csv files, in one request (form field "file" or "files")."""
+    uploads = ([file] if file else []) + (files or [])
+    names = [Path(u.filename or "").name for u in uploads]
+    kinds = {Path(n).suffix.lower() for n in names}
+    if not uploads:
+        raise HTTPException(400, "Choose one .zip file, or one or more Synthea .csv files.")
+    if not kinds <= {".zip", ".csv"}:
+        raise HTTPException(400, "Only a .zip file or Synthea .csv files can be uploaded.")
+    if len(kinds) > 1:
+        raise HTTPException(400, "Upload either one .zip file or .csv files, not both in one batch.")
+    if kinds == {".zip"} and len(uploads) > 1:
+        raise HTTPException(400, "Upload one .zip file at a time.")
+    if any(not _SAFE_NAME.fullmatch(n) for n in names):
+        raise HTTPException(400, "File names may use letters, digits, '.', '_' and '-' only.")
+    if kinds == {".zip"}:
+        target = SETTINGS.work_dir / "uploads" / f"{uuid.uuid4()}.zip"
+        target.parent.mkdir(parents=True, exist_ok=True)
+        with target.open("wb") as handle:
+            shutil.copyfileobj(uploads[0].file, handle)
+    else:
+        target = SETTINGS.work_dir / "uploads" / str(uuid.uuid4())
+        target.mkdir(parents=True)
+        for upload, name in zip(uploads, names):
+            with (target / name.lower()).open("wb") as handle:
+                shutil.copyfileobj(upload.file, handle)
+    return {"batch_id": pipeline.start_batch(target), "status": "running", "files": len(uploads)}
+
+
+_SAFE_NAME = re.compile(r"[A-Za-z0-9_.-]{1,120}")
 
 
 @app.get("/api/batches/{batch_id}")
@@ -123,13 +151,36 @@ def decide(proposal_id: str, body: DecisionIn, conn: psycopg.Connection = Depend
     return evidence.decide(conn, proposal_id, body.decision, body.reason, body.reviewer)
 
 
+class ExportIn(BaseModel):
+    reviewer: str | None = None
+
+
+@app.post("/api/supplemental/export")
+def export_supplemental(body: ExportIn | None = None, conn: psycopg.Connection = Depends(get_conn)) -> dict:
+    return export.export_supplemental(conn, evidence.clean_reviewer(body.reviewer if body else None))
+
+
+class ResetIn(BaseModel):
+    confirm: str
+
+
+@app.post("/api/reset")
+def start_over(body: ResetIn, conn: psycopg.Connection = Depends(get_conn)) -> dict:
+    """Development only: empty this schema and reload reference data (see reset.py for the guards)."""
+    try:
+        return reset.reset(conn, body.confirm)
+    except RuntimeError as exc:
+        raise HTTPException(500, str(exc)) from exc
+
+
 @app.get("/api/health")
 def health(conn: psycopg.Connection = Depends(get_conn)) -> dict:
     schema = conn.execute("SELECT current_schema()").fetchone()[0]
     version = conn.execute("SELECT version_num FROM alembic_version").fetchone()[0]
     return {"status": "ok", "schema": schema, "migration": version, "rules_version": load_rules().version,
             "engine_built": (SETTINGS.engine_root / "build" / "cli.js").exists(),
-            "evidence_dir_set": SETTINGS.evidence_dir is not None, "openrouter": openrouter_status.status()}
+            "evidence_dir_set": SETTINGS.evidence_dir is not None, "reset_allowed": reset.allowed(),
+            "openrouter": openrouter_status.status()}
 
 
 app.add_api_route("/api/documents/{document_id}/pages/{page_no}/image", intake_api.get_page_image, methods=["GET"])

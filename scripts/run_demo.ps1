@@ -18,8 +18,10 @@
 # INTEGRATION_EVIDENCE_DIR for the app: after a batch is prioritized, the folder's documents (listed in its
 # manifest.json) are attached to their patients. -UiDir <folder> picks the screen set the app serves (for example
 # services/integration/ui/redesign); without it the original page in services/integration/static is served.
+# -AllowReset switches on the page's "Start over" button, which empties this schema and reloads reference data.
 
-param([switch]$Setup, [switch]$Integration, [string]$Schema = "integ", [string]$EvidenceDir = "", [string]$UiDir = "")
+param([switch]$Setup, [switch]$Integration, [string]$Schema = "integ", [string]$EvidenceDir = "", [string]$UiDir = "",
+      [switch]$AllowReset)
 
 $ErrorActionPreference = "Stop"
 $RepoRoot = Split-Path -Parent $PSScriptRoot
@@ -94,6 +96,10 @@ if ($Integration) {
         if (-not (Test-Path (Join-Path $UiDir "index.html"))) { throw "No index.html in $UiDir." }
         $env:INTEGRATION_UI_DIR = (Resolve-Path $UiDir).Path
         Write-Host "Screens: $env:INTEGRATION_UI_DIR" -ForegroundColor Cyan
+    }
+    if ($AllowReset) {
+        $env:INTEGRATION_ALLOW_RESET = "1"
+        Write-Host "Start over is on: the page can empty schema $Schema and reload reference data." -ForegroundColor Yellow
     }
     if ($envText -notmatch "(?m)^\s*EXTRACTION_MODEL\s*=\s*\S" -and -not $env:EXTRACTION_MODEL) {
         Write-Host ("Warning: EXTRACTION_MODEL is not set in .env, so the code default model is used. " +
