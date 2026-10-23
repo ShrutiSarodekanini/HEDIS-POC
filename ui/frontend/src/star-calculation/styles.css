@@ -1,11 +1,11 @@
 :root {
-  --bg: #f3f7fc;
+  --bg: #f4f7fb;
   --panel: #ffffff;
-  --line: #d8e2f0;
-  --text: #13233a;
-  --muted: #5f728a;
-  --accent: #178b87;
-  --accent-dark: #0f6f6b;
+  --line: #e0e8f2;
+  --text: #203348;
+  --muted: #6b7f94;
+  --accent: #178783;
+  --accent-dark: #0f6e6a;
   --error: #a11f1f;
 }
 
@@ -16,7 +16,7 @@
 body {
   margin: 0;
   font-family: "Segoe UI", "Trebuchet MS", sans-serif;
-  background: radial-gradient(circle at 100% 0%, #e6f5f4 0%, var(--bg) 55%);
+  background: linear-gradient(180deg, #f7fafc 0%, #f3f7fb 100%);
   color: var(--text);
 }
 
@@ -27,22 +27,33 @@ body {
 .hedis-shell {
   min-height: 100vh;
   display: grid;
-  grid-template-columns: 250px 1fr;
+  grid-template-columns: 220px 1fr;
 }
 
 .hedis-sidebar {
-  border-right: 1px solid #cddcee;
+  border-right: 1px solid var(--line);
   background: #ffffff;
   color: #1a3c3a;
-  padding: 14px;
+  padding: 16px 12px;
+}
+
+.hedis-brand-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 2px 6px 16px;
+}
+
+.brand-mark {
+  color: #0e7d79;
+  font-size: 0.95rem;
 }
 
 .hedis-brand {
-  font-size: 1.15rem;
-  font-weight: 800;
-  letter-spacing: 0.04em;
-  margin-bottom: 14px;
-  color: #178b87;
+  font-size: 0.86rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  color: #243a4e;
 }
 
 .hedis-nav {
@@ -51,24 +62,34 @@ body {
 }
 
 .hedis-nav-item {
-  border: 1px solid #c7e2e0;
-  background: #f5fbfb;
-  color: #1a3c3a;
-  border-radius: 8px;
-  padding: 10px;
+  border: 1px solid transparent;
+  background: #ffffff;
+  color: #556a80;
+  border-radius: 10px;
+  padding: 9px 10px;
   text-align: left;
-  font-weight: 700;
+  font-weight: 600;
+  font-size: 0.84rem;
   margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .hedis-nav-item:hover {
-  background: #ebf6f5;
+  background: #f4f8fb;
 }
 
 .hedis-nav-item.is-active {
-  background: linear-gradient(180deg, #178b87, #0f6f6b);
-  border-color: #178b87;
-  color: #ffffff;
+  background: #e8f1f8;
+  border-color: #d6e5f1;
+  color: #17364f;
+}
+
+.hedis-nav-icon {
+  width: 14px;
+  text-align: center;
+  opacity: 0.9;
 }
 
 .hedis-nav-item small {
@@ -80,18 +101,57 @@ body {
 
 .hedis-main {
   display: grid;
-  grid-template-rows: auto 1fr;
+  grid-template-rows: auto auto 1fr;
   min-width: 0;
+  padding: 10px 18px 20px;
+}
+
+.hedis-top-utility {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 8px;
+  padding: 2px 2px 8px;
+}
+
+.hedis-pill {
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: #8a6b2e;
+  background: #fef5df;
+  border: 1px solid #f3e4bc;
+  border-radius: 999px;
+  padding: 4px 8px;
+}
+
+.hedis-avatar {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #eef3f8;
+  color: #6b7c8c;
+  font-size: 0.66rem;
+  font-weight: 700;
 }
 
 .hedis-main-header {
-  padding: 12px 14px 0;
+  padding: 2px 2px 12px;
 }
 
 .hedis-main-header h1 {
   margin: 0;
-  font-size: 1.05rem;
-  color: #2f5c5a;
+  font-size: 2rem;
+  color: #1e3349;
+}
+
+.hedis-main-header p {
+  margin: 6px 0 0;
+  font-size: 0.92rem;
+  color: #6f8192;
 }
 
 .hedis-main-content {
@@ -102,7 +162,7 @@ body {
   width: 100%;
   max-width: none;
   margin: 0;
-  padding: 14px 10px 20px;
+  padding: 0 2px 16px;
 }
 
 header h1 {
@@ -115,12 +175,12 @@ header p {
 }
 
 .hero {
-  border: 1px solid #bfe1de;
+  border: 1px solid #b9dfdd;
   border-radius: 12px;
-  padding: 16px;
-  background: linear-gradient(120deg, #157f7b, #1ea29d);
+  padding: 18px;
+  background: linear-gradient(120deg, #1a8c87, #2aa8a2);
   color: #fff;
-  box-shadow: 0 5px 16px rgba(12, 85, 81, 0.24);
+  box-shadow: 0 8px 18px rgba(23, 128, 124, 0.2);
 }
 
 .hero p {
@@ -135,7 +195,7 @@ header p {
 .summary-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 10px;
+  gap: 12px;
 }
 
 .main-grid {
@@ -181,11 +241,12 @@ header p {
   background: var(--panel);
   padding: 16px;
   margin-bottom: 14px;
-  box-shadow: 0 4px 14px rgba(8, 50, 92, 0.08);
+  box-shadow: 0 4px 12px rgba(13, 33, 54, 0.05);
 }
 
 .panel h2 {
   margin: 0 0 12px;
+  font-size: 1.05rem;
 }
 
 .grid {
@@ -308,6 +369,7 @@ legend {
   border-bottom: 1px solid #e2ebf7;
   text-align: left;
   padding: 7px;
+  font-size: 0.92rem;
 }
 
 .table-wrap {
@@ -375,5 +437,13 @@ legend {
 
   .summary-grid {
     grid-template-columns: 1fr 1fr;
+  }
+
+  .hedis-main {
+    padding: 8px 10px 14px;
+  }
+
+  .hedis-main-header h1 {
+    font-size: 1.55rem;
   }
 }

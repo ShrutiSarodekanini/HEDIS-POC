@@ -76,10 +76,8 @@ export default function App() {
 
   const navItems = useMemo(
     () => [
-      {
-        key: "star-calculation",
-        label: "Star Calculation",
-      },
+      { key: "dashboard", label: "Dashboard", icon: "⌂", to: "/" },
+      { key: "star-calculation", label: "Star Calculation", icon: "★", to: "/star-calculation" },
     ],
     []
   );
@@ -258,6 +256,7 @@ export default function App() {
   return (
     <HedisSidebarLayout
       title="Star Calculation Dashboard"
+      subtitle="All values come from live measure data, star cut points, and weights from the backend."
       items={navItems}
       activeKey={activePage}
       onSelect={setActivePage}
