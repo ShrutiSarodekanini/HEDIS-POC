@@ -14,8 +14,14 @@ export default function Layout() {
           <span>HEDIS Ops</span>
         </div>
         <nav aria-label="Main navigation">
+          <Link to="/dashboard" className={`nav-item ${isActive('/dashboard') ? 'active' : ''}`}>
+            <span className="nav-icon">⊞</span>Dashboard
+          </Link>
           <Link to="/run" className={`nav-item ${isActive('/run') ? 'active' : ''}`}>
             <span className="nav-icon">↻</span>Run Ingestion
+          </Link>
+          <Link to="/gap-calc" className={`nav-item ${isActive('/gap-calc') ? 'active' : ''}`}>
+            <span className="nav-icon">⊙</span>Run Gap Calculation
           </Link>
           <Link to="/priority" className={`nav-item ${isActive('/priority') ? 'active' : ''}`}>
             <span className="nav-icon">≡</span>Prioritization

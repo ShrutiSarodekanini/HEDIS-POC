@@ -225,32 +225,23 @@ export default function RunIngestion() {
               <p className="eyebrow">Live run status</p>
               <h2 id="liveJobTitle">{jobStatus ? `Job: ${jobId}` : 'Waiting for a run'}</h2>
             </div>
-            <span className="running-badge" id="runBadge">{runBadge}</span>
+            <span className={`running-badge ${runBadge === 'Completed' ? 'badge-completed' : runBadge === 'Partially completed' ? 'badge-partially_completed' : runBadge === 'Failed' || runBadge === 'Error' ? 'badge-failed' : ''}`} id="runBadge">{runBadge}</span>
           </div>
 
           {jobStatus && (
             <div style={{ padding: '15px 0' }}>
-              <p className="muted-label">Resource Pipeline</p>
-              {runtimeStatus?.stages?.length > 0 && (
-                <ul className="pipeline-stage-table">
-                  {runtimeStatus.stages.map((stage) => (
-                    <li key={stage.name}>
-                      <span>{stage.name}</span>
-                      <span className={`status-${stage.status}`}>{stage.status}</span>
-                    </li>
-                  ))}
-                </ul>
-              )}
+              <p className="pipeline-section-label">Resource Pipeline</p>
               <ul className="stage-table">
-                {resourceEntries.map(([resource, counts]) => (
-                  <li key={resource}>
-                    <span>{resource}</span>
-                    <span>{counts.processed || counts.loaded || 0}/{counts.total || 0}</span>
-                    <span className={`status-${counts.status || 'queued'}`}>
-                      {counts.status || (counts.processed >= counts.total ? 'completed' : 'queued')}
-                    </span>
-                  </li>
-                ))}
+                {resourceEntries.map(([resource, counts]) => {
+                  const status = counts.status || (counts.processed >= (counts.total || 0) ? 'completed' : 'queued');
+                  return (
+                    <li key={resource}>
+                      <span>{resource}</span>
+                      <span>{counts.processed || counts.loaded || 0}/{counts.total || 0}</span>
+                      <span className={`status-${status}`}>{status === 'queued' ? 'Queued' : status === 'loading' ? 'Loading' : 'completed' ? 'completed' : status}</span>
+                    </li>
+                  );
+                })}
               </ul>
               
               {totalResources > 0 && (
@@ -272,6 +263,37 @@ export default function RunIngestion() {
                 <div><span>Database insertion</span><strong>{pipelineTimings.database_insertion_seconds ?? (['completed', 'partially_completed'].includes(jobStatus.status) ? 'Completed' : 'Pending')}</strong></div>
               </div>
               <p className="helper-text">Validated resources are stored automatically during ingestion.</p>
+
+              {jobStatus?.completeness_scorecard && (
+                <div className="completeness-panel">
+                  <h3 style={{ margin: '24px 0 10px', fontSize: '14px', fontWeight: 700, color: '#304957' }}>Feed completeness scorecard</h3>
+                  <p className="muted-label" style={{ margin: '0 0 15px' }}>v_feed_completeness_latest · last completed batch</p>
+                  <div style={{ overflowX: 'auto' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '11px', color: '#637680' }}>
+                      <thead>
+                        <tr style={{ borderBottom: '1px solid #e4ebef', color: '#a0acb2', textTransform: 'uppercase', fontSize: '9px', fontWeight: 700 }}>
+                          <th style={{ padding: '9px 8px', textAlign: 'left' }}>Resource Type</th>
+                          <th style={{ padding: '9px 8px', textAlign: 'left' }}>Record Count</th>
+                          <th style={{ padding: '9px 8px', textAlign: 'left' }}>Distinct Patients</th>
+                          <th style={{ padding: '9px 8px', textAlign: 'left' }}>Measure-Relevant</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {Object.entries(jobStatus.completeness_scorecard).map(([resourceType, data]) => (
+                          <tr key={resourceType} style={{ borderBottom: '1px solid #f0f3f5' }}>
+                            <td style={{ padding: '9px 8px' }}>{resourceType}</td>
+                            <td style={{ padding: '9px 8px' }}>{data.record_count ?? data.count ?? '--'}</td>
+                            <td style={{ padding: '9px 8px' }}>{data.distinct_patients ?? '--'}</td>
+                            <td style={{ padding: '9px 8px', color: data.measure_relevant ? '#32947a' : '#9ba8af' }}>
+                              {data.measure_relevant ? 'Yes' : 'No'}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </section>
