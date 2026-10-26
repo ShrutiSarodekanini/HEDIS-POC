@@ -1,4 +1,4 @@
-﻿/* Data Quality tab: Pallavi's ingestion, checks and coverage report. Tokens from styles.css only. */
+﻿/* Data Quality tab: checks, anomalies and coverage report. Tokens from styles.css only. */
 .dq-job { display: flex; flex-direction: column; gap: 14px; border-top: 1px solid var(--line); padding-top: 12px; }
 
 .dq-adv-body { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }

@@ -1,12 +1,12 @@
 """Pipeline runner: one uploaded Synthea zip from CSV files to a prioritized work list, in a background thread.
 
-    ingestion (upload-zip, run_conversion, run_persist_stage) -> team_schema_loader -> measures -> score_all
-    -> stored_evidence (when INTEGRATION_EVIDENCE_DIR is set)
+    ingestion (upload-zip, run_conversion, run_persist_stage) -> team_schema_loader -> data quality checks
+    -> measures -> score_all -> stored_evidence (when INTEGRATION_EVIDENCE_DIR is set)
 
 batch_run shows where a batch is; after every step its status, step and counts are updated and a domain_event is
-written (batch.received, batch.converted, batch.persisted, batch.loaded, measures.received, gaps.identified,
-gaps.prioritized, documents.attached, or batch.failed with the step and reason). Errors keep only their first line,
-so row values in database error details never reach batch_run, events or logs.
+written (batch.received, batch.converted, batch.persisted, batch.loaded, quality.checked or quality.failed,
+measures.received, gaps.identified, gaps.prioritized, documents.attached, or batch.failed with the step and reason).
+Errors keep only their first line, so row values in database error details never reach batch_run, events or logs.
 """
 
 import asyncio
@@ -33,7 +33,7 @@ from services.document_intake.db import audit
 from services.gap_priority.config import load_rules
 from services.gap_priority.runner import score_all
 
-from . import measures, stored_evidence
+from . import measures, pallavi, stored_evidence
 from .config import SETTINGS
 
 log = logging.getLogger(__name__)
@@ -124,14 +124,17 @@ def _current_step(batch_id: uuid.UUID) -> str:
 
 
 def _after_persist(batch_id: uuid.UUID, job_id: str, persisted: int) -> None:
-    """Our steps after the ingestion persist stage: load the lead's tables, run the measures, prioritize, attach."""
+    """Our steps after the ingestion persist stage: load the lead's tables, check the data, run the measures,
+    prioritize, attach."""
     with db.connect() as conn:
         loaded = team_schema_loader.load_job(conn, job_id, batch_id)
         _check_loaded(conn, job_id, persisted, loaded)
         load_counts = {"patients": len(loaded.patient_ids), "inserted": loaded.inserted,
                        "resource_types": loaded.resource_types,
                        "attributed_patients": sum(1 for v in loaded.attributed_org.values() if v)}
-        _progress(batch_id, "measuring", "batch.loaded", {"load": load_counts}, conn=conn)
+        _progress(batch_id, "checking", "batch.loaded", {"load": load_counts}, conn=conn)
+
+    _progress(batch_id, "measuring", None, {"quality": _check_quality(batch_id)})
 
     with db.connect() as conn:
         run = measures.run_measures(conn, list(loaded.patient_ids), loaded.attributed_org, batch_id.hex[:8])
@@ -159,6 +162,17 @@ def _after_persist(batch_id: uuid.UUID, job_id: str, persisted: int) -> None:
 def _scored(summary) -> dict:
     return {"gaps_scored": summary.gaps_scored, "tiers": summary.tiers, "channels": summary.channels,
             "rules_version": summary.rules_version, "as_of": summary.as_of.isoformat()}
+
+
+def _check_quality(batch_id: uuid.UUID) -> dict:
+    """The data quality checks on the loaded batch. The measures do not read their results, so a failed run does not
+    stop the batch: run_checks stores the failure on quality_run with a quality.failed event, and the batch shows it."""
+    try:
+        run = pallavi.run_checks(batch_id, None, SETTINGS.actor)
+    except Exception as exc:  # noqa: BLE001 - recorded on quality_run and on the batch; the next steps do not need it
+        log.error("batch %s: data quality checks failed: %s", batch_id, type(exc).__name__)
+        return {"status": "failed", "reason": f"{type(exc).__name__}: {(str(exc).splitlines() or [''])[0][:300]}"}
+    return {key: run[key] for key in ("run_id", "status", "checks", "failed", "anomalies")}
 
 
 _WAITING_JOBS = """
@@ -359,6 +373,9 @@ SELECT (SELECT count(*) FROM conversion_jobs) AS conversion_jobs,
        (SELECT count(*) FROM observation) AS observation,
        (SELECT count(*) FROM fhir_resource_raw) AS fhir_resource_raw,
        (SELECT count(*) FROM feed_completeness_report) AS feed_completeness_report,
+       (SELECT count(*) FROM quality_run) AS quality_run,
+       (SELECT count(*) FROM quality_check_result) AS quality_check_result,
+       (SELECT count(*) FROM data_anomaly) AS data_anomaly,
        (SELECT count(*) FROM engine_runs) AS engine_runs,
        (SELECT count(*) FROM measure_result) AS measure_result,
        (SELECT count(*) FROM care_gap) AS care_gap,

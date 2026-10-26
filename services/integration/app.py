@@ -19,17 +19,18 @@ from typing import Literal
 
 import psycopg
 import uvicorn
-from fastapi import Depends, FastAPI, File, HTTPException, Request, UploadFile
+from fastapi import APIRouter, Depends, FastAPI, File, HTTPException, Request, UploadFile
 from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.routing import APIRoute
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from services.data_ingestion.app import api as jyothi_api
+from services.data_ingestion.app import api as ingestion_api
 from services.document_intake import api as intake_api
 from services.document_intake import db
 from services.gap_priority.config import load_rules
 
-from . import calculation, evidence, export, openrouter_status, pallavi, pipeline, reset, stars, work
+from . import calculation, evidence, export, openrouter_status, pallavi, pipeline, quality, reset, stars, work
 from .config import SETTINGS
 
 log = logging.getLogger(__name__)
@@ -41,19 +42,25 @@ UI_DIR = SETTINGS.ui_dir or Path(__file__).with_name("static")   # which screen 
 async def _lifespan(_: FastAPI) -> AsyncIterator[None]:
     stop = threading.Event()
     threading.Thread(target=pipeline.watch_ingestion, args=(stop,), name="ingestion-watcher", daemon=True).start()
-    pallavi.start()
     try:
         yield
     finally:
         stop.set()
-        pallavi.stop()
+
+
+def _ingestion_routes() -> APIRouter:
+    """Jyothi's ingestion and engine endpoints as they are, at /api/ingestion/... instead of her own /api/..."""
+    router = APIRouter()
+    for route in ingestion_api.router.routes:
+        if isinstance(route, APIRoute):
+            router.add_api_route(route.path.removeprefix(ingestion_api.router.prefix), route.endpoint,
+                                 methods=sorted(route.methods), name=route.name)
+    return router
 
 
 app = FastAPI(title="HEDIS POC integration", version="0.1.0", lifespan=_lifespan)
 app.mount("/assets", StaticFiles(directory=UI_DIR), name="assets")
-# Jyothi's ingestion and engine endpoints as they are, under their own prefix: /team/jyothi/api/...
-app.include_router(jyothi_api.router, prefix="/team/jyothi")
-app.include_router(pallavi.router)
+app.include_router(_ingestion_routes(), prefix="/api/ingestion")
 
 
 def get_conn() -> Iterator[psycopg.Connection]:
@@ -186,11 +193,8 @@ class ResetIn(BaseModel):
 
 @app.post("/api/reset")
 def start_over(body: ResetIn, conn: psycopg.Connection = Depends(get_conn)) -> dict:
-    """Development only: empty this schema and reload reference data (see reset.py for the guards)."""
-    try:
-        return reset.reset(conn, body.confirm)
-    except RuntimeError as exc:
-        raise HTTPException(500, str(exc)) from exc
+    """Development only: empty the data tables and keep the reference data (see reset.py for the guards)."""
+    return reset.reset(conn, body.confirm)
 
 
 @app.get("/api/health")
@@ -201,7 +205,46 @@ def health(conn: psycopg.Connection = Depends(get_conn)) -> dict:
             "engine_built": (SETTINGS.engine_root / "build" / "cli.js").exists(),
             "evidence_dir_set": SETTINGS.evidence_dir is not None, "reset_allowed": reset.allowed(),
             "openrouter": openrouter_status.status(),
-            "team": {"jyothi": {"prefix": "/team/jyothi/api", "schema": schema}, "pallavi": pallavi.status()}}
+            "services": {"ingestion": {"prefix": "/api/ingestion", "schema": schema},
+                         "quality": {**pallavi.status(), "schema": schema}}}
+
+
+@app.get("/api/quality")
+def get_quality(conn: psycopg.Connection = Depends(get_conn)) -> dict:
+    return quality.overview(conn)
+
+
+@app.get("/api/quality/runs")
+def get_quality_runs(batch_id: uuid.UUID, conn: psycopg.Connection = Depends(get_conn)) -> dict:
+    return quality.runs(conn, batch_id)
+
+
+@app.get("/api/quality/runs/{run_id}")
+def get_quality_run(run_id: int, severity: Literal["critical", "high", "medium", "low"] | None = None,
+                    conn: psycopg.Connection = Depends(get_conn)) -> dict:
+    found = quality.run_detail(conn, run_id, severity)
+    if found is None:
+        raise HTTPException(404, f"data quality run {run_id} not found")
+    return found
+
+
+class QualityRunIn(BaseModel):
+    batch_id: uuid.UUID
+    measure_id: str | None = None
+
+
+@app.post("/api/quality/runs")
+def run_quality(body: QualityRunIn) -> dict:
+    """Run the data quality checks again on one loaded batch (every measure, or one); returns the new run."""
+    return pallavi.run_checks(body.batch_id, body.measure_id, SETTINGS.actor)
+
+
+@app.get("/api/quality/coverage")
+def get_coverage_report(payer: str | None = None, compliance: Literal["Compliant", "Violation"] | None = None,
+                        start_date: date | None = None, end_date: date | None = None, limit: int = 1000,
+                        conn: psycopg.Connection = Depends(get_conn)) -> dict:
+    compliant = None if compliance is None else compliance == "Compliant"
+    return quality.coverage_report(conn, payer, compliant, start_date, end_date, min(max(limit, 1), 5000))
 
 
 @app.get("/api/flow")

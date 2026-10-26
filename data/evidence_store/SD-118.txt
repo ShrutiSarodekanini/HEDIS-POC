@@ -1,0 +1,8 @@
+Lab report
+Patient: Lester Block  DOB: 1959-08-02
+Date: 2026-05-04
+
+Ordering clinic: outside primary care
+eGFR 74 mL/min/1.73m2 (collected 2026-05-02)
+Urine albumin/creatinine ratio 18 mg/g (collected 2026-05-04)
+Serum creatinine 1.0 mg/dL

@@ -1,0 +1,8 @@
+Imaging report
+Patient: Margarete Wisoky  DOB: 1968-11-04
+Date: 2026-04-02
+
+Exam: screening mammography, both breasts.
+Bilateral screening mammogram 04/02/2026: BI-RADS 1, negative.
+Breast ultrasound only if new symptoms.
+Next screening due 2027.

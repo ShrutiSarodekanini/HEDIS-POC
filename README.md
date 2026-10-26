@@ -2,6 +2,36 @@
 
 AI-enabled Healthcare Quality Measurement Platform that ingests Synthea data in the background, calculates HEDIS measure performance and CMS Star Ratings-related metrics, identifies missing care, extracts supporting clinical evidence, and generates reports for quality teams.
 
+## Run the app
+
+Needs Python 3.11+, Node 20, PostgreSQL, and Tesseract OCR for the scanned test documents. Create `.env` in the
+repo root (copy `.env.example`) with:
+
+```
+DATABASE_URL=<postgresql+psycopg URL of your database, as in .env.example>?options=-csearch_path%3Dhedis
+OPENROUTER_API_KEY=<your OpenRouter key>
+EXTRACTION_MODEL=recursive/flint-v1.0:free
+EXTRACTION_MAX_OUTPUT_TOKENS=32768
+```
+
+From the repo root:
+
+```
+# first time: packages, tables (migrations to head), reference data, measure engine build
+powershell -ExecutionPolicy Bypass -File scripts/run_demo.ps1 -Integration -Setup
+# every time
+powershell -ExecutionPolicy Bypass -File scripts/run_demo.ps1 -Integration
+```
+
+Then open http://localhost:8780. The app keeps everything in one schema, `hedis`, named by the search path at the end
+of `DATABASE_URL`; `-Setup` creates it, and the script refuses to run on `public`. Add
+`-AllowReset` to switch on "Start over" on Data Ingestion: it empties every data table and keeps the reference data
+(type the schema name to confirm).
+
+Test files (synthetic) are in `data/test_uploads`: upload `synthea_20_patients.zip` (20 patients), or the 12 CSV
+files in `cohort_4_patients/`, on Data Ingestion. The stored evidence documents for those patients are in
+`data/evidence_store` and attach on their own once a batch is prioritized.
+
 ## Integration branch
 
 This branch brings three lines of work together so they can be joined into one flow

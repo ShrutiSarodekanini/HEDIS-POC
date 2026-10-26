@@ -3,8 +3,9 @@
 Reads only the rows the ingestion service's persist stage approved (fhir_resources with persisted = true and
 lifecycle_status other than 'rejected'), and writes, in the caller's transaction: source_batch (one row),
 fhir_resource_raw (every approved resource), patient, coverage, encounter, condition, observation, procedure,
-medication_request and immunization, and one feed_completeness_report row per resource type (once per batch).
-All of it is set-based SQL over the stored JSON, so no resource passes through Python.
+medication_request and immunization. The batch's feed_completeness_report is written by the data quality checks
+(services/integration/pallavi.py), which run next. All of it is set-based SQL over the stored JSON, so no resource
+passes through Python.
 
 The ingestion mapping produces no Organization or Practitioner resources and no organization on encounters, so
 organization and practitioner stay empty and no patient has an attributed practice. Nothing is invented for them.
@@ -151,16 +152,6 @@ SELECT r.resource_id, p.patient_id, e.encounter_id, r.resource_json->>'status',
 ON CONFLICT (immunization_id) DO NOTHING
 """
 
-# One row per resource type in the batch, written once per batch.
-_FEED_COMPLETENESS = f"""
-INSERT INTO feed_completeness_report (batch_id, resource_type, record_count, measure_relevant, generated_at)
-SELECT %(batch)s, r.resource_type, count(*), r.resource_type = ANY(%(measure_types)s::text[]), now()
-  FROM fhir_resources r
- WHERE {_APPROVED}
-   AND NOT EXISTS (SELECT 1 FROM feed_completeness_report f WHERE f.batch_id = %(batch)s)
- GROUP BY r.resource_type
-"""
-
 # Attributed practice: the organization on most of the patient's encounters (none while the mapping has none).
 _ATTRIBUTION = """
 SELECT e.patient_id, mode() WITHIN GROUP (ORDER BY e.organization_id)
@@ -171,12 +162,7 @@ SELECT e.patient_id, mode() WITHIN GROUP (ORDER BY e.organization_id)
 
 _STEPS = (("fhir_resource_raw", _RAW), ("patient", _PATIENTS), ("coverage", _COVERAGE), ("encounter", _ENCOUNTERS),
           ("condition", _CONDITIONS), ("observation", _OBSERVATIONS), ("procedure", _PROCEDURES),
-          ("medication_request", _MEDICATIONS), ("immunization", _IMMUNIZATIONS),
-          ("feed_completeness_report", _FEED_COMPLETENESS))
-
-# The resource types the measures read (AAB and SPD read medication orders).
-MEASURE_RESOURCE_TYPES = ["Patient", "Encounter", "Condition", "Observation", "Procedure", "Coverage",
-                          "MedicationRequest"]
+          ("medication_request", _MEDICATIONS), ("immunization", _IMMUNIZATIONS))
 
 
 @dataclass(frozen=True)
@@ -190,7 +176,7 @@ class LoadResult:
 
 def load_job(conn: psycopg.Connection, job_id: str, batch_id: UUID) -> LoadResult:
     """Copy one ingestion job's approved resources into the clinical tables, in the caller's transaction."""
-    params = {"job": job_id, "batch": batch_id, "system": SOURCE_SYSTEM, "measure_types": MEASURE_RESOURCE_TYPES}
+    params = {"job": job_id, "batch": batch_id, "system": SOURCE_SYSTEM}
     types = dict(conn.execute(
         f"SELECT r.resource_type, count(*) FROM fhir_resources r WHERE {_APPROVED} GROUP BY 1 ORDER BY 1", params
     ).fetchall())

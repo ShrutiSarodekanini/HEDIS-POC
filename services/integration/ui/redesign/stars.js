@@ -1,4 +1,4 @@
-﻿// Star Rating tab: Pradeep's star functions on the stored measure results, read only. Nothing here is saved.
+﻿// Star Rating tab: the star rating functions on the stored measure results, read only. Nothing here is saved.
 // The DOM is built once; later renders repaint only the parts whose data changed, so the chosen measure and
 // ticked gaps survive the 3 second refresh.
 "use strict";
@@ -86,8 +86,8 @@
       ui.applyOut, ui.compareOut);
 
     ui.page = $("div", { class: "view-root st-page" },
-      $("div", { class: "separate-data" }, $("span", {}, $("b", {}, "Pradeep's star functions"),
-        " on the stored measure results; nothing on this screen is saved. His rate keeps 2 decimals; the gap " +
+      $("div", { class: "separate-data" }, $("span", {}, $("b", {}, "Star rating functions"),
+        " on the stored measure results; nothing on this screen is saved. The rate keeps 2 decimals; the gap " +
         "prioritization rounds to a whole percent first, so a star can differ near a cut point.")),
       ui.tiles,
       $("section", { class: "card" },

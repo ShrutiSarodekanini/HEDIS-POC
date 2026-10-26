@@ -23,7 +23,7 @@ from services.document_intake.config import SETTINGS as DB_SETTINGS
 from services.star_modeler.main import (assign_star_from_cutpoints, assign_star_from_sqlalchemy,
                                         load_cutpoints_sqlalchemy)
 
-SOURCE = "pradeep.compare_measure"
+SOURCE = "star_rating.compare_measure"
 
 _COUNTS = text("""
 SELECT count(*) FILTER (WHERE in_denominator AND NOT coalesce(excluded, false)) AS denominator,
@@ -125,7 +125,8 @@ def gap_impact(s: Session, gap_id: str) -> dict | None:
                       "change_points": (None if excluded_rate is None or before["performance_rate"] is None
                                         else round(excluded_rate - before["performance_rate"], 2)),
                       "star_changed": excluded_stars is not None and excluded_stars != before["sample_star_rating"],
-                      "note": "His what-if has no exclusion case yet; computed with his rate and star functions."},
+                      "note": "The star what-if has no exclusion case yet; computed with the star rating rate "
+                              "and star functions."},
     }
 
 

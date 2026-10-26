@@ -1,8 +1,8 @@
-﻿// Data Ingestion tab: Jyothi's endpoints under /team/jyothi/api, then our steps from the latest batch.
+﻿// Data Ingestion tab: the ingestion endpoints under /api/ingestion, then our steps from the latest batch.
 // The page is built once; render() only repaints what changes, so chosen files and typed values stay.
 "use strict";
 (() => {
-  const API = "/team/jyothi/api";
+  const API = "/api/ingestion";
   const ACTIVE = ["running", "pending", "started"];
   const DONE = ["completed", "partially_completed"];
   const MAX_ISSUES = 200;

@@ -61,7 +61,7 @@
       </article>
     </section>
 
-    <!-- Data Ingestion (Jyothi's steps; screen in ingestion.js) -->
+    <!-- Data Ingestion (screen in ingestion.js) -->
     <section id="view-ingestion" class="view" hidden>
       <div class="page-head">
         <div>
@@ -74,9 +74,9 @@
       <article class="card" id="reset-card" hidden>
         <div class="danger" id="reset-box">
           <p class="label-strong">Start over</p>
-          <p class="note">Empties this copy's data (ingestion jobs, patients, gaps, scores, documents, AI findings,
-            decisions) and keeps the measures, rules and star cut points, so you can ingest the files again and watch
-            every step. Pallavi's separate data quality schema is not touched.</p>
+          <p class="note">Empties every data table in this schema (ingestion jobs, patients, measure results, gaps, scores,
+            documents, AI findings, decisions, data quality results) and keeps the measures, rules, star cut points,
+            organizations and practitioners, so you can ingest the files again and watch every step.</p>
           <label class="field-label" for="reset-confirm">Type <span class="mono" id="reset-schema"></span> to
             confirm</label>
           <input id="reset-confirm" class="input mono" autocomplete="off">
@@ -86,7 +86,7 @@
       </article>
     </section>
 
-    <!-- HEDIS Calculation (Jyothi's engine screen; calculation.js) -->
+    <!-- HEDIS Calculation (calculation.js) -->
     <section id="view-calculation" class="view" hidden>
       <div class="page-head">
         <div>
@@ -98,24 +98,24 @@
       <div id="calculation-root" class="view-root"></div>
     </section>
 
-    <!-- Data Quality (Pallavi's checks; quality.js) -->
+    <!-- Data Quality (quality.js) -->
     <section id="view-quality" class="view" hidden>
       <div class="page-head">
         <div>
           <h1>Data Quality</h1>
-          <p class="sub">Pallavi's data quality and anomaly checks, run on her own copy of the data</p>
+          <p class="sub">Data quality and anomaly checks on every loaded batch, and the coverage report</p>
         </div>
         <span class="layer">LAYER 3 OF 8</span>
       </div>
       <div id="quality-root" class="view-root"></div>
     </section>
 
-    <!-- Star Rating (Pradeep's star results and what-if; stars.js) -->
+    <!-- Star Rating (star results and what-if; stars.js) -->
     <section id="view-stars" class="view" hidden>
       <div class="page-head">
         <div>
           <h1>Star Rating</h1>
-          <p class="sub">Pradeep's star calculation and before and after comparison on the measure results</p>
+          <p class="sub">Star calculation and before and after comparison on the measure results</p>
         </div>
         <span class="layer">LAYER 4 OF 8</span>
       </div>

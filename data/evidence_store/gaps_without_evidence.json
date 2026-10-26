@@ -1,0 +1,18 @@
+[
+  {
+    "synthea_patient_id": "88604f20-cd1c-1695-4d2a-88923ba7150a",
+    "measure": "BCS-E"
+  },
+  {
+    "synthea_patient_id": "7689e2f6-26ad-3386-69a2-bc29829dbfb3",
+    "measure": "CBP"
+  },
+  {
+    "synthea_patient_id": "7689e2f6-26ad-3386-69a2-bc29829dbfb3",
+    "measure": "COL-E"
+  },
+  {
+    "synthea_patient_id": "f6bad05f-3ef4-1cef-6ca8-aa6e61c3f6a4",
+    "measure": "KED"
+  }
+]

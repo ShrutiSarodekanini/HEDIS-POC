@@ -12,6 +12,7 @@ const STEPS = [
   ["persisting", "Approve records (persist stage)"],
   ["waiting", "Waiting for the previous batch"],
   ["loading", "Load the patient tables"],
+  ["checking", "Run the data quality checks"],
   ["measuring", "Run the measure engine"],
   ["prioritizing", "Score and rank open gaps"],
   ["attaching", "Attach stored evidence and read it"],
@@ -177,7 +178,6 @@ async function renderFlow() {
   const t = f.tables || {};
   const c = (b && b.counts) || {};
   const job = f.ingest_job || f.latest_ingest_job;
-  const pallavi = (state.health && state.health.team && state.health.team.pallavi) || {};
   const n = v => Number(v || 0).toLocaleString();
   const ourStep = b ? (b.status === "prioritized" ? "done" : b.status === "failed" ? "failed" : "running") : "pending";
   const rows = [
@@ -190,18 +190,23 @@ async function renderFlow() {
     ["Our steps after persist", "#ingestion", ourStep,
       b ? `batch ${b.batch_id.slice(0, 8)} · ${statusText(b)}` : "Starts on its own when a job is persisted",
       `patient ${n(t.patient)} · encounter ${n(t.encounter)} · observation ${n(t.observation)} · ` +
-      `fhir_resource_raw ${n(t.fhir_resource_raw)} · feed_completeness_report ${n(t.feed_completeness_report)}`],
+      `fhir_resource_raw ${n(t.fhir_resource_raw)}`],
     ["HEDIS Calculation", "#calculation", t.engine_runs ? "done" : ourStep === "running" ? "running" : "pending",
       c.measures ? `${Object.keys(c.measures.measures || {}).length} measures · ${n(c.measures.gaps_open)} open gaps`
         : "Runs after the patient tables are loaded",
       `engine_runs ${n(t.engine_runs)} · measure_result ${n(t.measure_result)} · care_gap ${n(t.care_gap)} ` +
       `(${n(t.care_gap_open)} open) · care_gap_detail ${n(t.care_gap_detail)}`],
-    ["Data Quality", "#quality", pallavi.enabled ? (pallavi.api === "running" ? "separate" : "failed") : "pending",
-      pallavi.enabled ? `Pallavi's checks on schema ${pallavi.schema} (separate data) · API ${pallavi.api}, ` +
-        `worker ${pallavi.worker}` : "Switched off in this app",
-      "Her own tables (dq_runs, data_anomalies, dq_check_results) in her schema"],
+    ["Data Quality", "#quality", c.quality && c.quality.status === "failed" ? "failed" : t.quality_run > 0 ? "done"
+      : ourStep === "running" ? "running" : "pending",
+      c.quality && c.quality.status === "completed"
+        ? `run ${c.quality.run_id} · ${c.quality.checks} checks, ${c.quality.failed} failed · ` +
+          `${c.quality.anomalies} anomalies`
+        : c.quality && c.quality.status === "failed" ? `Checks failed: ${c.quality.reason}`
+          : "Runs after the patient tables are loaded",
+      `quality_run ${n(t.quality_run)} · quality_check_result ${n(t.quality_check_result)} · ` +
+      `data_anomaly ${n(t.data_anomaly)} · feed_completeness_report ${n(t.feed_completeness_report)}`],
     ["Star Rating", "#stars", t.measure_result ? "done" : "pending",
-      "Pradeep's star functions on measure_result and care_gap (read only)",
+      "Star rating functions on measure_result and care_gap (read only)",
       `star_scenario ${n(t.star_scenario)} (written when a reviewer confirms evidence)`],
     ["Prioritization", "#prioritization", t.gap_priority_score ? "done" : "pending",
       c.prioritization ? `${n(c.prioritization.gaps_scored)} gaps scored (rules ${c.prioritization.rules_version})`
@@ -212,13 +217,13 @@ async function renderFlow() {
       `document_reference ${n(t.document_reference)} · evidence_proposal ${n(t.evidence_proposal)} · ` +
       `review_decisions ${n(t.review_decisions)} · supplemental_records ${n(t.supplemental_records)}`],
   ];
-  const mark = { done: "✓", running: "…", failed: "!", pending: "·", separate: "◇" };
+  const mark = { done: "✓", running: "…", failed: "!", pending: "·" };
   box.replaceChildren(...[
     $("ol", { class: "steps flow" }, ...rows.map(([name, href, cls, line, tables]) =>
       $("li", { class: `step ${cls}` }, $("span", { class: "dot" }, mark[cls]),
         $("span", { class: "step-name" }, $("a", { class: "link", href }, name), $("div", { class: "note small" }, line),
           $("div", { class: "pt" }, tables)),
-        $("span", { class: "step-detail" }, cls === "separate" ? "separate data" : cls)))),
+        $("span", { class: "step-detail" }, cls)))),
     b && b.error ? $("p", { class: "note small error" }, b.error) : null].filter(Boolean));
 }
 
@@ -234,6 +239,10 @@ function stepDetail(key, c) {
     case "converting": return c.conversion ? `${c.conversion.resources_generated} records, ${c.conversion.errors} errors` : "";
     case "persisting": return c.persisted != null ? `${c.persisted} persisted` : "";
     case "loading": return c.load ? `${c.load.patients} patients` : "";
+    case "checking":
+      if (!c.quality) return "";
+      if (c.quality.status === "failed") return "checks failed";
+      return `${c.quality.checks} checks, ${c.quality.failed} failed, ${c.quality.anomalies} anomalies`;
     case "measuring": return c.measures ? `${c.measures.gaps_open} open gaps` : "";
     case "prioritizing": return c.prioritization ? `${c.prioritization.gaps_scored} scored` : "";
     case "attaching":
@@ -259,7 +268,7 @@ async function startOver() {
     return;
   }
   byId("reset").disabled = true;
-  msg.textContent = "Clearing data and loading reference data again… (about half a minute)";
+  msg.textContent = "Clearing data…";
   try {
     const r = await api("/api/reset", { method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ confirm: typed }) });
@@ -268,7 +277,7 @@ async function startOver() {
     state.openEvidence = null;
     state.scopeGap = null;
     byId("reset-confirm").value = "";
-    msg.textContent = `Done in ${r.seconds} s. ${r.schema} is empty: ingest the files again to run everything.`;
+    msg.textContent = `Done in ${r.seconds} s. ${r.tables_emptied} data tables in ${r.schema} are empty: ingest the files again to run everything.`;
     toast("Data cleared. Ingest the files again to start over.");
     await refresh();
   } catch (err) {
@@ -642,7 +651,7 @@ function quoteBlock(ev) {
   }, `${ev.document_id}, page ${ev.page_no || 1}: view the page image`) : null);
 }
 
-// Rates and stars from Pradeep's what-if (compare_measure); an exclusion uses his rate and star functions directly.
+// Rates and stars from the star rating what-if (compare_measure); an exclusion uses the star rating rate and star functions directly.
 function impactLine(ev, impact) {
   if (!impact) return null;
   if (!impact.available) return $("p", { class: "note small" }, `Impact if confirmed: ${impact.note}`);

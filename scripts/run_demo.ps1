@@ -9,22 +9,21 @@
 # minutes) and scores the gaps. Without -Setup it only starts the page. Then open http://localhost:8771.
 # Needs a repo-root .env with DATABASE_URL and OPENROUTER_API_KEY (see the run guide). Key values are never printed.
 #
-# End-to-end integration app (Synthea upload, ingestion, measure engine, work list, documents, AI evidence, review):
+# End-to-end app (Synthea upload, ingestion, data quality, measure engine, stars, work list, documents, AI evidence):
 #   powershell -ExecutionPolicy Bypass -File scripts/run_demo.ps1 -Integration -Setup    (first time)
 #   powershell -ExecutionPolicy Bypass -File scripts/run_demo.ps1 -Integration
-# It uses its own schema (-Schema, default integ) in the .env database, so the demo data in public is untouched,
-# and listens on http://localhost:8780 (INTEGRATION_PORT changes it). -Setup there creates the schema and tables,
-# loads reference data only (no patients) and builds the measure engine (needs Node 20). -EvidenceDir <folder> sets
-# INTEGRATION_EVIDENCE_DIR for the app: after a batch is prioritized, the folder's documents (listed in its
-# manifest.json) are attached to their patients. -UiDir <folder> picks the screen set the app serves (for example
-# services/integration/ui/redesign); without it the original page in services/integration/static is served.
-# -AllowReset switches on the page's "Start over" button, which empties this schema and reloads reference data.
-# Pallavi's ingestion and data quality run unchanged as two child processes of the app on their own schema
-# (-PallaviSchema, default pallavi plus the digits of -Schema, for example team20 -> pallavi20; "off" switches them off)
-# because her tables reuse the lead's names with different columns. Her API listens on INTEGRATION_PALLAVI_PORT (8793).
+# Then open http://localhost:8780 (INTEGRATION_PORT changes it). The app uses one schema: the first one on the search
+# path in .env's DATABASE_URL (?options=-csearch_path%3Dhedis, see .env.example). It refuses public. -Schema <name>
+# overrides that search path for one run. -Setup installs packages, creates the schema if missing, upgrades the tables
+# to the latest migration, loads reference data only (no patients) when the organization table is empty, and builds
+# the measure engine (needs Node 20).
+# -EvidenceDir (default data/evidence_store): after a batch is prioritized, the folder's documents (listed in its
+# manifest.json) are attached to their patients. -UiDir (default services/integration/ui/redesign) picks the screens.
+# -AllowReset switches on the page's "Start over" button, which empties every data table and keeps reference data.
+# EXTRACTION_MODEL and EXTRACTION_MAX_OUTPUT_TOKENS come from .env; the token limit defaults to 32768.
 
-param([switch]$Setup, [switch]$Integration, [string]$Schema = "integ", [string]$EvidenceDir = "", [string]$UiDir = "",
-      [switch]$AllowReset, [string]$PallaviSchema = "")
+param([switch]$Setup, [switch]$Integration, [string]$Schema = "", [string]$EvidenceDir = "data/evidence_store",
+      [string]$UiDir = "services/integration/ui/redesign", [switch]$AllowReset)
 
 $ErrorActionPreference = "Stop"
 $RepoRoot = Split-Path -Parent $PSScriptRoot
@@ -54,27 +53,40 @@ if ($env:DATABASE_URL) {
 }
 
 if ($Integration) {
-    if ($Schema -notmatch '^[a-z_][a-z0-9_]*$') { throw "-Schema must be a plain lower-case name." }
-    if ($Schema -eq "public") { throw "Use a separate schema for the integration app; public holds the demo data." }
-    # Same database as .env, with this schema first on the search path. The URL is never printed.
-    $env:INTEGRATION_SCHEMA = $Schema
-    $env:DATABASE_URL = & python -c ("import os, dotenv; u = dotenv.dotenv_values('.env')['DATABASE_URL']; " +
-        "print(u + ('&' if '?' in u else '?') + 'options=-csearch_path%3D' + os.environ['INTEGRATION_SCHEMA'])")
-    if ($LASTEXITCODE -ne 0 -or -not $env:DATABASE_URL) { throw "Could not read DATABASE_URL from .env." }
-    $Plain = "import os, psycopg; c = psycopg.connect(os.environ['DATABASE_URL'].replace('postgresql+psycopg://', " +
-        "'postgresql://', 1), autocommit=True); "
+    if ($Schema) {
+        if ($Schema -notmatch '^[a-z_][a-z0-9_]*$') { throw "-Schema must be a plain lower-case name." }
+        # Override for this run: .env's URL with this schema on the search path instead. The URL is never printed.
+        $env:INTEGRATION_SCHEMA = $Schema
+        $env:DATABASE_URL = & python -c ("import os, re, dotenv; u = dotenv.dotenv_values('.env')['DATABASE_URL']; " +
+            "s = 'search_path%3D' + os.environ['INTEGRATION_SCHEMA']; " +
+            "print(re.sub('search_path%3D[A-Za-z0-9_]+', s, u) if 'search_path%3D' in u " +
+            "else u + ('&' if '?' in u else '?') + 'options=-c' + s)")
+        if ($LASTEXITCODE -ne 0 -or -not $env:DATABASE_URL) { throw "Could not read DATABASE_URL from .env." }
+    }
+    # The app's database: the -Schema URL above when set, otherwise DATABASE_URL from .env as it is.
+    $Plain = "import os, dotenv, psycopg; u = os.environ.get('DATABASE_URL') or " +
+        "dotenv.dotenv_values('.env')['DATABASE_URL']; " +
+        "c = psycopg.connect(u.replace('postgresql+psycopg://', 'postgresql://', 1), autocommit=True); "
+    $target = & python -c ($Plain + "print(c.execute('SHOW search_path').fetchone()[0].split(',')[0].strip().strip(chr(34)))")
+    if ($LASTEXITCODE -ne 0) { throw "Could not connect to the database in .env (DATABASE_URL)." }
+    if ($target -notmatch '^[a-z_][a-z0-9_]*$' -or $target -eq 'public') {
+        throw ('DATABASE_URL in .env does not name the app schema (it would use public). Add ' +
+            '?options=-csearch_path%3Dhedis to it, as in .env.example.')
+    }
+    $env:INTEGRATION_SCHEMA = $target
 
     if ($Setup) {
         Invoke-Step "Install packages" @("-m", "pip", "install", "-q", "-r", "requirements.txt")
-        Invoke-Step "Create schema $Schema" @("-c", ($Plain + "from psycopg import sql; " +
+        Invoke-Step "Create schema $target if missing" @("-c", ($Plain + "from psycopg import sql; " +
             "c.execute(sql.SQL('CREATE SCHEMA IF NOT EXISTS {}').format(sql.Identifier(os.environ['INTEGRATION_SCHEMA'])))"))
-        Invoke-Step "Create the tables in $Schema" @("-m", "alembic", "-c", "db/alembic.ini", "upgrade", "head")
+        Invoke-Step "Create or upgrade the tables (migrations to head)" @("-m", "alembic", "-c", "db/alembic.ini",
+            "upgrade", "head")
         $orgs = & python -c ($Plain + "print(c.execute('SELECT count(*) FROM organization').fetchone()[0])")
-        if ($LASTEXITCODE -ne 0) { throw "Could not count organizations in $Schema." }
+        if ($LASTEXITCODE -ne 0) { throw "Could not count organizations." }
         if ([int]$orgs -eq 0) {
             Invoke-Step "Load reference data (no patients)" @("scripts/db/load_seed.py", "--reference-only")
         } else {
-            Write-Host "`n== Reference data already loaded in $Schema" -ForegroundColor Cyan
+            Write-Host "`n== Reference data already loaded" -ForegroundColor Cyan
         }
         # Run inside the engine folder: "npm --prefix <dir> install" from the root also adds the root as a dependency.
         Write-Host "`n== Build the measure engine" -ForegroundColor Cyan
@@ -83,17 +95,20 @@ if ($Integration) {
             & npm install --no-fund --no-audit; if ($LASTEXITCODE -ne 0) { throw "Step failed: engine install" }
             & npm run build; if ($LASTEXITCODE -ne 0) { throw "Step failed: engine build" }
         } finally { Pop-Location }
-        # Pallavi's FHIR mapping needs her pins (fhir.resources 6.5 with pydantic 1); Jyothi's needs fhir.resources 8.
-        $PallaviVenv = ".integration_work\pallavi\venv"
-        Invoke-Step "Python environment for Pallavi's processes" @("-m", "venv", $PallaviVenv)
-        & "$PallaviVenv\Scripts\python.exe" -m pip install -q "fastapi==0.115.5" "uvicorn==0.32.1" "SQLAlchemy==2.0.36" `
-            "psycopg[binary]==3.2.3" "python-dotenv==1.0.1" "python-multipart==0.0.9" "fhir.resources==6.5.0" `
-            "pydantic==1.10.21" "httpx==0.28.1"
-        if ($LASTEXITCODE -ne 0) { throw "Step failed: Pallavi's Python environment" }
     }
 
-    $actual = & python -c ($Plain + "print(c.execute('SELECT current_schema()').fetchone()[0])")
-    if ($actual -ne $Schema) { throw "Schema $Schema not found. Run with -Integration -Setup first." }
+    $schemaName = & python -c ($Plain + "print(c.execute('SELECT current_schema()').fetchone()[0])")
+    if ($LASTEXITCODE -ne 0) { throw "Could not connect to the database in .env (DATABASE_URL)." }
+    if ($schemaName -ne $target) { throw "Schema $target not found. Run with -Integration -Setup first." }
+    $migration = & python -c ($Plain + "from alembic.config import Config; from alembic.script import ScriptDirectory; " +
+        "head = ScriptDirectory.from_config(Config('db/alembic.ini')).get_current_head(); " +
+        "found = c.execute('SELECT to_regclass(%s)', ('alembic_version',)).fetchone()[0]; " +
+        "now = found and c.execute('SELECT version_num FROM alembic_version').fetchone()[0]; " +
+        "print('ok' if now == head else 'it is at ' + str(now or 'no migration') + ', the latest is ' + head)")
+    if ($LASTEXITCODE -ne 0) { throw "Could not read the migration state of the database." }
+    if ($migration -ne "ok") {
+        throw "The tables in schema $schemaName are not at the latest migration ($migration). Run with -Integration -Setup."
+    }
     if (-not (Test-Path services/measure_calc/engine/build/cli.js)) {
         throw "The measure engine is not built. Run with -Integration -Setup first."
     }
@@ -109,23 +124,19 @@ if ($Integration) {
     }
     if ($AllowReset) {
         $env:INTEGRATION_ALLOW_RESET = "1"
-        Write-Host "Start over is on: the page can empty schema $Schema and reload reference data." -ForegroundColor Yellow
-    }
-    if (-not $PallaviSchema) { $PallaviSchema = "pallavi" + ($Schema -replace '^[^0-9]*', '') }
-    if ($PallaviSchema -ne "off") {
-        if ($PallaviSchema -notmatch '^[a-z_][a-z0-9_]*$' -or $PallaviSchema -in @("public", $Schema)) {
-            throw "-PallaviSchema must be a plain lower-case name, not public and not the team schema."
-        }
-        $env:INTEGRATION_PALLAVI_SCHEMA = $PallaviSchema
-        Write-Host "Pallavi's ingestion and data quality: schema $PallaviSchema (separate data)" -ForegroundColor Cyan
+        Write-Host ("Start over is on: the page can empty every data table in schema $schemaName " +
+            "(reference data stays).") -ForegroundColor Yellow
     }
     if ($envText -notmatch "(?m)^\s*EXTRACTION_MODEL\s*=\s*\S" -and -not $env:EXTRACTION_MODEL) {
         Write-Host ("Warning: EXTRACTION_MODEL is not set in .env, so the code default model is used. " +
             "The last tested model is recursive/flint-v1.0:free with EXTRACTION_MAX_OUTPUT_TOKENS=32768.") `
             -ForegroundColor Yellow
     }
+    if ($envText -notmatch "(?m)^\s*EXTRACTION_MAX_OUTPUT_TOKENS\s*=\s*\S" -and -not $env:EXTRACTION_MAX_OUTPUT_TOKENS) {
+        $env:EXTRACTION_MAX_OUTPUT_TOKENS = "32768"
+    }
     $port = if ($env:INTEGRATION_PORT) { $env:INTEGRATION_PORT } else { "8780" }
-    Write-Host "`n== Starting the integration app on schema $Schema. Open http://localhost:$port (Ctrl+C to stop)" `
+    Write-Host "`n== Starting the app on schema $schemaName. Open http://localhost:$port (Ctrl+C to stop)" `
         -ForegroundColor Green
     & python -m services.integration.app
     exit $LASTEXITCODE

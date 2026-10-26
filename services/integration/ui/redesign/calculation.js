@@ -1,4 +1,4 @@
-﻿// HEDIS Calculation tab: Jyothi's measure engine run through our bridge. Every result is stored first; this tab reads it back.
+﻿// HEDIS Calculation tab: the measure engine run through our bridge. Every result is stored first; this tab reads it back.
 "use strict";
 (() => {
   const PAGE = 20;
