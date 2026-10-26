@@ -1,0 +1,7 @@
+Visit note
+Patient: Jae Weimann  DOB: 1964-02-27
+Date: 2026-08-19
+
+Seen for ankle sprain.
+BP 128/78 at rest on 08/19/2026.
+Reports home readings in the 130s.

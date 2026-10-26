@@ -17,8 +17,8 @@ import logging
 # Add project to path
 sys.path.insert(0, str(__file__).rsplit("\\", 2)[0])
 
-from services.data_ingestion.app.db import engine, SessionLocal
-from services.data_ingestion.app.config import settings
+from services.data_ingestion_pallavi.app.db import engine, SessionLocal
+from services.data_ingestion_pallavi.app.config import settings
 
 logging.basicConfig(
     level=logging.INFO,

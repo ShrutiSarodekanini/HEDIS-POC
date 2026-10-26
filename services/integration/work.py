@@ -14,9 +14,11 @@ from psycopg.rows import dict_row
 from services.gap_priority import scoring
 from services.gap_priority.config import load_rules
 from services.gap_priority.inputs import read_inputs
-from services.star_modeler.main import CMS_RATING_YEAR, assign_star_from_cutpoints
+from services.star_modeler.main import CMS_RATING_YEAR
 
+from . import parts, stars
 from .config import SETTINGS
+
 ROLES = {
     "reviewer": ("abstractor_review",),
     "outreach": ("member_outreach_call", "mailed_fit_kit"),
@@ -26,23 +28,13 @@ OFF_LIST = ["closed_pending_engine", "excluded_pending_engine", "closed", "exclu
 
 
 def rounded_rate(numerator: int, denominator: int) -> int:
-    """The rate rounded half up to a whole percent, as CMS rounds and as the scoring does."""
+    """The rate rounded half up to a whole percent, as the gap prioritization score does (US-05)."""
     return (200 * numerator + denominator) // (2 * denominator) if denominator else 0
 
 
-def _stars(measure_id: str, numerator: int, denominator: int, cut_points: list[tuple[int, float]]) -> dict:
-    """Pradeep's star rating from the star_cutpoint rows (the same rows the scoring reads)."""
-    result = assign_star_from_cutpoints(
-        measure_code=measure_id, measurement_year=SETTINGS.measurement_year,
-        scoring_value=rounded_rate(numerator, denominator) if denominator else None, denominator=denominator,
-        cut_points=cut_points)
-    return {"stars": result.assigned_star_rating, "status": result.rating_status, "explanation": result.explanation,
-            "cut_points": list(result.applied_cut_points)}
-
-
 def measures(conn: psycopg.Connection, as_of: date) -> dict:
-    """Per measure: rate and star now, and the rate and star once confirmed closures and exclusions reach the engine:
-    closures add to the numerator, exclusions leave the denominator."""
+    """Per measure: rate and star now, and the rate and star once confirmed closures and exclusions reach the engine,
+    all from Pradeep's functions (stars.py). The value score still comes from the gap prioritization rules."""
     rules = load_rules()
     _, inputs = read_inputs(conn, as_of, rules.star_year)
     with conn.cursor(row_factory=dict_row) as cur:
@@ -74,30 +66,48 @@ def measures(conn: psycopg.Connection, as_of: date) -> dict:
                       count(*) FILTER (WHERE status = 'confirmed') AS confirmed,
                       count(*) FILTER (WHERE status = 'rejected') AS rejected
                  FROM evidence_proposal GROUP BY 1 ORDER BY 1""").fetchall()
+        supplemental = cur.execute(
+            """SELECT count(*) AS total,
+                      count(*) FILTER (WHERE NOT exported AND ready) AS unexported,
+                      count(*) FILTER (WHERE NOT exported AND NOT ready) AS waiting_for_parts
+                 FROM (SELECT EXISTS (SELECT 1 FROM export_run_items i WHERE i.supplemental_record_id = s.id)
+                                  AS exported,
+                              d.review_status IN ('closed_pending_engine', 'excluded_pending_engine') AS ready
+                         FROM supplemental_records s
+                         JOIN evidence_proposal p ON p.evidence_id = s.evidence_id
+                         JOIN care_gap_detail d ON d.gap_id = p.gap_id) r""").fetchone()
+        exports = cur.execute(
+            """SELECT id, run_at, row_count, left(file_sha256, 12) AS file_sha256
+                 FROM export_runs ORDER BY run_at DESC, id DESC LIMIT 5""").fetchall()
     out = []
-    for r in rates:
-        measure_id, num, den = r["measure_id"], r["numerator"], r["denominator"]
-        confirmed = gaps.get(measure_id, {}).get("confirmed", 0)
-        excluded = gaps.get(measure_id, {}).get("excluded", 0)
-        projected_num, projected_den = num + confirmed, den - excluded
-        m = inputs.get((measure_id, SETTINGS.measurement_year))
-        value = scoring.measure_value(m, rules)
-        cut_points = [(star, float(low)) for star, low in m.cut_points] if m else []
-        out.append({
-            "measure": measure_id, "name": names.get(measure_id, measure_id),
-            "weight": m.weight if m else None, "numerator": num, "denominator": den,
-            "rate": round(100 * num / den, 1) if den else None, "rounded": rounded_rate(num, den),
-            **_stars(measure_id, num, den, cut_points),
-            "confirmed_pending_engine": confirmed, "excluded_pending_engine": excluded,
-            "projected_rate": round(100 * projected_num / projected_den, 1) if projected_den else None,
-            "projected_stars": _stars(measure_id, projected_num, projected_den, cut_points)["stars"],
-            "value": round(value.value, 4), "value_reason": value.reason,
-            "open_gaps": gaps.get(measure_id, {}).get("open_gaps", 0)})
+    year = SETTINGS.measurement_year
+    with stars.session() as s:
+        for r in rates:
+            measure_id = r["measure_id"]
+            card = stars.measure_card(s, measure_id, year)
+            projected = stars.projection(s, measure_id, year)
+            m = inputs.get((measure_id, year))
+            value = scoring.measure_value(m, rules)
+            out.append({
+                "measure": measure_id, "name": names.get(measure_id, measure_id),
+                "weight": m.weight if m else None, "numerator": card["numerator"], "denominator": card["denominator"],
+                "rate": card["rate"], "rounded": rounded_rate(card["numerator"], card["denominator"]),
+                "stars": card["stars"], "status": card["status"], "explanation": card["explanation"],
+                "cut_points": card["cut_points"],
+                "confirmed_pending_engine": gaps.get(measure_id, {}).get("confirmed", 0),
+                "excluded_pending_engine": gaps.get(measure_id, {}).get("excluded", 0),
+                "projected_rate": projected["projected_rate"], "projected_stars": projected["projected_stars"],
+                "projection_source": stars.SOURCE,
+                "value": round(value.value, 4), "value_reason": value.reason,
+                "open_gaps": gaps.get(measure_id, {}).get("open_gaps", 0)})
     for m in by_model:
         decided = m["confirmed"] + m["rejected"]
         m["acceptance_rate"] = round(100 * m["confirmed"] / decided, 1) if decided else None
     evidence = {"proposed": sum(m["proposed"] for m in by_model), "confirmed": sum(m["confirmed"] for m in by_model),
-                "rejected": sum(m["rejected"] for m in by_model), "by_model": by_model}
+                "rejected": sum(m["rejected"] for m in by_model), "by_model": by_model,
+                "supplemental_total": supplemental["total"], "supplemental_unexported": supplemental["unexported"],
+                "supplemental_waiting_for_parts": supplemental["waiting_for_parts"],
+                "exports": exports}
     return {"measures": out, "tiers": tiers, "last_scored_at": last, "rules_version": rules.version,
             "cms_rating_year": CMS_RATING_YEAR, "evidence": evidence}
 
@@ -135,13 +145,20 @@ def work_list(conn: psycopg.Connection, role: str | None, tier: str | None, meas
 
 
 def gap_detail(conn: psycopg.Connection, key: str, as_of: date) -> dict | None:
-    """One gap: its facts, how its scores were built, the patient's documents and the evidence so far."""
+    """One gap: its facts, how its scores were built, the patient's documents and the evidence so far, each finding
+    with the page text around its quote, its rule check and the AI attempt that found it."""
     with conn.cursor(row_factory=dict_row) as cur:
         gap = cur.execute(
             """SELECT g.gap_id::text, coalesce(d.seed_code, g.gap_id::text) AS key, g.patient_id, g.measure_id,
                       g.measurement_year, g.status, g.missing_element, g.deadline_date,
-                      coalesce(d.review_status, 'open') AS review_status, coalesce(d.pending_count, 0) AS pending_count
+                      g.last_relevant_event_date, g.last_relevant_event_description,
+                      coalesce(d.review_status, 'open') AS review_status, coalesce(d.pending_count, 0) AS pending_count,
+                      mr.name AS measure_name, s.priority_tier AS tier, s.composite_score, s.recommended_channel,
+                      pr.reasons, pr.action_reason
                  FROM care_gap g LEFT JOIN care_gap_detail d ON d.gap_id = g.gap_id
+                 LEFT JOIN measure_rule mr ON mr.measure_id = g.measure_id AND mr.measurement_year = g.measurement_year
+                 LEFT JOIN v_gap_priority_latest s ON s.gap_id = g.gap_id
+                 LEFT JOIN gap_priority_reason pr ON pr.score_pk = s.score_pk
                 WHERE g.gap_id::text = %(key)s OR d.seed_code = %(key)s""", {"key": key}).fetchone()
         if gap is None:
             return None
@@ -157,14 +174,75 @@ def gap_detail(conn: psycopg.Connection, key: str, as_of: date) -> dict | None:
             """SELECT p.evidence_id::text, p.status, p.passage_citation AS excerpt, p.proposed_finding,
                       p.confidence_score AS confidence, p.extraction_model_version AS model, p.reviewer_id,
                       p.decided_at, x.document_reference_id AS document_id, x.page_no, x.evidence_kind,
-                      x.evidence_type, x.service_date_raw, x.value, x.reason, x.handwritten, x.low_confidence,
-                      dec.reason AS decision_reason
+                      x.evidence_type, x.service_date_raw, x.service_date_from, x.service_date_to, x.value, x.reason,
+                      x.handwritten, x.low_confidence, x.char_start, x.char_end, pg.text AS page_text,
+                      dec.reason AS decision_reason,
+                      a.id AS attempt_id, r.model_name AS attempt_model, r.started_at AS attempt_started_at,
+                      a.duration_ms AS attempt_duration_ms,
+                      (SELECT count(*) FROM evidence_proposal_detail k WHERE k.attempt_id = a.id) AS attempt_kept,
+                      coalesce(jsonb_array_length(a.dropped), 0) AS attempt_dropped
                  FROM evidence_proposal p
                  LEFT JOIN evidence_proposal_detail x ON x.evidence_id = p.evidence_id
+                 LEFT JOIN document_pages pg ON pg.document_reference_id = x.document_reference_id
+                                            AND pg.page_no = x.page_no
                  LEFT JOIN review_decisions dec ON dec.evidence_id = p.evidence_id
+                 LEFT JOIN extraction_attempts a ON a.id = x.attempt_id
+                 LEFT JOIN extraction_runs r ON r.id = a.run_id
                 WHERE p.gap_id = %s::uuid ORDER BY x.created_at, p.evidence_id""", (gap["gap_id"],)).fetchall()
+        ai_runs = cur.execute(
+            """SELECT r.id AS run_id, r.started_at, r.model_name, a.id AS attempt_id, a.status,
+                      (SELECT count(*) FROM evidence_proposal_detail x WHERE x.attempt_id = a.id) AS kept,
+                      coalesce(jsonb_array_length(a.dropped), 0) AS dropped_count, a.dropped, a.pages_sent,
+                      a.raw_response, a.prompt_version,
+                      a.prompt_tokens, a.output_tokens, a.duration_ms, split_part(a.error, E'\n', 1) AS error
+                 FROM extraction_attempts a JOIN extraction_runs r ON r.id = a.run_id
+                WHERE a.gap_id = %s::uuid ORDER BY r.started_at DESC, a.id DESC""", (gap["gap_id"],)).fetchall()
+    rule, age, items = parts.load(conn, gap["gap_id"])
+    conn.rollback()
+    checked = parts.check(rule, age, items)
+    for e in evidence:
+        _enrich(e, rule, checked)
+    with stars.session() as s:
+        impact = stars.gap_impact(s, gap["gap_id"])
     return {"gap": gap, "breakdown": breakdown(conn, gap["key"], as_of), "documents": documents,
-            "evidence": evidence}
+            "evidence": evidence, "ai_runs": ai_runs, "impact": impact, "parts": checked}
+
+
+CONTEXT_CHARS = 200
+
+
+def _enrich(e: dict, rule: dict, checked: dict) -> None:
+    """Add context (page text around the quote), rule_check and attempt to one evidence row, in place."""
+    e["part"], e["reason"] = parts.split_reason(e["reason"])
+    text, start, end = e.pop("page_text") or "", e.pop("char_start"), e.pop("char_end")
+    if text and start is not None and end is not None:
+        lo, hi = max(0, start - CONTEXT_CHARS), min(len(text), end + CONTEXT_CHARS)
+        e["context"] = {"text": text[lo:hi], "quote_start": start - lo, "quote_end": end - lo,
+                        "starts_mid_page": lo > 0, "ends_mid_page": hi < len(text)}
+    else:
+        e["context"] = None
+    window = next((w for w in rule.get("windows") or [] if w.get("evidence_type") == e["evidence_type"]), None)
+    served_from, served_to = e["service_date_from"], e["service_date_to"]
+    inside = None
+    if window and served_from and served_to:
+        low = date.fromisoformat(window["from"]) if window.get("from") else None
+        high = date.fromisoformat(window["to"]) if window.get("to") else None
+        inside = (low is None or served_from >= low) and (high is None or served_to <= high)
+    group = (checked["numerator"]["parts"] if e["evidence_kind"] == "numerator" else next(
+        (x["parts"] for x in checked["exclusions"] if x["evidence_type"] == e["evidence_type"]), []))
+    e["rule_check"] = {
+        "window_from": window.get("from") if window else None, "window_to": window.get("to") if window else None,
+        "window_text": window.get("relative") if window else None,
+        "service_date_from": served_from, "service_date_to": served_to, "inside_window": inside,
+        "parts": group if len(group) > 1 else [],
+        "part_label": parts.part_label(checked, e["evidence_kind"], e["evidence_type"], e["part"]),
+        "part_count": len(group)}
+    e["attempt"] = None if e["attempt_id"] is None else {
+        "attempt_id": e["attempt_id"], "model": e["attempt_model"], "started_at": e["attempt_started_at"],
+        "duration_ms": e["attempt_duration_ms"], "kept": e["attempt_kept"], "dropped": e["attempt_dropped"]}
+    for k in ("attempt_id", "attempt_model", "attempt_started_at", "attempt_duration_ms", "attempt_kept",
+              "attempt_dropped"):
+        e.pop(k)
 
 
 def breakdown(conn: psycopg.Connection, key: str, as_of: date) -> dict | None:

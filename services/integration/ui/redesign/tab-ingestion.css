@@ -1,0 +1,17 @@
+﻿/* Data Ingestion tab. Uses the tokens in styles.css only. */
+.ing-sub { font: 600 11px var(--sans); letter-spacing: .05em; text-transform: uppercase; color: var(--muted);
+  margin: 6px 0 0; }
+.ing-res-list { display: flex; flex-direction: column; gap: 12px; }
+.ing-res { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 12px; font-size: 13px; }
+.ing-res b { font-variant-numeric: tabular-nums; font-weight: 600; }
+.ing-res .progress { grid-column: 1 / -1; }
+.ing-feed { list-style: none; margin: 0; padding: 0; font: 12px/1.7 var(--mono); color: var(--muted);
+  max-height: 220px; overflow-y: auto; background: var(--code-bg); border-radius: 6px; }
+.ing-feed li { padding: 1px 10px; overflow-wrap: anywhere; }
+.ing-scroll { max-height: 360px; overflow-y: auto; }
+.ing-links { display: flex; gap: 16px; flex-wrap: wrap; }
+.ing-bundle summary { cursor: pointer; color: var(--muted); font-size: 12.5px; }
+.ing-bundle .code { margin-top: 6px; }
+.table.compact tbody tr.ing-click { cursor: pointer; }
+.table.compact tbody tr.ing-click:hover { background: var(--gray-soft); }
+.table td.ing-wrap { overflow-wrap: anywhere; min-width: 160px; }

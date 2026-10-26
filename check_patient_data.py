@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Check what patient data is in the database."""
 
-from services.data_ingestion.app.db import SessionLocal
-from services.data_ingestion.app.models import Patient
+from services.data_ingestion_pallavi.app.db import SessionLocal
+from services.data_ingestion_pallavi.app.models import Patient
 
 session = SessionLocal()
 patients = session.query(Patient).all()

@@ -1,0 +1,1085 @@
+[
+  {
+    "gap_id": "SG-0206",
+    "patient_id": "8a499bfb-208d-0f07-37f2-302b86600776",
+    "measure_code": "COL-E",
+    "expected_status": "Closed",
+    "find": [
+      {
+        "doc": "SD-001",
+        "quote": "Colonoscopy completed 06/12/2021, cecum reached, no polyps.",
+        "kind": "numerator",
+        "evidence_type": "colonoscopy"
+      }
+    ],
+    "optional": [],
+    "traps": [
+      "Father had colon cancer at 68.",
+      "Repeat colonoscopy in 2031."
+    ],
+    "note": "gap reason: no colonoscopy since 2017 and no stool test in 2026",
+    "synthea_patient_id": "8a499bfb-208d-0f07-37f2-302b86600776"
+  },
+  {
+    "gap_id": "SG-0231",
+    "patient_id": "c019b633-460a-9efd-0c45-32377607ef74",
+    "measure_code": "COL-E",
+    "expected_status": "Closed",
+    "find": [
+      {
+        "doc": "SD-002",
+        "quote": "Colonoscopy completed 05/03/2019, cecum reached, no polyps.",
+        "kind": "numerator",
+        "evidence_type": "colonoscopy"
+      }
+    ],
+    "optional": [],
+    "traps": [
+      "Father had colon cancer at 68.",
+      "Repeat colonoscopy in 2029."
+    ],
+    "note": "gap reason: no colonoscopy since 2017 and no stool test in 2026",
+    "synthea_patient_id": "c019b633-460a-9efd-0c45-32377607ef74"
+  },
+  {
+    "gap_id": "SG-0162",
+    "patient_id": "1735ca7f-aa92-5c14-6da9-7d36bc26101e",
+    "measure_code": "COL-E",
+    "expected_status": "Open",
+    "find": [],
+    "optional": [],
+    "traps": [
+      "Colonoscopy recommended; patient will schedule with GI.",
+      "Mother had colon polyps."
+    ],
+    "note": "gap reason: no colonoscopy since 2017 and no stool test in 2026",
+    "synthea_patient_id": "1735ca7f-aa92-5c14-6da9-7d36bc26101e"
+  },
+  {
+    "gap_id": "SG-0169",
+    "patient_id": "31a64516-b3e7-eb1c-0c89-f63b55580ca4",
+    "measure_code": "COL-E",
+    "expected_status": "Closed",
+    "find": [
+      {
+        "doc": "SD-004",
+        "quote": "Colonoscopy completed 02/18/2024, cecum reached, no polyps.",
+        "kind": "numerator",
+        "evidence_type": "colonoscopy"
+      }
+    ],
+    "optional": [],
+    "traps": [
+      "Father had colon cancer at 68.",
+      "Repeat colonoscopy in 2034."
+    ],
+    "note": "gap reason: no colonoscopy since 2017 and no stool test in 2026",
+    "synthea_patient_id": "31a64516-b3e7-eb1c-0c89-f63b55580ca4"
+  },
+  {
+    "gap_id": "SG-0203",
+    "patient_id": "88604f20-cd1c-1695-4d2a-88923ba7150a",
+    "measure_code": "COL-E",
+    "expected_status": "Excluded",
+    "find": [
+      {
+        "doc": "SD-005",
+        "quote": "Uses a walker, two falls this year.",
+        "kind": "exclusion",
+        "evidence_type": "frailty_and_advanced_illness_age_66_plus"
+      },
+      {
+        "doc": "SD-005",
+        "quote": "Advanced Alzheimer dementia, on donepezil.",
+        "kind": "exclusion",
+        "evidence_type": "frailty_and_advanced_illness_age_66_plus"
+      }
+    ],
+    "optional": [],
+    "traps": [
+      "A1c ordered today.",
+      "Flu vaccine given."
+    ],
+    "note": "gap reason: no colonoscopy since 2017 and no stool test in 2026",
+    "synthea_patient_id": "88604f20-cd1c-1695-4d2a-88923ba7150a"
+  },
+  {
+    "gap_id": "SG-0254",
+    "patient_id": "f6b42ca2-d019-664f-aac6-34007d64566b",
+    "measure_code": "COL-E",
+    "expected_status": "Closed",
+    "find": [
+      {
+        "doc": "SD-006",
+        "quote": "Colonoscopy completed 12/22/2023, cecum reached, no polyps.",
+        "kind": "numerator",
+        "evidence_type": "colonoscopy"
+      }
+    ],
+    "optional": [],
+    "traps": [
+      "Father had colon cancer at 68.",
+      "Repeat colonoscopy in 2033."
+    ],
+    "note": "gap reason: no colonoscopy since 2017 and no stool test in 2026",
+    "synthea_patient_id": "f6b42ca2-d019-664f-aac6-34007d64566b"
+  },
+  {
+    "gap_id": "SG-0053",
+    "patient_id": "e282e595-6155-f2e0-0628-63a31931f3da",
+    "measure_code": "BCS-E",
+    "expected_status": "Closed",
+    "find": [
+      {
+        "doc": "SD-007",
+        "quote": "Bilateral screening mammogram 05/19/2025: BI-RADS 1, negative.",
+        "kind": "numerator",
+        "evidence_type": "mammogram"
+      }
+    ],
+    "optional": [],
+    "traps": [
+      "Breast ultrasound only if new symptoms.",
+      "Next screening due 2026."
+    ],
+    "note": "gap reason: no mammogram since 2024-10-01",
+    "synthea_patient_id": "e282e595-6155-f2e0-0628-63a31931f3da"
+  },
+  {
+    "gap_id": "SG-0029",
+    "patient_id": "81b56520-bf9a-2eb4-d174-fbb2734f1c47",
+    "measure_code": "BCS-E",
+    "expected_status": "Open",
+    "find": [],
+    "optional": [],
+    "traps": [
+      "Screening mammogram scheduled for 12/15/2026.",
+      "Please arrive 15 minutes early."
+    ],
+    "note": "gap reason: no mammogram since 2024-10-01",
+    "synthea_patient_id": "81b56520-bf9a-2eb4-d174-fbb2734f1c47"
+  },
+  {
+    "gap_id": "SG-0025",
+    "patient_id": "7689e2f6-26ad-3386-69a2-bc29829dbfb3",
+    "measure_code": "BCS-E",
+    "expected_status": "Closed",
+    "find": [
+      {
+        "doc": "SD-009",
+        "quote": "Bilateral screening mammogram 03/13/2026: BI-RADS 1, negative.",
+        "kind": "numerator",
+        "evidence_type": "mammogram"
+      }
+    ],
+    "optional": [],
+    "traps": [
+      "Breast ultrasound only if new symptoms.",
+      "Next screening due 2027."
+    ],
+    "note": "gap reason: no mammogram since 2024-10-01",
+    "synthea_patient_id": "7689e2f6-26ad-3386-69a2-bc29829dbfb3"
+  },
+  {
+    "gap_id": "SG-0021",
+    "patient_id": "6a0e6ebd-f95e-b239-097f-18c0eef4d9e9",
+    "measure_code": "BCS-E",
+    "expected_status": "Excluded",
+    "find": [
+      {
+        "doc": "SD-010",
+        "quote": "Admitted to home hospice care on 07/01/2026.",
+        "kind": "exclusion",
+        "evidence_type": "hospice"
+      }
+    ],
+    "optional": [],
+    "traps": [
+      "Comfort-focused plan agreed with family."
+    ],
+    "note": "gap reason: no mammogram since 2024-10-01",
+    "synthea_patient_id": "6a0e6ebd-f95e-b239-097f-18c0eef4d9e9"
+  },
+  {
+    "gap_id": "SG-0319",
+    "patient_id": "f6bad05f-3ef4-1cef-6ca8-aa6e61c3f6a4",
+    "measure_code": "GSD",
+    "expected_status": "Closed",
+    "find": [
+      {
+        "doc": "SD-012",
+        "quote": "Hemoglobin A1c 6.5 % (collected 2026-09-09)",
+        "kind": "numerator",
+        "evidence_type": "hba1c"
+      }
+    ],
+    "optional": [],
+    "traps": [
+      "Fasting glucose 138 mg/dL",
+      "Goal A1c below 7 %"
+    ],
+    "note": "gap reason: no A1c in 2026",
+    "synthea_patient_id": "f6bad05f-3ef4-1cef-6ca8-aa6e61c3f6a4"
+  },
+  {
+    "gap_id": "SG-0292",
+    "patient_id": "2f268032-919f-a215-e343-9b6c5944a0d4",
+    "measure_code": "GSD",
+    "expected_status": "Open",
+    "find": [],
+    "optional": [],
+    "traps": [
+      "Hemoglobin A1c ordered, result pending.",
+      "Fasting not required."
+    ],
+    "note": "gap reason: no A1c in 2026",
+    "synthea_patient_id": "2f268032-919f-a215-e343-9b6c5944a0d4"
+  },
+  {
+    "gap_id": "SG-0326",
+    "patient_id": "2f268032-919f-a215-e343-9b6c5944a0d4",
+    "measure_code": "KED",
+    "expected_status": "Closed",
+    "find": [
+      {
+        "doc": "SD-021",
+        "quote": "eGFR 74 mL/min/1.73m2 (collected 2026-05-13)",
+        "kind": "numerator",
+        "evidence_type": "egfr"
+      },
+      {
+        "doc": "SD-021",
+        "quote": "Urine albumin/creatinine ratio 18 mg/g (collected 2026-05-15)",
+        "kind": "numerator",
+        "evidence_type": "uacr_ratio"
+      }
+    ],
+    "optional": [],
+    "traps": [
+      "Serum creatinine 1.0 mg/dL"
+    ],
+    "note": "gap reason: no eGFR and uACR in 2026",
+    "synthea_patient_id": "2f268032-919f-a215-e343-9b6c5944a0d4"
+  },
+  {
+    "gap_id": "SG-0098",
+    "patient_id": "2f268032-919f-a215-e343-9b6c5944a0d4",
+    "measure_code": "CBP",
+    "expected_status": "Closed",
+    "find": [
+      {
+        "doc": "SD-024",
+        "quote": "BP 128/78 at rest on 04/17/2026.",
+        "kind": "numerator",
+        "evidence_type": "blood_pressure_reading"
+      }
+    ],
+    "optional": [],
+    "traps": [
+      "Reports home readings in the 130s.",
+      "Seen for ankle sprain."
+    ],
+    "note": "gap reason: no BP in 2026",
+    "synthea_patient_id": "2f268032-919f-a215-e343-9b6c5944a0d4"
+  },
+  {
+    "gap_id": "SG-0140",
+    "patient_id": "d92be79e-db7b-ff9c-957c-6a65bc9cc59a",
+    "measure_code": "CBP",
+    "expected_status": "Excluded",
+    "find": [
+      {
+        "doc": "SD-025",
+        "quote": "Started hemodialysis three times weekly on 08/11/2026 for end-stage renal disease.",
+        "kind": "exclusion",
+        "evidence_type": "esrd_or_dialysis"
+      }
+    ],
+    "optional": [],
+    "traps": [
+      "Potassium 5.1 mmol/L."
+    ],
+    "note": "gap reason: most recent 2026 BP 141/87 not below 140/90",
+    "synthea_patient_id": "d92be79e-db7b-ff9c-957c-6a65bc9cc59a"
+  },
+  {
+    "gap_id": "60ad02fc-fd5d-d2c6-967d-a56d30fc4700:GSD",
+    "patient_id": "60ad02fc-fd5d-d2c6-967d-a56d30fc4700",
+    "synthea_patient_id": "60ad02fc-fd5d-d2c6-967d-a56d30fc4700",
+    "measure_code": "GSD",
+    "expected_status": "Closed",
+    "find": [
+      {
+        "doc": "SD-115",
+        "quote": "Hemoglobin A1c 6.8 % (collected 2026-08-23)",
+        "kind": "numerator",
+        "evidence_type": "hba1c"
+      }
+    ],
+    "optional": [],
+    "traps": [
+      "Fasting glucose 138 mg/dL",
+      "Goal A1c below 7 %"
+    ],
+    "note": "engine gap from the 20-patient upload"
+  },
+  {
+    "gap_id": "d2ed3fe3-a8fd-0573-375b-ee1b61baea67:BCS-E",
+    "patient_id": "d2ed3fe3-a8fd-0573-375b-ee1b61baea67",
+    "synthea_patient_id": "d2ed3fe3-a8fd-0573-375b-ee1b61baea67",
+    "measure_code": "BCS-E",
+    "expected_status": "Closed",
+    "find": [
+      {
+        "doc": "SD-116",
+        "quote": "Bilateral screening mammogram 01/15/2026: BI-RADS 1, negative.",
+        "kind": "numerator",
+        "evidence_type": "mammogram"
+      }
+    ],
+    "optional": [],
+    "traps": [
+      "Breast ultrasound only if new symptoms.",
+      "Next screening due 2027."
+    ],
+    "note": "engine gap from the 20-patient upload"
+  },
+  {
+    "gap_id": "d92be79e-db7b-ff9c-957c-6a65bc9cc59a:BCS-E",
+    "patient_id": "d92be79e-db7b-ff9c-957c-6a65bc9cc59a",
+    "synthea_patient_id": "d92be79e-db7b-ff9c-957c-6a65bc9cc59a",
+    "measure_code": "BCS-E",
+    "expected_status": "Open",
+    "find": [],
+    "optional": [],
+    "traps": [
+      "Screening mammogram scheduled for 12/15/2026.",
+      "Please arrive 15 minutes early."
+    ],
+    "note": "engine gap from the 20-patient upload"
+  },
+  {
+    "gap_id": "60ad02fc-fd5d-d2c6-967d-a56d30fc4700:KED",
+    "patient_id": "60ad02fc-fd5d-d2c6-967d-a56d30fc4700",
+    "synthea_patient_id": "60ad02fc-fd5d-d2c6-967d-a56d30fc4700",
+    "measure_code": "KED",
+    "expected_status": "Closed",
+    "find": [
+      {
+        "doc": "SD-118",
+        "quote": "eGFR 74 mL/min/1.73m2 (collected 2026-05-02)",
+        "kind": "numerator",
+        "evidence_type": "egfr"
+      },
+      {
+        "doc": "SD-118",
+        "quote": "Urine albumin/creatinine ratio 18 mg/g (collected 2026-05-04)",
+        "kind": "numerator",
+        "evidence_type": "uacr_ratio"
+      }
+    ],
+    "optional": [],
+    "traps": [
+      "Serum creatinine 1.0 mg/dL"
+    ],
+    "note": "engine gap from the 20-patient upload"
+  },
+  {
+    "gap_id": "fb6cc4a2-9359-1a34-2b36-d282ae37f238:CBP",
+    "patient_id": "fb6cc4a2-9359-1a34-2b36-d282ae37f238",
+    "synthea_patient_id": "fb6cc4a2-9359-1a34-2b36-d282ae37f238",
+    "measure_code": "CBP",
+    "expected_status": "Excluded",
+    "find": [
+      {
+        "doc": "SD-119",
+        "quote": "Started hemodialysis three times weekly on 07/23/2026 for end-stage renal disease.",
+        "kind": "exclusion",
+        "evidence_type": "esrd_or_dialysis"
+      }
+    ],
+    "optional": [],
+    "traps": [
+      "Potassium 5.1 mmol/L."
+    ],
+    "note": "engine gap from the 20-patient upload"
+  },
+  {
+    "gap_id": "fb6cc4a2-9359-1a34-2b36-d282ae37f238:GSD",
+    "patient_id": "fb6cc4a2-9359-1a34-2b36-d282ae37f238",
+    "synthea_patient_id": "fb6cc4a2-9359-1a34-2b36-d282ae37f238",
+    "measure_code": "GSD",
+    "expected_status": "Closed",
+    "find": [
+      {
+        "doc": "SD-120",
+        "quote": "Hemoglobin A1c 7.4 % (collected 2026-06-20)",
+        "kind": "numerator",
+        "evidence_type": "hba1c"
+      }
+    ],
+    "optional": [],
+    "traps": [
+      "Fasting glucose 138 mg/dL",
+      "Goal A1c below 7 %"
+    ],
+    "note": "engine gap from the 20-patient upload"
+  },
+  {
+    "gap_id": "d2ed3fe3-a8fd-0573-375b-ee1b61baea67:EED",
+    "patient_id": "d2ed3fe3-a8fd-0573-375b-ee1b61baea67",
+    "synthea_patient_id": "d2ed3fe3-a8fd-0573-375b-ee1b61baea67",
+    "measure_code": "EED",
+    "expected_status": "Closed",
+    "find": [
+      {
+        "doc": "SD-121",
+        "quote": "Dilated fundus exam both eyes on 09/10/2026: no diabetic retinopathy.",
+        "kind": "numerator",
+        "evidence_type": "retinal_or_dilated_eye_exam"
+      }
+    ],
+    "optional": [],
+    "traps": [
+      "Mild cataract both eyes.",
+      "Return in 12 months."
+    ],
+    "note": "engine gap from the 20-patient upload"
+  },
+  {
+    "gap_id": "b365aff7-e7eb-3a2e-8ed5-5e12463dae02:EED",
+    "patient_id": "b365aff7-e7eb-3a2e-8ed5-5e12463dae02",
+    "synthea_patient_id": "b365aff7-e7eb-3a2e-8ed5-5e12463dae02",
+    "measure_code": "EED",
+    "expected_status": "Open",
+    "find": [],
+    "optional": [],
+    "traps": [
+      "Referred to ophthalmology for diabetic eye exam.",
+      "Patient reports blurry vision when reading."
+    ],
+    "note": "engine gap from the 20-patient upload"
+  },
+  {
+    "gap_id": "f6bad05f-3ef4-1cef-6ca8-aa6e61c3f6a4:BCS-E",
+    "patient_id": "f6bad05f-3ef4-1cef-6ca8-aa6e61c3f6a4",
+    "synthea_patient_id": "f6bad05f-3ef4-1cef-6ca8-aa6e61c3f6a4",
+    "measure_code": "BCS-E",
+    "expected_status": "Closed",
+    "find": [
+      {
+        "doc": "SD-123",
+        "quote": "Bilateral screening mammogram 11/02/2024: BI-RADS 1, negative.",
+        "kind": "numerator",
+        "evidence_type": "mammogram"
+      }
+    ],
+    "optional": [],
+    "traps": [
+      "Breast ultrasound only if new symptoms.",
+      "Next screening due 2025."
+    ],
+    "note": "engine gap from the 20-patient upload"
+  },
+  {
+    "gap_id": "60ad02fc-fd5d-d2c6-967d-a56d30fc4700:COL-E",
+    "patient_id": "60ad02fc-fd5d-d2c6-967d-a56d30fc4700",
+    "synthea_patient_id": "60ad02fc-fd5d-d2c6-967d-a56d30fc4700",
+    "measure_code": "COL-E",
+    "expected_status": "Excluded",
+    "find": [
+      {
+        "doc": "SD-124",
+        "quote": "Uses a walker, two falls this year.",
+        "kind": "exclusion",
+        "evidence_type": "frailty_and_advanced_illness_age_66_plus"
+      },
+      {
+        "doc": "SD-124",
+        "quote": "Advanced Alzheimer dementia, on donepezil.",
+        "kind": "exclusion",
+        "evidence_type": "frailty_and_advanced_illness_age_66_plus"
+      }
+    ],
+    "optional": [],
+    "traps": [
+      "A1c ordered today.",
+      "Flu vaccine given."
+    ],
+    "note": "engine gap from the 20-patient upload"
+  },
+  {
+    "gap_id": "8f9bcce4-716e-43b6-a7c3-ba01d7ec788e:EED",
+    "patient_id": "8f9bcce4-716e-43b6-a7c3-ba01d7ec788e",
+    "synthea_patient_id": "8f9bcce4-716e-43b6-a7c3-ba01d7ec788e",
+    "measure_code": "EED",
+    "expected_status": "Closed",
+    "find": [
+      {
+        "doc": "SD-125",
+        "quote": "Dilated fundus exam both eyes on 04/20/2026: no diabetic retinopathy.",
+        "kind": "numerator",
+        "evidence_type": "retinal_or_dilated_eye_exam"
+      }
+    ],
+    "optional": [],
+    "traps": [
+      "Mild cataract both eyes.",
+      "Return in 12 months."
+    ],
+    "note": "engine gap from the 20-patient upload"
+  },
+  {
+    "gap_id": "b365aff7-e7eb-3a2e-8ed5-5e12463dae02:BCS-E",
+    "patient_id": "b365aff7-e7eb-3a2e-8ed5-5e12463dae02",
+    "synthea_patient_id": "b365aff7-e7eb-3a2e-8ed5-5e12463dae02",
+    "measure_code": "BCS-E",
+    "expected_status": "Closed",
+    "find": [
+      {
+        "doc": "SD-126",
+        "quote": "Bilateral screening mammogram 04/02/2026: BI-RADS 1, negative.",
+        "kind": "numerator",
+        "evidence_type": "mammogram"
+      }
+    ],
+    "optional": [],
+    "traps": [
+      "Breast ultrasound only if new symptoms.",
+      "Next screening due 2027."
+    ],
+    "note": "engine gap from the 20-patient upload"
+  },
+  {
+    "gap_id": "f6bad05f-3ef4-1cef-6ca8-aa6e61c3f6a4:COL-E",
+    "patient_id": "f6bad05f-3ef4-1cef-6ca8-aa6e61c3f6a4",
+    "synthea_patient_id": "f6bad05f-3ef4-1cef-6ca8-aa6e61c3f6a4",
+    "measure_code": "COL-E",
+    "expected_status": "Open",
+    "find": [],
+    "optional": [],
+    "traps": [
+      "Colonoscopy recommended; patient will schedule with GI.",
+      "Mother had colon polyps."
+    ],
+    "note": "engine gap from the 20-patient upload"
+  },
+  {
+    "gap_id": "fb6cc4a2-9359-1a34-2b36-d282ae37f238:KED",
+    "patient_id": "fb6cc4a2-9359-1a34-2b36-d282ae37f238",
+    "synthea_patient_id": "fb6cc4a2-9359-1a34-2b36-d282ae37f238",
+    "measure_code": "KED",
+    "expected_status": "Closed",
+    "find": [
+      {
+        "doc": "SD-128",
+        "quote": "eGFR 74 mL/min/1.73m2 (collected 2026-08-14)",
+        "kind": "numerator",
+        "evidence_type": "egfr"
+      },
+      {
+        "doc": "SD-128",
+        "quote": "Urine albumin/creatinine ratio 18 mg/g (collected 2026-08-16)",
+        "kind": "numerator",
+        "evidence_type": "uacr_ratio"
+      }
+    ],
+    "optional": [],
+    "traps": [
+      "Serum creatinine 1.0 mg/dL"
+    ],
+    "note": "engine gap from the 20-patient upload"
+  },
+  {
+    "gap_id": "3047cfe9-7318-6e20-121d-eae70dae2d47:CBP",
+    "patient_id": "3047cfe9-7318-6e20-121d-eae70dae2d47",
+    "synthea_patient_id": "3047cfe9-7318-6e20-121d-eae70dae2d47",
+    "measure_code": "CBP",
+    "expected_status": "Excluded",
+    "find": [
+      {
+        "doc": "SD-129",
+        "quote": "Started hemodialysis three times weekly on 09/22/2026 for end-stage renal disease.",
+        "kind": "exclusion",
+        "evidence_type": "esrd_or_dialysis"
+      }
+    ],
+    "optional": [],
+    "traps": [
+      "Potassium 5.1 mmol/L."
+    ],
+    "note": "engine gap from the 20-patient upload"
+  },
+  {
+    "gap_id": "a7b67843-2233-8c95-6313-021c1f411dcf:COL-E",
+    "patient_id": "a7b67843-2233-8c95-6313-021c1f411dcf",
+    "synthea_patient_id": "a7b67843-2233-8c95-6313-021c1f411dcf",
+    "measure_code": "COL-E",
+    "expected_status": "Closed",
+    "find": [
+      {
+        "doc": "SD-201",
+        "quote": "Colonoscopy completed 02/09/2018, cecum reached, no polyps.",
+        "kind": "numerator",
+        "evidence_type": "colonoscopy"
+      }
+    ],
+    "optional": [],
+    "traps": [
+      "Father had colon cancer at 68.",
+      "Repeat colonoscopy in 2028."
+    ],
+    "note": "4-patient HEDIS test cohort"
+  },
+  {
+    "gap_id": "a7b67843-2233-8c95-6313-021c1f411dcf:BCS-E",
+    "patient_id": "a7b67843-2233-8c95-6313-021c1f411dcf",
+    "synthea_patient_id": "a7b67843-2233-8c95-6313-021c1f411dcf",
+    "measure_code": "BCS-E",
+    "expected_status": "Closed",
+    "find": [
+      {
+        "doc": "SD-202",
+        "quote": "Bilateral screening mammogram 07/17/2025: BI-RADS 1, negative.",
+        "kind": "numerator",
+        "evidence_type": "mammogram"
+      }
+    ],
+    "optional": [],
+    "traps": [
+      "Breast ultrasound only if new symptoms.",
+      "Next screening due 2026."
+    ],
+    "note": "4-patient HEDIS test cohort"
+  },
+  {
+    "gap_id": "a7b67843-2233-8c95-6313-021c1f411dcf:GSD",
+    "patient_id": "a7b67843-2233-8c95-6313-021c1f411dcf",
+    "synthea_patient_id": "a7b67843-2233-8c95-6313-021c1f411dcf",
+    "measure_code": "GSD",
+    "expected_status": "Closed",
+    "find": [
+      {
+        "doc": "SD-203",
+        "quote": "Hemoglobin A1c 6.5 % (collected 2026-09-04)",
+        "kind": "numerator",
+        "evidence_type": "hba1c"
+      }
+    ],
+    "optional": [],
+    "traps": [
+      "Fasting glucose 138 mg/dL",
+      "Goal A1c below 7 %"
+    ],
+    "note": "4-patient HEDIS test cohort"
+  },
+  {
+    "gap_id": "a7b67843-2233-8c95-6313-021c1f411dcf:KED",
+    "patient_id": "a7b67843-2233-8c95-6313-021c1f411dcf",
+    "synthea_patient_id": "a7b67843-2233-8c95-6313-021c1f411dcf",
+    "measure_code": "KED",
+    "expected_status": "Closed",
+    "find": [
+      {
+        "doc": "SD-204",
+        "quote": "eGFR 74 mL/min/1.73m2 (collected 2026-02-26)",
+        "kind": "numerator",
+        "evidence_type": "egfr"
+      },
+      {
+        "doc": "SD-204",
+        "quote": "Urine albumin/creatinine ratio 18 mg/g (collected 2026-02-28)",
+        "kind": "numerator",
+        "evidence_type": "uacr_ratio"
+      }
+    ],
+    "optional": [],
+    "traps": [
+      "Serum creatinine 1.0 mg/dL"
+    ],
+    "note": "4-patient HEDIS test cohort"
+  },
+  {
+    "gap_id": "a7b67843-2233-8c95-6313-021c1f411dcf:CBP",
+    "patient_id": "a7b67843-2233-8c95-6313-021c1f411dcf",
+    "synthea_patient_id": "a7b67843-2233-8c95-6313-021c1f411dcf",
+    "measure_code": "CBP",
+    "expected_status": "Open",
+    "find": [],
+    "optional": [],
+    "traps": [
+      "BP 148/94 on 09/26/2026, recheck advised.",
+      "Seen for cough."
+    ],
+    "note": "4-patient HEDIS test cohort"
+  },
+  {
+    "gap_id": "a7b67843-2233-8c95-6313-021c1f411dcf:SPD",
+    "patient_id": "a7b67843-2233-8c95-6313-021c1f411dcf",
+    "synthea_patient_id": "a7b67843-2233-8c95-6313-021c1f411dcf",
+    "measure_code": "SPD",
+    "expected_status": "Excluded",
+    "find": [
+      {
+        "doc": "SD-206",
+        "quote": "Atorvastatin stopped on 05/10/2026 because of statin-related muscle pain (myalgia).",
+        "kind": "exclusion",
+        "evidence_type": "statin_muscle_symptoms"
+      }
+    ],
+    "optional": [],
+    "traps": [
+      "Cholesterol recheck in 3 months."
+    ],
+    "note": "4-patient HEDIS test cohort"
+  },
+  {
+    "gap_id": "c671f965-cc67-70e0-e6a9-2413b9a847c5:COL-E",
+    "patient_id": "c671f965-cc67-70e0-e6a9-2413b9a847c5",
+    "synthea_patient_id": "c671f965-cc67-70e0-e6a9-2413b9a847c5",
+    "measure_code": "COL-E",
+    "expected_status": "Open",
+    "find": [],
+    "optional": [],
+    "traps": [
+      "Colonoscopy recommended; patient will schedule with GI.",
+      "Mother had colon polyps."
+    ],
+    "note": "4-patient HEDIS test cohort"
+  },
+  {
+    "gap_id": "c671f965-cc67-70e0-e6a9-2413b9a847c5:BCS-E",
+    "patient_id": "c671f965-cc67-70e0-e6a9-2413b9a847c5",
+    "synthea_patient_id": "c671f965-cc67-70e0-e6a9-2413b9a847c5",
+    "measure_code": "BCS-E",
+    "expected_status": "Closed",
+    "find": [
+      {
+        "doc": "SD-208",
+        "quote": "Bilateral screening mammogram 08/10/2026: BI-RADS 1, negative.",
+        "kind": "numerator",
+        "evidence_type": "mammogram"
+      }
+    ],
+    "optional": [],
+    "traps": [
+      "Breast ultrasound only if new symptoms.",
+      "Next screening due 2027."
+    ],
+    "note": "4-patient HEDIS test cohort"
+  },
+  {
+    "gap_id": "c671f965-cc67-70e0-e6a9-2413b9a847c5:GSD",
+    "patient_id": "c671f965-cc67-70e0-e6a9-2413b9a847c5",
+    "synthea_patient_id": "c671f965-cc67-70e0-e6a9-2413b9a847c5",
+    "measure_code": "GSD",
+    "expected_status": "Closed",
+    "find": [
+      {
+        "doc": "SD-209",
+        "quote": "Hemoglobin A1c 7.1 % (collected 2026-08-29)",
+        "kind": "numerator",
+        "evidence_type": "hba1c"
+      }
+    ],
+    "optional": [],
+    "traps": [
+      "Fasting glucose 138 mg/dL",
+      "Goal A1c below 7 %"
+    ],
+    "note": "4-patient HEDIS test cohort"
+  },
+  {
+    "gap_id": "c671f965-cc67-70e0-e6a9-2413b9a847c5:KED",
+    "patient_id": "c671f965-cc67-70e0-e6a9-2413b9a847c5",
+    "synthea_patient_id": "c671f965-cc67-70e0-e6a9-2413b9a847c5",
+    "measure_code": "KED",
+    "expected_status": "Closed",
+    "find": [
+      {
+        "doc": "SD-210",
+        "quote": "eGFR 74 mL/min/1.73m2 (collected 2026-08-19)",
+        "kind": "numerator",
+        "evidence_type": "egfr"
+      },
+      {
+        "doc": "SD-210",
+        "quote": "Urine albumin/creatinine ratio 18 mg/g (collected 2026-08-21)",
+        "kind": "numerator",
+        "evidence_type": "uacr_ratio"
+      }
+    ],
+    "optional": [],
+    "traps": [
+      "Serum creatinine 1.0 mg/dL"
+    ],
+    "note": "4-patient HEDIS test cohort"
+  },
+  {
+    "gap_id": "c671f965-cc67-70e0-e6a9-2413b9a847c5:CBP",
+    "patient_id": "c671f965-cc67-70e0-e6a9-2413b9a847c5",
+    "synthea_patient_id": "c671f965-cc67-70e0-e6a9-2413b9a847c5",
+    "measure_code": "CBP",
+    "expected_status": "Closed",
+    "find": [
+      {
+        "doc": "SD-211",
+        "quote": "BP 128/78 at rest on 08/19/2026.",
+        "kind": "numerator",
+        "evidence_type": "blood_pressure_reading"
+      }
+    ],
+    "optional": [],
+    "traps": [
+      "Reports home readings in the 130s.",
+      "Seen for ankle sprain."
+    ],
+    "note": "4-patient HEDIS test cohort"
+  },
+  {
+    "gap_id": "c671f965-cc67-70e0-e6a9-2413b9a847c5:SPD",
+    "patient_id": "c671f965-cc67-70e0-e6a9-2413b9a847c5",
+    "synthea_patient_id": "c671f965-cc67-70e0-e6a9-2413b9a847c5",
+    "measure_code": "SPD",
+    "expected_status": "Open",
+    "find": [],
+    "optional": [],
+    "traps": [
+      "Statin therapy discussed; patient will think about it.",
+      "Diet and exercise advice given."
+    ],
+    "note": "4-patient HEDIS test cohort"
+  },
+  {
+    "gap_id": "f6eb5506-b878-a63d-c27f-b768bd0e3204:COL-E",
+    "patient_id": "f6eb5506-b878-a63d-c27f-b768bd0e3204",
+    "synthea_patient_id": "f6eb5506-b878-a63d-c27f-b768bd0e3204",
+    "measure_code": "COL-E",
+    "expected_status": "Excluded",
+    "find": [
+      {
+        "doc": "SD-213",
+        "quote": "Uses a walker, two falls this year.",
+        "kind": "exclusion",
+        "evidence_type": "frailty_and_advanced_illness_age_66_plus"
+      },
+      {
+        "doc": "SD-213",
+        "quote": "Advanced Alzheimer dementia, on donepezil.",
+        "kind": "exclusion",
+        "evidence_type": "frailty_and_advanced_illness_age_66_plus"
+      }
+    ],
+    "optional": [],
+    "traps": [
+      "A1c ordered today.",
+      "Flu vaccine given."
+    ],
+    "note": "4-patient HEDIS test cohort"
+  },
+  {
+    "gap_id": "f6eb5506-b878-a63d-c27f-b768bd0e3204:BCS-E",
+    "patient_id": "f6eb5506-b878-a63d-c27f-b768bd0e3204",
+    "synthea_patient_id": "f6eb5506-b878-a63d-c27f-b768bd0e3204",
+    "measure_code": "BCS-E",
+    "expected_status": "Closed",
+    "find": [
+      {
+        "doc": "SD-214",
+        "quote": "Bilateral screening mammogram 07/06/2026: BI-RADS 1, negative.",
+        "kind": "numerator",
+        "evidence_type": "mammogram"
+      }
+    ],
+    "optional": [],
+    "traps": [
+      "Breast ultrasound only if new symptoms.",
+      "Next screening due 2027."
+    ],
+    "note": "4-patient HEDIS test cohort"
+  },
+  {
+    "gap_id": "f6eb5506-b878-a63d-c27f-b768bd0e3204:GSD",
+    "patient_id": "f6eb5506-b878-a63d-c27f-b768bd0e3204",
+    "synthea_patient_id": "f6eb5506-b878-a63d-c27f-b768bd0e3204",
+    "measure_code": "GSD",
+    "expected_status": "Closed",
+    "find": [
+      {
+        "doc": "SD-215",
+        "quote": "Hemoglobin A1c 7.1 % (collected 2026-04-08)",
+        "kind": "numerator",
+        "evidence_type": "hba1c"
+      }
+    ],
+    "optional": [],
+    "traps": [
+      "Fasting glucose 138 mg/dL",
+      "Goal A1c below 7 %"
+    ],
+    "note": "4-patient HEDIS test cohort"
+  },
+  {
+    "gap_id": "f6eb5506-b878-a63d-c27f-b768bd0e3204:KED",
+    "patient_id": "f6eb5506-b878-a63d-c27f-b768bd0e3204",
+    "synthea_patient_id": "f6eb5506-b878-a63d-c27f-b768bd0e3204",
+    "measure_code": "KED",
+    "expected_status": "Open",
+    "find": [],
+    "optional": [],
+    "traps": [
+      "eGFR 71 mL/min/1.73m2 (collected 2025-11-03)",
+      "Urine albumin test ordered, not collected."
+    ],
+    "note": "4-patient HEDIS test cohort"
+  },
+  {
+    "gap_id": "f6eb5506-b878-a63d-c27f-b768bd0e3204:CBP",
+    "patient_id": "f6eb5506-b878-a63d-c27f-b768bd0e3204",
+    "synthea_patient_id": "f6eb5506-b878-a63d-c27f-b768bd0e3204",
+    "measure_code": "CBP",
+    "expected_status": "Closed",
+    "find": [
+      {
+        "doc": "SD-217",
+        "quote": "BP 128/78 at rest on 07/12/2026.",
+        "kind": "numerator",
+        "evidence_type": "blood_pressure_reading"
+      }
+    ],
+    "optional": [],
+    "traps": [
+      "Reports home readings in the 130s.",
+      "Seen for ankle sprain."
+    ],
+    "note": "4-patient HEDIS test cohort"
+  },
+  {
+    "gap_id": "f6eb5506-b878-a63d-c27f-b768bd0e3204:SPD",
+    "patient_id": "f6eb5506-b878-a63d-c27f-b768bd0e3204",
+    "synthea_patient_id": "f6eb5506-b878-a63d-c27f-b768bd0e3204",
+    "measure_code": "SPD",
+    "expected_status": "Excluded",
+    "find": [
+      {
+        "doc": "SD-218",
+        "quote": "Atorvastatin stopped on 09/18/2026 because of statin-related muscle pain (myalgia).",
+        "kind": "exclusion",
+        "evidence_type": "statin_muscle_symptoms"
+      }
+    ],
+    "optional": [],
+    "traps": [
+      "Cholesterol recheck in 3 months."
+    ],
+    "note": "4-patient HEDIS test cohort"
+  },
+  {
+    "gap_id": "4df444d6-d57a-8a1e-4e28-7d6d3c53daf3:COL-E",
+    "patient_id": "4df444d6-d57a-8a1e-4e28-7d6d3c53daf3",
+    "synthea_patient_id": "4df444d6-d57a-8a1e-4e28-7d6d3c53daf3",
+    "measure_code": "COL-E",
+    "expected_status": "Closed",
+    "find": [
+      {
+        "doc": "SD-219",
+        "quote": "Colonoscopy completed 04/20/2025, cecum reached, no polyps.",
+        "kind": "numerator",
+        "evidence_type": "colonoscopy"
+      }
+    ],
+    "optional": [],
+    "traps": [
+      "Father had colon cancer at 68.",
+      "Repeat colonoscopy in 2035."
+    ],
+    "note": "4-patient HEDIS test cohort"
+  },
+  {
+    "gap_id": "4df444d6-d57a-8a1e-4e28-7d6d3c53daf3:GSD",
+    "patient_id": "4df444d6-d57a-8a1e-4e28-7d6d3c53daf3",
+    "synthea_patient_id": "4df444d6-d57a-8a1e-4e28-7d6d3c53daf3",
+    "measure_code": "GSD",
+    "expected_status": "Open",
+    "find": [],
+    "optional": [],
+    "traps": [
+      "Hemoglobin A1c ordered, result pending.",
+      "Fasting not required."
+    ],
+    "note": "4-patient HEDIS test cohort"
+  },
+  {
+    "gap_id": "4df444d6-d57a-8a1e-4e28-7d6d3c53daf3:KED",
+    "patient_id": "4df444d6-d57a-8a1e-4e28-7d6d3c53daf3",
+    "synthea_patient_id": "4df444d6-d57a-8a1e-4e28-7d6d3c53daf3",
+    "measure_code": "KED",
+    "expected_status": "Closed",
+    "find": [
+      {
+        "doc": "SD-221",
+        "quote": "eGFR 74 mL/min/1.73m2 (collected 2026-04-28)",
+        "kind": "numerator",
+        "evidence_type": "egfr"
+      },
+      {
+        "doc": "SD-221",
+        "quote": "Urine albumin/creatinine ratio 18 mg/g (collected 2026-04-30)",
+        "kind": "numerator",
+        "evidence_type": "uacr_ratio"
+      }
+    ],
+    "optional": [],
+    "traps": [
+      "Serum creatinine 1.0 mg/dL"
+    ],
+    "note": "4-patient HEDIS test cohort"
+  },
+  {
+    "gap_id": "4df444d6-d57a-8a1e-4e28-7d6d3c53daf3:CBP",
+    "patient_id": "4df444d6-d57a-8a1e-4e28-7d6d3c53daf3",
+    "synthea_patient_id": "4df444d6-d57a-8a1e-4e28-7d6d3c53daf3",
+    "measure_code": "CBP",
+    "expected_status": "Excluded",
+    "find": [
+      {
+        "doc": "SD-222",
+        "quote": "Uses a walker, two falls this year.",
+        "kind": "exclusion",
+        "evidence_type": "frailty_age_66_80_with_advanced_illness_or_age_81_plus_frailty_alone"
+      },
+      {
+        "doc": "SD-222",
+        "quote": "Advanced Alzheimer dementia, on donepezil.",
+        "kind": "exclusion",
+        "evidence_type": "frailty_age_66_80_with_advanced_illness_or_age_81_plus_frailty_alone"
+      }
+    ],
+    "optional": [],
+    "traps": [
+      "A1c ordered today.",
+      "Flu vaccine given."
+    ],
+    "note": "4-patient HEDIS test cohort"
+  },
+  {
+    "gap_id": "4df444d6-d57a-8a1e-4e28-7d6d3c53daf3:SPD",
+    "patient_id": "4df444d6-d57a-8a1e-4e28-7d6d3c53daf3",
+    "synthea_patient_id": "4df444d6-d57a-8a1e-4e28-7d6d3c53daf3",
+    "measure_code": "SPD",
+    "expected_status": "Excluded",
+    "find": [
+      {
+        "doc": "SD-223",
+        "quote": "Atorvastatin stopped on 06/11/2026 because of statin-related muscle pain (myalgia).",
+        "kind": "exclusion",
+        "evidence_type": "statin_muscle_symptoms"
+      }
+    ],
+    "optional": [],
+    "traps": [
+      "Cholesterol recheck in 3 months."
+    ],
+    "note": "4-patient HEDIS test cohort"
+  }
+]

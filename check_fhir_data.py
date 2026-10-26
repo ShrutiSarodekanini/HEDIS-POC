@@ -1,8 +1,8 @@
 #!/usr/bin/env python
 """Check FHIR resources to see if patient data is being generated."""
 import json
-from services.data_ingestion.app.db import session_scope
-from services.data_ingestion.app.models import FhirResource
+from services.data_ingestion_pallavi.app.db import session_scope
+from services.data_ingestion_pallavi.app.models import FhirResource
 
 with session_scope() as session:
     # Get first 3 Patient resources

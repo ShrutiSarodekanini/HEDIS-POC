@@ -2,8 +2,10 @@
 
 Reads only the rows the ingestion service's persist stage approved (fhir_resources with persisted = true and
 lifecycle_status other than 'rejected'), and writes, in the caller's transaction: source_batch (one row),
-fhir_resource_raw (every approved resource) and patient, coverage, encounter, condition, observation and procedure.
-All of it is set-based SQL over the stored JSON, so no resource passes through Python.
+fhir_resource_raw (every approved resource), patient, coverage, encounter, condition, observation, procedure,
+medication_request and immunization. The batch's feed_completeness_report is written by the data quality checks
+(services/integration/pallavi.py), which run next. All of it is set-based SQL over the stored JSON, so no resource
+passes through Python.
 
 The ingestion mapping produces no Organization or Practitioner resources and no organization on encounters, so
 organization and practitioner stay empty and no patient has an attributed practice. Nothing is invented for them.
@@ -123,6 +125,33 @@ SELECT r.resource_id, p.patient_id, e.encounter_id, r.resource_json->>'status', 
 ON CONFLICT (procedure_id) DO NOTHING
 """
 
+_MEDICATIONS = f"""
+INSERT INTO medication_request (medication_request_id, patient_id, encounter_id, status, intent, medication_code,
+                                authored_on, batch_id)
+SELECT r.resource_id, p.patient_id, e.encounter_id, r.resource_json->>'status', r.resource_json->>'intent',
+       r.resource_json->'medicationCodeableConcept'->'coding'->0->>'code',
+       (r.resource_json->>'authoredOn')::timestamptz, %(batch)s
+  FROM fhir_resources r
+  JOIN patient p ON p.patient_id = split_part(r.resource_json->'subject'->>'reference', '/', 2)
+  LEFT JOIN encounter e ON e.encounter_id = {_ENCOUNTER_REF}
+ WHERE {_APPROVED} AND r.resource_type = 'MedicationRequest'
+ON CONFLICT (medication_request_id) DO NOTHING
+"""
+
+# Immunization points to its patient with "patient", not "subject"; the mapping gives it no encounter.
+_IMMUNIZATIONS = f"""
+INSERT INTO immunization (immunization_id, patient_id, encounter_id, status, vaccine_code, occurrence_datetime,
+                          batch_id)
+SELECT r.resource_id, p.patient_id, e.encounter_id, r.resource_json->>'status',
+       r.resource_json->'vaccineCode'->'coding'->0->>'code', (r.resource_json->>'occurrenceDateTime')::timestamptz,
+       %(batch)s
+  FROM fhir_resources r
+  JOIN patient p ON p.patient_id = split_part(r.resource_json->'patient'->>'reference', '/', 2)
+  LEFT JOIN encounter e ON e.encounter_id = {_ENCOUNTER_REF}
+ WHERE {_APPROVED} AND r.resource_type = 'Immunization'
+ON CONFLICT (immunization_id) DO NOTHING
+"""
+
 # Attributed practice: the organization on most of the patient's encounters (none while the mapping has none).
 _ATTRIBUTION = """
 SELECT e.patient_id, mode() WITHIN GROUP (ORDER BY e.organization_id)
@@ -132,7 +161,8 @@ SELECT e.patient_id, mode() WITHIN GROUP (ORDER BY e.organization_id)
 """
 
 _STEPS = (("fhir_resource_raw", _RAW), ("patient", _PATIENTS), ("coverage", _COVERAGE), ("encounter", _ENCOUNTERS),
-          ("condition", _CONDITIONS), ("observation", _OBSERVATIONS), ("procedure", _PROCEDURES))
+          ("condition", _CONDITIONS), ("observation", _OBSERVATIONS), ("procedure", _PROCEDURES),
+          ("medication_request", _MEDICATIONS), ("immunization", _IMMUNIZATIONS))
 
 
 @dataclass(frozen=True)
@@ -156,15 +186,21 @@ def load_job(conn: psycopg.Connection, job_id: str, batch_id: UUID) -> LoadResul
     inserted: dict[str, int] = {}
     for table, sql in _STEPS:
         inserted[table] = conn.execute(sql, params).rowcount
-    patient_ids = tuple(r[0] for r in conn.execute(
-        f"""SELECT p.patient_id FROM patient p
-             WHERE p.patient_id IN (SELECT r.resource_id FROM fhir_resources r
-                                     WHERE {_APPROVED} AND r.resource_type = 'Patient')
-             ORDER BY p.patient_id""", params).fetchall())
-    attributed: dict[str, str | None] = dict.fromkeys(patient_ids)
-    attributed.update(dict(conn.execute(_ATTRIBUTION, {"patients": list(patient_ids)}).fetchall()))
+    patient_ids, attributed = job_patients(conn, job_id)
     conn.execute(
         """UPDATE source_batch SET resource_count = (SELECT count(*) FROM fhir_resource_raw WHERE batch_id = %(batch)s)
             WHERE batch_id = %(batch)s""", params)
     log.info("job %s loaded into batch %s: %s", job_id, batch_id, inserted)
     return LoadResult(batch_id, patient_ids, attributed, inserted, types)
+
+
+def job_patients(conn: psycopg.Connection, job_id: str) -> tuple[tuple[str, ...], dict[str, str | None]]:
+    """The job's approved patients already in the patient table, and each one's attributed practice."""
+    patient_ids = tuple(r[0] for r in conn.execute(
+        f"""SELECT p.patient_id FROM patient p
+             WHERE p.patient_id IN (SELECT r.resource_id FROM fhir_resources r
+                                     WHERE {_APPROVED} AND r.resource_type = 'Patient')
+             ORDER BY p.patient_id""", {"job": job_id}).fetchall())
+    attributed: dict[str, str | None] = dict.fromkeys(patient_ids)
+    attributed.update(dict(conn.execute(_ATTRIBUTION, {"patients": list(patient_ids)}).fetchall()))
+    return patient_ids, attributed

@@ -21,7 +21,7 @@ You find evidence in clinical documents for a HEDIS care gap. A trained person r
 Answer with JSON only, in this shape:
 {"findings": [{"document_id": string, "page_no": integer, "excerpt": string,
   "evidence_kind": "numerator" or "exclusion", "evidence_type": string, "service_date": string,
-  "value": string, "confidence": number, "reason": string}]}
+  "value": string, "confidence": number, "reason": string, "part": string}]}
 Rules:
 - Return only evidence about this patient. Ignore family history.
 - Only completed care counts. Ignore planned, recommended, ordered, due or declined care.
@@ -38,7 +38,13 @@ Rules:
 - "service_date" is when the care happened, as YYYY, YYYY-MM or YYYY-MM-DD. Use the date in the excerpt; if the
   excerpt has no date, use the document date from the page label.
 - "value" is the result or reading as written, for example "132/78"; use "" when there is none.
-- "confidence" is a number from 0 to 1. "reason" says in one sentence why the excerpt qualifies.
+- "confidence" is a number from 0 to 1.
+- "reason" is 2 to 4 plain sentences: what the document says, why it meets (or excludes the member from) this
+  measure's rule, and any line nearby that looks relevant but does not count (a trap), naming it. Do not guess
+  beyond what the page says.
+- Frailty exclusions need two findings: a frailty finding and an advanced illness finding. For those, set
+  "evidence_type" to the exclusion's name and "part" to "frailty" or "advanced_illness". For every other finding
+  use "part": "".
 - If nothing qualifies, return {"findings": []}."""
 
 #: Where each prompt_template placeholder comes from: ("gap", name) is worked out from the gap,

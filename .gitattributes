@@ -1,2 +1,4 @@
 # Seed data must keep its exact bytes: document hashes and ground-truth text depend on them.
 data/seed/** -text
+data/evidence_store/** -text
+data/test_uploads/** -text

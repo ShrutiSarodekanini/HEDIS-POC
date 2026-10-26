@@ -7,6 +7,11 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
 <link rel="stylesheet" href="/assets/styles.css">
+<link rel="stylesheet" href="/assets/tabs.css">
+<link rel="stylesheet" href="/assets/tab-ingestion.css">
+<link rel="stylesheet" href="/assets/tab-calculation.css">
+<link rel="stylesheet" href="/assets/tab-quality.css">
+<link rel="stylesheet" href="/assets/tab-stars.css">
 </head>
 <body>
 <header class="topbar">
@@ -19,14 +24,104 @@
 
 <div class="shell">
   <nav class="sidebar" aria-label="Main">
-    <span class="nav-item disabled" title="Not part of this screen set yet"><span class="nav-icon">▦</span>Dashboard</span>
-    <span class="nav-item disabled" title="Not part of this screen set yet"><span class="nav-icon">⤓</span>Run Ingestion</span>
-    <span class="nav-item disabled" title="Not part of this screen set yet"><span class="nav-icon">◎</span>Run Gap Calculation</span>
+    <a class="nav-item" href="#dashboard" data-view="dashboard"><span class="nav-icon">▦</span>Dashboard</a>
+    <a class="nav-item" href="#ingestion" data-view="ingestion"><span class="nav-icon">⤓</span>Data Ingestion</a>
+    <a class="nav-item" href="#calculation" data-view="calculation"><span class="nav-icon">◎</span>HEDIS Calculation</a>
+    <a class="nav-item" href="#quality" data-view="quality"><span class="nav-icon">✓</span>Data Quality</a>
+    <a class="nav-item" href="#stars" data-view="stars"><span class="nav-icon">★</span>Star Rating</a>
     <a class="nav-item" href="#prioritization" data-view="prioritization"><span class="nav-icon">≡</span>Prioritization</a>
     <a class="nav-item" href="#evidence" data-view="evidence"><span class="nav-icon">▤</span>Evidence Review</a>
   </nav>
 
   <main class="main">
+    <!-- Dashboard -->
+    <section id="view-dashboard" class="view" hidden>
+      <div class="page-head">
+        <div>
+          <h1>Dashboard</h1>
+          <p class="sub">Where each measure stands today, and what the latest batch produced</p>
+        </div>
+      </div>
+      <div class="kpis" id="kpis"></div>
+      <article class="card">
+        <div class="card-head">
+          <h2>Measures and star position</h2>
+          <span class="muted small" id="star-year"></span>
+        </div>
+        <div class="measure-grid" id="measure-cards"></div>
+        <p class="note small">Projected: the rate and stars once the closures and exclusions a reviewer confirmed are
+          counted by the next engine run.</p>
+      </article>
+      <article class="card">
+        <div class="card-head">
+          <h2>Latest batch across the screens</h2>
+          <a class="link" href="#ingestion">Open Data Ingestion</a>
+        </div>
+        <div id="dash-flow"></div>
+      </article>
+    </section>
+
+    <!-- Data Ingestion (screen in ingestion.js) -->
+    <section id="view-ingestion" class="view" hidden>
+      <div class="page-head">
+        <div>
+          <h1>Data Ingestion</h1>
+          <p class="sub">Upload Synthea CSV files, convert them to FHIR and persist them; our steps then run on their own</p>
+        </div>
+        <span class="layer">LAYER 1 OF 8</span>
+      </div>
+      <div id="ingestion-root" class="view-root"></div>
+      <article class="card" id="reset-card" hidden>
+        <div class="danger" id="reset-box">
+          <p class="label-strong">Start over</p>
+          <p class="note">Empties every data table in this schema (ingestion jobs, patients, measure results, gaps, scores,
+            documents, AI findings, decisions, data quality results) and keeps the measures, rules, star cut points,
+            organizations and practitioners, so you can ingest the files again and watch every step.</p>
+          <label class="field-label" for="reset-confirm">Type <span class="mono" id="reset-schema"></span> to
+            confirm</label>
+          <input id="reset-confirm" class="input mono" autocomplete="off">
+          <button type="button" class="btn btn-reject" id="reset">Clear data and start over</button>
+          <p class="note small" id="reset-msg" role="status"></p>
+        </div>
+      </article>
+    </section>
+
+    <!-- HEDIS Calculation (calculation.js) -->
+    <section id="view-calculation" class="view" hidden>
+      <div class="page-head">
+        <div>
+          <h1>HEDIS Calculation</h1>
+          <p class="sub">Measure engine results per measure and per patient, and the gaps they opened</p>
+        </div>
+        <span class="layer">LAYER 2 OF 8</span>
+      </div>
+      <div id="calculation-root" class="view-root"></div>
+    </section>
+
+    <!-- Data Quality (quality.js) -->
+    <section id="view-quality" class="view" hidden>
+      <div class="page-head">
+        <div>
+          <h1>Data Quality</h1>
+          <p class="sub">Data quality and anomaly checks on every loaded batch, and the coverage report</p>
+        </div>
+        <span class="layer">LAYER 3 OF 8</span>
+      </div>
+      <div id="quality-root" class="view-root"></div>
+    </section>
+
+    <!-- Star Rating (star results and what-if; stars.js) -->
+    <section id="view-stars" class="view" hidden>
+      <div class="page-head">
+        <div>
+          <h1>Star Rating</h1>
+          <p class="sub">Star calculation and before and after comparison on the measure results</p>
+        </div>
+        <span class="layer">LAYER 4 OF 8</span>
+      </div>
+      <div id="stars-root" class="view-root"></div>
+    </section>
+
     <!-- Prioritization -->
     <section id="view-prioritization" class="view" hidden>
       <div class="page-head">
@@ -75,7 +170,12 @@
             <tbody id="worklist"></tbody>
           </table>
         </div>
-        <p class="note small">Click a row to open its evidence on the Evidence Review screen.</p>
+        <p class="note small">Click a row to see how its score was built below; open it on Evidence Review from there.</p>
+      </article>
+
+      <article class="card" id="prio-panel-card" hidden>
+        <h2>Gap panel</h2>
+        <div id="prio-panel" class="gap-panel"></div>
       </article>
     </section>
 
@@ -98,6 +198,8 @@
           <select id="scope" class="input"></select>
           <button type="button" class="btn btn-primary" id="run-extraction">Run extraction</button>
           <p class="note small" id="run-result" role="status"></p>
+          <p class="label-strong">AI history for this gap</p>
+          <div id="ai-history" class="stack"></div>
           <p class="label-strong">Acceptance rate by model</p>
           <div id="acceptance" class="stack"></div>
         </article>
@@ -113,12 +215,28 @@ CHECK (status IN ('proposed', 'confirmed', 'rejected'))</pre>
             <b>rejected</b> only with a reviewer ID, and a database trigger also requires a matching review decision,
             so the audit trail is structural, not something application code could skip.</p>
           <div class="tiers">
-            <div class="tile tile-medium"><span>PROPOSED</span><b id="n-proposed">–</b></div>
-            <div class="tile tile-high"><span>CONFIRMED</span><b id="n-confirmed">–</b></div>
-            <div class="tile tile-bad"><span>REJECTED</span><b id="n-rejected">–</b></div>
+            <div class="tile tile-medium"><span>PROPOSED</span><b id="n-proposed">-</b></div>
+            <div class="tile tile-high"><span>CONFIRMED</span><b id="n-confirmed">-</b></div>
+            <div class="tile tile-bad"><span>REJECTED</span><b id="n-rejected">-</b></div>
           </div>
         </article>
       </div>
+
+      <article class="card">
+        <h2>Gap panel</h2>
+        <p class="muted small">The gap chosen above: its facts, how its score was built, and the AI's work on it.</p>
+        <div id="gap-panel" class="gap-panel"></div>
+      </article>
+
+      <article class="card">
+        <h2>Export approved evidence</h2>
+        <p class="muted small">Confirmed findings become supplemental records; an export writes the ones not yet sent to
+          a CSV for the measure engine and records the file's sha256. Each record is exported once.</p>
+        <button type="button" class="btn btn-primary" id="export">Export approved evidence</button>
+        <p class="note small" id="export-result" role="status"></p>
+        <p class="label-strong">Last exports</p>
+        <div id="exports" class="stack"></div>
+      </article>
 
       <article class="card">
         <h2>Review queue</h2>
@@ -131,5 +249,9 @@ CHECK (status IN ('proposed', 'confirmed', 'rejected'))</pre>
 
 <div class="toast" id="toast" role="status" hidden></div>
 <script src="/assets/app.js"></script>
+<script src="/assets/ingestion.js"></script>
+<script src="/assets/calculation.js"></script>
+<script src="/assets/quality.js"></script>
+<script src="/assets/stars.js"></script>
 </body>
 </html>

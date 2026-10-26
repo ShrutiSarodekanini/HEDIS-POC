@@ -16,6 +16,7 @@ import { useAppConfig, useFqmApiService } from '../../app/hooks';
 import { ApiError } from '../../services/apiClient';
 
 const AUTO_DETECTED_MEASURES_MODE_ID = '__AUTO_DETECTED_RELATED_MEASURES__';
+const DB_PATIENT_PAGE_SIZE = 20;
 
 function validateJsonFile(file: File): string | null {
   const isJsonType = file.type.includes('json') || file.name.endsWith('.json');
@@ -145,6 +146,13 @@ interface IngestionPatientResourcesResponse {
   resources: Array<{
     resource_json?: Record<string, unknown>;
   }>;
+}
+
+interface DbPatientDetail {
+  patient_id: string;
+  resource_count?: number;
+  estimated_size_bytes?: number;
+  saved_at?: string | null;
 }
 
 type WorkflowStepState = 'complete' | 'current' | 'upcoming';
@@ -294,6 +302,32 @@ function hasWorklistValue(value: string | null | undefined): boolean {
   return typeof value === 'string' && value.trim().length > 0;
 }
 
+function formatBytes(value?: number): string {
+  if (!Number.isFinite(value) || value === undefined || value < 0) {
+    return 'n/a';
+  }
+  if (value < 1024) {
+    return `${value} B`;
+  }
+  const kb = value / 1024;
+  if (kb < 1024) {
+    return `${kb.toFixed(1)} KB`;
+  }
+  const mb = kb / 1024;
+  return `${mb.toFixed(2)} MB`;
+}
+
+function formatSavedAt(value?: string | null): string {
+  if (!value) {
+    return 'n/a';
+  }
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    return 'n/a';
+  }
+  return parsed.toLocaleString();
+}
+
 export function RunEvaluationWorkspace() {
   const config = useAppConfig();
   const service = useFqmApiService();
@@ -310,6 +344,17 @@ export function RunEvaluationWorkspace() {
     patientCount: number;
     exportedAt: string;
   } | null>(null);
+  const [dbSourceJobId, setDbSourceJobId] = useState('');
+  const [dbSourcePatients, setDbSourcePatients] = useState<string[]>([]);
+  const [dbPatientDetailsById, setDbPatientDetailsById] = useState<Record<string, DbPatientDetail>>({});
+  const [dbSourceSearch, setDbSourceSearch] = useState('');
+  const [dbSelectedPatients, setDbSelectedPatients] = useState<string[]>([]);
+  const [dbPatientJobMap, setDbPatientJobMap] = useState<Record<string, string>>({});
+  const [dbPatientJobCandidates, setDbPatientJobCandidates] = useState<Record<string, string[]>>({});
+  const [dbSourceBusy, setDbSourceBusy] = useState(false);
+  const [dbSourceMessage, setDbSourceMessage] = useState('');
+  const [dbSourceError, setDbSourceError] = useState('');
+  const [dbVisiblePatientCount, setDbVisiblePatientCount] = useState(DB_PATIENT_PAGE_SIZE);
   const [ingestionBusy, setIngestionBusy] = useState(false);
   const [ingestionStatusMessage, setIngestionStatusMessage] = useState('');
   const [ingestionErrorMessage, setIngestionErrorMessage] = useState('');
@@ -332,10 +377,10 @@ export function RunEvaluationWorkspace() {
   });
 
   const submitMutation = useMutation({
-    mutationFn: () =>
+    mutationFn: (files: File[]) =>
       service.submitEvaluation({
         measureId: AUTO_DETECTED_MEASURES_MODE_ID,
-        patientBundleFiles,
+        patientBundleFiles: files,
       }),
     onSuccess: (response) => {
       setErrors({});
@@ -819,9 +864,9 @@ export function RunEvaluationWorkspace() {
   function validateForm(): boolean {
     const nextErrors: FormErrors = {};
 
-    if (patientBundleFiles.length === 0) {
+    if (patientBundleFiles.length === 0 && dbSelectedPatients.length === 0) {
       nextErrors.patientBundleFiles =
-        'At least one patient bundle file is required.';
+        'Select at least one patient bundle file or one database patient.';
     } else if (fileValidation.patientFileErrors.length > 0) {
       nextErrors.patientBundleFiles = 'One or more patient files are invalid.';
     }
@@ -830,18 +875,112 @@ export function RunEvaluationWorkspace() {
     return Object.keys(nextErrors).length === 0;
   }
 
-  function onSubmit(event: React.FormEvent<HTMLFormElement>) {
+  async function buildEvaluationPatientFiles(): Promise<File[]> {
+    const fileMap = new Map(patientBundleFiles.map((file) => [file.name, file] as const));
+
+    if (dbSelectedPatients.length === 0) {
+      return Array.from(fileMap.values());
+    }
+
+    async function fetchPatientBundleWithFallback(patientId: string): Promise<Record<string, unknown>> {
+      const preferred = dbPatientJobMap[patientId];
+      const candidates = dbPatientJobCandidates[patientId] ?? [];
+      const orderedCandidates = Array.from(
+        new Set([
+          ...(preferred ? [preferred] : []),
+          ...candidates,
+          ...(dbSourceJobId.trim() ? [dbSourceJobId.trim()] : []),
+        ].filter((jobId) => Boolean(jobId))),
+      );
+
+      let lastError: unknown = null;
+
+      for (const candidateJobId of orderedCandidates) {
+        try {
+          const payload = await ingestionApiRequest(
+            `/jobs/${encodeURIComponent(candidateJobId)}/patients/${encodeURIComponent(patientId)}/resources`,
+          ) as IngestionPatientResourcesResponse;
+
+          const hasBundleableResources = (payload.resources ?? []).some(
+            (item) => Boolean(item.resource_json && typeof item.resource_json === 'object'),
+          );
+
+          if (!hasBundleableResources) {
+            continue;
+          }
+
+          return toPatientBundle(candidateJobId, patientId, payload);
+        } catch (error) {
+          if (error instanceof ApiError && error.status === 404) {
+            lastError = error;
+            continue;
+          }
+          throw error;
+        }
+      }
+
+      throw lastError ?? new Error(`No bundle found for patient ${patientId}`);
+    }
+
+    setDbSourceMessage('Preparing selected database patients for evaluation...');
+    const settled = await Promise.allSettled(
+      dbSelectedPatients.map(async (patientId) => {
+        const bundle = await fetchPatientBundleWithFallback(patientId);
+        const fileName = `fhir-${patientId}.bundle.json`;
+        return new File([JSON.stringify(bundle, null, 2)], fileName, {
+          type: 'application/json',
+        });
+      }),
+    );
+
+    const failedPatients: string[] = [];
+    settled.forEach((entry, index) => {
+      if (entry.status === 'fulfilled') {
+        fileMap.set(entry.value.name, entry.value);
+      } else {
+        failedPatients.push(dbSelectedPatients[index] ?? 'unknown');
+      }
+    });
+
+    if (failedPatients.length > 0) {
+      setDbSourceMessage(
+        `Prepared ${fileMap.size} total bundle(s). Skipped ${failedPatients.length} selected database patient(s) with no available bundle.`,
+      );
+    } else {
+      setDbSourceMessage(`Prepared ${fileMap.size} total bundle(s) for evaluation.`);
+    }
+
+    return Array.from(fileMap.values());
+  }
+
+  async function onSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
     if (!validateForm()) {
       return;
     }
 
-    submitMutation.mutate();
+    try {
+      const files = await buildEvaluationPatientFiles();
+      if (files.length === 0) {
+        setErrors((current) => ({
+          ...current,
+          request: 'No valid patient bundles were available to run evaluation.',
+        }));
+        return;
+      }
+      submitMutation.mutate(files);
+    } catch (error) {
+      setErrors((current) => ({
+        ...current,
+        request: toErrorMessage(error),
+      }));
+    }
   }
 
   function resetAll() {
     setPatientBundleFiles([]);
+    setDbSelectedPatients([]);
     setErrors({});
     setSubmittedEvaluationId(null);
     setResetToken((current) => current + 1);
@@ -857,7 +996,8 @@ export function RunEvaluationWorkspace() {
   const hasEvaluationCompleted = latestResult?.status === 'completed';
   const hasMeasureDetectionReady = true;
   const hasPatientUpload =
-    patientBundleFiles.length > 0 && fileValidation.patientFileErrors.length === 0;
+    (patientBundleFiles.length > 0 || dbSelectedPatients.length > 0) &&
+    fileValidation.patientFileErrors.length === 0;
   const hasRunStarted = Boolean(submittedEvaluationId);
 
   const workflowSteps = useMemo(
@@ -865,7 +1005,7 @@ export function RunEvaluationWorkspace() {
       {
         key: 'measure',
         title: 'Standard measure execution',
-        detail: 'Checks all 10 measures and derives relatedness from engine output',
+        detail: 'Checks all 8 active measures and derives relatedness from engine output',
         state: 'complete' as WorkflowStepState,
       },
       {
@@ -956,6 +1096,194 @@ export function RunEvaluationWorkspace() {
     },
   ];
 
+  const filteredDbPatients = useMemo(() => {
+    const query = dbSourceSearch.trim().toLowerCase();
+    if (!query) {
+      return dbSourcePatients;
+    }
+    return dbSourcePatients.filter((patientId) => patientId.toLowerCase().includes(query));
+  }, [dbSourcePatients, dbSourceSearch]);
+
+  const visibleDbPatients = useMemo(
+    () => filteredDbPatients.slice(0, dbVisiblePatientCount),
+    [filteredDbPatients, dbVisiblePatientCount],
+  );
+  const hasDbSearchQuery = dbSourceSearch.trim().length > 0;
+
+  useEffect(() => {
+    setDbVisiblePatientCount(DB_PATIENT_PAGE_SIZE);
+  }, [dbSourcePatients, dbSourceSearch]);
+
+  function loadMoreVisibleDbPatients() {
+    setDbVisiblePatientCount((current) =>
+      Math.min(current + DB_PATIENT_PAGE_SIZE, filteredDbPatients.length),
+    );
+  }
+
+  function onDbPatientsScroll(event: React.UIEvent<HTMLDivElement>) {
+    const element = event.currentTarget;
+    const nearBottom = element.scrollTop + element.clientHeight >= element.scrollHeight - 16;
+    if (nearBottom && dbVisiblePatientCount < filteredDbPatients.length) {
+      loadMoreVisibleDbPatients();
+    }
+  }
+
+  function toggleDbPatientSelection(patientId: string) {
+    setDbSelectedPatients((current) =>
+      current.includes(patientId)
+        ? current.filter((item) => item !== patientId)
+        : [...current, patientId],
+    );
+  }
+
+  function toggleSelectAllFilteredDbPatients() {
+    setDbSelectedPatients((current) => {
+      const allSelected =
+        filteredDbPatients.length > 0 &&
+        filteredDbPatients.every((patientId) => current.includes(patientId));
+
+      if (allSelected) {
+        return current.filter((patientId) => !filteredDbPatients.includes(patientId));
+      }
+
+      const merged = new Set([...current, ...filteredDbPatients]);
+      return Array.from(merged);
+    });
+  }
+
+  async function loadDbPatientsForEvaluation(jobIdOverride?: string) {
+    setDbSourceBusy(true);
+    setDbSourceError('');
+    setDbSourceMessage('');
+    try {
+      // Refresh should rescan across jobs unless a specific job id is explicitly provided.
+      const explicitJobId = jobIdOverride?.trim() ?? '';
+
+      const nextPatientJobMap: Record<string, string> = {};
+      const nextPatientJobCandidates: Record<string, string[]> = {};
+      const nextPatientDetailsById: Record<string, DbPatientDetail> = {};
+      let resolvedJobId = explicitJobId;
+      let patients: string[] = [];
+
+      const normalizePatientId = (value: unknown): string =>
+        typeof value === 'string' ? value.trim() : '';
+
+      if (resolvedJobId) {
+        const payload = await ingestionApiRequest(
+          `/jobs/${encodeURIComponent(resolvedJobId)}/patients?persisted_only=false&bundleable_only=true`,
+        ) as { patients?: string[]; patient_details?: DbPatientDetail[] };
+        patients = Array.isArray(payload.patients)
+          ? payload.patients.map((item) => normalizePatientId(item)).filter((item) => item.length > 0)
+          : [];
+        const details = Array.isArray(payload.patient_details) ? payload.patient_details : [];
+        details.forEach((item) => {
+          const normalized = normalizePatientId(item.patient_id);
+          if (normalized) {
+            nextPatientDetailsById[normalized] = { ...item, patient_id: normalized };
+          }
+        });
+        patients.forEach((patientId) => {
+          nextPatientJobMap[patientId] = resolvedJobId;
+          nextPatientJobCandidates[patientId] = [resolvedJobId];
+        });
+      } else {
+        setDbSourceMessage('Looking up available patients from database...');
+        const jobsPayload = await ingestionApiRequest('/jobs') as { jobs?: Array<{ id?: string }> };
+        const jobs = Array.isArray(jobsPayload.jobs) ? jobsPayload.jobs : [];
+        const patientSet = new Set<string>();
+        const orderedPatients: string[] = [];
+        let jobsWithPatients = 0;
+
+        for (const job of jobs) {
+          const candidateJobId = typeof job.id === 'string' ? job.id.trim() : '';
+          if (!candidateJobId) {
+            continue;
+          }
+
+          const payload = await ingestionApiRequest(
+            `/jobs/${encodeURIComponent(candidateJobId)}/patients?persisted_only=false&bundleable_only=true`,
+          ) as { patients?: string[]; patient_details?: DbPatientDetail[] };
+          const candidatePatients = Array.isArray(payload.patients)
+            ? payload.patients.map((item) => normalizePatientId(item)).filter((item) => item.length > 0)
+            : [];
+          const details = Array.isArray(payload.patient_details) ? payload.patient_details : [];
+
+          details.forEach((item) => {
+            const normalized = normalizePatientId(item.patient_id);
+            if (!normalized || nextPatientDetailsById[normalized]) {
+              return;
+            }
+            nextPatientDetailsById[normalized] = { ...item, patient_id: normalized };
+          });
+
+          if (candidatePatients.length === 0) {
+            continue;
+          }
+
+          jobsWithPatients += 1;
+          if (!resolvedJobId) {
+            resolvedJobId = candidateJobId;
+          }
+
+          candidatePatients.forEach((patientId) => {
+            if (!patientSet.has(patientId)) {
+              patientSet.add(patientId);
+              orderedPatients.push(patientId);
+            }
+            if (!nextPatientJobMap[patientId]) {
+              nextPatientJobMap[patientId] = candidateJobId;
+            }
+
+            if (!nextPatientJobCandidates[patientId]) {
+              nextPatientJobCandidates[patientId] = [];
+            }
+            if (!nextPatientJobCandidates[patientId].includes(candidateJobId)) {
+              nextPatientJobCandidates[patientId].push(candidateJobId);
+            }
+          });
+        }
+
+        patients = orderedPatients;
+
+        if (patients.length > 0) {
+          setDbSourceMessage(`Loaded ${patients.length} unique patients across ${jobsWithPatients} job(s).`);
+        }
+      }
+
+      if (!resolvedJobId) {
+        setDbSourcePatients([]);
+        setDbSelectedPatients([]);
+        setDbPatientJobMap({});
+        setDbPatientJobCandidates({});
+        setDbPatientDetailsById({});
+        setDbSourceMessage('No ingestion jobs found in database.');
+        return;
+      }
+
+      setDbSourceJobId(resolvedJobId);
+      setDbSourcePatients(patients);
+      setDbPatientJobMap(nextPatientJobMap);
+      setDbPatientJobCandidates(nextPatientJobCandidates);
+      setDbPatientDetailsById(nextPatientDetailsById);
+      setDbSelectedPatients([]);
+      setDbVisiblePatientCount(DB_PATIENT_PAGE_SIZE);
+
+      if (patients.length === 0) {
+        setDbSourceMessage(`No patients found for job ${resolvedJobId}.`);
+      } else if (explicitJobId) {
+        setDbSourceMessage(`Loaded ${patients.length} patients from database (job ${resolvedJobId}).`);
+      }
+    } catch (error) {
+      setDbSourceError(toErrorMessage(error));
+    } finally {
+      setDbSourceBusy(false);
+    }
+  }
+
+  useEffect(() => {
+    void loadDbPatientsForEvaluation();
+  }, []);
+
   const ingestionRuntimeStatus =
     ingestionJobSummary?.runtime?.status ?? ingestionJobSummary?.status ?? 'not_started';
 
@@ -1005,7 +1333,7 @@ export function RunEvaluationWorkspace() {
   const canRunInMode = config.mode === 'real';
   const isRunDisabled =
     !canRunInMode ||
-    patientBundleFiles.length === 0 ||
+    (patientBundleFiles.length === 0 && dbSelectedPatients.length === 0) ||
     submitMutation.isPending ||
     isEvaluationRunning;
 
@@ -1365,6 +1693,119 @@ export function RunEvaluationWorkspace() {
             onRemoveFile={removePatientFile}
           />
 
+          <section className="summary-block" aria-label="Database patient source">
+            <h3>Use Existing Database Patients</h3>
+            <p className="field-helper">
+              Patient list is loaded automatically from the latest available database job. Select patients here, then run using Run FQM Evaluation.
+            </p>
+            <div className="form-actions">
+              <button
+                type="button"
+                className="secondary-button"
+                onClick={() => {
+                  void loadDbPatientsForEvaluation();
+                }}
+                disabled={dbSourceBusy}
+              >
+                Refresh Patients
+              </button>
+              <button
+                type="button"
+                className="secondary-button"
+                onClick={toggleSelectAllFilteredDbPatients}
+                disabled={dbSourceBusy || filteredDbPatients.length === 0}
+              >
+                Select / Unselect Filtered
+              </button>
+            </div>
+            <div className="form-field">
+              <label htmlFor="dbPatientSearch">Search patient id</label>
+              <input
+                id="dbPatientSearch"
+                type="text"
+                value={dbSourceSearch}
+                onChange={(event) => setDbSourceSearch(event.target.value)}
+                placeholder="Type patient id text"
+              />
+            </div>
+            <div className="summary-block" aria-label="Database patient picker">
+              <div className="workflow-panel-header">
+                <h3>Patient dropdown table</h3>
+                <p>
+                  {dbSelectedPatients.length} selected / {visibleDbPatients.length} visible / {dbSourcePatients.length} total loaded
+                </p>
+              </div>
+              {hasDbSearchQuery ? (
+                <p className="field-helper">Search matched {filteredDbPatients.length} patient(s).</p>
+              ) : null}
+
+              <div
+                style={{ maxHeight: '320px', overflowY: 'auto', border: '1px solid #d1d5db', borderRadius: '10px' }}
+                onScroll={onDbPatientsScroll}
+              >
+                {filteredDbPatients.length > 0 ? (
+                  <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                    <thead>
+                      <tr>
+                        <th style={{ textAlign: 'left', padding: '8px', borderBottom: '1px solid #e2e8f0', width: '72px' }}>Select</th>
+                        <th style={{ textAlign: 'left', padding: '8px', borderBottom: '1px solid #e2e8f0' }}>Patient ID</th>
+                        <th style={{ textAlign: 'left', padding: '8px', borderBottom: '1px solid #e2e8f0', width: '140px' }}>File Size</th>
+                        <th style={{ textAlign: 'left', padding: '8px', borderBottom: '1px solid #e2e8f0', width: '220px' }}>Saved In DB</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {visibleDbPatients.map((patientId) => {
+                        const detail = dbPatientDetailsById[patientId];
+                        return (
+                        <tr key={patientId}>
+                          <td style={{ padding: '8px', borderBottom: '1px solid #f1f5f9' }}>
+                            <input
+                              type="checkbox"
+                              checked={dbSelectedPatients.includes(patientId)}
+                              onChange={() => toggleDbPatientSelection(patientId)}
+                              aria-label={`Select patient ${patientId}`}
+                            />
+                          </td>
+                          <td style={{ padding: '8px', borderBottom: '1px solid #f1f5f9' }}>
+                            <span className="mono-inline">{patientId}</span>
+                          </td>
+                          <td style={{ padding: '8px', borderBottom: '1px solid #f1f5f9', fontSize: '12px' }}>
+                            {formatBytes(detail?.estimated_size_bytes)}
+                          </td>
+                          <td style={{ padding: '8px', borderBottom: '1px solid #f1f5f9', fontSize: '12px' }}>
+                            {formatSavedAt(detail?.saved_at)}
+                          </td>
+                        </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                ) : (
+                  <p className="field-helper" style={{ margin: '12px' }}>
+                    {dbSourceBusy
+                      ? 'Loading patients from database...'
+                      : 'No patients available in the database yet.'}
+                  </p>
+                )}
+              </div>
+
+              {visibleDbPatients.length < filteredDbPatients.length ? (
+                <div style={{ display: 'flex', justifyContent: 'center', padding: '10px 0' }}>
+                  <button
+                    type="button"
+                    className="secondary-button"
+                    onClick={loadMoreVisibleDbPatients}
+                    disabled={dbSourceBusy}
+                  >
+                    Load next {DB_PATIENT_PAGE_SIZE}
+                  </button>
+                </div>
+              ) : null}
+            </div>
+            {dbSourceMessage ? <p className="field-helper">{dbSourceMessage}</p> : null}
+            {dbSourceError ? <p className="field-error">{dbSourceError}</p> : null}
+          </section>
+
           <section className="upload-process" aria-label="Upload processing status">
             <p className="upload-process-title">Upload processing</p>
             <div className="upload-process-steps">
@@ -1382,11 +1823,11 @@ export function RunEvaluationWorkspace() {
           <section className="selection-summary" aria-label="Input summary">
             <p>
               <span>Measure strategy:</span>
-              <strong>All 10 evaluated, related measures inferred from results</strong>
+              <strong>All 8 active measures evaluated, related measures inferred from results</strong>
             </p>
             <p>
               <span>Patient bundles:</span>
-              <strong>{patientBundleFiles.length}</strong>
+              <strong>{patientBundleFiles.length + dbSelectedPatients.length}</strong>
             </p>
           </section>
 
@@ -1782,7 +2223,7 @@ export function RunEvaluationWorkspace() {
                     <article className="summary-card"><p>Current Rate</p><strong>{calculationSummary.currentRate.toFixed(1)}%</strong></article>
                   </div>
                   <p className="field-helper">
-                    In All 10 mode, each row represents one measure evaluation for the same uploaded patient.
+                    In All 8 mode, each row represents one measure evaluation for the same uploaded patient.
                   </p>
                 </section>
               ) : null}

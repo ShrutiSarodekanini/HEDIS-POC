@@ -15,7 +15,7 @@ Important scope note:
 From repository root:
 
 ```bash
-npm run frontend:install
+npm run ui:install
 ```
 
 Or from this folder:
@@ -46,7 +46,7 @@ Variables:
 From repository root:
 
 ```bash
-npm run frontend:dev
+npm run ui:dev
 ```
 
 From `frontend/`:

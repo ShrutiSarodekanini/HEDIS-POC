@@ -1,0 +1,13 @@
+﻿/* HEDIS Calculation tab */
+.calc-checks { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 6px 12px; }
+.calc-check { display: flex; align-items: center; gap: 6px; font-size: 12.5px; cursor: pointer; }
+.calc-check input { accent-color: var(--teal); margin: 0; }
+.calc-small { padding: 4px 12px; font-size: 12px; }
+.calc-toolbar { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
+.calc-search { width: 220px; max-width: 100%; }
+.calc-foot { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
+.calc-actions { display: flex; gap: 12px; flex-wrap: wrap; white-space: nowrap; }
+.calc-linkbtn { background: none; border: 0; padding: 0; cursor: pointer; font: inherit; font-size: 12.5px;
+  font-weight: 600; }
+.calc-linkbtn:focus-visible, .calc-check input:focus-visible { outline: 2px solid var(--teal); outline-offset: 2px; }
+#view-calculation .table tbody tr.selected td { background: var(--teal-soft); }

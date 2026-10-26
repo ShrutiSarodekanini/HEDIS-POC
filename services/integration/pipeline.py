@@ -1,12 +1,12 @@
 """Pipeline runner: one uploaded Synthea zip from CSV files to a prioritized work list, in a background thread.
 
-    ingestion (upload-zip, run_conversion, run_persist_stage) -> team_schema_loader -> measures -> score_all
-    -> stored_evidence (when INTEGRATION_EVIDENCE_DIR is set)
+    ingestion (upload-zip, run_conversion, run_persist_stage) -> team_schema_loader -> data quality checks
+    -> measures -> score_all -> stored_evidence (when INTEGRATION_EVIDENCE_DIR is set)
 
 batch_run shows where a batch is; after every step its status, step and counts are updated and a domain_event is
-written (batch.received, batch.converted, batch.persisted, batch.loaded, measures.received, gaps.identified,
-gaps.prioritized, documents.attached, or batch.failed with the step and reason). Errors keep only their first line,
-so row values in database error details never reach batch_run, events or logs.
+written (batch.received, batch.converted, batch.persisted, batch.loaded, quality.checked or quality.failed,
+measures.received, gaps.identified, gaps.prioritized, documents.attached, or batch.failed with the step and reason).
+Errors keep only their first line, so row values in database error details never reach batch_run, events or logs.
 """
 
 import asyncio
@@ -14,15 +14,17 @@ import logging
 import shutil
 import threading
 import uuid
+from contextlib import ExitStack
 from datetime import date
 from pathlib import Path
 
 import psycopg
 from psycopg.types.json import Jsonb
+from fastapi import HTTPException
 from starlette.datastructures import UploadFile
 
 from services.data_ingestion import team_schema_loader
-from services.data_ingestion.app.api import upload_dataset_zip
+from services.data_ingestion.app.api import upload_dataset, upload_dataset_zip
 from services.data_ingestion.app.db import session_scope
 from services.data_ingestion.app.models import ConversionJob
 from services.data_ingestion.app.pipeline import job_manager, run_conversion, run_persist_stage
@@ -31,7 +33,7 @@ from services.document_intake.db import audit
 from services.gap_priority.config import load_rules
 from services.gap_priority.runner import score_all
 
-from . import measures, stored_evidence
+from . import measures, pallavi, stored_evidence
 from .config import SETTINGS
 
 log = logging.getLogger(__name__)
@@ -43,83 +45,223 @@ class StepFailed(RuntimeError):
     """A step that could not finish; the message is safe to store and show."""
 
 
-def start_batch(zip_path: Path) -> str:
-    """Record the batch, then run it in a background thread. Returns the batch_id to poll."""
+def start_batch(upload: Path) -> str:
+    """Record the batch, then run it in a background thread. upload is one .zip file or a folder of .csv files.
+    Returns the batch_id to poll."""
     batch_id = uuid.uuid4()
+    files = sorted(upload.glob("*.csv")) if upload.is_dir() else [upload]
+    received = {"upload": "csv" if upload.is_dir() else "zip", "files": len(files),
+                "bytes": sum(f.stat().st_size for f in files)}
     with db.connect() as conn:
         conn.execute("""INSERT INTO source_batch (batch_id, source_system, status, resource_count, started_at)
                         VALUES (%s, %s, 'running', 0, now())""", (batch_id, team_schema_loader.SOURCE_SYSTEM))
         conn.execute("INSERT INTO batch_run (batch_id, status, step) VALUES (%s, 'running', 'received')",
                      (str(batch_id),))
-        _event(conn, batch_id, "batch.received", {"zip_bytes": zip_path.stat().st_size})
-        audit(conn, "batch", str(batch_id), "batch.received", {"zip_bytes": zip_path.stat().st_size},
-              actor=SETTINGS.actor)
-    threading.Thread(target=run_batch, args=(zip_path, batch_id), name=f"batch-{batch_id}", daemon=True).start()
+        _event(conn, batch_id, "batch.received", received)
+        audit(conn, "batch", str(batch_id), "batch.received", received, actor=SETTINGS.actor)
+    threading.Thread(target=run_batch, args=(upload, batch_id), name=f"batch-{batch_id}", daemon=True).start()
     return str(batch_id)
 
 
-def run_batch(zip_path: Path, batch_id: uuid.UUID) -> None:
+def run_batch(upload: Path, batch_id: uuid.UUID) -> None:
     """Every step for one batch. A failure is recorded on the batch; nothing is swallowed."""
     step = "waiting"
     with _ONE_AT_A_TIME:
         try:
             step = "converting"
             _progress(batch_id, step)
-            job_id, conversion = _convert(zip_path)
+            job_id, conversion = _convert(upload)
             _progress(batch_id, "persisting", "batch.converted", {"conversion": conversion}, ingest_job_id=job_id)
 
             step = "persisting"
             persisted = _persist(job_id)
             _progress(batch_id, "loading", "batch.persisted", {"persisted": persisted})
-
             step = "loading"
-            with db.connect() as conn:
-                loaded = team_schema_loader.load_job(conn, job_id, batch_id)
-                _check_loaded(conn, job_id, persisted, loaded)
-                load_counts = {"patients": len(loaded.patient_ids), "inserted": loaded.inserted,
-                               "resource_types": loaded.resource_types,
-                               "attributed_patients": sum(1 for v in loaded.attributed_org.values() if v)}
-                _progress(batch_id, "measuring", "batch.loaded", {"load": load_counts}, conn=conn)
-
-            step = "measuring"
-            with db.connect() as conn:
-                run = measures.run_measures(conn, list(loaded.patient_ids), loaded.attributed_org, batch_id.hex[:8])
-                engine = run.counts()
-                _event(conn, batch_id, "measures.received",
-                       {"engine_run_id": run.run_id, "patients": run.patients, "measures": engine["measures"]})
-                gaps = measures.gap_counts(conn, list(loaded.patient_ids))
-                _progress(batch_id, "prioritizing", "gaps.identified",
-                          {"measures": engine, "open_gaps": gaps}, conn=conn)
-
-            step = "prioritizing"
-            with db.connect() as conn:
-                summary = score_all(conn, date.today(), load_rules())
-                scored = {"gaps_scored": summary.gaps_scored, "tiers": summary.tiers, "channels": summary.channels,
-                          "rules_version": summary.rules_version, "as_of": summary.as_of.isoformat()}
-                _progress(batch_id, "attaching", "gaps.prioritized", {"prioritization": scored}, conn=conn)
-
-            step = "attaching"
-            attached = _attach(batch_id, list(loaded.patient_ids))
-            with db.connect() as conn:
-                _event(conn, batch_id, "documents.attached", attached)
-                audit(conn, "batch", str(batch_id), "documents.attached",
-                      {k: (len(v) if isinstance(v, list) else v) for k, v in attached.items()}, actor=SETTINGS.actor)
-                conn.execute("UPDATE source_batch SET status = 'completed' WHERE batch_id = %s", (batch_id,))
-                _progress(batch_id, "done", None, {"documents": attached}, status="prioritized", conn=conn)
-                audit(conn, "batch", str(batch_id), "batch.prioritized", {"gaps_scored": summary.gaps_scored},
-                      actor=SETTINGS.actor)
+            _after_persist(batch_id, job_id, persisted)
         except Exception as exc:  # noqa: BLE001 - every failure is recorded on the batch with its step and reason
-            _fail(batch_id, step, exc)
+            _fail(batch_id, _current_step(batch_id) if step == "loading" else step, exc)
         finally:
-            zip_path.unlink(missing_ok=True)
+            if upload.is_dir():
+                shutil.rmtree(upload, ignore_errors=True)
+            else:
+                upload.unlink(missing_ok=True)
 
 
-def _convert(zip_path: Path) -> tuple[str, dict]:
-    """The ingestion service's own upload-zip and conversion, called as they are."""
-    with zip_path.open("rb") as handle:
-        uploaded = asyncio.run(upload_dataset_zip(UploadFile(file=handle, filename=zip_path.name)))
+def start_from_job(job_id: str) -> str:
+    """A batch for an ingestion job that was converted and persisted on the Data Ingestion screen (Jyothi's
+    endpoints); our steps continue from loading. Returns the batch_id."""
+    batch_id = uuid.uuid4()
+    with db.connect() as conn:
+        persisted = conn.execute("SELECT resources_persisted FROM conversion_jobs WHERE id = %s",
+                                 (job_id,)).fetchone()[0]
+        received = {"source": "data ingestion screen", "job_id": job_id, "persisted": persisted}
+        conn.execute("""INSERT INTO source_batch (batch_id, source_system, status, resource_count, started_at)
+                        VALUES (%s, %s, 'running', 0, now())""", (batch_id, team_schema_loader.SOURCE_SYSTEM))
+        conn.execute("""INSERT INTO batch_run (batch_id, ingest_job_id, status, step, counts)
+                        VALUES (%s, %s, 'running', 'waiting', %s)""",
+                     (str(batch_id), job_id, Jsonb({"persisted": persisted})))
+        _event(conn, batch_id, "batch.received", received)
+        _event(conn, batch_id, "batch.persisted", {"persisted": persisted})
+        audit(conn, "batch", str(batch_id), "batch.received", received, actor=SETTINGS.actor)
+    threading.Thread(target=_run_from_job, args=(batch_id, job_id, persisted), name=f"batch-{batch_id}",
+                     daemon=True).start()
+    return str(batch_id)
+
+
+def _run_from_job(batch_id: uuid.UUID, job_id: str, persisted: int) -> None:
+    with _ONE_AT_A_TIME:
+        try:
+            _progress(batch_id, "loading")
+            _after_persist(batch_id, job_id, persisted)
+        except Exception as exc:  # noqa: BLE001 - every failure is recorded on the batch with its step and reason
+            _fail(batch_id, _current_step(batch_id), exc)
+
+
+def _current_step(batch_id: uuid.UUID) -> str:
+    with db.connect() as conn:
+        row = conn.execute("SELECT step FROM batch_run WHERE batch_id = %s", (str(batch_id),)).fetchone()
+    return row[0] if row else "waiting"
+
+
+def _after_persist(batch_id: uuid.UUID, job_id: str, persisted: int) -> None:
+    """Our steps after the ingestion persist stage: load the lead's tables, check the data, run the measures,
+    prioritize, attach."""
+    with db.connect() as conn:
+        loaded = team_schema_loader.load_job(conn, job_id, batch_id)
+        _check_loaded(conn, job_id, persisted, loaded)
+        load_counts = {"patients": len(loaded.patient_ids), "inserted": loaded.inserted,
+                       "resource_types": loaded.resource_types,
+                       "attributed_patients": sum(1 for v in loaded.attributed_org.values() if v)}
+        _progress(batch_id, "checking", "batch.loaded", {"load": load_counts}, conn=conn)
+
+    _progress(batch_id, "measuring", None, {"quality": _check_quality(batch_id)})
+
+    with db.connect() as conn:
+        run = measures.run_measures(conn, list(loaded.patient_ids), loaded.attributed_org, batch_id.hex[:8])
+        engine = run.counts()
+        _event(conn, batch_id, "measures.received",
+               {"engine_run_id": run.run_id, "patients": run.patients, "measures": engine["measures"]})
+        gaps = measures.gap_counts(conn, list(loaded.patient_ids))
+        _progress(batch_id, "prioritizing", "gaps.identified", {"measures": engine, "open_gaps": gaps}, conn=conn)
+
+    with db.connect() as conn:
+        summary = score_all(conn, date.today(), load_rules())
+        _progress(batch_id, "attaching", "gaps.prioritized", {"prioritization": _scored(summary)}, conn=conn)
+
+    attached = _attach(batch_id, list(loaded.patient_ids))
+    with db.connect() as conn:
+        _event(conn, batch_id, "documents.attached", attached)
+        audit(conn, "batch", str(batch_id), "documents.attached",
+              {k: (len(v) if isinstance(v, list) else v) for k, v in attached.items()}, actor=SETTINGS.actor)
+        conn.execute("UPDATE source_batch SET status = 'completed' WHERE batch_id = %s", (batch_id,))
+        _progress(batch_id, "done", None, {"documents": attached}, status="prioritized", conn=conn)
+        audit(conn, "batch", str(batch_id), "batch.prioritized", {"gaps_scored": summary.gaps_scored},
+              actor=SETTINGS.actor)
+
+
+def _scored(summary) -> dict:
+    return {"gaps_scored": summary.gaps_scored, "tiers": summary.tiers, "channels": summary.channels,
+            "rules_version": summary.rules_version, "as_of": summary.as_of.isoformat()}
+
+
+def _check_quality(batch_id: uuid.UUID) -> dict:
+    """The data quality checks on the loaded batch. The measures do not read their results, so a failed run does not
+    stop the batch: run_checks stores the failure on quality_run with a quality.failed event, and the batch shows it."""
+    try:
+        run = pallavi.run_checks(batch_id, None, SETTINGS.actor)
+    except Exception as exc:  # noqa: BLE001 - recorded on quality_run and on the batch; the next steps do not need it
+        log.error("batch %s: data quality checks failed: %s", batch_id, type(exc).__name__)
+        return {"status": "failed", "reason": f"{type(exc).__name__}: {(str(exc).splitlines() or [''])[0][:300]}"}
+    return {key: run[key] for key in ("run_id", "status", "checks", "failed", "anomalies")}
+
+
+_WAITING_JOBS = """
+SELECT j.id FROM conversion_jobs j
+ WHERE j.resources_persisted > 0 AND j.status IN ('completed', 'partially_completed')
+   AND NOT EXISTS (SELECT 1 FROM batch_run b WHERE b.ingest_job_id = j.id)
+ ORDER BY j.started_at
+"""
+
+
+def watch_ingestion(stop: threading.Event, every_seconds: float = 3.0) -> None:
+    """Start our steps for each ingestion job persisted on the Data Ingestion screen. Jobs started by POST
+    /api/batches already have their batch_run before they persist, so they are never picked twice."""
+    while not stop.wait(every_seconds):
+        try:
+            with db.connect() as conn:
+                waiting = [r[0] for r in conn.execute(_WAITING_JOBS).fetchall()]
+            for job_id in waiting:
+                log.info("ingestion job %s persisted; starting batch %s", job_id, start_from_job(job_id))
+        except Exception as exc:  # noqa: BLE001 - the watcher keeps running; the reason is logged every round
+            log.error("ingestion watcher round failed: %s", type(exc).__name__)
+
+
+def start_recalculation(measure_ids: list[str] | None) -> str:
+    """Run the measure engine again for the latest finished batch's patients (all measures or the chosen ones), then
+    prioritize again. Recorded on that batch as a recalculation. Returns the batch_id."""
+    with db.connect() as conn:
+        row = conn.execute("""SELECT batch_id, ingest_job_id FROM batch_run
+                               WHERE status = 'prioritized' AND ingest_job_id IS NOT NULL
+                               ORDER BY started_at DESC LIMIT 1""").fetchone()
+    if row is None:
+        raise LookupError("No finished batch yet. Ingest and persist a batch first.")
+    batch_id, job_id = uuid.UUID(row[0]), row[1]
+    if not _ONE_AT_A_TIME.acquire(blocking=False):
+        raise ValueError("A batch is running. Wait for it to finish, then run the calculation.")
+    try:
+        _progress(batch_id, "measuring", "calculation.requested",
+                  {"recalculation": {"requested": measure_ids or "all"}})
+    except Exception:
+        _ONE_AT_A_TIME.release()
+        raise
+    threading.Thread(target=_recalculate, args=(batch_id, job_id, measure_ids), name=f"calc-{batch_id}",
+                     daemon=True).start()
+    return str(batch_id)
+
+
+def _recalculate(batch_id: uuid.UUID, job_id: str, measure_ids: list[str] | None) -> None:
+    step = "measuring"
+    try:
+        with db.connect() as conn:
+            patient_ids, attributed = team_schema_loader.job_patients(conn, job_id)
+            run = measures.run_measures(conn, list(patient_ids), attributed, batch_id.hex[:8],
+                                        measure_ids=measure_ids)
+            engine = run.counts()
+            _event(conn, batch_id, "measures.received",
+                   {"engine_run_id": run.run_id, "patients": run.patients, "measures": engine["measures"]})
+            gaps = measures.gap_counts(conn, list(patient_ids))
+            _progress(batch_id, "prioritizing", "gaps.identified",
+                      {"recalculation": {"requested": measure_ids or "all", "measures": engine,
+                                         "open_gaps": gaps}}, conn=conn)
+        step = "prioritizing"
+        with db.connect() as conn:
+            summary = score_all(conn, date.today(), load_rules())
+            _progress(batch_id, "done", "gaps.prioritized", {"prioritization": _scored(summary)},
+                      status="prioritized", conn=conn)
+            audit(conn, "batch", str(batch_id), "calculation.completed",
+                  {"engine_run_id": run.run_id, "gaps_scored": summary.gaps_scored}, actor=SETTINGS.actor)
+    except Exception as exc:  # noqa: BLE001 - every failure is recorded on the batch with its step and reason
+        _fail(batch_id, step, exc)
+    finally:
+        _ONE_AT_A_TIME.release()
+
+
+def _convert(upload: Path) -> tuple[str, dict]:
+    """The ingestion service's own upload (upload_dataset_zip for a zip, upload_dataset for CSV files) and
+    conversion, called as they are."""
+    try:
+        if upload.is_dir():
+            with ExitStack() as stack:
+                files = [UploadFile(file=stack.enter_context(path.open("rb")), filename=path.name)
+                         for path in sorted(upload.glob("*.csv"))]
+                uploaded = asyncio.run(upload_dataset(files))
+        else:
+            with upload.open("rb") as handle:
+                uploaded = asyncio.run(upload_dataset_zip(UploadFile(file=handle, filename=upload.name)))
+    except HTTPException as exc:
+        raise StepFailed(f"the upload was refused: {exc.detail}") from exc
     if uploaded["missing_required_files"]:
-        raise StepFailed(f"the zip is missing {', '.join(uploaded['missing_required_files'])}")
+        raise StepFailed(f"the upload is missing {', '.join(uploaded['missing_required_files'])}")
     job_id = job_manager.create_job(uploaded["input_dir"])
     try:
         run_conversion(job_id, uploaded["input_dir"])
@@ -210,10 +352,63 @@ def _event(conn: psycopg.Connection, batch_id: uuid.UUID, event_type: str, paylo
 
 
 def batch_status(conn: psycopg.Connection, batch_id: str) -> dict | None:
+    """One batch by id, or the most recently started one when batch_id is "latest"."""
     row = conn.execute(
         """SELECT batch_id, ingest_job_id, status, step, counts, error, started_at, updated_at
-             FROM batch_run WHERE batch_id = %s""", (batch_id,)).fetchone()
+             FROM batch_run WHERE batch_id = %(id)s OR %(id)s = 'latest'
+            ORDER BY started_at DESC LIMIT 1""", {"id": batch_id}).fetchone()
     if row is None:
         return None
     keys = ("batch_id", "ingest_job_id", "status", "step", "counts", "error", "started_at", "updated_at")
     return dict(zip(keys, row))
+
+
+_TABLE_COUNTS = """
+SELECT (SELECT count(*) FROM conversion_jobs) AS conversion_jobs,
+       (SELECT count(*) FROM fhir_resources) AS fhir_resources,
+       (SELECT count(*) FROM fhir_resources WHERE persisted) AS fhir_resources_persisted,
+       (SELECT count(*) FROM validation_issues) AS validation_issues,
+       (SELECT count(*) FROM patient) AS patient,
+       (SELECT count(*) FROM encounter) AS encounter,
+       (SELECT count(*) FROM observation) AS observation,
+       (SELECT count(*) FROM fhir_resource_raw) AS fhir_resource_raw,
+       (SELECT count(*) FROM feed_completeness_report) AS feed_completeness_report,
+       (SELECT count(*) FROM quality_run) AS quality_run,
+       (SELECT count(*) FROM quality_check_result) AS quality_check_result,
+       (SELECT count(*) FROM data_anomaly) AS data_anomaly,
+       (SELECT count(*) FROM engine_runs) AS engine_runs,
+       (SELECT count(*) FROM measure_result) AS measure_result,
+       (SELECT count(*) FROM care_gap) AS care_gap,
+       (SELECT count(*) FROM care_gap WHERE status = 'open') AS care_gap_open,
+       (SELECT count(*) FROM care_gap_detail) AS care_gap_detail,
+       (SELECT count(*) FROM gap_priority_score) AS gap_priority_score,
+       (SELECT count(*) FROM document_reference) AS document_reference,
+       (SELECT count(*) FROM evidence_proposal) AS evidence_proposal,
+       (SELECT count(*) FROM review_decisions) AS review_decisions,
+       (SELECT count(*) FROM supplemental_records) AS supplemental_records,
+       (SELECT count(*) FROM star_scenario) AS star_scenario
+"""
+
+
+def flow(conn: psycopg.Connection) -> dict:
+    """The latest batch across the screens: its ingestion job, our steps and the rows each step has stored."""
+    batch = batch_status(conn, "latest")
+    job = None
+    if batch and batch["ingest_job_id"]:
+        row = conn.execute(
+            """SELECT id, status, started_at, completed_at, total_source_records, resources_generated,
+                      resources_validated, resources_persisted, warning_count, error_count
+                 FROM conversion_jobs WHERE id = %s""", (batch["ingest_job_id"],)).fetchone()
+        keys = ("id", "status", "started_at", "completed_at", "total_source_records", "resources_generated",
+                "resources_validated", "resources_persisted", "warning_count", "error_count")
+        job = dict(zip(keys, row)) if row else None
+    latest_job = conn.execute(
+        """SELECT j.id, j.status, j.resources_generated, j.resources_persisted,
+                  EXISTS (SELECT 1 FROM batch_run b WHERE b.ingest_job_id = j.id) AS has_batch
+             FROM conversion_jobs j ORDER BY j.started_at DESC NULLS LAST LIMIT 1""").fetchone()
+    cur = conn.execute(_TABLE_COUNTS)
+    counts = dict(zip([c.name for c in cur.description], cur.fetchone()))
+    return {"batch": batch, "ingest_job": job,
+            "latest_ingest_job": dict(zip(("id", "status", "resources_generated", "resources_persisted",
+                                           "has_batch"), latest_job)) if latest_job else None,
+            "tables": counts}

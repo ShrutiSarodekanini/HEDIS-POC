@@ -1,5 +1,5 @@
 import sys
-sys.path.insert(0, 'services/data_ingestion')
+sys.path.insert(0, 'services/data_ingestion_pallavi')
 from app.db import SessionLocal
 from app.models import Patient, Encounter, Condition, Observation, Procedure, Medication, Immunization, Coverage, FhirResource
 
