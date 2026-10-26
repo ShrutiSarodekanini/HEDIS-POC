@@ -145,7 +145,7 @@ try:
         print("\n" + "=" * 60)
         print("✨ Cleanup complete!")
         print("\n📝 You can now start the backend:")
-        print("   python -m services.data_ingestion.main")
+        print("   python -m services.data_ingestion_pallavi.main")
 
 except OperationalError as e:
     print(f"\n❌ ERROR: Cannot connect to PostgreSQL!")

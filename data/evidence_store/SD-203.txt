@@ -1,0 +1,8 @@
+Lab report
+Patient: Mitchell Bauch  DOB: 1956-08-05
+Date: 2026-09-04
+
+Ordering clinic: outside endocrinology
+Hemoglobin A1c 6.5 % (collected 2026-09-04)
+Fasting glucose 138 mg/dL
+Goal A1c below 7 %

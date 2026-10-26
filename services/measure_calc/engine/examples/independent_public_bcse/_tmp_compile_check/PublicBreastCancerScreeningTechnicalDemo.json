@@ -1,0 +1,529 @@
+{
+   "library" : {
+      "annotation" : [ {
+         "translatorVersion" : "2.7.0",
+         "translatorOptions" : "",
+         "type" : "CqlToElmInfo"
+      } ],
+      "identifier" : {
+         "id" : "PublicBreastCancerScreeningTechnicalDemo",
+         "version" : "0.1.0"
+      },
+      "schemaIdentifier" : {
+         "id" : "urn:hl7-org:elm",
+         "version" : "r1"
+      },
+      "usings" : {
+         "def" : [ {
+            "localIdentifier" : "System",
+            "uri" : "urn:hl7-org:elm-types:r1"
+         }, {
+            "localIdentifier" : "FHIR",
+            "uri" : "http://hl7.org/fhir",
+            "version" : "4.0.1"
+         } ]
+      },
+      "includes" : {
+         "def" : [ {
+            "localIdentifier" : "FHIRHelpers",
+            "path" : "FHIRHelpers",
+            "version" : "4.0.1"
+         } ]
+      },
+      "parameters" : {
+         "def" : [ {
+            "name" : "Measurement Period",
+            "accessLevel" : "Public",
+            "default" : {
+               "lowClosed" : true,
+               "highClosed" : true,
+               "type" : "Interval",
+               "low" : {
+                  "type" : "DateTime",
+                  "year" : {
+                     "valueType" : "{urn:hl7-org:elm-types:r1}Integer",
+                     "value" : "2026",
+                     "type" : "Literal"
+                  },
+                  "month" : {
+                     "valueType" : "{urn:hl7-org:elm-types:r1}Integer",
+                     "value" : "1",
+                     "type" : "Literal"
+                  },
+                  "day" : {
+                     "valueType" : "{urn:hl7-org:elm-types:r1}Integer",
+                     "value" : "1",
+                     "type" : "Literal"
+                  },
+                  "hour" : {
+                     "valueType" : "{urn:hl7-org:elm-types:r1}Integer",
+                     "value" : "0",
+                     "type" : "Literal"
+                  },
+                  "minute" : {
+                     "valueType" : "{urn:hl7-org:elm-types:r1}Integer",
+                     "value" : "0",
+                     "type" : "Literal"
+                  },
+                  "second" : {
+                     "valueType" : "{urn:hl7-org:elm-types:r1}Integer",
+                     "value" : "0",
+                     "type" : "Literal"
+                  },
+                  "millisecond" : {
+                     "valueType" : "{urn:hl7-org:elm-types:r1}Integer",
+                     "value" : "0",
+                     "type" : "Literal"
+                  }
+               },
+               "high" : {
+                  "type" : "DateTime",
+                  "year" : {
+                     "valueType" : "{urn:hl7-org:elm-types:r1}Integer",
+                     "value" : "2026",
+                     "type" : "Literal"
+                  },
+                  "month" : {
+                     "valueType" : "{urn:hl7-org:elm-types:r1}Integer",
+                     "value" : "12",
+                     "type" : "Literal"
+                  },
+                  "day" : {
+                     "valueType" : "{urn:hl7-org:elm-types:r1}Integer",
+                     "value" : "31",
+                     "type" : "Literal"
+                  },
+                  "hour" : {
+                     "valueType" : "{urn:hl7-org:elm-types:r1}Integer",
+                     "value" : "23",
+                     "type" : "Literal"
+                  },
+                  "minute" : {
+                     "valueType" : "{urn:hl7-org:elm-types:r1}Integer",
+                     "value" : "59",
+                     "type" : "Literal"
+                  },
+                  "second" : {
+                     "valueType" : "{urn:hl7-org:elm-types:r1}Integer",
+                     "value" : "59",
+                     "type" : "Literal"
+                  },
+                  "millisecond" : {
+                     "valueType" : "{urn:hl7-org:elm-types:r1}Integer",
+                     "value" : "999",
+                     "type" : "Literal"
+                  }
+               }
+            },
+            "parameterTypeSpecifier" : {
+               "type" : "IntervalTypeSpecifier",
+               "pointType" : {
+                  "name" : "{urn:hl7-org:elm-types:r1}DateTime",
+                  "type" : "NamedTypeSpecifier"
+               }
+            }
+         } ]
+      },
+      "contexts" : {
+         "def" : [ {
+            "name" : "Patient"
+         } ]
+      },
+      "statements" : {
+         "def" : [ {
+            "name" : "Patient",
+            "context" : "Patient",
+            "expression" : {
+               "type" : "SingletonFrom",
+               "operand" : {
+                  "dataType" : "{http://hl7.org/fhir}Patient",
+                  "templateId" : "http://hl7.org/fhir/StructureDefinition/Patient",
+                  "type" : "Retrieve"
+               }
+            }
+         }, {
+            "name" : "Has Qualifying Encounter During Measurement Period",
+            "context" : "Patient",
+            "accessLevel" : "Public",
+            "expression" : {
+               "type" : "Exists",
+               "operand" : {
+                  "type" : "Query",
+                  "source" : [ {
+                     "alias" : "E",
+                     "expression" : {
+                        "dataType" : "{http://hl7.org/fhir}Encounter",
+                        "templateId" : "http://hl7.org/fhir/StructureDefinition/Encounter",
+                        "type" : "Retrieve"
+                     }
+                  } ],
+                  "relationship" : [ ],
+                  "where" : {
+                     "type" : "And",
+                     "operand" : [ {
+                        "type" : "In",
+                        "operand" : [ {
+                           "name" : "ToString",
+                           "libraryName" : "FHIRHelpers",
+                           "type" : "FunctionRef",
+                           "operand" : [ {
+                              "path" : "status",
+                              "scope" : "E",
+                              "type" : "Property"
+                           } ]
+                        }, {
+                           "type" : "List",
+                           "element" : [ {
+                              "valueType" : "{urn:hl7-org:elm-types:r1}String",
+                              "value" : "finished",
+                              "type" : "Literal"
+                           }, {
+                              "valueType" : "{urn:hl7-org:elm-types:r1}String",
+                              "value" : "in-progress",
+                              "type" : "Literal"
+                           } ]
+                        } ]
+                     }, {
+                        "precision" : "Day",
+                        "type" : "In",
+                        "operand" : [ {
+                           "path" : "value",
+                           "type" : "Property",
+                           "source" : {
+                              "path" : "start",
+                              "type" : "Property",
+                              "source" : {
+                                 "path" : "period",
+                                 "scope" : "E",
+                                 "type" : "Property"
+                              }
+                           }
+                        }, {
+                           "name" : "Measurement Period",
+                           "type" : "ParameterRef"
+                        } ]
+                     } ]
+                  }
+               }
+            }
+         }, {
+            "name" : "Has Mammography During Allowed Window",
+            "context" : "Patient",
+            "accessLevel" : "Public",
+            "expression" : {
+               "type" : "Exists",
+               "operand" : {
+                  "type" : "Query",
+                  "source" : [ {
+                     "alias" : "P",
+                     "expression" : {
+                        "dataType" : "{http://hl7.org/fhir}Procedure",
+                        "templateId" : "http://hl7.org/fhir/StructureDefinition/Procedure",
+                        "type" : "Retrieve"
+                     }
+                  } ],
+                  "relationship" : [ ],
+                  "where" : {
+                     "type" : "And",
+                     "operand" : [ {
+                        "type" : "And",
+                        "operand" : [ {
+                           "type" : "And",
+                           "operand" : [ {
+                              "type" : "In",
+                              "operand" : [ {
+                                 "name" : "ToString",
+                                 "libraryName" : "FHIRHelpers",
+                                 "type" : "FunctionRef",
+                                 "operand" : [ {
+                                    "path" : "status",
+                                    "scope" : "P",
+                                    "type" : "Property"
+                                 } ]
+                              }, {
+                                 "type" : "List",
+                                 "element" : [ {
+                                    "valueType" : "{urn:hl7-org:elm-types:r1}String",
+                                    "value" : "completed",
+                                    "type" : "Literal"
+                                 } ]
+                              } ]
+                           }, {
+                              "type" : "Exists",
+                              "operand" : {
+                                 "type" : "Query",
+                                 "source" : [ {
+                                    "alias" : "Coding",
+                                    "expression" : {
+                                       "path" : "coding",
+                                       "type" : "Property",
+                                       "source" : {
+                                          "path" : "code",
+                                          "scope" : "P",
+                                          "type" : "Property"
+                                       }
+                                    }
+                                 } ],
+                                 "relationship" : [ ],
+                                 "where" : {
+                                    "type" : "Or",
+                                    "operand" : [ {
+                                       "type" : "And",
+                                       "operand" : [ {
+                                          "type" : "Equal",
+                                          "operand" : [ {
+                                             "path" : "value",
+                                             "type" : "Property",
+                                             "source" : {
+                                                "path" : "system",
+                                                "scope" : "Coding",
+                                                "type" : "Property"
+                                             }
+                                          }, {
+                                             "valueType" : "{urn:hl7-org:elm-types:r1}String",
+                                             "value" : "http://www.ama-assn.org/go/cpt",
+                                             "type" : "Literal"
+                                          } ]
+                                       }, {
+                                          "type" : "In",
+                                          "operand" : [ {
+                                             "path" : "value",
+                                             "type" : "Property",
+                                             "source" : {
+                                                "path" : "code",
+                                                "scope" : "Coding",
+                                                "type" : "Property"
+                                             }
+                                          }, {
+                                             "type" : "List",
+                                             "element" : [ {
+                                                "valueType" : "{urn:hl7-org:elm-types:r1}String",
+                                                "value" : "77063",
+                                                "type" : "Literal"
+                                             }, {
+                                                "valueType" : "{urn:hl7-org:elm-types:r1}String",
+                                                "value" : "77056",
+                                                "type" : "Literal"
+                                             } ]
+                                          } ]
+                                       } ]
+                                    }, {
+                                       "type" : "And",
+                                       "operand" : [ {
+                                          "type" : "Equal",
+                                          "operand" : [ {
+                                             "path" : "value",
+                                             "type" : "Property",
+                                             "source" : {
+                                                "path" : "system",
+                                                "scope" : "Coding",
+                                                "type" : "Property"
+                                             }
+                                          }, {
+                                             "valueType" : "{urn:hl7-org:elm-types:r1}String",
+                                             "value" : "http://snomed.info/sct",
+                                             "type" : "Literal"
+                                          } ]
+                                       }, {
+                                          "type" : "Equal",
+                                          "operand" : [ {
+                                             "path" : "value",
+                                             "type" : "Property",
+                                             "source" : {
+                                                "path" : "code",
+                                                "scope" : "Coding",
+                                                "type" : "Property"
+                                             }
+                                          }, {
+                                             "valueType" : "{urn:hl7-org:elm-types:r1}String",
+                                             "value" : "168749009",
+                                             "type" : "Literal"
+                                          } ]
+                                       } ]
+                                    } ]
+                                 }
+                              }
+                           } ]
+                        }, {
+                           "type" : "Is",
+                           "operand" : {
+                              "path" : "performed",
+                              "scope" : "P",
+                              "type" : "Property"
+                           },
+                           "isTypeSpecifier" : {
+                              "name" : "{http://hl7.org/fhir}dateTime",
+                              "type" : "NamedTypeSpecifier"
+                           }
+                        } ]
+                     }, {
+                        "precision" : "Day",
+                        "type" : "In",
+                        "operand" : [ {
+                           "path" : "value",
+                           "type" : "Property",
+                           "source" : {
+                              "strict" : false,
+                              "type" : "As",
+                              "operand" : {
+                                 "path" : "performed",
+                                 "scope" : "P",
+                                 "type" : "Property"
+                              },
+                              "asTypeSpecifier" : {
+                                 "name" : "{http://hl7.org/fhir}dateTime",
+                                 "type" : "NamedTypeSpecifier"
+                              }
+                           }
+                        }, {
+                           "lowClosed" : true,
+                           "highClosed" : true,
+                           "type" : "Interval",
+                           "low" : {
+                              "type" : "DateTime",
+                              "year" : {
+                                 "valueType" : "{urn:hl7-org:elm-types:r1}Integer",
+                                 "value" : "2024",
+                                 "type" : "Literal"
+                              },
+                              "month" : {
+                                 "valueType" : "{urn:hl7-org:elm-types:r1}Integer",
+                                 "value" : "10",
+                                 "type" : "Literal"
+                              },
+                              "day" : {
+                                 "valueType" : "{urn:hl7-org:elm-types:r1}Integer",
+                                 "value" : "1",
+                                 "type" : "Literal"
+                              },
+                              "hour" : {
+                                 "valueType" : "{urn:hl7-org:elm-types:r1}Integer",
+                                 "value" : "0",
+                                 "type" : "Literal"
+                              },
+                              "minute" : {
+                                 "valueType" : "{urn:hl7-org:elm-types:r1}Integer",
+                                 "value" : "0",
+                                 "type" : "Literal"
+                              },
+                              "second" : {
+                                 "valueType" : "{urn:hl7-org:elm-types:r1}Integer",
+                                 "value" : "0",
+                                 "type" : "Literal"
+                              },
+                              "millisecond" : {
+                                 "valueType" : "{urn:hl7-org:elm-types:r1}Integer",
+                                 "value" : "0",
+                                 "type" : "Literal"
+                              },
+                              "timezoneOffset" : {
+                                 "type" : "ToDecimal",
+                                 "operand" : {
+                                    "valueType" : "{urn:hl7-org:elm-types:r1}Integer",
+                                    "value" : "0",
+                                    "type" : "Literal"
+                                 }
+                              }
+                           },
+                           "high" : {
+                              "type" : "End",
+                              "operand" : {
+                                 "name" : "Measurement Period",
+                                 "type" : "ParameterRef"
+                              }
+                           }
+                        } ]
+                     } ]
+                  }
+               }
+            }
+         }, {
+            "name" : "ipp",
+            "context" : "Patient",
+            "accessLevel" : "Public",
+            "expression" : {
+               "type" : "And",
+               "operand" : [ {
+                  "type" : "And",
+                  "operand" : [ {
+                     "type" : "In",
+                     "operand" : [ {
+                        "precision" : "Year",
+                        "type" : "CalculateAgeAt",
+                        "operand" : [ {
+                           "type" : "ToDateTime",
+                           "operand" : {
+                              "path" : "birthDate.value",
+                              "type" : "Property",
+                              "source" : {
+                                 "name" : "Patient",
+                                 "type" : "ExpressionRef"
+                              }
+                           }
+                        }, {
+                           "type" : "End",
+                           "operand" : {
+                              "name" : "Measurement Period",
+                              "type" : "ParameterRef"
+                           }
+                        } ]
+                     }, {
+                        "lowClosed" : true,
+                        "highClosed" : true,
+                        "type" : "Interval",
+                        "low" : {
+                           "valueType" : "{urn:hl7-org:elm-types:r1}Integer",
+                           "value" : "52",
+                           "type" : "Literal"
+                        },
+                        "high" : {
+                           "valueType" : "{urn:hl7-org:elm-types:r1}Integer",
+                           "value" : "74",
+                           "type" : "Literal"
+                        }
+                     } ]
+                  }, {
+                     "type" : "Equal",
+                     "operand" : [ {
+                        "path" : "value",
+                        "type" : "Property",
+                        "source" : {
+                           "path" : "gender",
+                           "type" : "Property",
+                           "source" : {
+                              "name" : "Patient",
+                              "type" : "ExpressionRef"
+                           }
+                        }
+                     }, {
+                        "valueType" : "{urn:hl7-org:elm-types:r1}String",
+                        "value" : "female",
+                        "type" : "Literal"
+                     } ]
+                  } ]
+               }, {
+                  "name" : "Has Qualifying Encounter During Measurement Period",
+                  "type" : "ExpressionRef"
+               } ]
+            }
+         }, {
+            "name" : "denom",
+            "context" : "Patient",
+            "accessLevel" : "Public",
+            "expression" : {
+               "name" : "ipp",
+               "type" : "ExpressionRef"
+            }
+         }, {
+            "name" : "numer",
+            "context" : "Patient",
+            "accessLevel" : "Public",
+            "expression" : {
+               "name" : "Has Mammography During Allowed Window",
+               "type" : "ExpressionRef"
+            }
+         } ]
+      }
+   }
+}
+

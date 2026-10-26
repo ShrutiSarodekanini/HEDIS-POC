@@ -60,8 +60,8 @@ if (-not $?) {
     throw "Required packages are missing in .venv. Run: `"$pythonExe`" -m pip install -r `"$requirementsFile`" or start script with -InstallDeps."
 }
 
-$apiCommand = "Set-Location '$ProjectRoot'; & '$pythonExe' -m uvicorn services.data_ingestion.main:app --host 0.0.0.0 --port $ApiPort --reload"
-$workerCommand = "Set-Location '$ProjectRoot'; & '$pythonExe' -m services.data_quality.main"
+$apiCommand = "Set-Location '$ProjectRoot'; & '$pythonExe' -m uvicorn services.data_ingestion_pallavi.main:app --host 0.0.0.0 --port $ApiPort --reload"
+$workerCommand = "Set-Location '$ProjectRoot'; & '$pythonExe' -m services.data_quality_pallavi.main"
 
 Start-Process powershell -ArgumentList @("-NoExit", "-Command", $apiCommand)
 Start-Sleep -Seconds 1

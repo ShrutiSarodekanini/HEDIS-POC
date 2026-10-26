@@ -3,7 +3,7 @@ from __future__ import annotations
 import datetime as dt
 import uuid
 
-from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Integer, String, Text, UniqueConstraint, func
+from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text, UniqueConstraint, func
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.types import JSON
@@ -420,89 +420,3 @@ class BasicResource(Base):
     resource_json: Mapped[dict] = mapped_column(JSONType, nullable=False, default=dict)
     created_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
     updated_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now())
-
-
-class DomainEvent(Base):
-    __tablename__ = "domain_events"
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    event_type: Mapped[str] = mapped_column(String(120), nullable=False, index=True)
-    status: Mapped[str] = mapped_column(String(30), nullable=False, default="pending", index=True)
-    attempt_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
-    batch_id: Mapped[str | None] = mapped_column(ForeignKey("source_batches.id"), nullable=True, index=True)
-    job_id: Mapped[str | None] = mapped_column(ForeignKey("conversion_jobs.id"), nullable=True, index=True)
-    payload_json: Mapped[dict] = mapped_column(JSONType, nullable=False, default=dict)
-    last_error: Mapped[str | None] = mapped_column(Text, nullable=True)
-    locked_by: Mapped[str | None] = mapped_column(String(120), nullable=True)
-    locked_at: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-    processed_at: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-    created_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
-    updated_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now())
-
-
-class DqRun(Base):
-    __tablename__ = "dq_runs"
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    batch_id: Mapped[str] = mapped_column(ForeignKey("source_batches.id"), nullable=False, index=True)
-    job_id: Mapped[str] = mapped_column(ForeignKey("conversion_jobs.id"), nullable=False, index=True)
-    trigger_event_id: Mapped[int | None] = mapped_column(ForeignKey("domain_events.id"), nullable=True, index=True)
-    status: Mapped[str] = mapped_column(String(30), nullable=False, default="running", index=True)
-    summary_json: Mapped[dict] = mapped_column(JSONType, nullable=False, default=dict)
-    error_text: Mapped[str | None] = mapped_column(Text, nullable=True)
-    started_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
-    completed_at: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-
-    __table_args__ = (
-        UniqueConstraint("batch_id", "job_id", name="uq_dq_runs_batch_job"),
-    )
-
-
-class DataAnomaly(Base):
-    __tablename__ = "data_anomalies"
-
-    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
-    dq_run_id: Mapped[int] = mapped_column(ForeignKey("dq_runs.id"), nullable=False, index=True)
-    batch_id: Mapped[str] = mapped_column(ForeignKey("source_batches.id"), nullable=False, index=True)
-    job_id: Mapped[str | None] = mapped_column(ForeignKey("conversion_jobs.id"), nullable=True, index=True)
-    patient_id: Mapped[str | None] = mapped_column(String(150), nullable=True, index=True)
-    resource_type: Mapped[str | None] = mapped_column(String(100), nullable=True, index=True)
-    anomaly_type: Mapped[str] = mapped_column(String(120), nullable=False, index=True)
-    severity: Mapped[str] = mapped_column(String(20), nullable=False, default="medium", index=True)
-    status: Mapped[str] = mapped_column(String(20), nullable=False, default="open", index=True)
-    source_component: Mapped[str] = mapped_column(String(80), nullable=False, default="dq_worker")
-    details_json: Mapped[dict] = mapped_column(JSONType, nullable=False, default=dict)
-    detected_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now(), index=True)
-    resolved_at: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-
-
-class FeedCompletenessReport(Base):
-    __tablename__ = "feed_completeness_reports"
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    dq_run_id: Mapped[int] = mapped_column(ForeignKey("dq_runs.id"), nullable=False, index=True)
-    batch_id: Mapped[str] = mapped_column(ForeignKey("source_batches.id"), nullable=False, index=True)
-    resource_type: Mapped[str] = mapped_column(String(100), nullable=False, index=True)
-    record_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
-    measure_relevant: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
-    created_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
-
-    __table_args__ = (
-        UniqueConstraint("dq_run_id", "resource_type", name="uq_feed_completeness_run_resource"),
-    )
-
-
-class DqCheckResult(Base):
-    __tablename__ = "dq_check_results"
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    dq_run_id: Mapped[int] = mapped_column(ForeignKey("dq_runs.id"), nullable=False, index=True)
-    batch_id: Mapped[str] = mapped_column(ForeignKey("source_batches.id"), nullable=False, index=True)
-    check_name: Mapped[str] = mapped_column(String(120), nullable=False, index=True)
-    resource_type: Mapped[str | None] = mapped_column(String(100), nullable=True, index=True)
-    status: Mapped[str] = mapped_column(String(20), nullable=False, default="passed", index=True)
-    metric_name: Mapped[str] = mapped_column(String(120), nullable=False)
-    metric_value: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
-    threshold_value: Mapped[float | None] = mapped_column(Float, nullable=True)
-    details_json: Mapped[dict] = mapped_column(JSONType, nullable=False, default=dict)
-    created_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())

@@ -1,5 +1,5 @@
 import sys
-sys.path.insert(0, 'services/data_ingestion')
+sys.path.insert(0, 'services/data_ingestion_pallavi')
 from app.db import engine
 from sqlalchemy import text
 

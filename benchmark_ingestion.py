@@ -81,8 +81,8 @@ class BenchmarkRunner:
     
     def wait_for_ingestion(self, job_id: str, timeout: int = 3600):
         """Wait for ingestion job to complete"""
-        from services.data_ingestion.app.db import SessionLocal
-        from services.data_ingestion.app.models import ConversionJob
+        from services.data_ingestion_pallavi.app.db import SessionLocal
+        from services.data_ingestion_pallavi.app.models import ConversionJob
         
         start_time = time.perf_counter()
         session = SessionLocal()
@@ -252,11 +252,11 @@ def main():
         response = requests.get("http://localhost:8000/health", timeout=2)
         if response.status_code != 200:
             print("ERROR: FastAPI backend not responding")
-            print("Start backend with: python -m services.data_ingestion.main")
+            print("Start backend with: python -m services.data_ingestion_pallavi.main")
             sys.exit(1)
     except requests.exceptions.ConnectionError:
         print("ERROR: Cannot connect to FastAPI backend at http://localhost:8000")
-        print("Start backend with: python -m services.data_ingestion.main")
+        print("Start backend with: python -m services.data_ingestion_pallavi.main")
         sys.exit(1)
     
     # Run benchmark

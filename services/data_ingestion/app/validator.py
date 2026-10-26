@@ -41,18 +41,10 @@ FHIR_MODEL_MAP = {
     "Observation": "fhir.resources.observation.Observation",
     "Procedure": "fhir.resources.procedure.Procedure",
     "MedicationRequest": "fhir.resources.medicationrequest.MedicationRequest",
-    "MedicationDispense": "fhir.resources.medicationdispense.MedicationDispense",
     "Immunization": "fhir.resources.immunization.Immunization",
     "CarePlan": "fhir.resources.careplan.CarePlan",
     "Claim": "fhir.resources.claim.Claim",
     "Coverage": "fhir.resources.coverage.Coverage",
-    "AllergyIntolerance": "fhir.resources.allergyintolerance.AllergyIntolerance",
-    "Device": "fhir.resources.device.Device",
-    "ImagingStudy": "fhir.resources.imagingstudy.ImagingStudy",
-    "Organization": "fhir.resources.organization.Organization",
-    "Practitioner": "fhir.resources.practitioner.Practitioner",
-    "SupplyDelivery": "fhir.resources.supplydelivery.SupplyDelivery",
-    "Basic": "fhir.resources.basic.Basic",
 }
 
 

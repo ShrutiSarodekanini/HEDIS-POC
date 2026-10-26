@@ -14,7 +14,7 @@ from datetime import date
 from typing import Any, Protocol
 
 #: Bump when the system prompt, the prompt layout or OUTPUT_SCHEMA changes. Stored on every attempt and candidate.
-PROMPT_VERSION = "us03-v1"
+PROMPT_VERSION = "us03-v2"
 
 #: JSON schema the model must answer with, sent to OpenRouter as response_format json_schema.
 #: page_no is the page label the model saw: [DOC D-101 | page 1 | ...].
@@ -35,9 +35,10 @@ OUTPUT_SCHEMA: dict[str, Any] = {
                     "value": {"type": "string"},
                     "confidence": {"type": "number"},
                     "reason": {"type": "string"},
+                    "part": {"type": "string", "enum": ["", "frailty", "advanced_illness"]},
                 },
                 "required": ["document_id", "page_no", "excerpt", "evidence_kind", "evidence_type",
-                             "service_date", "value", "confidence", "reason"],
+                             "service_date", "value", "confidence", "reason", "part"],
             },
         }
     },
@@ -129,6 +130,7 @@ class Finding:
     value: str
     confidence: float
     reason: str
+    part: str = ""               # 'frailty' or 'advanced_illness' for the two-part frailty exclusions, else ''
 
 
 @dataclass(frozen=True)
@@ -152,6 +154,7 @@ class Candidate:
     handwritten: bool
     low_confidence: bool
     warnings: tuple[str, ...] = ()
+    part: str = ""               # see Finding.part
 
 
 @dataclass(frozen=True)
