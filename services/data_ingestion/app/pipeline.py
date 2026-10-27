@@ -349,6 +349,9 @@ def _run_streaming_conversion(job_id: str, input_dir: str, adapter: Any) -> None
 
     def collect_issue(issue: Any) -> None:
         nonlocal warning_count, error_count
+        # Skip if issue is None or doesn't have required attributes
+        if issue is None or not hasattr(issue, 'source_file') or not hasattr(issue, 'severity'):
+            return
         issue_buffer.append(issue)
         # Safely resolve resource type from issue's source file
         issue_resource_type = resolve_resource_type(issue.source_file)
@@ -449,6 +452,8 @@ def _run_streaming_conversion(job_id: str, input_dir: str, adapter: Any) -> None
                 mapping_start = time.perf_counter()
                 resource, issues = map_source_record(record, validate=False)
                 mapping_seconds += time.perf_counter() - mapping_start
+                # Filter out None issues
+                issues = [issue for issue in issues if issue is not None]
                 issue_buffer.extend(issues)
                 for issue in issues:
                     if issue.severity == "warning":
@@ -483,6 +488,8 @@ def _run_streaming_conversion(job_id: str, input_dir: str, adapter: Any) -> None
                     # Pass only current patient's coverage records, not all coverage records
                     resource, issues = map_source_record(record, patient_coverage_list, validate=False)
                     mapping_seconds += time.perf_counter() - mapping_start
+                    # Filter out None issues
+                    issues = [issue for issue in issues if issue is not None]
                     issue_buffer.extend(issues)
                     for issue in issues:
                         if issue.severity == "warning":
@@ -778,8 +785,8 @@ def run_conversion(job_id: str, input_dir: str, adapter_name: str = "synthea_csv
         if settings.validation_require_external:
             stage(job_id, "validation", "completed", f"Validated {validated_count} resources")
 
-        warning_count = sum(1 for issue in all_issues if issue.severity == "warning")
-        error_count = sum(1 for issue in all_issues if issue.severity == "error")
+        warning_count = sum(1 for issue in all_issues if issue is not None and issue.severity == "warning")
+        error_count = sum(1 for issue in all_issues if issue is not None and issue.severity == "error")
         summary["warning_count"] = warning_count
         summary["error_count"] = error_count
 

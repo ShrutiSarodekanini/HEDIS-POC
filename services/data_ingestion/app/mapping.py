@@ -1015,18 +1015,6 @@ def validation_issue(resource: ResourceEnvelope, exc: ValidationError) -> RowIss
         f"{'.'.join(str(part) for part in error.get('loc', []))}: {error.get('msg', 'FHIR validation error')}"
         for error in exc.errors()
     )
-
-
-def validation_issue_for_record(record: SourceRecord, exc: ValidationError) -> RowIssue:
-    details = "; ".join(
-        f"{'.'.join(str(part) for part in error.get('loc', []))}: {error.get('msg', 'FHIR validation error')}"
-        for error in exc.errors()
-    )
-    return issue_invalid(
-        record,
-        "fhir_model_validation_error",
-        f"Mapped {record.source_file} row failed FHIR model validation: {details}",
-    )
     return issue_invalid(
         SourceRecord(
             source_file=resource.source_file,
@@ -1038,6 +1026,18 @@ def validation_issue_for_record(record: SourceRecord, exc: ValidationError) -> R
         ),
         "fhir_model_validation_error",
         f"Mapped {resource.source_file} row failed FHIR model validation: {details}",
+    )
+
+
+def validation_issue_for_record(record: SourceRecord, exc: ValidationError) -> RowIssue:
+    details = "; ".join(
+        f"{'.'.join(str(part) for part in error.get('loc', []))}: {error.get('msg', 'FHIR validation error')}"
+        for error in exc.errors()
+    )
+    return issue_invalid(
+        record,
+        "fhir_model_validation_error",
+        f"Mapped {record.source_file} row failed FHIR model validation: {details}",
     )
 
 

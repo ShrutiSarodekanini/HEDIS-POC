@@ -276,6 +276,9 @@ def complete_job(session: Session, job_id: str, status: str, summary: dict[str, 
 
 def persist_row_issues(session: Session, job_id: str, issues: list[RowIssue]) -> None:
     for issue in issues:
+        # Skip None issues
+        if issue is None:
+            continue
         session.add(
             ValidationIssue(
                 job_id=job_id,
