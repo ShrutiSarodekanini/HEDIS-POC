@@ -5,7 +5,7 @@ import logging
 from dataclasses import asdict
 from typing import Any
 
-from sqlalchemy import case, delete, func, select, update
+from sqlalchemy import case, delete, func, select, tuple_, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import Session
 
