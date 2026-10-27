@@ -706,3 +706,62 @@ def get_coverage_gaps(coverage_id: str) -> dict:
             "continuous_enrollment_compliant": cov.continuous_enrollment_compliant,
             "is_hedis_violation": cov.gap_detected and cov.gap_days and cov.gap_days > 45,
         }
+
+
+# ========== Integration/Measures Support Functions ==========
+
+def _extract_root_library_reference(path: str | Path) -> str:
+    """Extract root library reference from a measure bundle or library path.
+    
+    Used by integration/measures.py to identify the main library
+    in a FHIR measure implementation guide.
+    """
+    if isinstance(path, str):
+        path = Path(path)
+    
+    # Default to library name from filename
+    return path.stem or "Library/root"
+
+
+def _maybe_prune_run_request_bundle(bundle: dict, measure_id: str, path: str | Path) -> None:
+    """Optionally prune a run request bundle to remove unnecessary resources.
+    
+    Modifies bundle in place to remove resources that are not needed for
+    FQM execution to reduce payload size and improve performance.
+    Used by integration/measures.py during measure execution.
+    """
+    if not isinstance(bundle, dict):
+        return
+    
+    # Remove ValueSet resources (they're referenced but not needed for execution)
+    if "entry" in bundle and isinstance(bundle["entry"], list):
+        bundle["entry"] = [
+            entry for entry in bundle["entry"]
+            if not isinstance(entry, dict) or entry.get("resource", {}).get("resourceType") != "ValueSet"
+        ]
+
+
+def _to_member_result(entry: dict, measure_id: str) -> dict:
+    """Convert a FHIRPath evaluation entry to a member result object.
+    
+    Transforms a single evaluation entry from FQM execution into
+    the format expected by the measures dashboard.
+    Used by integration/measures.py to format individual patient results.
+    """
+    if not isinstance(entry, dict):
+        return {"member_id": None, "result": None}
+    
+    # Extract patient reference if present
+    resource = entry.get("resource", {})
+    subject = resource.get("subject", {})
+    member_id = subject.get("reference", "").replace("Patient/", "") if isinstance(subject, dict) else None
+    
+    # Construct result object
+    return {
+        "member_id": member_id,
+        "measure_id": measure_id,
+        "resource_type": resource.get("resourceType"),
+        "status": resource.get("status"),
+        "result": entry.get("result"),
+        "expression_name": entry.get("expression"),
+    }

@@ -57,10 +57,33 @@ WITH new AS (
 ), base AS (
     SELECT coalesce(max(substring(mrn FROM '^S-([0-9]+)$')::int), 0) AS n FROM patient
 )
-INSERT INTO patient (patient_id, mrn, gender, birth_date, birth_sex, source_file, batch_id)
+INSERT INTO patient (patient_id, mrn, gender, birth_date, birth_sex, race, ethnicity, source_file, batch_id)
 SELECT new.resource_id, 'S-' || lpad((base.n + row_number() OVER (ORDER BY new.resource_id))::text, 6, '0'),
        new.j->>'gender', (new.j->>'birthDate')::date,
-       CASE new.j->>'gender' WHEN 'male' THEN 'M' WHEN 'female' THEN 'F' END, new.source_file, %(batch)s
+       CASE new.j->>'gender' WHEN 'male' THEN 'M' WHEN 'female' THEN 'F' END,
+       -- Extract race from US Core Race extension
+       (
+         SELECT (elem->>'valueString')
+         FROM (
+           SELECT jsonb_array_elements(elem->'extension') as elem
+           FROM jsonb_array_elements(new.j->'extension') as ext(elem)
+           WHERE ext.elem->>'url' = 'http://hl7.org/fhir/us/core/StructureDefinition/us-core-race'
+         ) race_ext
+         WHERE elem->>'url' = 'text'
+         LIMIT 1
+       ),
+       -- Extract ethnicity from US Core Ethnicity extension
+       (
+         SELECT (elem->>'valueString')
+         FROM (
+           SELECT jsonb_array_elements(elem->'extension') as elem
+           FROM jsonb_array_elements(new.j->'extension') as ext(elem)
+           WHERE ext.elem->>'url' = 'http://hl7.org/fhir/us/core/StructureDefinition/us-core-ethnicity'
+         ) ethn_ext
+         WHERE elem->>'url' = 'text'
+         LIMIT 1
+       ),
+       new.source_file, %(batch)s
   FROM new, base
 """
 

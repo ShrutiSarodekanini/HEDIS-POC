@@ -146,6 +146,30 @@ def encounter_ref(encounter_id: str | None) -> dict[str, str] | None:
     return {"reference": f"Encounter/{fhir_id}", "display": encounter_id}
 
 
+def _map_race_to_code(race_str: str) -> str:
+    """Map Synthea race values to HL7 OMB race codes."""
+    race_map = {
+        "white": "2106-3",
+        "black": "2054-5",
+        "asian": "2028-9",
+        "american indian": "1002-5",
+        "pacific islander": "2076-8",
+        "other": "2131-1",
+    }
+    race_lower = race_str.lower().strip()
+    return race_map.get(race_lower, "2131-1")  # Default to "other"
+
+
+def _map_ethnicity_to_code(ethnicity_str: str) -> str:
+    """Map Synthea ethnicity values to HL7 OMB ethnicity codes."""
+    ethnicity_map = {
+        "nonhispanic": "2186-5",
+        "hispanic": "2135-2",
+    }
+    ethnicity_lower = ethnicity_str.lower().strip()
+    return ethnicity_map.get(ethnicity_lower, "2135-2")  # Default to "hispanic"
+
+
 def map_dataset(
     parsed: ParsedDataset,
     progress_callback: Callable[[str], None] | None = None,
@@ -375,6 +399,51 @@ def map_patient(record: SourceRecord) -> tuple[ResourceEnvelope | None, list[Row
             "postalCode": zip_code,
         }
 
+    # Build extensions array for demographic data
+    extensions = []
+    
+    # Add race extension (US Core Race)
+    race_raw = record.data.get("RACE", "").strip()
+    if race_raw:
+        extensions.append({
+            "url": "http://hl7.org/fhir/us/core/StructureDefinition/us-core-race",
+            "extension": [
+                {
+                    "url": "ombCategory",
+                    "valueCoding": {
+                        "system": "urn:oid:2.16.840.1.113883.6.238",
+                        "code": _map_race_to_code(race_raw),
+                        "display": race_raw
+                    }
+                },
+                {
+                    "url": "text",
+                    "valueString": race_raw
+                }
+            ]
+        })
+    
+    # Add ethnicity extension (US Core Ethnicity)
+    ethnicity_raw = record.data.get("ETHNICITY", "").strip()
+    if ethnicity_raw:
+        extensions.append({
+            "url": "http://hl7.org/fhir/us/core/StructureDefinition/us-core-ethnicity",
+            "extension": [
+                {
+                    "url": "ombCategory",
+                    "valueCoding": {
+                        "system": "urn:oid:2.16.840.1.113883.6.238",
+                        "code": _map_ethnicity_to_code(ethnicity_raw),
+                        "display": ethnicity_raw
+                    }
+                },
+                {
+                    "url": "text",
+                    "valueString": ethnicity_raw
+                }
+            ]
+        })
+
     fhir = {
         "resourceType": "Patient",
         "id": resource_id,
@@ -383,6 +452,10 @@ def map_patient(record: SourceRecord) -> tuple[ResourceEnvelope | None, list[Row
         "gender": gender,
         "birthDate": birth_date,
     }
+
+    # Add extensions if any were created
+    if extensions:
+        fhir["extension"] = extensions
 
     # Add optional fields if present
     if marital_status:

@@ -1,10 +1,18 @@
+"""ORM models for data ingestion service.
+
+These models map to tables created by Alembic migrations. Only ingestion-specific tables
+are defined here. Team schema tables (patient, encounter, condition, etc.) are created by
+migrations 0001-0007 and are accessed directly via SQL or by other services.
+"""
+
 from __future__ import annotations
 
 import datetime as dt
 import uuid
+from uuid import UUID
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text, UniqueConstraint, func
-from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy import DateTime, ForeignKey, Integer, String, Text, UniqueConstraint, Boolean, func
+from sqlalchemy.dialects.postgresql import JSONB, UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.types import JSON
 
@@ -15,21 +23,18 @@ JSONType = JSON().with_variant(JSONB, "postgresql")
 
 
 class SourceBatch(Base):
-    __tablename__ = "source_batches"
+    __tablename__ = "source_batch"
 
-    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
-    source_system: Mapped[str] = mapped_column(String(80), nullable=False)
-    source_format: Mapped[str] = mapped_column(String(40), nullable=False)
-    adapter_name: Mapped[str] = mapped_column(String(80), nullable=False)
-    input_source: Mapped[str] = mapped_column(Text, nullable=False)
-    status: Mapped[str] = mapped_column(String(40), nullable=False, default="pending")
-    resource_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
-    resource_count_validated: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
-    started_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
-    completed_at: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    batch_id: Mapped[uuid.UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    source_system: Mapped[str | None] = mapped_column(Text, nullable=True)
+    status: Mapped[str | None] = mapped_column(Text, nullable=True)
+    resource_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    started_at: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     jobs: Mapped[list[ConversionJob]] = relationship("ConversionJob", back_populates="source_batch")
     resources: Mapped[list[FhirResource]] = relationship("FhirResource", back_populates="source_batch")
+
+
 
 
 class ConversionJob(Base):
@@ -48,11 +53,13 @@ class ConversionJob(Base):
     warning_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     error_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     summary: Mapped[dict] = mapped_column(JSONType, nullable=False, default=dict)
-    batch_id: Mapped[str | None] = mapped_column(ForeignKey("source_batches.id"), nullable=True, index=True)
+    batch_id: Mapped[uuid.UUID | None] = mapped_column(PGUUID(as_uuid=True), ForeignKey("source_batch.batch_id"), nullable=True, index=True)
 
     resources: Mapped[list[FhirResource]] = relationship("FhirResource", back_populates="job")
     issues: Mapped[list[ValidationIssue]] = relationship("ValidationIssue", back_populates="job")
     source_batch: Mapped[SourceBatch | None] = relationship("SourceBatch", back_populates="jobs")
+
+
 
 
 class FhirResource(Base):
@@ -60,7 +67,7 @@ class FhirResource(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     job_id: Mapped[str | None] = mapped_column(ForeignKey("conversion_jobs.id"), nullable=True)
-    batch_id: Mapped[str | None] = mapped_column(ForeignKey("source_batches.id"), nullable=True, index=True)
+    batch_id: Mapped[uuid.UUID | None] = mapped_column(PGUUID(as_uuid=True), ForeignKey("source_batch.batch_id"), nullable=True, index=True)
     resource_type: Mapped[str] = mapped_column(String(100), nullable=False)
     resource_id: Mapped[str] = mapped_column(String(150), nullable=False)
     patient_id: Mapped[str | None] = mapped_column(String(150), nullable=True)
@@ -88,6 +95,8 @@ class FhirResource(Base):
     )
 
 
+
+
 class ValidationIssue(Base):
     __tablename__ = "validation_issues"
 
@@ -109,339 +118,173 @@ class ValidationIssue(Base):
 
     job: Mapped[ConversionJob] = relationship("ConversionJob", back_populates="issues")
     resource: Mapped[FhirResource | None] = relationship("FhirResource", back_populates="issues")
-
-
-class Coverage(Base):
-    """Denormalized coverage/enrollment table for HEDIS measure calculation."""
-    __tablename__ = "coverage"
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    coverage_id: Mapped[str] = mapped_column(String(150), nullable=False, unique=True, index=True)
-    patient_id: Mapped[str | None] = mapped_column(String(150), nullable=True, index=True)
-    period_start: Mapped[dt.date | None] = mapped_column(nullable=True, index=True)
-    period_end: Mapped[dt.date | None] = mapped_column(nullable=True, index=True)
-    payer: Mapped[str | None] = mapped_column(String(255), nullable=True)
-    
-    # Gap detection fields (HEDIS continuous enrollment)
-    gap_detected: Mapped[bool] = mapped_column(Boolean, default=False, index=True)
-    gap_days: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    gap_start_date: Mapped[dt.date | None] = mapped_column(nullable=True)
-    gap_end_date: Mapped[dt.date | None] = mapped_column(nullable=True)
-    continuous_enrollment_compliant: Mapped[bool] = mapped_column(Boolean, default=True, index=True)
-    
-    # Source tracking
-    source_file: Mapped[str | None] = mapped_column(String(120), nullable=True)
-    source_record_id: Mapped[str | None] = mapped_column(String(180), nullable=True)
-    fhir_resource_pk: Mapped[int | None] = mapped_column(ForeignKey("fhir_resources.id"), nullable=True)
-    batch_id: Mapped[str | None] = mapped_column(ForeignKey("source_batches.id"), nullable=True, index=True)
-    
-    # Audit fields
-    created_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
-    updated_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now())
+# ============================================================================
+# TEAM SCHEMA ORM MODELS
+# ============================================================================
+# These models represent the team's clinical schema tables created by migrations 0001-0007.
+# They are used by the pipeline to populate denormalized data during ingestion.
+# The tables are created and managed by Alembic migrations, not by these ORM definitions.
+# Only essential columns for ORM mapping are included; additional columns are
+# accessed directly via SQL in extraction functions as needed.
 
 
 class Patient(Base):
-    """Denormalized patient demographics table."""
     __tablename__ = "patient"
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    patient_id: Mapped[str] = mapped_column(String(150), nullable=False, unique=True, index=True)
-    name: Mapped[str | None] = mapped_column(String(255), nullable=True)
-    birth_date: Mapped[dt.date | None] = mapped_column(nullable=True)
+    patient_id: Mapped[str] = mapped_column(String(150), primary_key=True)
+    mrn: Mapped[str | None] = mapped_column(String(150), nullable=True)
     gender: Mapped[str | None] = mapped_column(String(50), nullable=True)
-    marital_status: Mapped[str | None] = mapped_column(String(50), nullable=True)
-    address: Mapped[str | None] = mapped_column(String(500), nullable=True)
-    phone: Mapped[str | None] = mapped_column(String(20), nullable=True)
-    email: Mapped[str | None] = mapped_column(String(100), nullable=True)
-    
+    birth_date: Mapped[dt.date | None] = mapped_column(nullable=True)
+    race: Mapped[str | None] = mapped_column(String(150), nullable=True)
+    ethnicity: Mapped[str | None] = mapped_column(String(150), nullable=True)
+    birth_sex: Mapped[str | None] = mapped_column(String(50), nullable=True)
     source_file: Mapped[str | None] = mapped_column(String(120), nullable=True)
-    fhir_resource_pk: Mapped[int | None] = mapped_column(ForeignKey("fhir_resources.id"), nullable=True)
-    batch_id: Mapped[str | None] = mapped_column(ForeignKey("source_batches.id"), nullable=True, index=True)
-    
-    created_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
-    updated_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now())
+    batch_id: Mapped[UUID | None] = mapped_column(PGUUID(as_uuid=True), nullable=True)
 
 
 class Encounter(Base):
-    """Denormalized encounter/visit table."""
     __tablename__ = "encounter"
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    encounter_id: Mapped[str] = mapped_column(String(150), nullable=False, unique=True, index=True)
-    patient_id: Mapped[str | None] = mapped_column(String(150), nullable=True, index=True)
-    encounter_type: Mapped[str | None] = mapped_column(String(100), nullable=True)
-    encounter_class: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    encounter_id: Mapped[str] = mapped_column(String(150), primary_key=True)
+    patient_id: Mapped[str | None] = mapped_column(String(150), nullable=True)
     status: Mapped[str | None] = mapped_column(String(50), nullable=True)
-    start_date: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True, index=True)
-    end_date: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-    facility: Mapped[str | None] = mapped_column(String(255), nullable=True)
-    reason_code: Mapped[str | None] = mapped_column(String(100), nullable=True)
-    reason_display: Mapped[str | None] = mapped_column(String(255), nullable=True)
-    
-    source_file: Mapped[str | None] = mapped_column(String(120), nullable=True)
-    fhir_resource_pk: Mapped[int | None] = mapped_column(ForeignKey("fhir_resources.id"), nullable=True)
-    batch_id: Mapped[str | None] = mapped_column(ForeignKey("source_batches.id"), nullable=True, index=True)
-    
-    created_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
-    updated_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now())
+    class_code: Mapped[str | None] = mapped_column(String(150), nullable=True)
+    practitioner_npi: Mapped[str | None] = mapped_column(String(150), nullable=True)
+    organization_id: Mapped[str | None] = mapped_column(String(150), nullable=True)
+    period_start: Mapped[dt.datetime | None] = mapped_column(nullable=True)
+    batch_id: Mapped[UUID | None] = mapped_column(PGUUID(as_uuid=True), nullable=True)
 
 
 class Condition(Base):
-    """Denormalized diagnosis/condition table."""
     __tablename__ = "condition"
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    condition_id: Mapped[str] = mapped_column(String(150), nullable=False, unique=True, index=True)
-    patient_id: Mapped[str | None] = mapped_column(String(150), nullable=True, index=True)
-    encounter_id: Mapped[str | None] = mapped_column(String(150), nullable=True, index=True)
-    code: Mapped[str | None] = mapped_column(String(50), nullable=True)
-    display: Mapped[str | None] = mapped_column(String(500), nullable=True)
-    system: Mapped[str | None] = mapped_column(String(255), nullable=True)
-    onset_date: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True, index=True)
-    resolved_date: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-    status: Mapped[str | None] = mapped_column(String(50), nullable=True)
-    
-    source_file: Mapped[str | None] = mapped_column(String(120), nullable=True)
-    fhir_resource_pk: Mapped[int | None] = mapped_column(ForeignKey("fhir_resources.id"), nullable=True)
-    batch_id: Mapped[str | None] = mapped_column(ForeignKey("source_batches.id"), nullable=True, index=True)
-    
-    created_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
-    updated_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now())
-
-
-class Location(Base):
-    """Denormalized location/facility table."""
-    __tablename__ = "location"
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    location_id: Mapped[str] = mapped_column(String(150), nullable=False, unique=True, index=True)
-    name: Mapped[str | None] = mapped_column(String(500), nullable=True)
-    status: Mapped[str | None] = mapped_column(String(50), nullable=True)
-    address_line: Mapped[str | None] = mapped_column(String(500), nullable=True)
-    address_city: Mapped[str | None] = mapped_column(String(100), nullable=True)
-    address_state: Mapped[str | None] = mapped_column(String(50), nullable=True)
-    address_postal_code: Mapped[str | None] = mapped_column(String(20), nullable=True)
-    address_country: Mapped[str | None] = mapped_column(String(50), nullable=True)
-    phone: Mapped[str | None] = mapped_column(String(255), nullable=True)
-    latitude: Mapped[float | None] = mapped_column(nullable=True)
-    longitude: Mapped[float | None] = mapped_column(nullable=True)
-    
-    source_file: Mapped[str | None] = mapped_column(String(120), nullable=True)
-    fhir_resource_pk: Mapped[int | None] = mapped_column(ForeignKey("fhir_resources.id"), nullable=True)
-    batch_id: Mapped[str | None] = mapped_column(ForeignKey("source_batches.id"), nullable=True, index=True)
-    
-    created_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
-    updated_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now())
+    condition_id: Mapped[str] = mapped_column(String(150), primary_key=True)
+    patient_id: Mapped[str | None] = mapped_column(String(150), nullable=True)
+    encounter_id: Mapped[str | None] = mapped_column(String(150), nullable=True)
+    clinical_status: Mapped[str | None] = mapped_column(String(150), nullable=True)
+    verification_status: Mapped[str | None] = mapped_column(String(150), nullable=True)
+    code: Mapped[str | None] = mapped_column(String(150), nullable=True)
+    onset_date: Mapped[dt.datetime | None] = mapped_column(nullable=True)
+    batch_id: Mapped[UUID | None] = mapped_column(PGUUID(as_uuid=True), nullable=True)
 
 
 class Observation(Base):
-    """Denormalized observation/lab/vital result table."""
     __tablename__ = "observation"
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    observation_id: Mapped[str] = mapped_column(String(150), nullable=False, unique=True, index=True)
-    patient_id: Mapped[str | None] = mapped_column(String(150), nullable=True, index=True)
-    encounter_id: Mapped[str | None] = mapped_column(String(150), nullable=True, index=True)
-    code: Mapped[str | None] = mapped_column(String(50), nullable=True)
-    display: Mapped[str | None] = mapped_column(String(500), nullable=True)
-    system: Mapped[str | None] = mapped_column(String(255), nullable=True)
-    value: Mapped[str | None] = mapped_column(String(255), nullable=True)
-    unit: Mapped[str | None] = mapped_column(String(50), nullable=True)
-    effective_date: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True, index=True)
-    status: Mapped[str | None] = mapped_column(String(50), nullable=True)
-    
-    source_file: Mapped[str | None] = mapped_column(String(120), nullable=True)
-    fhir_resource_pk: Mapped[int | None] = mapped_column(ForeignKey("fhir_resources.id"), nullable=True)
-    batch_id: Mapped[str | None] = mapped_column(ForeignKey("source_batches.id"), nullable=True, index=True)
-    
-    created_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
-    updated_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now())
+    observation_id: Mapped[str] = mapped_column(String(150), primary_key=True)
+    patient_id: Mapped[str | None] = mapped_column(String(150), nullable=True)
+    encounter_id: Mapped[str | None] = mapped_column(String(150), nullable=True)
+    category_code: Mapped[str | None] = mapped_column(String(150), nullable=True)
+    code: Mapped[str | None] = mapped_column(String(150), nullable=True)
+    value_quantity: Mapped[float | None] = mapped_column(nullable=True)
+    effective_datetime: Mapped[dt.datetime | None] = mapped_column(nullable=True)
+    batch_id: Mapped[UUID | None] = mapped_column(PGUUID(as_uuid=True), nullable=True)
 
 
 class Procedure(Base):
-    """Denormalized procedure/intervention table."""
     __tablename__ = "procedure"
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    procedure_id: Mapped[str] = mapped_column(String(150), nullable=False, unique=True, index=True)
-    patient_id: Mapped[str | None] = mapped_column(String(150), nullable=True, index=True)
-    encounter_id: Mapped[str | None] = mapped_column(String(150), nullable=True, index=True)
-    code: Mapped[str | None] = mapped_column(String(50), nullable=True)
-    display: Mapped[str | None] = mapped_column(String(500), nullable=True)
-    system: Mapped[str | None] = mapped_column(String(255), nullable=True)
-    performed_date: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True, index=True)
+    procedure_id: Mapped[str] = mapped_column(String(150), primary_key=True)
+    patient_id: Mapped[str | None] = mapped_column(String(150), nullable=True)
+    encounter_id: Mapped[str | None] = mapped_column(String(150), nullable=True)
     status: Mapped[str | None] = mapped_column(String(50), nullable=True)
-    location: Mapped[str | None] = mapped_column(String(255), nullable=True)
-    
-    source_file: Mapped[str | None] = mapped_column(String(120), nullable=True)
-    fhir_resource_pk: Mapped[int | None] = mapped_column(ForeignKey("fhir_resources.id"), nullable=True)
-    batch_id: Mapped[str | None] = mapped_column(ForeignKey("source_batches.id"), nullable=True, index=True)
-    
-    created_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
-    updated_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now())
+    code: Mapped[str | None] = mapped_column(String(150), nullable=True)
+    performed_start: Mapped[dt.datetime | None] = mapped_column(nullable=True)
+    batch_id: Mapped[UUID | None] = mapped_column(PGUUID(as_uuid=True), nullable=True)
 
 
 class Medication(Base):
-    """Denormalized medication/prescription table."""
     __tablename__ = "medication"
+    medication_id: Mapped[str] = mapped_column(String(150), primary_key=True)
 
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    medication_request_id: Mapped[str] = mapped_column(String(150), nullable=False, unique=True, index=True)
-    patient_id: Mapped[str | None] = mapped_column(String(150), nullable=True, index=True)
-    encounter_id: Mapped[str | None] = mapped_column(String(150), nullable=True, index=True)
-    medication_code: Mapped[str | None] = mapped_column(String(50), nullable=True)
-    medication_display: Mapped[str | None] = mapped_column(String(500), nullable=True)
-    medication_system: Mapped[str | None] = mapped_column(String(255), nullable=True)
-    authored_date: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True, index=True)
+
+class MedicationRequest(Base):
+    __tablename__ = "medication_request"
+    medication_request_id: Mapped[str] = mapped_column(String(150), primary_key=True)
+    patient_id: Mapped[str | None] = mapped_column(String(150), nullable=True)
+    encounter_id: Mapped[str | None] = mapped_column(String(150), nullable=True)
     status: Mapped[str | None] = mapped_column(String(50), nullable=True)
     intent: Mapped[str | None] = mapped_column(String(50), nullable=True)
-    dosage_text: Mapped[str | None] = mapped_column(String(255), nullable=True)
-    
-    source_file: Mapped[str | None] = mapped_column(String(120), nullable=True)
-    fhir_resource_pk: Mapped[int | None] = mapped_column(ForeignKey("fhir_resources.id"), nullable=True)
-    batch_id: Mapped[str | None] = mapped_column(ForeignKey("source_batches.id"), nullable=True, index=True)
-    
-    created_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
-    updated_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now())
+    medication_code: Mapped[str | None] = mapped_column(String(150), nullable=True)
+    authored_on: Mapped[dt.datetime | None] = mapped_column(nullable=True)
+    batch_id: Mapped[UUID | None] = mapped_column(PGUUID(as_uuid=True), nullable=True)
 
 
 class Immunization(Base):
-    """Denormalized immunization/vaccination table."""
     __tablename__ = "immunization"
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    immunization_id: Mapped[str] = mapped_column(String(150), nullable=False, unique=True, index=True)
-    patient_id: Mapped[str | None] = mapped_column(String(150), nullable=True, index=True)
-    encounter_id: Mapped[str | None] = mapped_column(String(150), nullable=True, index=True)
-    vaccine_code: Mapped[str | None] = mapped_column(String(50), nullable=True)
-    vaccine_display: Mapped[str | None] = mapped_column(String(500), nullable=True)
-    vaccine_system: Mapped[str | None] = mapped_column(String(255), nullable=True)
-    occurrence_date: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True, index=True)
+    immunization_id: Mapped[str] = mapped_column(String(150), primary_key=True)
+    patient_id: Mapped[str | None] = mapped_column(String(150), nullable=True)
+    encounter_id: Mapped[str | None] = mapped_column(String(150), nullable=True)
     status: Mapped[str | None] = mapped_column(String(50), nullable=True)
-    lot_number: Mapped[str | None] = mapped_column(String(100), nullable=True)
-    
-    source_file: Mapped[str | None] = mapped_column(String(120), nullable=True)
-    fhir_resource_pk: Mapped[int | None] = mapped_column(ForeignKey("fhir_resources.id"), nullable=True)
-    batch_id: Mapped[str | None] = mapped_column(ForeignKey("source_batches.id"), nullable=True, index=True)
-    
-    created_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
-    updated_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now())
+    vaccine_code: Mapped[str | None] = mapped_column(String(150), nullable=True)
+    occurrence_datetime: Mapped[dt.datetime | None] = mapped_column(nullable=True)
+    batch_id: Mapped[UUID | None] = mapped_column(PGUUID(as_uuid=True), nullable=True)
+
+
+class Coverage(Base):
+    __tablename__ = "coverage"
+    coverage_id: Mapped[str] = mapped_column(String(150), primary_key=True)
+    patient_id: Mapped[str | None] = mapped_column(String(150), nullable=True)
+    payer_name: Mapped[str | None] = mapped_column(String(150), nullable=True)
+    period_start: Mapped[dt.date | None] = mapped_column(nullable=True)
+    period_end: Mapped[dt.date | None] = mapped_column(nullable=True)
+    source_eob_id: Mapped[str | None] = mapped_column(String(150), nullable=True)
+    batch_id: Mapped[UUID | None] = mapped_column(PGUUID(as_uuid=True), nullable=True)
 
 
 class AllergyIntolerance(Base):
     __tablename__ = "allergy_intolerance"
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    resource_id: Mapped[str] = mapped_column(String(150), nullable=False, unique=True, index=True)
-    patient_id: Mapped[str | None] = mapped_column(String(150), nullable=True, index=True)
-    clinical_status: Mapped[str | None] = mapped_column(String(50), nullable=True)
-    code: Mapped[str | None] = mapped_column(String(100), nullable=True)
-    display: Mapped[str | None] = mapped_column(String(500), nullable=True)
-    source_file: Mapped[str | None] = mapped_column(String(120), nullable=True)
-    fhir_resource_pk: Mapped[int | None] = mapped_column(ForeignKey("fhir_resources.id"), nullable=True)
-    batch_id: Mapped[str | None] = mapped_column(ForeignKey("source_batches.id"), nullable=True, index=True)
-    resource_json: Mapped[dict] = mapped_column(JSONType, nullable=False, default=dict)
-    created_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
-    updated_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now())
+    allergy_id: Mapped[str] = mapped_column(String(150), primary_key=True)
+    patient_id: Mapped[str | None] = mapped_column(String(150), nullable=True)
+    clinical_status: Mapped[str | None] = mapped_column(String(150), nullable=True)
+    code: Mapped[str | None] = mapped_column(String(150), nullable=True)
+    criticality: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    batch_id: Mapped[UUID | None] = mapped_column(PGUUID(as_uuid=True), nullable=True)
 
 
 class Claim(Base):
     __tablename__ = "claim"
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    resource_id: Mapped[str] = mapped_column(String(150), nullable=False, unique=True, index=True)
-    patient_id: Mapped[str | None] = mapped_column(String(150), nullable=True, index=True)
-    status: Mapped[str | None] = mapped_column(String(50), nullable=True)
-    created_date: Mapped[dt.date | None] = mapped_column(nullable=True, index=True)
-    source_file: Mapped[str | None] = mapped_column(String(120), nullable=True)
-    fhir_resource_pk: Mapped[int | None] = mapped_column(ForeignKey("fhir_resources.id"), nullable=True)
-    batch_id: Mapped[str | None] = mapped_column(ForeignKey("source_batches.id"), nullable=True, index=True)
-    resource_json: Mapped[dict] = mapped_column(JSONType, nullable=False, default=dict)
-    created_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
-    updated_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now())
+    claim_id: Mapped[str] = mapped_column(String(150), primary_key=True)
 
 
 class Device(Base):
     __tablename__ = "device"
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    resource_id: Mapped[str] = mapped_column(String(150), nullable=False, unique=True, index=True)
-    patient_id: Mapped[str | None] = mapped_column(String(150), nullable=True, index=True)
-    status: Mapped[str | None] = mapped_column(String(50), nullable=True)
-    device_code: Mapped[str | None] = mapped_column(String(100), nullable=True)
-    display: Mapped[str | None] = mapped_column(String(500), nullable=True)
-    source_file: Mapped[str | None] = mapped_column(String(120), nullable=True)
-    fhir_resource_pk: Mapped[int | None] = mapped_column(ForeignKey("fhir_resources.id"), nullable=True)
-    batch_id: Mapped[str | None] = mapped_column(ForeignKey("source_batches.id"), nullable=True, index=True)
-    resource_json: Mapped[dict] = mapped_column(JSONType, nullable=False, default=dict)
-    created_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
-    updated_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now())
+    device_id: Mapped[str] = mapped_column(String(150), primary_key=True)
 
 
 class ImagingStudy(Base):
     __tablename__ = "imaging_study"
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    resource_id: Mapped[str] = mapped_column(String(150), nullable=False, unique=True, index=True)
-    patient_id: Mapped[str | None] = mapped_column(String(150), nullable=True, index=True)
-    status: Mapped[str | None] = mapped_column(String(50), nullable=True)
-    started_at: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True, index=True)
-    source_file: Mapped[str | None] = mapped_column(String(120), nullable=True)
-    fhir_resource_pk: Mapped[int | None] = mapped_column(ForeignKey("fhir_resources.id"), nullable=True)
-    batch_id: Mapped[str | None] = mapped_column(ForeignKey("source_batches.id"), nullable=True, index=True)
-    resource_json: Mapped[dict] = mapped_column(JSONType, nullable=False, default=dict)
-    created_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
-    updated_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now())
+    imaging_study_id: Mapped[str] = mapped_column(String(150), primary_key=True)
 
 
 class Organization(Base):
     __tablename__ = "organization"
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    resource_id: Mapped[str] = mapped_column(String(150), nullable=False, unique=True, index=True)
-    name: Mapped[str | None] = mapped_column(String(255), nullable=True)
-    source_file: Mapped[str | None] = mapped_column(String(120), nullable=True)
-    fhir_resource_pk: Mapped[int | None] = mapped_column(ForeignKey("fhir_resources.id"), nullable=True)
-    batch_id: Mapped[str | None] = mapped_column(ForeignKey("source_batches.id"), nullable=True, index=True)
-    resource_json: Mapped[dict] = mapped_column(JSONType, nullable=False, default=dict)
-    created_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
-    updated_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now())
+    organization_id: Mapped[str] = mapped_column(String(150), primary_key=True)
+    name: Mapped[str | None] = mapped_column(String(150), nullable=True)
+    city: Mapped[str | None] = mapped_column(String(150), nullable=True)
+    batch_id: Mapped[UUID | None] = mapped_column(PGUUID(as_uuid=True), nullable=True)
 
 
 class Practitioner(Base):
     __tablename__ = "practitioner"
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    resource_id: Mapped[str] = mapped_column(String(150), nullable=False, unique=True, index=True)
-    name: Mapped[str | None] = mapped_column(String(255), nullable=True)
-    gender: Mapped[str | None] = mapped_column(String(50), nullable=True)
-    source_file: Mapped[str | None] = mapped_column(String(120), nullable=True)
-    fhir_resource_pk: Mapped[int | None] = mapped_column(ForeignKey("fhir_resources.id"), nullable=True)
-    batch_id: Mapped[str | None] = mapped_column(ForeignKey("source_batches.id"), nullable=True, index=True)
-    resource_json: Mapped[dict] = mapped_column(JSONType, nullable=False, default=dict)
-    created_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
-    updated_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now())
+    practitioner_id: Mapped[str] = mapped_column(String(150), primary_key=True)
+    npi: Mapped[str | None] = mapped_column(String(150), nullable=True, unique=True)
+    family_name: Mapped[str | None] = mapped_column(String(150), nullable=True)
+    active: Mapped[bool | None] = mapped_column(nullable=True)
+    batch_id: Mapped[UUID | None] = mapped_column(PGUUID(as_uuid=True), nullable=True)
+
+
+class Location(Base):
+    __tablename__ = "location"
+    location_id: Mapped[str] = mapped_column(String(150), primary_key=True)
+    organization_id: Mapped[str | None] = mapped_column(String(150), nullable=True)
+    name: Mapped[str | None] = mapped_column(String(150), nullable=True)
+    latitude: Mapped[float | None] = mapped_column(nullable=True)
+    longitude: Mapped[float | None] = mapped_column(nullable=True)
+    batch_id: Mapped[UUID | None] = mapped_column(PGUUID(as_uuid=True), nullable=True)
 
 
 class SupplyDelivery(Base):
     __tablename__ = "supply_delivery"
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    resource_id: Mapped[str] = mapped_column(String(150), nullable=False, unique=True, index=True)
-    patient_id: Mapped[str | None] = mapped_column(String(150), nullable=True, index=True)
-    status: Mapped[str | None] = mapped_column(String(50), nullable=True)
-    quantity: Mapped[float | None] = mapped_column(nullable=True)
-    display: Mapped[str | None] = mapped_column(String(500), nullable=True)
-    source_file: Mapped[str | None] = mapped_column(String(120), nullable=True)
-    fhir_resource_pk: Mapped[int | None] = mapped_column(ForeignKey("fhir_resources.id"), nullable=True)
-    batch_id: Mapped[str | None] = mapped_column(ForeignKey("source_batches.id"), nullable=True, index=True)
-    resource_json: Mapped[dict] = mapped_column(JSONType, nullable=False, default=dict)
-    created_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
-    updated_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now())
+    supply_delivery_id: Mapped[str] = mapped_column(String(150), primary_key=True)
 
 
 class BasicResource(Base):
     __tablename__ = "basic_resource"
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    resource_id: Mapped[str] = mapped_column(String(150), nullable=False, unique=True, index=True)
-    patient_id: Mapped[str | None] = mapped_column(String(150), nullable=True, index=True)
-    code: Mapped[str | None] = mapped_column(String(255), nullable=True)
-    source_file: Mapped[str | None] = mapped_column(String(120), nullable=True)
-    fhir_resource_pk: Mapped[int | None] = mapped_column(ForeignKey("fhir_resources.id"), nullable=True)
-    batch_id: Mapped[str | None] = mapped_column(ForeignKey("source_batches.id"), nullable=True, index=True)
-    resource_json: Mapped[dict] = mapped_column(JSONType, nullable=False, default=dict)
-    created_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
-    updated_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now())
+    basic_resource_id: Mapped[str] = mapped_column(String(150), primary_key=True)
+

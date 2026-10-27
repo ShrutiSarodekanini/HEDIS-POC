@@ -205,23 +205,14 @@ def extract_additional_resource(session: Session, fhir_resource: FhirResource, r
 
 def create_job(session: Session, input_dir: str, adapter_name: str = "synthea_csv") -> ConversionJob:
     source_system = "Synthea" if adapter_name == "synthea_csv" else "EHR/HIE"
-    source_format = {
-        "synthea_csv": "csv",
-        "ehr_fhir_r4": "fhir_r4",
-        "ccda_hie": "c_cda",
-        "claims_837": "x12_837",
-        "ncpdp_pharmacy": "ncpdp",
-    }.get(adapter_name, "unknown")
     batch = SourceBatch(
         source_system=source_system,
-        source_format=source_format,
-        adapter_name=adapter_name,
-        input_source=input_dir,
-        status="pending",
+        status="running",
+        resource_count=0,
     )
     session.add(batch)
     session.flush()
-    job = ConversionJob(input_dir=input_dir, status="pending", summary={}, batch_id=batch.id)
+    job = ConversionJob(input_dir=input_dir, status="pending", summary={}, batch_id=batch.batch_id)
     session.add(job)
     session.flush()
     return job
@@ -276,9 +267,6 @@ def complete_job(session: Session, job_id: str, status: str, summary: dict[str, 
 
 def persist_row_issues(session: Session, job_id: str, issues: list[RowIssue]) -> None:
     for issue in issues:
-        # Skip None issues
-        if issue is None:
-            continue
         session.add(
             ValidationIssue(
                 job_id=job_id,
@@ -589,8 +577,6 @@ def as_job_dict(job: ConversionJob) -> dict[str, Any]:
         "id": job.id,
         "batch_id": job.batch_id,
         "source_system": job.source_batch.source_system if job.source_batch else None,
-        "source_format": job.source_batch.source_format if job.source_batch else None,
-        "adapter_name": job.source_batch.adapter_name if job.source_batch else None,
         "input_dir": job.input_dir,
         "status": job.status,
         "started_at": job.started_at.isoformat() if job.started_at else None,
@@ -1735,20 +1721,13 @@ def extract_patient_from_fhir(
         existing.phone = phone
         existing.email = email
         existing.source_file = fhir_resource.source_file
-        existing.fhir_resource_pk = fhir_resource.id
         existing.batch_id = fhir_resource.batch_id
     else:
         patient_row = Patient(
             patient_id=patient_id,
-            name=name,
             birth_date=birth_date_obj,
             gender=gender,
-            marital_status=marital_status,
-            address=address,
-            phone=phone,
-            email=email,
             source_file=fhir_resource.source_file,
-            fhir_resource_pk=fhir_resource.id,
             batch_id=fhir_resource.batch_id,
         )
         session.add(patient_row)
