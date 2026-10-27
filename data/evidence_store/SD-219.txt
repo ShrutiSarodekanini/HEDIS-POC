@@ -1,0 +1,8 @@
+Procedure report
+Patient: Norman Christiansen  DOB: 1956-01-20
+Date: 2025-04-20
+
+Indication: average-risk screening.
+Colonoscopy completed 04/20/2025, cecum reached, no polyps.
+Father had colon cancer at 68.
+Repeat colonoscopy in 2035.

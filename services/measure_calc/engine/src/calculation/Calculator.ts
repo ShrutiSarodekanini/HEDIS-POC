@@ -1,0 +1,901 @@
+import {
+  ExecutionResult,
+  CalculationOptions,
+  CalculationOutput,
+  MRCalculationOutput,
+  AMRCalculationOutput,
+  IMRCalculationOutput,
+  GICCalculationOutput,
+  RCalculationOutput,
+  DRCalculationOutput,
+  DebugOutput,
+  DataTypeQuery,
+  QICalculationOutput,
+  OneOrManyBundles,
+  OneOrMultiPatient,
+  PopulationGroupResult,
+  DetailedPopulationGroupResult,
+  ClauseCoverageDetails
+} from '../types/Calculator';
+import { PopulationType, MeasureScoreType, ImprovementNotation } from '../types/Enums';
+import * as Execution from '../execution/Execution';
+import * as CalculatorHelpers from './DetailedResultsBuilder';
+import * as MeasureBundleHelpers from '../helpers/MeasureBundleHelpers';
+import * as ResultsHelpers from './ClauseResultsBuilder';
+import * as DataRequirementHelpers from '../helpers/DataRequirementHelpers';
+import MeasureReportBuilder from './MeasureReportBuilder';
+import * as GapsReportBuilder from './GapsReportBuilder';
+import { generateHTML, generateClauseCoverageHTML } from './HTMLBuilder';
+import { parseQueryInfo } from '../helpers/elm/QueryFilterParser';
+import * as RetrievesHelper from '../helpers/elm/RetrievesHelper';
+import { GracefulError } from '../types/errors/GracefulError';
+import {
+  ErrorWithDebugInfo,
+  UnexpectedProperty,
+  UnexpectedResource,
+  UnsupportedProperty
+} from '../types/errors/CustomErrors';
+import { Interval, DataProvider } from 'cql-execution';
+import { PatientSource } from 'cql-exec-fhir';
+import { pruneDetailedResults } from '../helpers/DetailedResultsHelpers';
+import { clearElmInfoCache } from '../helpers/elm/ELMInfoCache';
+import { omit } from 'lodash';
+import { ELM } from '../types/ELMTypes';
+import { getReportBuilder } from '../helpers/ReportBuilderFactory';
+import {
+  DEFAULT_BUILD_STATEMENT_LEVEL_HTML,
+  DEFAULT_CALCULATE_CLAUSE_COVERAGE,
+  DEFAULT_CALCULATE_CLAUSE_UNCOVERAGE,
+  DEFAULT_CALCULATE_COVERAGE_DETAILS,
+  DEFAULT_CALCULATE_HTML,
+  DEFAULT_CALCULATE_RAVS,
+  DEFAULT_CALCULATE_SDES,
+  DEFAULT_DISABLE_HTML_ORDERING,
+  DEFAULT_TRUST_META_PROFILE,
+  DEFAULT_VERBOSE_CALCULATION_RESULTS,
+  UNKNOWN_GROUP_ID
+} from '../constants';
+import { getMissingDependentValuesets } from '../execution/ValueSetHelper';
+import { ValueSetResolver } from '../execution/ValueSetResolver';
+
+/**
+ * Calculate measure against a set of patients. Returning detailed results for each patient and population group.
+ *
+ * @param measureBundle Bundle with a Measure Resource and all necessary data for execution.
+ * @param patientBundles List of bundles of patients to be executed.
+ * @param options Options for calculation.
+ * @param valueSetCache Cache of existing valuesets
+ * @returns Detailed execution results. One for each patient.
+ */
+export async function calculate<T extends CalculationOptions>(
+  measureBundle: fhir4.Bundle,
+  patientBundles: fhir4.Bundle[],
+  options: T,
+  valueSetCache: fhir4.ValueSet[] = []
+): Promise<CalculationOutput<T>> {
+  // Ensure verboseCalculationResults defaults to true when not provided in options
+  options.verboseCalculationResults = options.verboseCalculationResults ?? DEFAULT_VERBOSE_CALCULATION_RESULTS;
+
+  const debugObject: DebugOutput | undefined = options.enableDebugOutput ? <DebugOutput>{} : undefined;
+
+  if (options.clearElmJsonsCache) {
+    clearElmInfoCache();
+  }
+
+  // Ensure the CalculationOptions have sane defaults, only if they're not set
+  options.calculateHTML = options.calculateHTML ?? DEFAULT_CALCULATE_HTML;
+  options.calculateSDEs = options.calculateSDEs ?? DEFAULT_CALCULATE_SDES;
+  options.calculateRAVs = options.calculateRAVs ?? DEFAULT_CALCULATE_RAVS;
+  options.calculateClauseCoverage = options.calculateClauseCoverage ?? DEFAULT_CALCULATE_CLAUSE_COVERAGE;
+  options.calculateClauseUncoverage = options.calculateClauseUncoverage ?? DEFAULT_CALCULATE_CLAUSE_UNCOVERAGE;
+  options.calculateCoverageDetails = options.calculateCoverageDetails ?? DEFAULT_CALCULATE_COVERAGE_DETAILS;
+  options.disableHTMLOrdering = options.disableHTMLOrdering ?? DEFAULT_DISABLE_HTML_ORDERING;
+  options.buildStatementLevelHTML = options.buildStatementLevelHTML ?? DEFAULT_BUILD_STATEMENT_LEVEL_HTML;
+
+  const compositeMeasureResource = MeasureBundleHelpers.extractCompositeMeasure(measureBundle);
+
+  const isCompositeExecution = compositeMeasureResource != null;
+
+  // TODO: Right now, if it is a composite execution where the composite measure has components defined
+  // in its Measure.group, then ONLY those component groups are included in the measuresToExecute.
+  // In the future, we may want to include the composite measure itself in this list for the Measure.group
+  // scenario.
+  const measuresToExecute = isCompositeExecution
+    ? MeasureBundleHelpers.extractComponentsFromMeasure(compositeMeasureResource, measureBundle)
+    : [MeasureBundleHelpers.extractMeasureFromBundle(measureBundle)];
+
+  // Get the PatientSource to use for calculation.
+  let patientSource = resolvePatientSource(patientBundles, options);
+
+  const executionResults: ExecutionResult<DetailedPopulationGroupResult>[] = [];
+  const executionResultsByPatientId = new Map<string, ExecutionResult<DetailedPopulationGroupResult>>();
+  let overallClauseCoverageHTML: string | undefined;
+  let groupClauseCoverageHTML: Record<string, string> | undefined;
+  let groupClauseUncoverageHTML: Record<string, string> | undefined;
+  let groupClauseCoverageDetails: Record<string, ClauseCoverageDetails> | undefined;
+
+  let newValueSetCache: fhir4.ValueSet[] | undefined = [...valueSetCache];
+  const allELM: ELM[] = [];
+  let mainLibraryName = '';
+
+  for (const measure of measuresToExecute) {
+    // Get the default measurement period out of the Measure object
+    const measurementPeriod = MeasureBundleHelpers.extractMeasurementPeriod(measure);
+    // Set the measurement period start/end, but only if the caller didn't specify one
+    options.measurementPeriodStart = options.measurementPeriodStart ?? measurementPeriod.measurementPeriodStart;
+    options.measurementPeriodEnd = options.measurementPeriodEnd ?? measurementPeriod.measurementPeriodEnd;
+
+    const results = await Execution.execute(
+      measure,
+      measureBundle,
+      patientSource,
+      options,
+      newValueSetCache,
+      debugObject
+    );
+    if (!results.rawResults) {
+      throw new Error(results.errorMessage ?? 'something happened with no error message');
+    }
+    const rawResults = results.rawResults;
+
+    if (!results.elmLibraries || !results.mainLibraryName) {
+      throw new UnexpectedResource('no libraries were found');
+    }
+
+    if (options.useValueSetCaching && results.valueSetCache) {
+      newValueSetCache = newValueSetCache.concat(results.valueSetCache);
+    }
+
+    const executedELM = results.elmLibraries;
+
+    if (options.returnELM) {
+      allELM.push(...executedELM);
+    }
+
+    mainLibraryName = results.mainLibraryName;
+
+    // Grab all patient IDs from the raw results.
+    const patientIds = Object.keys(rawResults.patientResults);
+
+    // Iterate over patient bundles and make results for each of them.
+    patientIds.forEach(patientId => {
+      // For composite execution, we may update an already-created patient result.
+      // Using a map avoids repeated O(n) scans when processing large patient volumes.
+      let patientExecutionResult = executionResultsByPatientId.get(patientId);
+      if (!patientExecutionResult) {
+        patientExecutionResult = {
+          patientId: patientId,
+          detailedResults: [],
+          evaluatedResource: rawResults.patientEvaluatedRecords[patientId],
+          patientObject: rawResults.patientResults[patientId]['Patient']
+        };
+
+        executionResultsByPatientId.set(patientId, patientExecutionResult);
+        executionResults.push(patientExecutionResult);
+      }
+
+      // Grab statement results for the patient
+      const patientStatementResults = rawResults.patientResults[patientId];
+      // Grab localId results for the patient
+      const patientLocalIdResults = rawResults.localIdPatientResultsMap[patientId];
+
+      // iterator to use for group ID if they are defined in the population groups
+      let i = 1;
+
+      // use scoring code from measure as a fallback when building population group
+      // relevance map (if scoring code is not present at the group level)
+      const measureScoringCode = MeasureBundleHelpers.getScoringCodeFromMeasure(measure);
+
+      // Iterate over measure population groups
+      measure.group?.forEach(group => {
+        // build initial results set with population values
+        const detailedGroupResult = CalculatorHelpers.createPopulationValues(measure, group, patientStatementResults);
+
+        if (isCompositeExecution) {
+          detailedGroupResult.componentCanonical = `${measure.url}${measure.version ? `|${measure.version}` : ''}`;
+        }
+
+        // fix groupId to an auto incremented if it was not found.
+        if (detailedGroupResult.groupId === UNKNOWN_GROUP_ID) {
+          detailedGroupResult.groupId = `population-group-${i++}`;
+        }
+
+        // get the relevance information for each population
+        detailedGroupResult.populationRelevance = ResultsHelpers.buildPopulationGroupRelevanceMap(
+          detailedGroupResult,
+          group,
+          measureScoringCode
+        );
+
+        // use relevance info to fill out statement relevance information and create initial statementResults structure
+        detailedGroupResult.statementResults = ResultsHelpers.buildStatementRelevanceMap(
+          measure,
+          detailedGroupResult.populationRelevance,
+          mainLibraryName,
+          executedELM,
+          group,
+          options.calculateSDEs ?? DEFAULT_CALCULATE_SDES,
+          options.calculateRAVs ?? DEFAULT_CALCULATE_RAVS
+        );
+
+        // adds result information to the statement results and builds up clause results
+        detailedGroupResult.clauseResults = ResultsHelpers.buildStatementAndClauseResults(
+          measure,
+          executedELM,
+          patientLocalIdResults,
+          detailedGroupResult.statementResults,
+          true,
+          true
+        );
+
+        if (options.calculateHTML) {
+          const html = generateHTML(
+            measure,
+            executedELM,
+            detailedGroupResult.statementResults,
+            detailedGroupResult.clauseResults,
+            detailedGroupResult.groupId,
+            options
+          );
+          detailedGroupResult.html = html;
+          if (debugObject && options.enableDebugOutput) {
+            const debugHtml = {
+              name: `clauses-${detailedGroupResult.groupId}.html`,
+              html
+            };
+
+            if (Array.isArray(debugObject.html) && debugObject.html?.length !== 0) {
+              debugObject.html?.push(debugHtml);
+            } else {
+              debugObject.html = [debugHtml];
+            }
+          }
+        }
+
+        // add this group result to the patient results
+        patientExecutionResult.detailedResults?.push(detailedGroupResult);
+        if (isCompositeExecution) {
+          if (!patientExecutionResult.componentResults) {
+            patientExecutionResult.componentResults = [];
+          }
+          patientExecutionResult.componentResults.push({
+            groupId: detailedGroupResult.groupId,
+            componentCanonical: detailedGroupResult.componentCanonical,
+            populationResults: detailedGroupResult.populationResults
+          });
+        }
+      });
+
+      if (options.calculateSDEs || options.calculateRAVs) {
+        const sdeValues = ResultsHelpers.getSDEValues(measure, patientStatementResults);
+
+        // put raw SDE values onto execution result
+        if (options.calculateSDEs) {
+          patientExecutionResult.supplementalData = sdeValues.filter(sd => sd.usage === 'supplemental-data');
+        }
+
+        // put raw RAV values onto execution result
+        if (options.calculateRAVs) {
+          patientExecutionResult.riskAdjustment = sdeValues.filter(sd => sd.usage === 'risk-adjustment-factor');
+        }
+      }
+    });
+
+    patientSource = resolvePatientSource(patientBundles, options);
+
+    if (!isCompositeExecution && options.calculateClauseCoverage) {
+      const coverage = generateClauseCoverageHTML(measure, executedELM, executionResults, options);
+      groupClauseCoverageHTML = coverage.coverage;
+      overallClauseCoverageHTML = '';
+      Object.entries(groupClauseCoverageHTML).forEach(([groupId, result]) => {
+        overallClauseCoverageHTML += result;
+        if (debugObject && options.enableDebugOutput) {
+          const debugHTML = {
+            name: `clause-coverage-${groupId}.html`,
+            html: result
+          };
+          if (Array.isArray(debugObject.html)) {
+            debugObject.html.push(debugHTML);
+          } else {
+            debugObject.html = [debugHTML];
+          }
+        }
+      });
+
+      // pull out uncoverage html
+      if (options.calculateClauseUncoverage && coverage.uncoverage) {
+        groupClauseUncoverageHTML = coverage.uncoverage;
+        if (debugObject && options.enableDebugOutput) {
+          Object.entries(groupClauseUncoverageHTML).forEach(([groupId, result]) => {
+            const debugUncoverageHTML = {
+              name: `clause-uncoverage-${groupId}.html`,
+              html: result
+            };
+            if (Array.isArray(debugObject.html)) {
+              debugObject.html.push(debugUncoverageHTML);
+            } else {
+              debugObject.html = [debugUncoverageHTML];
+            }
+          });
+        }
+      }
+
+      // don't necessarily need this file, but adding it for backwards compatibility
+      if (debugObject && options.enableDebugOutput) {
+        debugObject.html?.push({
+          name: 'overall-clause-coverage.html',
+          html: overallClauseCoverageHTML
+        });
+      }
+
+      // grab coverage details
+      if (options.calculateCoverageDetails && coverage.details) {
+        groupClauseCoverageDetails = coverage.details;
+        if (debugObject && options.enableDebugOutput) {
+          debugObject.coverageDetails = groupClauseCoverageDetails;
+        }
+      }
+    }
+  }
+
+  if (debugObject && options.enableDebugOutput) {
+    debugObject.detailedResults = executionResults;
+  }
+
+  let prunedExecutionResults: ExecutionResult<PopulationGroupResult>[];
+  if (options.verboseCalculationResults === false) {
+    // Prune to simple view
+    prunedExecutionResults = pruneDetailedResults(executionResults);
+  } else {
+    prunedExecutionResults = executionResults as ExecutionResult<DetailedPopulationGroupResult>[];
+  }
+
+  return {
+    results: prunedExecutionResults,
+    debugOutput: debugObject,
+    ...(options.returnELM && {
+      elmLibraries: dedupeByKey(allELM, elmLibraryKey),
+      mainLibraryName
+    }),
+    ...(options.useValueSetCaching &&
+      newValueSetCache && {
+        valueSetCache: dedupeByKey(newValueSetCache, valueSetKey)
+      }),
+    ...(overallClauseCoverageHTML && { coverageHTML: overallClauseCoverageHTML }),
+    ...(groupClauseCoverageHTML && { groupClauseCoverageHTML: groupClauseCoverageHTML }),
+    ...(groupClauseUncoverageHTML && { groupClauseUncoverageHTML: groupClauseUncoverageHTML }),
+    ...(groupClauseCoverageDetails && { groupClauseCoverageDetails: groupClauseCoverageDetails })
+  };
+}
+
+function dedupeByKey<T>(items: T[], keyFn: (item: T) => string): T[] {
+  const seen = new Set<string>();
+  const deduped: T[] = [];
+  for (const item of items) {
+    const key = keyFn(item);
+    if (seen.has(key)) {
+      continue;
+    }
+    seen.add(key);
+    deduped.push(item);
+  }
+  return deduped;
+}
+
+function elmLibraryKey(elm: ELM): string {
+  const identifier = elm.library.identifier;
+  return `${identifier.id ?? ''}|${identifier.version ?? ''}`;
+}
+
+function valueSetKey(vs: fhir4.ValueSet): string {
+  return `${vs.url ?? ''}|${vs.version ?? ''}`;
+}
+
+/**
+ * Calculate measure against a set of patients. Returning individual or summary MeasureReports based on options
+ *
+ * @param measureBundle Bundle with a MeasureResource and all necessary data for execution.
+ * @param patientBundles List of bundles of patients to be executed.
+ * @param options Options for calculation.
+ * @param valueSetCache Cache of existing valuesets
+ * @returns MeasureReport resource(s) for each patient or entire population according to standard https://hl7.org/fhir/R4/measurereport.html
+ */
+export async function calculateMeasureReports(
+  measureBundle: fhir4.Bundle,
+  patientBundles: fhir4.Bundle[],
+  options: CalculationOptions,
+  valueSetCache: fhir4.ValueSet[] = []
+): Promise<MRCalculationOutput> {
+  return options.reportType === 'summary'
+    ? calculateAggregateMeasureReport(measureBundle, patientBundles, options, valueSetCache)
+    : calculateIndividualMeasureReports(measureBundle, patientBundles, options, valueSetCache);
+}
+
+/**
+ * Calculate measure against a set of patients. Returning measure reports for each patient.
+ *
+ * @param measureBundle Bundle with a MeasureResource and all necessary data for execution.
+ * @param patientBundles List of bundles of patients to be executed.
+ * @param options Options for calculation.
+ * @param valueSetCache Cache of existing valuesets
+ * @returns MeasureReport resource for each patient according to standard https://hl7.org/fhir/R4/measurereport.html
+ */
+export async function calculateIndividualMeasureReports(
+  measureBundle: fhir4.Bundle,
+  patientBundles: fhir4.Bundle[],
+  options: CalculationOptions,
+  valueSetCache: fhir4.ValueSet[] = []
+): Promise<IMRCalculationOutput> {
+  if (options.reportType && options.reportType !== 'individual') {
+    throw new UnsupportedProperty('calculateMeasureReports only supports reportType "individual".');
+  }
+
+  const compositeMeasureResource = MeasureBundleHelpers.extractCompositeMeasure(measureBundle);
+  if (compositeMeasureResource) {
+    throw new Error('Composite measures require reportType "summary".');
+  }
+  // options should be updated by this call if measurementPeriod wasn't initially passed in
+  const calculationResults = await calculate(measureBundle, patientBundles, options, valueSetCache);
+  const { results, debugOutput } = calculationResults;
+
+  const reports = MeasureReportBuilder.buildMeasureReports(measureBundle, results, options);
+
+  if (debugOutput && options.enableDebugOutput) {
+    debugOutput.measureReports = reports;
+  }
+
+  return { results: reports, debugOutput, valueSetCache: calculationResults.valueSetCache };
+}
+
+/**
+ * Calculate measure against a set of patients. Returning a single MeasureReport for aggregated results.
+ *
+ * @param measureBundle Bundle with a MeasureResource and all necessary data for execution.
+ * @param patientBundles List of bundles of patients to be executed.
+ * @param options Options for calculation.
+ * @param valueSetCache Cache of existing valuesets
+ * @returns MeasureReport resource summary according to standard https://hl7.org/fhir/R4/measurereport.html
+ */
+export async function calculateAggregateMeasureReport(
+  measureBundle: fhir4.Bundle,
+  patientBundles: fhir4.Bundle[],
+  options: CalculationOptions,
+  valueSetCache: fhir4.ValueSet[] = []
+): Promise<AMRCalculationOutput> {
+  if (options.reportType && options.reportType === 'individual') {
+    throw new Error('calculateAggregateMeasureReports only supports reportType "summary".');
+  }
+  // options should be updated by this call if measurementPeriod wasn't initially passed in
+  const calculationResults = await calculate(measureBundle, patientBundles, options, valueSetCache);
+  const { results, debugOutput } = calculationResults;
+
+  const builder = getReportBuilder(measureBundle, options);
+
+  builder.addAllResults(results);
+
+  const report = builder.getReport();
+
+  if (debugOutput && options.enableDebugOutput) {
+    debugOutput.measureReports = [report];
+  }
+
+  return { results: report, debugOutput, valueSetCache: calculationResults.valueSetCache };
+}
+
+/**
+ * Get raw results from cql-execution
+ *
+ * @param measureBundle Bundle with a Measure Resource and all necessary data for execution.
+ * @param patientBundles List of bundles of patients to be executed.
+ * @param options Options for calculation.
+ * @param valueSetCache Cache of existing valuesets
+ * @returns pass through of raw calculation results from the engine
+ */
+export async function calculateRaw(
+  measureBundle: fhir4.Bundle,
+  patientBundles: fhir4.Bundle[],
+  options: CalculationOptions = {},
+  valueSetCache: fhir4.ValueSet[] = []
+): Promise<RCalculationOutput> {
+  const debugObject: DebugOutput | undefined = options.enableDebugOutput ? <DebugOutput>{} : undefined;
+  // Get the PatientSource to use for calculation.
+  const patientSource = resolvePatientSource(patientBundles, options);
+  const measure = MeasureBundleHelpers.extractMeasureFromBundle(measureBundle);
+  const results = await Execution.execute(measure, measureBundle, patientSource, options, valueSetCache, debugObject);
+  if (results.rawResults) {
+    return { results: results.rawResults, debugOutput: debugObject, valueSetCache: results.valueSetCache };
+  } else {
+    throw new ErrorWithDebugInfo(results.errorMessage ?? 'something happened with no error message', debugObject);
+  }
+}
+
+/**
+ * Get any gaps in care for the patients
+ *
+ * @param measureBundle Bundle with a MeasureResource and all necessary data for execution.
+ * @param patientBundles List of bundles of patients to be executed.
+ * @param options Options for calculation.
+ * @param valueSetCache Cache of existing valuesets
+ * @returns gaps bundle of DetectedIssues and GuidanceResponses
+ */
+export async function calculateGapsInCare<T extends OneOrMultiPatient>(
+  measureBundle: fhir4.Bundle,
+  patientBundles: T,
+  options: CalculationOptions,
+  valueSetCache: fhir4.ValueSet[] = []
+): Promise<GICCalculationOutput<T>> {
+  // Detailed results for populations get ELM content back
+  options.returnELM = true;
+
+  const calculationResults = await calculate(measureBundle, patientBundles, options, valueSetCache);
+
+  const { results, debugOutput, elmLibraries, mainLibraryName, parameters } = calculationResults;
+  const measureReports = MeasureReportBuilder.buildMeasureReports(measureBundle, results, options);
+  const patientGapResults = await Promise.all(
+    results.map(async res => {
+    const matchingMeasureReport = measureReports.find(mr => mr.subject?.reference?.split('/')[1] === res.patientId);
+
+    if (!matchingMeasureReport) {
+      throw new Error(`No MeasureReport generated during gaps in care for ${res.patientId}`);
+    }
+
+    const patient = res.patientObject?._json as fhir4.Patient | undefined;
+    if (!patient) {
+      throw new UnexpectedResource(`Could not find Patient resource for gaps in care for ${res.patientId}`);
+    }
+
+    const patientDetectedIssues: fhir4.DetectedIssue[] = [];
+    const localErrorLog: GracefulError[] = [];
+    const localDebugRetrieves: DataTypeQuery[] = [];
+
+    const drPromises = res.detailedResults?.map(async (dr, i) => {
+      const measureResource = MeasureBundleHelpers.extractMeasureFromBundle(measureBundle);
+      const matchingGroup = measureResource.group?.find(g => g.id === dr.groupId) || measureResource.group?.[i];
+
+      // Gaps only supported for proportion/ratio measures
+      const scoringCode =
+        MeasureBundleHelpers.getScoringCodeFromGroup(matchingGroup) ??
+        MeasureBundleHelpers.getScoringCodeFromMeasure(measureResource);
+
+      if (scoringCode !== MeasureScoreType.PROP && scoringCode !== MeasureScoreType.RATIO) {
+        throw new UnsupportedProperty(`Gaps in care not supported for measure scoring type ${scoringCode}`);
+      }
+
+      const denomResult = dr.populationResults?.find(pr => pr.populationType === PopulationType.DENOM)?.result;
+      const numerResult = dr.populationResults?.find(pr => pr.populationType === PopulationType.NUMER)?.result;
+      const numerRelevance = dr.populationRelevance?.find(pr => pr.populationType === PopulationType.NUMER)?.result;
+
+      const improvementNotation =
+        MeasureBundleHelpers.getImprovementNotationFromGroup(matchingGroup) ??
+        measureResource.improvementNotation?.coding?.[0].code;
+
+      if (!improvementNotation) {
+        throw new UnexpectedProperty('Unable to find improvement notation code for this group or measure');
+      }
+
+      // If positive improvement measure, consider patients in denominator but not numerator for gaps
+      // If negative improvement measure, consider patients in numerator for gaps
+      // For either case, ignore patient if numerator isn't relevant
+      const populationCriteria =
+        numerRelevance &&
+        (improvementNotation === ImprovementNotation.POSITIVE ? denomResult && !numerResult : numerResult);
+      if (populationCriteria) {
+        if (!matchingGroup) {
+          throw new Error(`Could not find group with id ${dr.groupId} in measure resource`);
+        }
+
+        const numerCriteria = matchingGroup.population?.find(
+          pop => pop.code?.coding && pop.code.coding[0].code === PopulationType.NUMER
+        );
+
+        if (!numerCriteria) {
+          throw new UnexpectedProperty(`Could not find numerator criteria expression in measure group ${dr.groupId}`);
+        }
+
+        const numerExpressionName = numerCriteria.criteria.expression;
+        const mainLibraryELM = elmLibraries?.find(lib => lib.library.identifier.id === mainLibraryName);
+
+        if (!mainLibraryELM || !elmLibraries) {
+          throw new UnexpectedResource(`Could not find ELM for ${mainLibraryName}`);
+        }
+
+        const numerELMExpression = mainLibraryELM.library.statements.def.find(e => e.name === numerExpressionName);
+        if (!numerELMExpression) {
+          throw new UnexpectedProperty(`Expression ${numerExpressionName} not found in ${mainLibraryName}`);
+        }
+
+        // Parse ELM for basic info about queries
+        const retrievesOutput = RetrievesHelper.findRetrieves(
+          mainLibraryELM,
+          elmLibraries,
+          numerELMExpression.expression
+        );
+
+        const baseRetrieves = retrievesOutput.results;
+        const retrievesErrors = retrievesOutput.withErrors;
+        localErrorLog.push(...retrievesErrors);
+
+        // Add detailed info to queries based on clause results
+        const gapsRetrieves = GapsReportBuilder.processQueriesForGaps(baseRetrieves, dr);
+
+        const grPromises = gapsRetrieves.map(async retrieve => {
+          // If the retrieves have a localId for the query and a known library name, we can get more info
+          // on how the query filters the sources.
+          if (retrieve.queryLocalId && retrieve.queryLibraryName) {
+            const library = elmLibraries.find(lib => lib.library.identifier.id === retrieve.queryLibraryName);
+            if (library) {
+              retrieve.queryInfo = await parseQueryInfo(
+                library,
+                elmLibraries,
+                retrieve.queryLocalId,
+                retrieve.valueComparisonLocalId,
+                parameters,
+                res.patientObject
+              );
+            }
+          }
+        });
+        await Promise.all(grPromises);
+
+        const { results: detailedGapsRetrieves, withErrors: reasonDetailErrors } =
+          GapsReportBuilder.calculateReasonDetail(gapsRetrieves, improvementNotation, dr);
+
+        localErrorLog.push(...reasonDetailErrors);
+
+        const { detectedIssues, withErrors: detectedIssueErrors } = GapsReportBuilder.generateDetectedIssueResources(
+          detailedGapsRetrieves,
+          matchingMeasureReport,
+          improvementNotation
+        );
+        localErrorLog.push(...detectedIssueErrors);
+
+        patientDetectedIssues.push(...detectedIssues);
+        localDebugRetrieves.push(...detailedGapsRetrieves);
+      }
+    });
+    if (drPromises) {
+      await Promise.all(drPromises);
+    }
+
+    const gapsBundle = GapsReportBuilder.generateGapsInCareBundle(
+      patientDetectedIssues,
+      matchingMeasureReport,
+      patient
+    );
+
+      return {
+        bundle: gapsBundle,
+        withErrors: localErrorLog,
+        retrieves: localDebugRetrieves
+      };
+    })
+  );
+
+  const result = patientGapResults.map(r => r.bundle);
+  const errorLog = patientGapResults.flatMap(r => r.withErrors);
+  const debugRetrieves = patientGapResults.flatMap(r => r.retrieves);
+
+  if (debugOutput && options.enableDebugOutput) {
+    debugOutput.gaps = {
+      retrieves: debugRetrieves,
+      bundle: result.length === 1 ? result[0] : result
+    };
+  }
+
+  return {
+    results: <OneOrManyBundles<T>>(result.length === 1 ? result[0] : result),
+    debugOutput,
+    valueSetCache: calculationResults.valueSetCache,
+    withErrors: errorLog
+  };
+}
+
+/**
+ * Get data requirements for a Library bundle
+ *
+ * @param libraryBundle Bundle of library resources
+ * @param options Options for calculation.
+ *
+ * @returns FHIR Library of data requirements
+ */
+export async function calculateLibraryDataRequirements(
+  libraryBundle: fhir4.Bundle,
+  options: CalculationOptions = {}
+): Promise<DRCalculationOutput> {
+  // omit measurementPeriodStart/measurementPeriodEnd since there is no measure
+  options = omit(options, 'measurementPeriodStart', 'measurementPeriodEnd');
+
+  if (options.rootLibRef === undefined) {
+    throw new UnexpectedProperty('Root lib ref must be provided in order to calculate library dataRequirements');
+  }
+
+  // Extract the library ELM, and the id of the root library, from the library bundle
+  const { cqls, rootLibIdentifier, elmJSONs } = MeasureBundleHelpers.extractLibrariesFromLibraryBundle(
+    libraryBundle,
+    options.rootLibRef
+  );
+
+  const dataRequirements = await DataRequirementHelpers.getDataRequirements(cqls, rootLibIdentifier, elmJSONs, options);
+  dataRequirements.results.relatedArtifact = DataRequirementHelpers.getFlattenedRelatedArtifacts(
+    libraryBundle,
+    options.rootLibRef
+  );
+  return dataRequirements;
+}
+
+/**
+ * Get data requirements for this measure
+ *
+ * @param measureBundle Bundle with a MeasureResource and all necessary data for execution.
+ * @param options Options for calculation.
+ * @param valueSetCache Cache of existing valuesets
+ *
+ * @returns FHIR Library of data requirements
+ */
+export async function calculateDataRequirements(
+  measureBundle: fhir4.Bundle,
+  options: CalculationOptions = {},
+  valueSetCache: fhir4.ValueSet[] = []
+): Promise<DRCalculationOutput> {
+  let dataRequirements: DRCalculationOutput;
+  // Extract the library ELM, and the id of the root library, from the measure bundle
+  const measure = MeasureBundleHelpers.extractMeasureFromBundle(measureBundle);
+  const effectivePeriod = measure.effectivePeriod;
+  const { cqls, rootLibIdentifier, elmJSONs } = MeasureBundleHelpers.extractLibrariesFromMeasureBundle(
+    measureBundle,
+    measure
+  );
+  if (options.useExpandedCodeQueries) {
+    const valueSets: fhir4.ValueSet[] = [];
+    const newCache: fhir4.ValueSet[] = [];
+
+    // Pass in existing cache to attempt any missing resolutions
+    const missingVS = getMissingDependentValuesets(measureBundle, options.useEffectiveDataRequirements, [
+      ...valueSetCache
+    ]);
+
+    if (missingVS.length > 0) {
+      if (!options.vsAPIKey || options.vsAPIKey.length == 0) {
+        throw new UnexpectedResource(
+          `Missing the following valuesets: ${missingVS.join(', ')}, and no API key was provided to resolve them`
+        );
+      }
+      const vsr = new ValueSetResolver(options.vsAPIKey || '');
+      const [expansions, errorMessages] = await vsr.getExpansionForValuesetUrls(missingVS);
+
+      if (errorMessages.length > 0) {
+        throw new Error(errorMessages.join('\n'));
+      }
+
+      valueSets.push(...expansions);
+
+      // Update cache to include new expansions
+      if (options.useValueSetCaching) {
+        newCache.push(...expansions);
+      }
+    }
+
+    measureBundle.entry?.forEach(e => {
+      if (e.resource?.resourceType === 'ValueSet') {
+        valueSets.push(e.resource as fhir4.ValueSet);
+      }
+    });
+
+    valueSets.push(...valueSetCache);
+
+    dataRequirements = await DataRequirementHelpers.getDataRequirements(
+      cqls,
+      rootLibIdentifier,
+      elmJSONs,
+      options,
+      effectivePeriod,
+      valueSets
+    );
+  } else {
+    dataRequirements = await DataRequirementHelpers.getDataRequirements(
+      cqls,
+      rootLibIdentifier,
+      elmJSONs,
+      options,
+      effectivePeriod
+    );
+  }
+  dataRequirements.results.relatedArtifact = DataRequirementHelpers.getFlattenedRelatedArtifacts(measureBundle);
+  return dataRequirements;
+}
+
+/**
+ * Get detailed query info for all statements of a Measure
+ *
+ * @param measureBundle Bundle with a Measure resource and all dependent library resources
+ * @returns Detailed query info object for all statements
+ */
+export async function calculateQueryInfo(
+  measureBundle: fhir4.Bundle,
+  options: CalculationOptions = {}
+): Promise<QICalculationOutput> {
+  // Extract the library ELM, and the id of the root library, from the measure bundle
+  const { cqls, rootLibIdentifier, elmJSONs } = MeasureBundleHelpers.extractLibrariesFromMeasureBundle(measureBundle);
+  const rootLib = elmJSONs.find(ej => ej.library.identifier == rootLibIdentifier);
+  const { startCql, endCql } = Execution.getCQLIntervalEndpoints(options);
+
+  if (!rootLib?.library) {
+    throw new UnexpectedResource("root library doesn't contain a library object"); //unexpected resource
+  }
+
+  const parameters = { 'Measurement Period': new Interval(startCql, endCql) };
+  // get the retrieves for every statement in the root library
+  const withErrors: GracefulError[] = [];
+
+  let statements = rootLib.library.statements.def;
+  if (options.focusedStatement) {
+    const focalStatement = statements.find(s => s.name === options.focusedStatement);
+    // if focal statement isn't found, warn and stick with the default
+    if (focalStatement) {
+      statements = [focalStatement];
+    } else {
+      console.warn(`Focused statement "${options.focusedStatement}" not found in root library.`);
+    }
+  }
+  const allRetrieves = statements.flatMap(statement => {
+    if (statement.expression && statement.name != 'Patient') {
+      const retrievesOutput = RetrievesHelper.findRetrieves(rootLib, elmJSONs, statement.expression);
+      withErrors.push(...retrievesOutput.withErrors);
+      return retrievesOutput.results;
+    } else {
+      return [] as DataTypeQuery[];
+    }
+  });
+
+  const allRetrievesPromises = allRetrieves.map(async retrieve => {
+    // If the retrieves have a localId for the query and a known library name, we can get more info
+    // on how the query filters the sources.
+    if (retrieve.queryLocalId && retrieve.queryLibraryName) {
+      const library = elmJSONs.find(lib => lib.library.identifier.id === retrieve.queryLibraryName);
+      if (library) {
+        retrieve.queryInfo = await parseQueryInfo(
+          library,
+          elmJSONs,
+          retrieve.queryLocalId,
+          retrieve.valueComparisonLocalId,
+          parameters
+        );
+      }
+    }
+  });
+
+  await Promise.all(allRetrievesPromises);
+
+  return {
+    results: allRetrieves,
+    debugOutput: {
+      cql: cqls,
+      elm: elmJSONs
+    },
+    withErrors
+  };
+}
+
+/**
+ * Resolve the PatientSource to use for calculation. If a PatientSource was provided, use it. Otherwise use
+ * cql-exec-fhir to make one from Patient Bundles.
+ *
+ * @param patientBundles Patient bundle array passed in.
+ * @param options Options passed into the calculator.
+ * @returns PatientSource to use for calculation.
+ */
+function resolvePatientSource(patientBundles: fhir4.Bundle[], options: CalculationOptions): DataProvider {
+  if (options.patientSource) {
+    return options.patientSource;
+  } else {
+    //if there are entries, pb.entry?.length will be > 0 which is truthy. Otherwise falsy
+    if (patientBundles.filter(pb => pb.entry?.length).length === 0) {
+      throw new UnexpectedResource('No entries found in passed patient bundles');
+    }
+    const patientSource = PatientSource.FHIRv401({
+      requireProfileTagging: options.trustMetaProfile ?? DEFAULT_TRUST_META_PROFILE
+    });
+    patientSource.loadBundles(patientBundles);
+    return patientSource;
+  }
+}

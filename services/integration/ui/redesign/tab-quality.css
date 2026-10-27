@@ -1,0 +1,34 @@
+﻿/* Data Quality tab: checks, anomalies and coverage report. Tokens from styles.css only. */
+.dq-job { display: flex; flex-direction: column; gap: 14px; border-top: 1px solid var(--line); padding-top: 12px; }
+
+.dq-adv-body { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }
+.dq-advanced > summary, .dq-coverage > summary { cursor: pointer; font-weight: 600; }
+.dq-advanced > summary:focus-visible, .dq-coverage > summary:focus-visible { outline: 2px solid var(--teal);
+  outline-offset: 2px; }
+
+details.card.dq-coverage { display: block; }
+.dq-coverage > summary { font-size: 15px; }
+.dq-coverage > summary .muted { font-weight: 400; margin-left: 6px; }
+.dq-cov-body { display: flex; flex-direction: column; gap: 12px; margin-top: 12px; }
+
+.dq-group { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.dq-group-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.dq-group-head h3 { margin: 0; font-size: 13.5px; font-weight: 600; }
+.dq-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 8px; }
+.dq-card { background: var(--surface); border: 1px solid var(--line); border-left: 3px solid var(--muted);
+  border-radius: 8px; padding: 10px 12px; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.dq-card-critical { border-left-color: var(--red); }
+.dq-card-high, .dq-card-medium { border-left-color: var(--amber); }
+.dq-card-low, .dq-card-other { border-left-color: var(--muted); }
+.dq-card-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.dq-card .facts { font-size: 12.5px; }
+
+.dq-bar-critical .track > span { background: var(--red); }
+.dq-bar-high .track > span, .dq-bar-medium .track > span { background: var(--amber); }
+.dq-bar-low .track > span, .dq-bar-other .track > span { background: var(--muted); }
+
+.dq-scroll { max-height: 360px; overflow: auto; border: 1px solid var(--line); border-radius: 8px; }
+.dq-scroll .table th { position: sticky; top: 0; background: var(--surface); }
+
+#view-quality input[type="file"].input { padding: 6px 8px; }
+#view-quality input[type="date"].input { min-width: 0; }

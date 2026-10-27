@@ -1,0 +1,64 @@
+{
+  "resourceType": "Bundle",
+  "type": "collection",
+  "entry": [
+    {
+      "resource": {
+        "resourceType": "Patient",
+        "id": "p-ked-positive",
+        "birthDate": "1971-07-11"
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Condition",
+        "id": "dm-positive",
+        "subject": {"reference": "Patient/p-ked-positive"},
+        "code": {
+          "coding": [
+            {"system": "http://snomed.info/sct", "code": "44054006", "display": "Diabetes mellitus type 2"}
+          ]
+        }
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Encounter",
+        "id": "enc-positive",
+        "subject": {"reference": "Patient/p-ked-positive"},
+        "status": "finished",
+        "period": {"start": "2026-04-15T09:00:00Z", "end": "2026-04-15T09:30:00Z"}
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Observation",
+        "id": "egfr-positive",
+        "subject": {"reference": "Patient/p-ked-positive"},
+        "status": "final",
+        "code": {
+          "coding": [
+            {"system": "http://loinc.org", "code": "33914-3", "display": "Glomerular filtration rate/1.73 sq M.predicted among blacks [Volume Rate/Area] in Serum, Plasma or Blood by Creatinine-based formula (MDRD)"}
+          ]
+        },
+        "effectiveDateTime": "2026-06-01T10:00:00Z",
+        "valueQuantity": {"value": 65.0, "unit": "mL/min/{1.73_m2}", "system": "http://unitsofmeasure.org", "code": "mL/min/{1.73_m2}"}
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Observation",
+        "id": "uacr-positive",
+        "subject": {"reference": "Patient/p-ked-positive"},
+        "status": "amended",
+        "code": {
+          "coding": [
+            {"system": "http://loinc.org", "code": "14959-1", "display": "Microalbumin/Creatinine [Mass Ratio] in Urine"}
+          ]
+        },
+        "effectiveDateTime": "2026-06-10T11:00:00Z",
+        "valueQuantity": {"value": 27.0, "unit": "mg/g", "system": "http://unitsofmeasure.org", "code": "mg/g"}
+      }
+    }
+  ]
+}

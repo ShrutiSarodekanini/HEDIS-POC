@@ -45,6 +45,11 @@ class _Drop(Exception):
     """Raised by a check with the reason the finding is dropped."""
 
 
+# The model's reason is shown to reviewers only; it never decides whether a finding is kept.
+MAX_REASON_CHARS = 800
+PARTS = ("frailty", "advanced_illness")
+
+
 # ---------------------------------------------------------------- parsing the answer
 
 def parse_findings(text: str) -> list[Finding]:
@@ -69,9 +74,16 @@ def parse_findings(text: str) -> list[Finding]:
             service_date=_as_text(item.get("service_date")),
             value=_as_text(item.get("value")),
             confidence=_as_confidence(item.get("confidence")),
-            reason=_as_text(item.get("reason")),
+            reason=_as_text(item.get("reason")).strip()[:MAX_REASON_CHARS],
+            part=_as_part(item.get("part")),
         ))
     return findings
+
+
+def _as_part(value: Any) -> str:
+    """'frailty' or 'advanced_illness' (spaces, hyphens and case forgiven); anything else means no part."""
+    part = re.sub(r"[\s-]+", "_", _as_text(value).strip().lower())
+    return part if part in PARTS else ""
 
 
 def _as_text(value: Any) -> str:
@@ -153,6 +165,9 @@ def _check(gap: GapContext, measure: dict[str, Any], pages: Sequence[PageRef], f
         dates = (page.document_date, page.document_date)
         warnings += (DATE_FROM_DOCUMENT,)
     _check_age(gap, evidence_type, dates)
+    if "frailty" in evidence_type and not finding.part:
+        raise _Drop(f"{evidence_type} needs two findings, and this one does not say whether it is the frailty or "
+                    "the advanced illness part")
     if dates is None:
         raise _Drop(f"service date '{finding.service_date}' is not readable and the page has no document date")
     if not from_document:
@@ -166,7 +181,8 @@ def _check(gap: GapContext, measure: dict[str, Any], pages: Sequence[PageRef], f
         document_id=page.document_id, page_no=page.page_no, excerpt=excerpt, char_start=start, char_end=end,
         evidence_kind=kind, evidence_type=evidence_type, service_date_raw=finding.service_date,
         service_date_from=dates[0], service_date_to=dates[1], value=finding.value, confidence=finding.confidence,
-        reason=finding.reason, handwritten=page.handwritten, low_confidence=page.low_confidence, warnings=warnings)
+        reason=finding.reason, handwritten=page.handwritten, low_confidence=page.low_confidence, warnings=warnings,
+        part=finding.part if "frailty" in evidence_type else "")
 
 
 def _find_quote(finding: Finding, pages: Sequence[PageRef]) -> tuple[PageRef, int, int]:

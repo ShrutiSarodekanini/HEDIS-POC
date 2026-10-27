@@ -1,0 +1,55 @@
+{
+  "resourceType": "Bundle",
+  "type": "collection",
+  "entry": [
+    {
+      "resource": {
+        "resourceType": "Patient",
+        "id": "p-ked-unresolved",
+        "birthDate": "1975-10-20"
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Condition",
+        "id": "dm-unresolved",
+        "subject": {"reference": "Patient/p-ked-unresolved"},
+        "code": {
+          "coding": [
+            {"system": "http://snomed.info/sct", "code": "44054006", "display": "Diabetes mellitus type 2"}
+          ]
+        }
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Observation",
+        "id": "egfr-unresolved",
+        "subject": {"reference": "Patient/p-ked-unresolved"},
+        "status": "final",
+        "code": {
+          "coding": [
+            {"system": "http://loinc.org", "code": "62238-1", "display": "Glomerular filtration rate/1.73 sq M.predicted among all race [Volume Rate/Area] in Serum, Plasma or Blood by Creatinine-based formula (MDRD)"}
+          ]
+        },
+        "effectiveDateTime": "2026-09-01T08:00:00Z",
+        "valueQuantity": {"value": 72.0, "unit": "mL/min/{1.73_m2}", "system": "http://unitsofmeasure.org", "code": "mL/min/{1.73_m2}"}
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Observation",
+        "id": "uacr-unresolved",
+        "subject": {"reference": "Patient/p-ked-unresolved"},
+        "status": "corrected",
+        "code": {
+          "coding": [
+            {"system": "http://loinc.org", "code": "9318-7", "display": "Albumin/Creatinine [Mass Ratio] in Urine"}
+          ]
+        },
+        "effectiveDateTime": "2026-09-02T08:00:00Z",
+        "valueQuantity": {"value": 19.0, "unit": "mg/g", "system": "http://unitsofmeasure.org", "code": "mg/g"}
+      }
+    }
+  ]
+}

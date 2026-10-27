@@ -1,0 +1,32 @@
+{
+  "resourceType": "Bundle",
+  "type": "collection",
+  "entry": [
+    {
+      "resource": {
+        "resourceType": "Patient",
+        "id": "p-bcse-unresolved",
+        "birthDate": "1968-01-01",
+        "gender": "female"
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Procedure",
+        "id": "mammo-bcse-unresolved",
+        "subject": {"reference": "Patient/p-bcse-unresolved"},
+        "status": "completed",
+        "code": {
+          "coding": [
+            {
+              "system": "http://www.ama-assn.org/go/cpt",
+              "code": "77063",
+              "display": "Screening mammography"
+            }
+          ]
+        },
+        "performedDateTime": "2026-06-01T00:00:00Z"
+      }
+    }
+  ]
+}

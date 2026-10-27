@@ -1,1 +1,7 @@
-UI-components goes here
+HEDIS-POC UI folder.
+
+Active UI implementation is only in frontend/.
+Use root scripts:
+- npm run ui:install
+- npm run ui:dev
+- npm run ui:test

@@ -3,6 +3,7 @@
 Usage (from the repo root, after `alembic -c db/alembic.ini upgrade head`):
     python scripts/db/load_seed.py           # load into an empty database
     python scripts/db/load_seed.py --reset   # empty every table first (development only)
+    python scripts/db/load_seed.py --reference-only   # organizations, practitioners, measures, stars; no patients
 
 Everything loads in one transaction:
 - one source_batch row, stamped on every team-table row that has a batch_id
@@ -352,6 +353,9 @@ def audit(cur, counts: dict) -> None:
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--reset", action="store_true", help="empty every table before loading (development only)")
+    parser.add_argument("--reference-only", action="store_true",
+                        help="load only data that is not about patients: organizations, practitioners, measure "
+                             "definitions and rules, star weights and cut points")
     args = parser.parse_args()
     run = json.loads((SEED / "engine" / "engine_run_MY2026.json").read_text(encoding="utf-8"))
 
@@ -361,14 +365,18 @@ def main() -> None:
         load_batch(cur)
         load_organizations(cur)
         authors = load_practitioners(cur)
-        patients = load_patients(cur)
-        load_engagement(cur, patients)
-        lib = load_measures(cur)
-        load_stars(cur, lib["measurement_year"])
-        load_engine_run(cur, run)
-        gap_pk = load_results(cur, run, lib, patients)
-        load_gaps(cur, run, patients, gap_pk)
-        load_documents(cur, patients, authors)
+        if args.reference_only:
+            lib = load_measures(cur)
+            load_stars(cur, lib["measurement_year"])
+        else:
+            patients = load_patients(cur)
+            load_engagement(cur, patients)
+            lib = load_measures(cur)
+            load_stars(cur, lib["measurement_year"])
+            load_engine_run(cur, run)
+            gap_pk = load_results(cur, run, lib, patients)
+            load_gaps(cur, run, patients, gap_pk)
+            load_documents(cur, patients, authors)
         finish_batch(cur)
         counts = table_counts(cur)
         audit(cur, counts)

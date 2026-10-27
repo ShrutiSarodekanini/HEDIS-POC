@@ -1,0 +1,62 @@
+{
+  "resourceType": "Bundle",
+  "type": "collection",
+  "entry": [
+    {
+      "resource": {
+        "resourceType": "Patient",
+        "id": "d216581f-32f6-9778-b8b5-a747f61d8b6b",
+        "birthDate": "1983-11-22",
+        "gender": "male"
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Condition",
+        "id": "d216581f-32f6-9778-92f9-cf395397fc4e",
+        "subject": {
+          "reference": "urn:uuid:d216581f-32f6-9778-b8b5-a747f61d8b6b"
+        },
+        "code": {
+          "coding": [
+            {
+              "system": "http://snomed.info/sct",
+              "code": "44054006",
+              "display": "Diabetes mellitus type 2 (disorder)"
+            }
+          ],
+          "text": "Diabetes mellitus type 2 (disorder)"
+        },
+        "onsetDateTime": "2026-06-02T15:07:05+05:30",
+        "recordedDate": "2026-06-02T15:07:05+05:30"
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Observation",
+        "id": "d216581f-32f6-9778-3a6f-58a98360579d",
+        "status": "final",
+        "subject": {
+          "reference": "urn:uuid:d216581f-32f6-9778-b8b5-a747f61d8b6b"
+        },
+        "code": {
+          "coding": [
+            {
+              "system": "http://loinc.org",
+              "code": "4548-4",
+              "display": "Hemoglobin A1c/Hemoglobin.total in Blood"
+            }
+          ],
+          "text": "Hemoglobin A1c/Hemoglobin.total in Blood"
+        },
+        "effectiveDateTime": "2026-06-02T15:07:05+05:30",
+        "valueQuantity": {
+          "value": 7.45,
+          "unit": "%",
+          "system": "http://unitsofmeasure.org",
+          "code": "%"
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,5262 @@
+{
+  "library": {
+    "annotation": [
+      {
+        "translatorOptions": "EnableAnnotations,EnableLocators",
+        "type": "CqlToElmInfo"
+      },
+      {
+        "type": "Annotation",
+        "s": {
+          "r": "212",
+          "s": [
+            {
+              "value": [
+                "",
+                "library ComplexQueries version '0.0.1'"
+              ]
+            }
+          ]
+        }
+      }
+    ],
+    "identifier": {
+      "id": "ComplexQueries",
+      "version": "0.0.1"
+    },
+    "schemaIdentifier": {
+      "id": "urn:hl7-org:elm",
+      "version": "r1"
+    },
+    "usings": {
+      "def": [
+        {
+          "localIdentifier": "System",
+          "uri": "urn:hl7-org:elm-types:r1"
+        },
+        {
+          "localId": "1",
+          "locator": "3:1-3:26",
+          "localIdentifier": "FHIR",
+          "uri": "http://hl7.org/fhir",
+          "version": "4.0.1",
+          "annotation": [
+            {
+              "type": "Annotation",
+              "s": {
+                "r": "1",
+                "s": [
+                  {
+                    "value": [
+                      "",
+                      "using "
+                    ]
+                  },
+                  {
+                    "s": [
+                      {
+                        "value": [
+                          "FHIR"
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "value": [
+                      " version ",
+                      "'4.0.1'"
+                    ]
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    "includes": {
+      "def": [
+        {
+          "localId": "2",
+          "locator": "5:1-5:35",
+          "localIdentifier": "FHIRHelpers",
+          "path": "FHIRHelpers",
+          "version": "4.0.1",
+          "annotation": [
+            {
+              "type": "Annotation",
+              "s": {
+                "r": "2",
+                "s": [
+                  {
+                    "value": [
+                      "",
+                      "include "
+                    ]
+                  },
+                  {
+                    "s": [
+                      {
+                        "value": [
+                          "FHIRHelpers"
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "value": [
+                      " version ",
+                      "'4.0.1'"
+                    ]
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "localId": "3",
+          "locator": "6:1-6:64",
+          "localIdentifier": "Global",
+          "path": "MATGlobalCommonFunctions",
+          "version": "5.0.000",
+          "annotation": [
+            {
+              "type": "Annotation",
+              "s": {
+                "r": "3",
+                "s": [
+                  {
+                    "value": [
+                      "",
+                      "include "
+                    ]
+                  },
+                  {
+                    "s": [
+                      {
+                        "value": [
+                          "MATGlobalCommonFunctions"
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "value": [
+                      " version ",
+                      "'5.0.000'",
+                      " called ",
+                      "Global"
+                    ]
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    "parameters": {
+      "def": [
+        {
+          "localId": "32",
+          "locator": "27:1-28:66",
+          "name": "Measurement Period",
+          "accessLevel": "Public",
+          "annotation": [
+            {
+              "type": "Annotation",
+              "s": {
+                "r": "32",
+                "s": [
+                  {
+                    "value": [
+                      "",
+                      "parameter ",
+                      "\"Measurement Period\"",
+                      " "
+                    ]
+                  },
+                  {
+                    "r": "31",
+                    "s": [
+                      {
+                        "value": [
+                          "Interval<"
+                        ]
+                      },
+                      {
+                        "r": "30",
+                        "s": [
+                          {
+                            "value": [
+                              "DateTime"
+                            ]
+                          }
+                        ]
+                      },
+                      {
+                        "value": [
+                          ">"
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "value": [
+                      "\n  default "
+                    ]
+                  },
+                  {
+                    "r": "29",
+                    "s": [
+                      {
+                        "r": "27",
+                        "value": [
+                          "Interval[",
+                          "@2019-01-01T00:00:00.0",
+                          ", ",
+                          "@2020-01-01T00:00:00.0",
+                          ")"
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            }
+          ],
+          "default": {
+            "localId": "29",
+            "locator": "28:11-28:66",
+            "lowClosed": true,
+            "highClosed": false,
+            "type": "Interval",
+            "low": {
+              "localId": "27",
+              "locator": "28:20-28:41",
+              "type": "DateTime",
+              "year": {
+                "valueType": "{urn:hl7-org:elm-types:r1}Integer",
+                "value": "2019",
+                "type": "Literal"
+              },
+              "month": {
+                "valueType": "{urn:hl7-org:elm-types:r1}Integer",
+                "value": "1",
+                "type": "Literal"
+              },
+              "day": {
+                "valueType": "{urn:hl7-org:elm-types:r1}Integer",
+                "value": "1",
+                "type": "Literal"
+              },
+              "hour": {
+                "valueType": "{urn:hl7-org:elm-types:r1}Integer",
+                "value": "0",
+                "type": "Literal"
+              },
+              "minute": {
+                "valueType": "{urn:hl7-org:elm-types:r1}Integer",
+                "value": "0",
+                "type": "Literal"
+              },
+              "second": {
+                "valueType": "{urn:hl7-org:elm-types:r1}Integer",
+                "value": "0",
+                "type": "Literal"
+              },
+              "millisecond": {
+                "valueType": "{urn:hl7-org:elm-types:r1}Integer",
+                "value": "0",
+                "type": "Literal"
+              }
+            },
+            "high": {
+              "localId": "28",
+              "locator": "28:44-28:65",
+              "type": "DateTime",
+              "year": {
+                "valueType": "{urn:hl7-org:elm-types:r1}Integer",
+                "value": "2020",
+                "type": "Literal"
+              },
+              "month": {
+                "valueType": "{urn:hl7-org:elm-types:r1}Integer",
+                "value": "1",
+                "type": "Literal"
+              },
+              "day": {
+                "valueType": "{urn:hl7-org:elm-types:r1}Integer",
+                "value": "1",
+                "type": "Literal"
+              },
+              "hour": {
+                "valueType": "{urn:hl7-org:elm-types:r1}Integer",
+                "value": "0",
+                "type": "Literal"
+              },
+              "minute": {
+                "valueType": "{urn:hl7-org:elm-types:r1}Integer",
+                "value": "0",
+                "type": "Literal"
+              },
+              "second": {
+                "valueType": "{urn:hl7-org:elm-types:r1}Integer",
+                "value": "0",
+                "type": "Literal"
+              },
+              "millisecond": {
+                "valueType": "{urn:hl7-org:elm-types:r1}Integer",
+                "value": "0",
+                "type": "Literal"
+              }
+            }
+          },
+          "parameterTypeSpecifier": {
+            "localId": "31",
+            "locator": "27:32-27:49",
+            "type": "IntervalTypeSpecifier",
+            "pointType": {
+              "localId": "30",
+              "locator": "27:41-27:48",
+              "name": "{urn:hl7-org:elm-types:r1}DateTime",
+              "type": "NamedTypeSpecifier"
+            }
+          }
+        }
+      ]
+    },
+    "codeSystems": {
+      "def": [
+        {
+          "localId": "4",
+          "locator": "8:1-8:42",
+          "name": "EXAMPLE",
+          "id": "http://example.com",
+          "accessLevel": "Public",
+          "annotation": [
+            {
+              "type": "Annotation",
+              "s": {
+                "r": "4",
+                "s": [
+                  {
+                    "value": [
+                      "",
+                      "codesystem ",
+                      "\"EXAMPLE\"",
+                      ": ",
+                      "'http://example.com'"
+                    ]
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "localId": "5",
+          "locator": "9:1-9:46",
+          "name": "EXAMPLE-2",
+          "id": "http://example.com/2",
+          "accessLevel": "Public",
+          "annotation": [
+            {
+              "type": "Annotation",
+              "s": {
+                "r": "5",
+                "s": [
+                  {
+                    "value": [
+                      "",
+                      "codesystem ",
+                      "\"EXAMPLE-2\"",
+                      ": ",
+                      "'http://example.com/2'"
+                    ]
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "localId": "6",
+          "locator": "10:1-10:101",
+          "name": "ConditionClinicalStatusCodes",
+          "id": "http://terminology.hl7.org/CodeSystem/condition-clinical",
+          "accessLevel": "Public",
+          "annotation": [
+            {
+              "type": "Annotation",
+              "s": {
+                "r": "6",
+                "s": [
+                  {
+                    "value": [
+                      "",
+                      "codesystem ",
+                      "\"ConditionClinicalStatusCodes\"",
+                      ": ",
+                      "'http://terminology.hl7.org/CodeSystem/condition-clinical'"
+                    ]
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    "valueSets": {
+      "def": [
+        {
+          "localId": "7",
+          "locator": "12:1-12:48",
+          "name": "test-vs",
+          "id": "http://example.com/test-vs",
+          "accessLevel": "Public",
+          "annotation": [
+            {
+              "type": "Annotation",
+              "s": {
+                "r": "7",
+                "s": [
+                  {
+                    "value": [
+                      "",
+                      "valueset ",
+                      "\"test-vs\"",
+                      ": ",
+                      "'http://example.com/test-vs'"
+                    ]
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "localId": "8",
+          "locator": "13:1-13:50",
+          "name": "test-vs2",
+          "id": "http://example.com/test-vs2",
+          "accessLevel": "Public",
+          "annotation": [
+            {
+              "type": "Annotation",
+              "s": {
+                "r": "8",
+                "s": [
+                  {
+                    "value": [
+                      "",
+                      "valueset ",
+                      "\"test-vs2\"",
+                      ": ",
+                      "'http://example.com/test-vs2'"
+                    ]
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "localId": "9",
+          "locator": "14:1-14:50",
+          "name": "test-vs3",
+          "id": "http://example.com/test-vs3",
+          "accessLevel": "Public",
+          "annotation": [
+            {
+              "type": "Annotation",
+              "s": {
+                "r": "9",
+                "s": [
+                  {
+                    "value": [
+                      "",
+                      "valueset ",
+                      "\"test-vs3\"",
+                      ": ",
+                      "'http://example.com/test-vs3'"
+                    ]
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    "codes": {
+      "def": [
+        {
+          "localId": "11",
+          "locator": "16:1-16:39",
+          "name": "test-code",
+          "id": "test",
+          "accessLevel": "Public",
+          "annotation": [
+            {
+              "type": "Annotation",
+              "s": {
+                "r": "11",
+                "s": [
+                  {
+                    "value": [
+                      "",
+                      "code ",
+                      "\"test-code\"",
+                      ": ",
+                      "'test'",
+                      " from "
+                    ]
+                  },
+                  {
+                    "r": "10",
+                    "s": [
+                      {
+                        "value": [
+                          "\"EXAMPLE\""
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            }
+          ],
+          "codeSystem": {
+            "localId": "10",
+            "locator": "16:31-16:39",
+            "name": "EXAMPLE"
+          }
+        },
+        {
+          "localId": "13",
+          "locator": "17:1-17:45",
+          "name": "test-code-2",
+          "id": "test-2",
+          "accessLevel": "Public",
+          "annotation": [
+            {
+              "type": "Annotation",
+              "s": {
+                "r": "13",
+                "s": [
+                  {
+                    "value": [
+                      "",
+                      "code ",
+                      "\"test-code-2\"",
+                      ": ",
+                      "'test-2'",
+                      " from "
+                    ]
+                  },
+                  {
+                    "r": "12",
+                    "s": [
+                      {
+                        "value": [
+                          "\"EXAMPLE-2\""
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            }
+          ],
+          "codeSystem": {
+            "localId": "12",
+            "locator": "17:35-17:45",
+            "name": "EXAMPLE-2"
+          }
+        },
+        {
+          "localId": "15",
+          "locator": "19:1-19:59",
+          "name": "Active",
+          "id": "active",
+          "accessLevel": "Public",
+          "annotation": [
+            {
+              "type": "Annotation",
+              "s": {
+                "r": "15",
+                "s": [
+                  {
+                    "value": [
+                      "",
+                      "code ",
+                      "\"Active\"",
+                      ": ",
+                      "'active'",
+                      " from "
+                    ]
+                  },
+                  {
+                    "r": "14",
+                    "s": [
+                      {
+                        "value": [
+                          "\"ConditionClinicalStatusCodes\""
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            }
+          ],
+          "codeSystem": {
+            "localId": "14",
+            "locator": "19:30-19:59",
+            "name": "ConditionClinicalStatusCodes"
+          }
+        },
+        {
+          "localId": "17",
+          "locator": "20:1-20:67",
+          "name": "Recurrence",
+          "id": "recurrence",
+          "accessLevel": "Public",
+          "annotation": [
+            {
+              "type": "Annotation",
+              "s": {
+                "r": "17",
+                "s": [
+                  {
+                    "value": [
+                      "",
+                      "code ",
+                      "\"Recurrence\"",
+                      ": ",
+                      "'recurrence'",
+                      " from "
+                    ]
+                  },
+                  {
+                    "r": "16",
+                    "s": [
+                      {
+                        "value": [
+                          "\"ConditionClinicalStatusCodes\""
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            }
+          ],
+          "codeSystem": {
+            "localId": "16",
+            "locator": "20:38-20:67",
+            "name": "ConditionClinicalStatusCodes"
+          }
+        },
+        {
+          "localId": "19",
+          "locator": "21:1-21:61",
+          "name": "Relapse",
+          "id": "relapse",
+          "accessLevel": "Public",
+          "annotation": [
+            {
+              "type": "Annotation",
+              "s": {
+                "r": "19",
+                "s": [
+                  {
+                    "value": [
+                      "",
+                      "code ",
+                      "\"Relapse\"",
+                      ": ",
+                      "'relapse'",
+                      " from "
+                    ]
+                  },
+                  {
+                    "r": "18",
+                    "s": [
+                      {
+                        "value": [
+                          "\"ConditionClinicalStatusCodes\""
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            }
+          ],
+          "codeSystem": {
+            "localId": "18",
+            "locator": "21:32-21:61",
+            "name": "ConditionClinicalStatusCodes"
+          }
+        }
+      ]
+    },
+    "concepts": {
+      "def": [
+        {
+          "localId": "22",
+          "locator": "23:1-23:77",
+          "name": "test-concept",
+          "display": "test-concept",
+          "accessLevel": "Public",
+          "annotation": [
+            {
+              "type": "Annotation",
+              "s": {
+                "r": "22",
+                "s": [
+                  {
+                    "value": [
+                      "",
+                      "concept ",
+                      "\"test-concept\"",
+                      ": { "
+                    ]
+                  },
+                  {
+                    "r": "20",
+                    "s": [
+                      {
+                        "value": [
+                          "\"test-code\""
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "value": [
+                      ", "
+                    ]
+                  },
+                  {
+                    "r": "21",
+                    "s": [
+                      {
+                        "value": [
+                          "\"test-code-2\""
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "value": [
+                      " } display ",
+                      "'test-concept'"
+                    ]
+                  }
+                ]
+              }
+            }
+          ],
+          "code": [
+            {
+              "localId": "20",
+              "locator": "23:27-23:37",
+              "name": "test-code"
+            },
+            {
+              "localId": "21",
+              "locator": "23:40-23:52",
+              "name": "test-code-2"
+            }
+          ]
+        },
+        {
+          "localId": "26",
+          "locator": "25:1-25:82",
+          "name": "Condition Active",
+          "display": "Active",
+          "accessLevel": "Public",
+          "annotation": [
+            {
+              "type": "Annotation",
+              "s": {
+                "r": "26",
+                "s": [
+                  {
+                    "value": [
+                      "",
+                      "concept ",
+                      "\"Condition Active\"",
+                      ": { "
+                    ]
+                  },
+                  {
+                    "r": "23",
+                    "s": [
+                      {
+                        "value": [
+                          "\"Active\""
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "value": [
+                      ", "
+                    ]
+                  },
+                  {
+                    "r": "24",
+                    "s": [
+                      {
+                        "value": [
+                          "\"Recurrence\""
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "value": [
+                      ", "
+                    ]
+                  },
+                  {
+                    "r": "25",
+                    "s": [
+                      {
+                        "value": [
+                          "\"Relapse\""
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "value": [
+                      " } display ",
+                      "'Active'"
+                    ]
+                  }
+                ]
+              }
+            }
+          ],
+          "code": [
+            {
+              "localId": "23",
+              "locator": "25:31-25:38",
+              "name": "Active"
+            },
+            {
+              "localId": "24",
+              "locator": "25:41-25:52",
+              "name": "Recurrence"
+            },
+            {
+              "localId": "25",
+              "locator": "25:55-25:63",
+              "name": "Relapse"
+            }
+          ]
+        }
+      ]
+    },
+    "contexts": {
+      "def": [
+        {
+          "locator": "30:1-30:15",
+          "name": "Patient"
+        }
+      ]
+    },
+    "statements": {
+      "def": [
+        {
+          "locator": "30:1-30:15",
+          "name": "Patient",
+          "context": "Patient",
+          "expression": {
+            "type": "SingletonFrom",
+            "operand": {
+              "locator": "30:1-30:15",
+              "dataType": "{http://hl7.org/fhir}Patient",
+              "templateId": "http://hl7.org/fhir/StructureDefinition/Patient",
+              "type": "Retrieve"
+            }
+          }
+        },
+        {
+          "localId": "45",
+          "locator": "32:1-35:45",
+          "name": "Code And Starts During MP",
+          "context": "Patient",
+          "accessLevel": "Public",
+          "annotation": [
+            {
+              "type": "Annotation",
+              "s": {
+                "r": "45",
+                "s": [
+                  {
+                    "value": [
+                      "",
+                      "define ",
+                      "\"Code And Starts During MP\"",
+                      ":\n  "
+                    ]
+                  },
+                  {
+                    "r": "44",
+                    "s": [
+                      {
+                        "s": [
+                          {
+                            "r": "34",
+                            "s": [
+                              {
+                                "r": "33",
+                                "s": [
+                                  {
+                                    "r": "33",
+                                    "s": [
+                                      {
+                                        "value": [
+                                          "[",
+                                          "Condition",
+                                          ": "
+                                        ]
+                                      },
+                                      {
+                                        "s": [
+                                          {
+                                            "value": [
+                                              "\"test-vs\""
+                                            ]
+                                          }
+                                        ]
+                                      },
+                                      {
+                                        "value": [
+                                          "]"
+                                        ]
+                                      }
+                                    ]
+                                  }
+                                ]
+                              },
+                              {
+                                "value": [
+                                  " ",
+                                  "C"
+                                ]
+                              }
+                            ]
+                          }
+                        ]
+                      },
+                      {
+                        "value": [
+                          "\n    "
+                        ]
+                      },
+                      {
+                        "r": "43",
+                        "s": [
+                          {
+                            "value": [
+                              "where "
+                            ]
+                          },
+                          {
+                            "r": "43",
+                            "s": [
+                              {
+                                "r": "38",
+                                "s": [
+                                  {
+                                    "r": "36",
+                                    "s": [
+                                      {
+                                        "r": "35",
+                                        "s": [
+                                          {
+                                            "value": [
+                                              "C"
+                                            ]
+                                          }
+                                        ]
+                                      },
+                                      {
+                                        "value": [
+                                          "."
+                                        ]
+                                      },
+                                      {
+                                        "r": "36",
+                                        "s": [
+                                          {
+                                            "value": [
+                                              "clinicalStatus"
+                                            ]
+                                          }
+                                        ]
+                                      }
+                                    ]
+                                  },
+                                  {
+                                    "value": [
+                                      " ",
+                                      "~",
+                                      " "
+                                    ]
+                                  },
+                                  {
+                                    "r": "37",
+                                    "s": [
+                                      {
+                                        "value": [
+                                          "\"Condition Active\""
+                                        ]
+                                      }
+                                    ]
+                                  }
+                                ]
+                              },
+                              {
+                                "value": [
+                                  "\n      and "
+                                ]
+                              },
+                              {
+                                "r": "42",
+                                "s": [
+                                  {
+                                    "r": "40",
+                                    "s": [
+                                      {
+                                        "r": "39",
+                                        "s": [
+                                          {
+                                            "value": [
+                                              "C"
+                                            ]
+                                          }
+                                        ]
+                                      },
+                                      {
+                                        "value": [
+                                          "."
+                                        ]
+                                      },
+                                      {
+                                        "r": "40",
+                                        "s": [
+                                          {
+                                            "value": [
+                                              "onset"
+                                            ]
+                                          }
+                                        ]
+                                      }
+                                    ]
+                                  },
+                                  {
+                                    "r": "42",
+                                    "value": [
+                                      " ",
+                                      "during",
+                                      " "
+                                    ]
+                                  },
+                                  {
+                                    "r": "41",
+                                    "s": [
+                                      {
+                                        "value": [
+                                          "\"Measurement Period\""
+                                        ]
+                                      }
+                                    ]
+                                  }
+                                ]
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            }
+          ],
+          "expression": {
+            "localId": "44",
+            "locator": "33:3-35:45",
+            "type": "Query",
+            "source": [
+              {
+                "localId": "34",
+                "locator": "33:3-33:26",
+                "alias": "C",
+                "expression": {
+                  "localId": "33",
+                  "locator": "33:3-33:24",
+                  "dataType": "{http://hl7.org/fhir}Condition",
+                  "templateId": "http://hl7.org/fhir/StructureDefinition/Condition",
+                  "codeProperty": "code",
+                  "codeComparator": "in",
+                  "type": "Retrieve",
+                  "codes": {
+                    "locator": "33:15-33:23",
+                    "name": "test-vs",
+                    "preserve": true,
+                    "type": "ValueSetRef"
+                  }
+                }
+              }
+            ],
+            "relationship": [],
+            "where": {
+              "localId": "43",
+              "locator": "34:5-35:45",
+              "type": "And",
+              "operand": [
+                {
+                  "localId": "38",
+                  "locator": "34:11-34:47",
+                  "type": "Equivalent",
+                  "operand": [
+                    {
+                      "name": "ToConcept",
+                      "libraryName": "FHIRHelpers",
+                      "type": "FunctionRef",
+                      "operand": [
+                        {
+                          "localId": "36",
+                          "locator": "34:11-34:26",
+                          "path": "clinicalStatus",
+                          "scope": "C",
+                          "type": "Property"
+                        }
+                      ]
+                    },
+                    {
+                      "localId": "37",
+                      "locator": "34:30-34:47",
+                      "name": "Condition Active",
+                      "type": "ConceptRef"
+                    }
+                  ]
+                },
+                {
+                  "localId": "42",
+                  "locator": "35:11-35:45",
+                  "type": "IncludedIn",
+                  "operand": [
+                    {
+                      "name": "ToInterval",
+                      "libraryName": "FHIRHelpers",
+                      "type": "FunctionRef",
+                      "operand": [
+                        {
+                          "asType": "{http://hl7.org/fhir}Period",
+                          "type": "As",
+                          "operand": {
+                            "localId": "40",
+                            "locator": "35:11-35:17",
+                            "path": "onset",
+                            "scope": "C",
+                            "type": "Property"
+                          }
+                        }
+                      ]
+                    },
+                    {
+                      "localId": "41",
+                      "locator": "35:26-35:45",
+                      "name": "Measurement Period",
+                      "type": "ParameterRef"
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        },
+        {
+          "localId": "68",
+          "locator": "37:1-41:80",
+          "name": "Observation Status Value Exists and During MP",
+          "context": "Patient",
+          "accessLevel": "Public",
+          "annotation": [
+            {
+              "type": "Annotation",
+              "s": {
+                "r": "68",
+                "s": [
+                  {
+                    "value": [
+                      "",
+                      "define ",
+                      "\"Observation Status Value Exists and During MP\"",
+                      ":\n  "
+                    ]
+                  },
+                  {
+                    "r": "67",
+                    "s": [
+                      {
+                        "s": [
+                          {
+                            "r": "47",
+                            "s": [
+                              {
+                                "r": "46",
+                                "s": [
+                                  {
+                                    "r": "46",
+                                    "s": [
+                                      {
+                                        "value": [
+                                          "[",
+                                          "Observation",
+                                          ": "
+                                        ]
+                                      },
+                                      {
+                                        "s": [
+                                          {
+                                            "value": [
+                                              "\"test-vs\""
+                                            ]
+                                          }
+                                        ]
+                                      },
+                                      {
+                                        "value": [
+                                          "]"
+                                        ]
+                                      }
+                                    ]
+                                  }
+                                ]
+                              },
+                              {
+                                "value": [
+                                  " ",
+                                  "Obs"
+                                ]
+                              }
+                            ]
+                          }
+                        ]
+                      },
+                      {
+                        "value": [
+                          "\n    "
+                        ]
+                      },
+                      {
+                        "r": "66",
+                        "s": [
+                          {
+                            "value": [
+                              "where "
+                            ]
+                          },
+                          {
+                            "r": "66",
+                            "s": [
+                              {
+                                "r": "59",
+                                "s": [
+                                  {
+                                    "r": "55",
+                                    "s": [
+                                      {
+                                        "r": "49",
+                                        "s": [
+                                          {
+                                            "r": "48",
+                                            "s": [
+                                              {
+                                                "value": [
+                                                  "Obs"
+                                                ]
+                                              }
+                                            ]
+                                          },
+                                          {
+                                            "value": [
+                                              "."
+                                            ]
+                                          },
+                                          {
+                                            "r": "49",
+                                            "s": [
+                                              {
+                                                "value": [
+                                                  "status"
+                                                ]
+                                              }
+                                            ]
+                                          }
+                                        ]
+                                      },
+                                      {
+                                        "value": [
+                                          " in "
+                                        ]
+                                      },
+                                      {
+                                        "r": "54",
+                                        "s": [
+                                          {
+                                            "value": [
+                                              "{"
+                                            ]
+                                          },
+                                          {
+                                            "r": "50",
+                                            "s": [
+                                              {
+                                                "value": [
+                                                  "'final'"
+                                                ]
+                                              }
+                                            ]
+                                          },
+                                          {
+                                            "value": [
+                                              ", "
+                                            ]
+                                          },
+                                          {
+                                            "r": "51",
+                                            "s": [
+                                              {
+                                                "value": [
+                                                  "'amended'"
+                                                ]
+                                              }
+                                            ]
+                                          },
+                                          {
+                                            "value": [
+                                              ", "
+                                            ]
+                                          },
+                                          {
+                                            "r": "52",
+                                            "s": [
+                                              {
+                                                "value": [
+                                                  "'corrected'"
+                                                ]
+                                              }
+                                            ]
+                                          },
+                                          {
+                                            "value": [
+                                              ", "
+                                            ]
+                                          },
+                                          {
+                                            "r": "53",
+                                            "s": [
+                                              {
+                                                "value": [
+                                                  "'preliminary'"
+                                                ]
+                                              }
+                                            ]
+                                          },
+                                          {
+                                            "value": [
+                                              "}"
+                                            ]
+                                          }
+                                        ]
+                                      }
+                                    ]
+                                  },
+                                  {
+                                    "value": [
+                                      "\n      and "
+                                    ]
+                                  },
+                                  {
+                                    "r": "58",
+                                    "s": [
+                                      {
+                                        "r": "57",
+                                        "s": [
+                                          {
+                                            "r": "56",
+                                            "s": [
+                                              {
+                                                "value": [
+                                                  "Obs"
+                                                ]
+                                              }
+                                            ]
+                                          },
+                                          {
+                                            "value": [
+                                              "."
+                                            ]
+                                          },
+                                          {
+                                            "r": "57",
+                                            "s": [
+                                              {
+                                                "value": [
+                                                  "value"
+                                                ]
+                                              }
+                                            ]
+                                          }
+                                        ]
+                                      },
+                                      {
+                                        "value": [
+                                          " is not null"
+                                        ]
+                                      }
+                                    ]
+                                  }
+                                ]
+                              },
+                              {
+                                "value": [
+                                  "\n      and "
+                                ]
+                              },
+                              {
+                                "r": "65",
+                                "s": [
+                                  {
+                                    "r": "63",
+                                    "s": [
+                                      {
+                                        "r": "60",
+                                        "s": [
+                                          {
+                                            "value": [
+                                              "Global"
+                                            ]
+                                          }
+                                        ]
+                                      },
+                                      {
+                                        "value": [
+                                          "."
+                                        ]
+                                      },
+                                      {
+                                        "r": "63",
+                                        "s": [
+                                          {
+                                            "value": [
+                                              "\"Normalize Interval\"",
+                                              "("
+                                            ]
+                                          },
+                                          {
+                                            "r": "62",
+                                            "s": [
+                                              {
+                                                "r": "61",
+                                                "s": [
+                                                  {
+                                                    "value": [
+                                                      "Obs"
+                                                    ]
+                                                  }
+                                                ]
+                                              },
+                                              {
+                                                "value": [
+                                                  "."
+                                                ]
+                                              },
+                                              {
+                                                "r": "62",
+                                                "s": [
+                                                  {
+                                                    "value": [
+                                                      "effective"
+                                                    ]
+                                                  }
+                                                ]
+                                              }
+                                            ]
+                                          },
+                                          {
+                                            "value": [
+                                              ")"
+                                            ]
+                                          }
+                                        ]
+                                      }
+                                    ]
+                                  },
+                                  {
+                                    "r": "65",
+                                    "value": [
+                                      " ",
+                                      "during",
+                                      " "
+                                    ]
+                                  },
+                                  {
+                                    "r": "64",
+                                    "s": [
+                                      {
+                                        "value": [
+                                          "\"Measurement Period\""
+                                        ]
+                                      }
+                                    ]
+                                  }
+                                ]
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            }
+          ],
+          "expression": {
+            "localId": "67",
+            "locator": "38:3-41:80",
+            "type": "Query",
+            "source": [
+              {
+                "localId": "47",
+                "locator": "38:3-38:30",
+                "alias": "Obs",
+                "expression": {
+                  "localId": "46",
+                  "locator": "38:3-38:26",
+                  "dataType": "{http://hl7.org/fhir}Observation",
+                  "templateId": "http://hl7.org/fhir/StructureDefinition/Observation",
+                  "codeProperty": "code",
+                  "codeComparator": "in",
+                  "type": "Retrieve",
+                  "codes": {
+                    "locator": "38:17-38:25",
+                    "name": "test-vs",
+                    "preserve": true,
+                    "type": "ValueSetRef"
+                  }
+                }
+              }
+            ],
+            "relationship": [],
+            "where": {
+              "localId": "66",
+              "locator": "39:5-41:80",
+              "type": "And",
+              "operand": [
+                {
+                  "localId": "59",
+                  "locator": "39:11-40:31",
+                  "type": "And",
+                  "operand": [
+                    {
+                      "localId": "55",
+                      "locator": "39:11-39:72",
+                      "type": "In",
+                      "operand": [
+                        {
+                          "name": "ToString",
+                          "libraryName": "FHIRHelpers",
+                          "type": "FunctionRef",
+                          "operand": [
+                            {
+                              "localId": "49",
+                              "locator": "39:11-39:20",
+                              "path": "status",
+                              "scope": "Obs",
+                              "type": "Property"
+                            }
+                          ]
+                        },
+                        {
+                          "localId": "54",
+                          "locator": "39:25-39:72",
+                          "type": "List",
+                          "element": [
+                            {
+                              "localId": "50",
+                              "locator": "39:26-39:32",
+                              "valueType": "{urn:hl7-org:elm-types:r1}String",
+                              "value": "final",
+                              "type": "Literal"
+                            },
+                            {
+                              "localId": "51",
+                              "locator": "39:35-39:43",
+                              "valueType": "{urn:hl7-org:elm-types:r1}String",
+                              "value": "amended",
+                              "type": "Literal"
+                            },
+                            {
+                              "localId": "52",
+                              "locator": "39:46-39:56",
+                              "valueType": "{urn:hl7-org:elm-types:r1}String",
+                              "value": "corrected",
+                              "type": "Literal"
+                            },
+                            {
+                              "localId": "53",
+                              "locator": "39:59-39:71",
+                              "valueType": "{urn:hl7-org:elm-types:r1}String",
+                              "value": "preliminary",
+                              "type": "Literal"
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "localId": "58",
+                      "locator": "40:11-40:31",
+                      "type": "Not",
+                      "operand": {
+                        "locator": "40:11-40:31",
+                        "type": "IsNull",
+                        "operand": {
+                          "localId": "57",
+                          "locator": "40:11-40:19",
+                          "path": "value",
+                          "scope": "Obs",
+                          "type": "Property"
+                        }
+                      }
+                    }
+                  ]
+                },
+                {
+                  "localId": "65",
+                  "locator": "41:11-41:80",
+                  "type": "IncludedIn",
+                  "operand": [
+                    {
+                      "localId": "63",
+                      "locator": "41:11-41:52",
+                      "name": "Normalize Interval",
+                      "libraryName": "Global",
+                      "type": "FunctionRef",
+                      "operand": [
+                        {
+                          "localId": "62",
+                          "locator": "41:39-41:51",
+                          "path": "effective",
+                          "scope": "Obs",
+                          "type": "Property"
+                        }
+                      ]
+                    },
+                    {
+                      "localId": "64",
+                      "locator": "41:61-41:80",
+                      "name": "Measurement Period",
+                      "type": "ParameterRef"
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        },
+        {
+          "localId": "80",
+          "locator": "43:1-45:105",
+          "name": "Encounter 2 Years Before End of MP",
+          "context": "Patient",
+          "accessLevel": "Public",
+          "annotation": [
+            {
+              "type": "Annotation",
+              "s": {
+                "r": "80",
+                "s": [
+                  {
+                    "value": [
+                      "",
+                      "define ",
+                      "\"Encounter 2 Years Before End of MP\"",
+                      ":\n  "
+                    ]
+                  },
+                  {
+                    "r": "79",
+                    "s": [
+                      {
+                        "s": [
+                          {
+                            "r": "70",
+                            "s": [
+                              {
+                                "r": "69",
+                                "s": [
+                                  {
+                                    "r": "69",
+                                    "s": [
+                                      {
+                                        "value": [
+                                          "[",
+                                          "Encounter",
+                                          ": "
+                                        ]
+                                      },
+                                      {
+                                        "s": [
+                                          {
+                                            "value": [
+                                              "\"test-vs\""
+                                            ]
+                                          }
+                                        ]
+                                      },
+                                      {
+                                        "value": [
+                                          "]"
+                                        ]
+                                      }
+                                    ]
+                                  }
+                                ]
+                              },
+                              {
+                                "value": [
+                                  " ",
+                                  "Enc"
+                                ]
+                              }
+                            ]
+                          }
+                        ]
+                      },
+                      {
+                        "value": [
+                          "\n    "
+                        ]
+                      },
+                      {
+                        "r": "78",
+                        "s": [
+                          {
+                            "value": [
+                              "where "
+                            ]
+                          },
+                          {
+                            "r": "78",
+                            "s": [
+                              {
+                                "r": "74",
+                                "s": [
+                                  {
+                                    "r": "71",
+                                    "s": [
+                                      {
+                                        "value": [
+                                          "Global"
+                                        ]
+                                      }
+                                    ]
+                                  },
+                                  {
+                                    "value": [
+                                      "."
+                                    ]
+                                  },
+                                  {
+                                    "r": "74",
+                                    "s": [
+                                      {
+                                        "value": [
+                                          "\"Normalize Interval\"",
+                                          "("
+                                        ]
+                                      },
+                                      {
+                                        "r": "73",
+                                        "s": [
+                                          {
+                                            "r": "72",
+                                            "s": [
+                                              {
+                                                "value": [
+                                                  "Enc"
+                                                ]
+                                              }
+                                            ]
+                                          },
+                                          {
+                                            "value": [
+                                              "."
+                                            ]
+                                          },
+                                          {
+                                            "r": "73",
+                                            "s": [
+                                              {
+                                                "value": [
+                                                  "period"
+                                                ]
+                                              }
+                                            ]
+                                          }
+                                        ]
+                                      },
+                                      {
+                                        "value": [
+                                          ")"
+                                        ]
+                                      }
+                                    ]
+                                  }
+                                ]
+                              },
+                              {
+                                "value": [
+                                  " "
+                                ]
+                              },
+                              {
+                                "r": "78",
+                                "s": [
+                                  {
+                                    "value": [
+                                      "ends "
+                                    ]
+                                  },
+                                  {
+                                    "r": "77",
+                                    "s": [
+                                      {
+                                        "value": [
+                                          "2 ",
+                                          "years"
+                                        ]
+                                      }
+                                    ]
+                                  },
+                                  {
+                                    "value": [
+                                      " or less before"
+                                    ]
+                                  }
+                                ]
+                              },
+                              {
+                                "value": [
+                                  " "
+                                ]
+                              },
+                              {
+                                "r": "76",
+                                "s": [
+                                  {
+                                    "value": [
+                                      "end of "
+                                    ]
+                                  },
+                                  {
+                                    "r": "75",
+                                    "s": [
+                                      {
+                                        "value": [
+                                          "\"Measurement Period\""
+                                        ]
+                                      }
+                                    ]
+                                  }
+                                ]
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            }
+          ],
+          "expression": {
+            "localId": "79",
+            "locator": "44:3-45:105",
+            "type": "Query",
+            "source": [
+              {
+                "localId": "70",
+                "locator": "44:3-44:28",
+                "alias": "Enc",
+                "expression": {
+                  "localId": "69",
+                  "locator": "44:3-44:24",
+                  "dataType": "{http://hl7.org/fhir}Encounter",
+                  "templateId": "http://hl7.org/fhir/StructureDefinition/Encounter",
+                  "codeProperty": "type",
+                  "codeComparator": "in",
+                  "type": "Retrieve",
+                  "codes": {
+                    "locator": "44:15-44:23",
+                    "name": "test-vs",
+                    "preserve": true,
+                    "type": "ValueSetRef"
+                  }
+                }
+              }
+            ],
+            "relationship": [],
+            "where": {
+              "localId": "78",
+              "locator": "45:5-45:105",
+              "type": "And",
+              "operand": [
+                {
+                  "locator": "45:56-45:70",
+                  "type": "In",
+                  "operand": [
+                    {
+                      "locator": "45:51-45:54",
+                      "type": "End",
+                      "operand": {
+                        "localId": "74",
+                        "locator": "45:11-45:49",
+                        "name": "Normalize Interval",
+                        "libraryName": "Global",
+                        "type": "FunctionRef",
+                        "operand": [
+                          {
+                            "type": "As",
+                            "operand": {
+                              "localId": "73",
+                              "locator": "45:39-45:48",
+                              "path": "period",
+                              "scope": "Enc",
+                              "type": "Property"
+                            },
+                            "asTypeSpecifier": {
+                              "type": "ChoiceTypeSpecifier",
+                              "choice": [
+                                {
+                                  "name": "{http://hl7.org/fhir}dateTime",
+                                  "type": "NamedTypeSpecifier"
+                                },
+                                {
+                                  "name": "{http://hl7.org/fhir}Period",
+                                  "type": "NamedTypeSpecifier"
+                                },
+                                {
+                                  "name": "{http://hl7.org/fhir}Timing",
+                                  "type": "NamedTypeSpecifier"
+                                },
+                                {
+                                  "name": "{http://hl7.org/fhir}instant",
+                                  "type": "NamedTypeSpecifier"
+                                },
+                                {
+                                  "name": "{http://hl7.org/fhir}string",
+                                  "type": "NamedTypeSpecifier"
+                                },
+                                {
+                                  "name": "{http://hl7.org/fhir}Age",
+                                  "type": "NamedTypeSpecifier"
+                                },
+                                {
+                                  "name": "{http://hl7.org/fhir}Range",
+                                  "type": "NamedTypeSpecifier"
+                                }
+                              ]
+                            }
+                          }
+                        ]
+                      }
+                    },
+                    {
+                      "locator": "45:56-45:70",
+                      "lowClosed": true,
+                      "highClosed": false,
+                      "type": "Interval",
+                      "low": {
+                        "locator": "45:79-45:105",
+                        "type": "Subtract",
+                        "operand": [
+                          {
+                            "localId": "76",
+                            "locator": "45:79-45:105",
+                            "type": "End",
+                            "operand": {
+                              "localId": "75",
+                              "locator": "45:86-45:105",
+                              "name": "Measurement Period",
+                              "type": "ParameterRef"
+                            }
+                          },
+                          {
+                            "localId": "77",
+                            "locator": "45:56-45:62",
+                            "value": 2,
+                            "unit": "years",
+                            "type": "Quantity"
+                          }
+                        ]
+                      },
+                      "high": {
+                        "localId": "76",
+                        "locator": "45:79-45:105",
+                        "type": "End",
+                        "operand": {
+                          "localId": "75",
+                          "locator": "45:86-45:105",
+                          "name": "Measurement Period",
+                          "type": "ParameterRef"
+                        }
+                      }
+                    }
+                  ]
+                },
+                {
+                  "locator": "45:56-45:70",
+                  "type": "Not",
+                  "operand": {
+                    "locator": "45:56-45:70",
+                    "type": "IsNull",
+                    "operand": {
+                      "localId": "76",
+                      "locator": "45:79-45:105",
+                      "type": "End",
+                      "operand": {
+                        "localId": "75",
+                        "locator": "45:86-45:105",
+                        "name": "Measurement Period",
+                        "type": "ParameterRef"
+                      }
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        },
+        {
+          "localId": "97",
+          "locator": "47:1-51:32",
+          "name": "Code Active Or Starts During MP Or Abatement is not null",
+          "context": "Patient",
+          "accessLevel": "Public",
+          "annotation": [
+            {
+              "type": "Annotation",
+              "s": {
+                "r": "97",
+                "s": [
+                  {
+                    "value": [
+                      "",
+                      "define ",
+                      "\"Code Active Or Starts During MP Or Abatement is not null\"",
+                      ":\n  "
+                    ]
+                  },
+                  {
+                    "r": "96",
+                    "s": [
+                      {
+                        "s": [
+                          {
+                            "r": "82",
+                            "s": [
+                              {
+                                "r": "81",
+                                "s": [
+                                  {
+                                    "r": "81",
+                                    "s": [
+                                      {
+                                        "value": [
+                                          "[",
+                                          "Condition",
+                                          ": "
+                                        ]
+                                      },
+                                      {
+                                        "s": [
+                                          {
+                                            "value": [
+                                              "\"test-vs\""
+                                            ]
+                                          }
+                                        ]
+                                      },
+                                      {
+                                        "value": [
+                                          "]"
+                                        ]
+                                      }
+                                    ]
+                                  }
+                                ]
+                              },
+                              {
+                                "value": [
+                                  " ",
+                                  "C"
+                                ]
+                              }
+                            ]
+                          }
+                        ]
+                      },
+                      {
+                        "value": [
+                          "\n    "
+                        ]
+                      },
+                      {
+                        "r": "95",
+                        "s": [
+                          {
+                            "value": [
+                              "where "
+                            ]
+                          },
+                          {
+                            "r": "95",
+                            "s": [
+                              {
+                                "r": "91",
+                                "s": [
+                                  {
+                                    "r": "86",
+                                    "s": [
+                                      {
+                                        "r": "84",
+                                        "s": [
+                                          {
+                                            "r": "83",
+                                            "s": [
+                                              {
+                                                "value": [
+                                                  "C"
+                                                ]
+                                              }
+                                            ]
+                                          },
+                                          {
+                                            "value": [
+                                              "."
+                                            ]
+                                          },
+                                          {
+                                            "r": "84",
+                                            "s": [
+                                              {
+                                                "value": [
+                                                  "clinicalStatus"
+                                                ]
+                                              }
+                                            ]
+                                          }
+                                        ]
+                                      },
+                                      {
+                                        "value": [
+                                          " ",
+                                          "~",
+                                          " "
+                                        ]
+                                      },
+                                      {
+                                        "r": "85",
+                                        "s": [
+                                          {
+                                            "value": [
+                                              "\"Condition Active\""
+                                            ]
+                                          }
+                                        ]
+                                      }
+                                    ]
+                                  },
+                                  {
+                                    "value": [
+                                      "\n      or "
+                                    ]
+                                  },
+                                  {
+                                    "r": "90",
+                                    "s": [
+                                      {
+                                        "r": "88",
+                                        "s": [
+                                          {
+                                            "r": "87",
+                                            "s": [
+                                              {
+                                                "value": [
+                                                  "C"
+                                                ]
+                                              }
+                                            ]
+                                          },
+                                          {
+                                            "value": [
+                                              "."
+                                            ]
+                                          },
+                                          {
+                                            "r": "88",
+                                            "s": [
+                                              {
+                                                "value": [
+                                                  "onset"
+                                                ]
+                                              }
+                                            ]
+                                          }
+                                        ]
+                                      },
+                                      {
+                                        "r": "90",
+                                        "value": [
+                                          " ",
+                                          "during",
+                                          " "
+                                        ]
+                                      },
+                                      {
+                                        "r": "89",
+                                        "s": [
+                                          {
+                                            "value": [
+                                              "\"Measurement Period\""
+                                            ]
+                                          }
+                                        ]
+                                      }
+                                    ]
+                                  }
+                                ]
+                              },
+                              {
+                                "value": [
+                                  "\n      or "
+                                ]
+                              },
+                              {
+                                "r": "94",
+                                "s": [
+                                  {
+                                    "r": "93",
+                                    "s": [
+                                      {
+                                        "r": "92",
+                                        "s": [
+                                          {
+                                            "value": [
+                                              "C"
+                                            ]
+                                          }
+                                        ]
+                                      },
+                                      {
+                                        "value": [
+                                          "."
+                                        ]
+                                      },
+                                      {
+                                        "r": "93",
+                                        "s": [
+                                          {
+                                            "value": [
+                                              "abatement"
+                                            ]
+                                          }
+                                        ]
+                                      }
+                                    ]
+                                  },
+                                  {
+                                    "value": [
+                                      " is not null"
+                                    ]
+                                  }
+                                ]
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            }
+          ],
+          "expression": {
+            "localId": "96",
+            "locator": "48:3-51:32",
+            "type": "Query",
+            "source": [
+              {
+                "localId": "82",
+                "locator": "48:3-48:26",
+                "alias": "C",
+                "expression": {
+                  "localId": "81",
+                  "locator": "48:3-48:24",
+                  "dataType": "{http://hl7.org/fhir}Condition",
+                  "templateId": "http://hl7.org/fhir/StructureDefinition/Condition",
+                  "codeProperty": "code",
+                  "codeComparator": "in",
+                  "type": "Retrieve",
+                  "codes": {
+                    "locator": "48:15-48:23",
+                    "name": "test-vs",
+                    "preserve": true,
+                    "type": "ValueSetRef"
+                  }
+                }
+              }
+            ],
+            "relationship": [],
+            "where": {
+              "localId": "95",
+              "locator": "49:5-51:32",
+              "type": "Or",
+              "operand": [
+                {
+                  "localId": "91",
+                  "locator": "49:11-50:44",
+                  "type": "Or",
+                  "operand": [
+                    {
+                      "localId": "86",
+                      "locator": "49:11-49:47",
+                      "type": "Equivalent",
+                      "operand": [
+                        {
+                          "name": "ToConcept",
+                          "libraryName": "FHIRHelpers",
+                          "type": "FunctionRef",
+                          "operand": [
+                            {
+                              "localId": "84",
+                              "locator": "49:11-49:26",
+                              "path": "clinicalStatus",
+                              "scope": "C",
+                              "type": "Property"
+                            }
+                          ]
+                        },
+                        {
+                          "localId": "85",
+                          "locator": "49:30-49:47",
+                          "name": "Condition Active",
+                          "type": "ConceptRef"
+                        }
+                      ]
+                    },
+                    {
+                      "localId": "90",
+                      "locator": "50:10-50:44",
+                      "type": "IncludedIn",
+                      "operand": [
+                        {
+                          "name": "ToInterval",
+                          "libraryName": "FHIRHelpers",
+                          "type": "FunctionRef",
+                          "operand": [
+                            {
+                              "asType": "{http://hl7.org/fhir}Period",
+                              "type": "As",
+                              "operand": {
+                                "localId": "88",
+                                "locator": "50:10-50:16",
+                                "path": "onset",
+                                "scope": "C",
+                                "type": "Property"
+                              }
+                            }
+                          ]
+                        },
+                        {
+                          "localId": "89",
+                          "locator": "50:25-50:44",
+                          "name": "Measurement Period",
+                          "type": "ParameterRef"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "localId": "94",
+                  "locator": "51:10-51:32",
+                  "type": "Not",
+                  "operand": {
+                    "locator": "51:10-51:32",
+                    "type": "IsNull",
+                    "operand": {
+                      "localId": "93",
+                      "locator": "51:10-51:20",
+                      "path": "abatement",
+                      "scope": "C",
+                      "type": "Property"
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        },
+        {
+          "localId": "113",
+          "locator": "53:1-56:31",
+          "name": "Observation Status and Value",
+          "context": "Patient",
+          "accessLevel": "Public",
+          "annotation": [
+            {
+              "type": "Annotation",
+              "s": {
+                "r": "113",
+                "s": [
+                  {
+                    "value": [
+                      "",
+                      "define ",
+                      "\"Observation Status and Value\"",
+                      ":\n  "
+                    ]
+                  },
+                  {
+                    "r": "112",
+                    "s": [
+                      {
+                        "s": [
+                          {
+                            "r": "99",
+                            "s": [
+                              {
+                                "r": "98",
+                                "s": [
+                                  {
+                                    "r": "98",
+                                    "s": [
+                                      {
+                                        "value": [
+                                          "[",
+                                          "Observation",
+                                          ": "
+                                        ]
+                                      },
+                                      {
+                                        "s": [
+                                          {
+                                            "value": [
+                                              "\"test-vs\""
+                                            ]
+                                          }
+                                        ]
+                                      },
+                                      {
+                                        "value": [
+                                          "]"
+                                        ]
+                                      }
+                                    ]
+                                  }
+                                ]
+                              },
+                              {
+                                "value": [
+                                  " ",
+                                  "Obs"
+                                ]
+                              }
+                            ]
+                          }
+                        ]
+                      },
+                      {
+                        "value": [
+                          "\n    "
+                        ]
+                      },
+                      {
+                        "r": "111",
+                        "s": [
+                          {
+                            "value": [
+                              "where "
+                            ]
+                          },
+                          {
+                            "r": "111",
+                            "s": [
+                              {
+                                "r": "107",
+                                "s": [
+                                  {
+                                    "r": "101",
+                                    "s": [
+                                      {
+                                        "r": "100",
+                                        "s": [
+                                          {
+                                            "value": [
+                                              "Obs"
+                                            ]
+                                          }
+                                        ]
+                                      },
+                                      {
+                                        "value": [
+                                          "."
+                                        ]
+                                      },
+                                      {
+                                        "r": "101",
+                                        "s": [
+                                          {
+                                            "value": [
+                                              "status"
+                                            ]
+                                          }
+                                        ]
+                                      }
+                                    ]
+                                  },
+                                  {
+                                    "value": [
+                                      " in "
+                                    ]
+                                  },
+                                  {
+                                    "r": "106",
+                                    "s": [
+                                      {
+                                        "value": [
+                                          "{"
+                                        ]
+                                      },
+                                      {
+                                        "r": "102",
+                                        "s": [
+                                          {
+                                            "value": [
+                                              "'final'"
+                                            ]
+                                          }
+                                        ]
+                                      },
+                                      {
+                                        "value": [
+                                          ", "
+                                        ]
+                                      },
+                                      {
+                                        "r": "103",
+                                        "s": [
+                                          {
+                                            "value": [
+                                              "'amended'"
+                                            ]
+                                          }
+                                        ]
+                                      },
+                                      {
+                                        "value": [
+                                          ", "
+                                        ]
+                                      },
+                                      {
+                                        "r": "104",
+                                        "s": [
+                                          {
+                                            "value": [
+                                              "'corrected'"
+                                            ]
+                                          }
+                                        ]
+                                      },
+                                      {
+                                        "value": [
+                                          ", "
+                                        ]
+                                      },
+                                      {
+                                        "r": "105",
+                                        "s": [
+                                          {
+                                            "value": [
+                                              "'preliminary'"
+                                            ]
+                                          }
+                                        ]
+                                      },
+                                      {
+                                        "value": [
+                                          "}"
+                                        ]
+                                      }
+                                    ]
+                                  }
+                                ]
+                              },
+                              {
+                                "value": [
+                                  "\n      and "
+                                ]
+                              },
+                              {
+                                "r": "110",
+                                "s": [
+                                  {
+                                    "r": "109",
+                                    "s": [
+                                      {
+                                        "r": "108",
+                                        "s": [
+                                          {
+                                            "value": [
+                                              "Obs"
+                                            ]
+                                          }
+                                        ]
+                                      },
+                                      {
+                                        "value": [
+                                          "."
+                                        ]
+                                      },
+                                      {
+                                        "r": "109",
+                                        "s": [
+                                          {
+                                            "value": [
+                                              "value"
+                                            ]
+                                          }
+                                        ]
+                                      }
+                                    ]
+                                  },
+                                  {
+                                    "value": [
+                                      " is not null"
+                                    ]
+                                  }
+                                ]
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            }
+          ],
+          "expression": {
+            "localId": "112",
+            "locator": "54:3-56:31",
+            "type": "Query",
+            "source": [
+              {
+                "localId": "99",
+                "locator": "54:3-54:30",
+                "alias": "Obs",
+                "expression": {
+                  "localId": "98",
+                  "locator": "54:3-54:26",
+                  "dataType": "{http://hl7.org/fhir}Observation",
+                  "templateId": "http://hl7.org/fhir/StructureDefinition/Observation",
+                  "codeProperty": "code",
+                  "codeComparator": "in",
+                  "type": "Retrieve",
+                  "codes": {
+                    "locator": "54:17-54:25",
+                    "name": "test-vs",
+                    "preserve": true,
+                    "type": "ValueSetRef"
+                  }
+                }
+              }
+            ],
+            "relationship": [],
+            "where": {
+              "localId": "111",
+              "locator": "55:5-56:31",
+              "type": "And",
+              "operand": [
+                {
+                  "localId": "107",
+                  "locator": "55:11-55:72",
+                  "type": "In",
+                  "operand": [
+                    {
+                      "name": "ToString",
+                      "libraryName": "FHIRHelpers",
+                      "type": "FunctionRef",
+                      "operand": [
+                        {
+                          "localId": "101",
+                          "locator": "55:11-55:20",
+                          "path": "status",
+                          "scope": "Obs",
+                          "type": "Property"
+                        }
+                      ]
+                    },
+                    {
+                      "localId": "106",
+                      "locator": "55:25-55:72",
+                      "type": "List",
+                      "element": [
+                        {
+                          "localId": "102",
+                          "locator": "55:26-55:32",
+                          "valueType": "{urn:hl7-org:elm-types:r1}String",
+                          "value": "final",
+                          "type": "Literal"
+                        },
+                        {
+                          "localId": "103",
+                          "locator": "55:35-55:43",
+                          "valueType": "{urn:hl7-org:elm-types:r1}String",
+                          "value": "amended",
+                          "type": "Literal"
+                        },
+                        {
+                          "localId": "104",
+                          "locator": "55:46-55:56",
+                          "valueType": "{urn:hl7-org:elm-types:r1}String",
+                          "value": "corrected",
+                          "type": "Literal"
+                        },
+                        {
+                          "localId": "105",
+                          "locator": "55:59-55:71",
+                          "valueType": "{urn:hl7-org:elm-types:r1}String",
+                          "value": "preliminary",
+                          "type": "Literal"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "localId": "110",
+                  "locator": "56:11-56:31",
+                  "type": "Not",
+                  "operand": {
+                    "locator": "56:11-56:31",
+                    "type": "IsNull",
+                    "operand": {
+                      "localId": "109",
+                      "locator": "56:11-56:19",
+                      "path": "value",
+                      "scope": "Obs",
+                      "type": "Property"
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        },
+        {
+          "localId": "123",
+          "locator": "58:1-60:78",
+          "name": "Further Refine Observation With During MP",
+          "context": "Patient",
+          "accessLevel": "Public",
+          "annotation": [
+            {
+              "type": "Annotation",
+              "s": {
+                "r": "123",
+                "s": [
+                  {
+                    "value": [
+                      "",
+                      "define ",
+                      "\"Further Refine Observation With During MP\"",
+                      ":\n  "
+                    ]
+                  },
+                  {
+                    "r": "122",
+                    "s": [
+                      {
+                        "s": [
+                          {
+                            "r": "115",
+                            "s": [
+                              {
+                                "r": "114",
+                                "s": [
+                                  {
+                                    "s": [
+                                      {
+                                        "value": [
+                                          "\"Observation Status and Value\""
+                                        ]
+                                      }
+                                    ]
+                                  }
+                                ]
+                              },
+                              {
+                                "value": [
+                                  " ",
+                                  "O"
+                                ]
+                              }
+                            ]
+                          }
+                        ]
+                      },
+                      {
+                        "value": [
+                          "\n    "
+                        ]
+                      },
+                      {
+                        "r": "121",
+                        "s": [
+                          {
+                            "value": [
+                              "where "
+                            ]
+                          },
+                          {
+                            "r": "121",
+                            "s": [
+                              {
+                                "r": "119",
+                                "s": [
+                                  {
+                                    "r": "116",
+                                    "s": [
+                                      {
+                                        "value": [
+                                          "Global"
+                                        ]
+                                      }
+                                    ]
+                                  },
+                                  {
+                                    "value": [
+                                      "."
+                                    ]
+                                  },
+                                  {
+                                    "r": "119",
+                                    "s": [
+                                      {
+                                        "value": [
+                                          "\"Normalize Interval\"",
+                                          "("
+                                        ]
+                                      },
+                                      {
+                                        "r": "118",
+                                        "s": [
+                                          {
+                                            "r": "117",
+                                            "s": [
+                                              {
+                                                "value": [
+                                                  "O"
+                                                ]
+                                              }
+                                            ]
+                                          },
+                                          {
+                                            "value": [
+                                              "."
+                                            ]
+                                          },
+                                          {
+                                            "r": "118",
+                                            "s": [
+                                              {
+                                                "value": [
+                                                  "effective"
+                                                ]
+                                              }
+                                            ]
+                                          }
+                                        ]
+                                      },
+                                      {
+                                        "value": [
+                                          ")"
+                                        ]
+                                      }
+                                    ]
+                                  }
+                                ]
+                              },
+                              {
+                                "r": "121",
+                                "value": [
+                                  " ",
+                                  "during",
+                                  " "
+                                ]
+                              },
+                              {
+                                "r": "120",
+                                "s": [
+                                  {
+                                    "value": [
+                                      "\"Measurement Period\""
+                                    ]
+                                  }
+                                ]
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            }
+          ],
+          "expression": {
+            "localId": "122",
+            "locator": "59:3-60:78",
+            "type": "Query",
+            "source": [
+              {
+                "localId": "115",
+                "locator": "59:3-59:34",
+                "alias": "O",
+                "expression": {
+                  "localId": "114",
+                  "locator": "59:3-59:32",
+                  "name": "Observation Status and Value",
+                  "type": "ExpressionRef"
+                }
+              }
+            ],
+            "relationship": [],
+            "where": {
+              "localId": "121",
+              "locator": "60:5-60:78",
+              "type": "IncludedIn",
+              "operand": [
+                {
+                  "localId": "119",
+                  "locator": "60:11-60:50",
+                  "name": "Normalize Interval",
+                  "libraryName": "Global",
+                  "type": "FunctionRef",
+                  "operand": [
+                    {
+                      "localId": "118",
+                      "locator": "60:39-60:49",
+                      "path": "effective",
+                      "scope": "O",
+                      "type": "Property"
+                    }
+                  ]
+                },
+                {
+                  "localId": "120",
+                  "locator": "60:59-60:78",
+                  "name": "Measurement Period",
+                  "type": "ParameterRef"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "localId": "137",
+          "locator": "62:1-65:32",
+          "name": "Further Refine Observation With During MP and bodySite",
+          "context": "Patient",
+          "accessLevel": "Public",
+          "annotation": [
+            {
+              "type": "Annotation",
+              "s": {
+                "r": "137",
+                "s": [
+                  {
+                    "value": [
+                      "",
+                      "define ",
+                      "\"Further Refine Observation With During MP and bodySite\"",
+                      ":\n  "
+                    ]
+                  },
+                  {
+                    "r": "136",
+                    "s": [
+                      {
+                        "s": [
+                          {
+                            "r": "125",
+                            "s": [
+                              {
+                                "r": "124",
+                                "s": [
+                                  {
+                                    "s": [
+                                      {
+                                        "value": [
+                                          "\"Observation Status and Value\""
+                                        ]
+                                      }
+                                    ]
+                                  }
+                                ]
+                              },
+                              {
+                                "value": [
+                                  " ",
+                                  "O"
+                                ]
+                              }
+                            ]
+                          }
+                        ]
+                      },
+                      {
+                        "value": [
+                          "\n    "
+                        ]
+                      },
+                      {
+                        "r": "135",
+                        "s": [
+                          {
+                            "value": [
+                              "where "
+                            ]
+                          },
+                          {
+                            "r": "135",
+                            "s": [
+                              {
+                                "r": "131",
+                                "s": [
+                                  {
+                                    "r": "129",
+                                    "s": [
+                                      {
+                                        "r": "126",
+                                        "s": [
+                                          {
+                                            "value": [
+                                              "Global"
+                                            ]
+                                          }
+                                        ]
+                                      },
+                                      {
+                                        "value": [
+                                          "."
+                                        ]
+                                      },
+                                      {
+                                        "r": "129",
+                                        "s": [
+                                          {
+                                            "value": [
+                                              "\"Normalize Interval\"",
+                                              "("
+                                            ]
+                                          },
+                                          {
+                                            "r": "128",
+                                            "s": [
+                                              {
+                                                "r": "127",
+                                                "s": [
+                                                  {
+                                                    "value": [
+                                                      "O"
+                                                    ]
+                                                  }
+                                                ]
+                                              },
+                                              {
+                                                "value": [
+                                                  "."
+                                                ]
+                                              },
+                                              {
+                                                "r": "128",
+                                                "s": [
+                                                  {
+                                                    "value": [
+                                                      "effective"
+                                                    ]
+                                                  }
+                                                ]
+                                              }
+                                            ]
+                                          },
+                                          {
+                                            "value": [
+                                              ")"
+                                            ]
+                                          }
+                                        ]
+                                      }
+                                    ]
+                                  },
+                                  {
+                                    "r": "131",
+                                    "value": [
+                                      " ",
+                                      "during",
+                                      " "
+                                    ]
+                                  },
+                                  {
+                                    "r": "130",
+                                    "s": [
+                                      {
+                                        "value": [
+                                          "\"Measurement Period\""
+                                        ]
+                                      }
+                                    ]
+                                  }
+                                ]
+                              },
+                              {
+                                "value": [
+                                  "\n      and "
+                                ]
+                              },
+                              {
+                                "r": "134",
+                                "s": [
+                                  {
+                                    "r": "133",
+                                    "s": [
+                                      {
+                                        "r": "132",
+                                        "s": [
+                                          {
+                                            "value": [
+                                              "O"
+                                            ]
+                                          }
+                                        ]
+                                      },
+                                      {
+                                        "value": [
+                                          "."
+                                        ]
+                                      },
+                                      {
+                                        "r": "133",
+                                        "s": [
+                                          {
+                                            "value": [
+                                              "bodySite"
+                                            ]
+                                          }
+                                        ]
+                                      }
+                                    ]
+                                  },
+                                  {
+                                    "value": [
+                                      " is not null"
+                                    ]
+                                  }
+                                ]
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            }
+          ],
+          "expression": {
+            "localId": "136",
+            "locator": "63:3-65:32",
+            "type": "Query",
+            "source": [
+              {
+                "localId": "125",
+                "locator": "63:3-63:34",
+                "alias": "O",
+                "expression": {
+                  "localId": "124",
+                  "locator": "63:3-63:32",
+                  "name": "Observation Status and Value",
+                  "type": "ExpressionRef"
+                }
+              }
+            ],
+            "relationship": [],
+            "where": {
+              "localId": "135",
+              "locator": "64:5-65:32",
+              "type": "And",
+              "operand": [
+                {
+                  "localId": "131",
+                  "locator": "64:11-64:78",
+                  "type": "IncludedIn",
+                  "operand": [
+                    {
+                      "localId": "129",
+                      "locator": "64:11-64:50",
+                      "name": "Normalize Interval",
+                      "libraryName": "Global",
+                      "type": "FunctionRef",
+                      "operand": [
+                        {
+                          "localId": "128",
+                          "locator": "64:39-64:49",
+                          "path": "effective",
+                          "scope": "O",
+                          "type": "Property"
+                        }
+                      ]
+                    },
+                    {
+                      "localId": "130",
+                      "locator": "64:59-64:78",
+                      "name": "Measurement Period",
+                      "type": "ParameterRef"
+                    }
+                  ]
+                },
+                {
+                  "localId": "134",
+                  "locator": "65:11-65:32",
+                  "type": "Not",
+                  "operand": {
+                    "locator": "65:11-65:32",
+                    "type": "IsNull",
+                    "operand": {
+                      "localId": "133",
+                      "locator": "65:11-65:20",
+                      "path": "bodySite",
+                      "scope": "O",
+                      "type": "Property"
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        },
+        {
+          "localId": "148",
+          "locator": "67:1-69:67",
+          "name": "Query Using With",
+          "context": "Patient",
+          "accessLevel": "Public",
+          "annotation": [
+            {
+              "type": "Annotation",
+              "s": {
+                "r": "148",
+                "s": [
+                  {
+                    "value": [
+                      "",
+                      "define ",
+                      "\"Query Using With\"",
+                      ":\n  "
+                    ]
+                  },
+                  {
+                    "r": "147",
+                    "s": [
+                      {
+                        "s": [
+                          {
+                            "r": "139",
+                            "s": [
+                              {
+                                "r": "138",
+                                "s": [
+                                  {
+                                    "r": "138",
+                                    "s": [
+                                      {
+                                        "value": [
+                                          "[",
+                                          "Encounter",
+                                          ": "
+                                        ]
+                                      },
+                                      {
+                                        "s": [
+                                          {
+                                            "value": [
+                                              "\"test-vs\""
+                                            ]
+                                          }
+                                        ]
+                                      },
+                                      {
+                                        "value": [
+                                          "]"
+                                        ]
+                                      }
+                                    ]
+                                  }
+                                ]
+                              },
+                              {
+                                "value": [
+                                  " ",
+                                  "Enc"
+                                ]
+                              }
+                            ]
+                          }
+                        ]
+                      },
+                      {
+                        "value": [
+                          "\n    "
+                        ]
+                      },
+                      {
+                        "r": "146",
+                        "s": [
+                          {
+                            "value": [
+                              "with "
+                            ]
+                          },
+                          {
+                            "r": "141",
+                            "s": [
+                              {
+                                "r": "140",
+                                "s": [
+                                  {
+                                    "r": "140",
+                                    "s": [
+                                      {
+                                        "value": [
+                                          "[",
+                                          "Procedure",
+                                          ": "
+                                        ]
+                                      },
+                                      {
+                                        "s": [
+                                          {
+                                            "value": [
+                                              "\"test-vs2\""
+                                            ]
+                                          }
+                                        ]
+                                      },
+                                      {
+                                        "value": [
+                                          "]"
+                                        ]
+                                      }
+                                    ]
+                                  }
+                                ]
+                              },
+                              {
+                                "value": [
+                                  " ",
+                                  "P"
+                                ]
+                              }
+                            ]
+                          },
+                          {
+                            "value": [
+                              " such that "
+                            ]
+                          },
+                          {
+                            "r": "145",
+                            "s": [
+                              {
+                                "r": "143",
+                                "s": [
+                                  {
+                                    "r": "142",
+                                    "s": [
+                                      {
+                                        "value": [
+                                          "P"
+                                        ]
+                                      }
+                                    ]
+                                  },
+                                  {
+                                    "value": [
+                                      "."
+                                    ]
+                                  },
+                                  {
+                                    "r": "143",
+                                    "s": [
+                                      {
+                                        "value": [
+                                          "status"
+                                        ]
+                                      }
+                                    ]
+                                  }
+                                ]
+                              },
+                              {
+                                "value": [
+                                  " ",
+                                  "=",
+                                  " "
+                                ]
+                              },
+                              {
+                                "r": "144",
+                                "s": [
+                                  {
+                                    "value": [
+                                      "'completed'"
+                                    ]
+                                  }
+                                ]
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            }
+          ],
+          "expression": {
+            "localId": "147",
+            "locator": "68:3-69:67",
+            "type": "Query",
+            "source": [
+              {
+                "localId": "139",
+                "locator": "68:3-68:28",
+                "alias": "Enc",
+                "expression": {
+                  "localId": "138",
+                  "locator": "68:3-68:24",
+                  "dataType": "{http://hl7.org/fhir}Encounter",
+                  "templateId": "http://hl7.org/fhir/StructureDefinition/Encounter",
+                  "codeProperty": "type",
+                  "codeComparator": "in",
+                  "type": "Retrieve",
+                  "codes": {
+                    "locator": "68:15-68:23",
+                    "name": "test-vs",
+                    "preserve": true,
+                    "type": "ValueSetRef"
+                  }
+                }
+              }
+            ],
+            "relationship": [
+              {
+                "localId": "146",
+                "locator": "69:5-69:67",
+                "alias": "P",
+                "type": "With",
+                "expression": {
+                  "localId": "140",
+                  "locator": "69:10-69:32",
+                  "dataType": "{http://hl7.org/fhir}Procedure",
+                  "templateId": "http://hl7.org/fhir/StructureDefinition/Procedure",
+                  "codeProperty": "code",
+                  "codeComparator": "in",
+                  "type": "Retrieve",
+                  "codes": {
+                    "locator": "69:22-69:31",
+                    "name": "test-vs2",
+                    "preserve": true,
+                    "type": "ValueSetRef"
+                  }
+                },
+                "suchThat": {
+                  "localId": "145",
+                  "locator": "69:46-69:67",
+                  "type": "Equal",
+                  "operand": [
+                    {
+                      "name": "ToString",
+                      "libraryName": "FHIRHelpers",
+                      "type": "FunctionRef",
+                      "operand": [
+                        {
+                          "localId": "143",
+                          "locator": "69:46-69:53",
+                          "path": "status",
+                          "scope": "P",
+                          "type": "Property"
+                        }
+                      ]
+                    },
+                    {
+                      "localId": "144",
+                      "locator": "69:57-69:67",
+                      "valueType": "{urn:hl7-org:elm-types:r1}String",
+                      "value": "completed",
+                      "type": "Literal"
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        },
+        {
+          "localId": "161",
+          "locator": "71:1-73:100",
+          "name": "Query Using With and Union",
+          "context": "Patient",
+          "accessLevel": "Public",
+          "annotation": [
+            {
+              "type": "Annotation",
+              "s": {
+                "r": "161",
+                "s": [
+                  {
+                    "value": [
+                      "",
+                      "define ",
+                      "\"Query Using With and Union\"",
+                      ":\n  "
+                    ]
+                  },
+                  {
+                    "r": "160",
+                    "s": [
+                      {
+                        "value": [
+                          "("
+                        ]
+                      },
+                      {
+                        "r": "160",
+                        "s": [
+                          {
+                            "s": [
+                              {
+                                "r": "150",
+                                "s": [
+                                  {
+                                    "r": "149",
+                                    "s": [
+                                      {
+                                        "r": "149",
+                                        "s": [
+                                          {
+                                            "value": [
+                                              "[",
+                                              "Encounter",
+                                              ": "
+                                            ]
+                                          },
+                                          {
+                                            "s": [
+                                              {
+                                                "value": [
+                                                  "\"test-vs\""
+                                                ]
+                                              }
+                                            ]
+                                          },
+                                          {
+                                            "value": [
+                                              "]"
+                                            ]
+                                          }
+                                        ]
+                                      }
+                                    ]
+                                  },
+                                  {
+                                    "value": [
+                                      " ",
+                                      "Enc"
+                                    ]
+                                  }
+                                ]
+                              }
+                            ]
+                          },
+                          {
+                            "value": [
+                              "\n    "
+                            ]
+                          },
+                          {
+                            "r": "159",
+                            "s": [
+                              {
+                                "value": [
+                                  "with "
+                                ]
+                              },
+                              {
+                                "r": "154",
+                                "s": [
+                                  {
+                                    "r": "153",
+                                    "s": [
+                                      {
+                                        "value": [
+                                          "("
+                                        ]
+                                      },
+                                      {
+                                        "r": "153",
+                                        "s": [
+                                          {
+                                            "r": "151",
+                                            "s": [
+                                              {
+                                                "value": [
+                                                  "[",
+                                                  "Procedure",
+                                                  ": "
+                                                ]
+                                              },
+                                              {
+                                                "s": [
+                                                  {
+                                                    "value": [
+                                                      "\"test-vs2\""
+                                                    ]
+                                                  }
+                                                ]
+                                              },
+                                              {
+                                                "value": [
+                                                  "]"
+                                                ]
+                                              }
+                                            ]
+                                          },
+                                          {
+                                            "value": [
+                                              " union "
+                                            ]
+                                          },
+                                          {
+                                            "r": "152",
+                                            "s": [
+                                              {
+                                                "value": [
+                                                  "[",
+                                                  "Procedure",
+                                                  ": "
+                                                ]
+                                              },
+                                              {
+                                                "s": [
+                                                  {
+                                                    "value": [
+                                                      "\"test-vs3\""
+                                                    ]
+                                                  }
+                                                ]
+                                              },
+                                              {
+                                                "value": [
+                                                  "]"
+                                                ]
+                                              }
+                                            ]
+                                          }
+                                        ]
+                                      },
+                                      {
+                                        "value": [
+                                          ")"
+                                        ]
+                                      }
+                                    ]
+                                  },
+                                  {
+                                    "value": [
+                                      " ",
+                                      "P"
+                                    ]
+                                  }
+                                ]
+                              },
+                              {
+                                "value": [
+                                  " such that "
+                                ]
+                              },
+                              {
+                                "r": "158",
+                                "s": [
+                                  {
+                                    "r": "156",
+                                    "s": [
+                                      {
+                                        "r": "155",
+                                        "s": [
+                                          {
+                                            "value": [
+                                              "P"
+                                            ]
+                                          }
+                                        ]
+                                      },
+                                      {
+                                        "value": [
+                                          "."
+                                        ]
+                                      },
+                                      {
+                                        "r": "156",
+                                        "s": [
+                                          {
+                                            "value": [
+                                              "status"
+                                            ]
+                                          }
+                                        ]
+                                      }
+                                    ]
+                                  },
+                                  {
+                                    "value": [
+                                      " ",
+                                      "=",
+                                      " "
+                                    ]
+                                  },
+                                  {
+                                    "r": "157",
+                                    "s": [
+                                      {
+                                        "value": [
+                                          "'completed'"
+                                        ]
+                                      }
+                                    ]
+                                  }
+                                ]
+                              }
+                            ]
+                          }
+                        ]
+                      },
+                      {
+                        "value": [
+                          ")"
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            }
+          ],
+          "expression": {
+            "localId": "160",
+            "locator": "72:3-73:100",
+            "type": "Query",
+            "source": [
+              {
+                "localId": "150",
+                "locator": "72:4-72:29",
+                "alias": "Enc",
+                "expression": {
+                  "localId": "149",
+                  "locator": "72:4-72:25",
+                  "dataType": "{http://hl7.org/fhir}Encounter",
+                  "templateId": "http://hl7.org/fhir/StructureDefinition/Encounter",
+                  "codeProperty": "type",
+                  "codeComparator": "in",
+                  "type": "Retrieve",
+                  "codes": {
+                    "locator": "72:16-72:24",
+                    "name": "test-vs",
+                    "preserve": true,
+                    "type": "ValueSetRef"
+                  }
+                }
+              }
+            ],
+            "relationship": [
+              {
+                "localId": "159",
+                "locator": "73:5-73:99",
+                "alias": "P",
+                "type": "With",
+                "expression": {
+                  "localId": "153",
+                  "locator": "73:10-73:64",
+                  "type": "Union",
+                  "operand": [
+                    {
+                      "localId": "151",
+                      "locator": "73:11-73:33",
+                      "dataType": "{http://hl7.org/fhir}Procedure",
+                      "templateId": "http://hl7.org/fhir/StructureDefinition/Procedure",
+                      "codeProperty": "code",
+                      "codeComparator": "in",
+                      "type": "Retrieve",
+                      "codes": {
+                        "locator": "73:23-73:32",
+                        "name": "test-vs2",
+                        "preserve": true,
+                        "type": "ValueSetRef"
+                      }
+                    },
+                    {
+                      "localId": "152",
+                      "locator": "73:41-73:63",
+                      "dataType": "{http://hl7.org/fhir}Procedure",
+                      "templateId": "http://hl7.org/fhir/StructureDefinition/Procedure",
+                      "codeProperty": "code",
+                      "codeComparator": "in",
+                      "type": "Retrieve",
+                      "codes": {
+                        "locator": "73:53-73:62",
+                        "name": "test-vs3",
+                        "preserve": true,
+                        "type": "ValueSetRef"
+                      }
+                    }
+                  ]
+                },
+                "suchThat": {
+                  "localId": "158",
+                  "locator": "73:78-73:99",
+                  "type": "Equal",
+                  "operand": [
+                    {
+                      "name": "ToString",
+                      "libraryName": "FHIRHelpers",
+                      "type": "FunctionRef",
+                      "operand": [
+                        {
+                          "localId": "156",
+                          "locator": "73:78-73:85",
+                          "path": "status",
+                          "scope": "P",
+                          "type": "Property"
+                        }
+                      ]
+                    },
+                    {
+                      "localId": "157",
+                      "locator": "73:89-73:99",
+                      "valueType": "{urn:hl7-org:elm-types:r1}String",
+                      "value": "completed",
+                      "type": "Literal"
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        },
+        {
+          "localId": "172",
+          "locator": "75:1-77:70",
+          "name": "Query Using Without",
+          "context": "Patient",
+          "accessLevel": "Public",
+          "annotation": [
+            {
+              "type": "Annotation",
+              "s": {
+                "r": "172",
+                "s": [
+                  {
+                    "value": [
+                      "",
+                      "define ",
+                      "\"Query Using Without\"",
+                      ":\n  "
+                    ]
+                  },
+                  {
+                    "r": "171",
+                    "s": [
+                      {
+                        "s": [
+                          {
+                            "r": "163",
+                            "s": [
+                              {
+                                "r": "162",
+                                "s": [
+                                  {
+                                    "r": "162",
+                                    "s": [
+                                      {
+                                        "value": [
+                                          "[",
+                                          "Encounter",
+                                          ": "
+                                        ]
+                                      },
+                                      {
+                                        "s": [
+                                          {
+                                            "value": [
+                                              "\"test-vs\""
+                                            ]
+                                          }
+                                        ]
+                                      },
+                                      {
+                                        "value": [
+                                          "]"
+                                        ]
+                                      }
+                                    ]
+                                  }
+                                ]
+                              },
+                              {
+                                "value": [
+                                  " ",
+                                  "Enc"
+                                ]
+                              }
+                            ]
+                          }
+                        ]
+                      },
+                      {
+                        "value": [
+                          "\n    "
+                        ]
+                      },
+                      {
+                        "r": "170",
+                        "s": [
+                          {
+                            "value": [
+                              "without "
+                            ]
+                          },
+                          {
+                            "r": "165",
+                            "s": [
+                              {
+                                "r": "164",
+                                "s": [
+                                  {
+                                    "r": "164",
+                                    "s": [
+                                      {
+                                        "value": [
+                                          "[",
+                                          "Procedure",
+                                          ": "
+                                        ]
+                                      },
+                                      {
+                                        "s": [
+                                          {
+                                            "value": [
+                                              "\"test-vs2\""
+                                            ]
+                                          }
+                                        ]
+                                      },
+                                      {
+                                        "value": [
+                                          "]"
+                                        ]
+                                      }
+                                    ]
+                                  }
+                                ]
+                              },
+                              {
+                                "value": [
+                                  " ",
+                                  "P"
+                                ]
+                              }
+                            ]
+                          },
+                          {
+                            "value": [
+                              " such that "
+                            ]
+                          },
+                          {
+                            "r": "169",
+                            "s": [
+                              {
+                                "r": "167",
+                                "s": [
+                                  {
+                                    "r": "166",
+                                    "s": [
+                                      {
+                                        "value": [
+                                          "P"
+                                        ]
+                                      }
+                                    ]
+                                  },
+                                  {
+                                    "value": [
+                                      "."
+                                    ]
+                                  },
+                                  {
+                                    "r": "167",
+                                    "s": [
+                                      {
+                                        "value": [
+                                          "status"
+                                        ]
+                                      }
+                                    ]
+                                  }
+                                ]
+                              },
+                              {
+                                "value": [
+                                  " ",
+                                  "=",
+                                  " "
+                                ]
+                              },
+                              {
+                                "r": "168",
+                                "s": [
+                                  {
+                                    "value": [
+                                      "'completed'"
+                                    ]
+                                  }
+                                ]
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            }
+          ],
+          "expression": {
+            "localId": "171",
+            "locator": "76:3-77:70",
+            "type": "Query",
+            "source": [
+              {
+                "localId": "163",
+                "locator": "76:3-76:28",
+                "alias": "Enc",
+                "expression": {
+                  "localId": "162",
+                  "locator": "76:3-76:24",
+                  "dataType": "{http://hl7.org/fhir}Encounter",
+                  "templateId": "http://hl7.org/fhir/StructureDefinition/Encounter",
+                  "codeProperty": "type",
+                  "codeComparator": "in",
+                  "type": "Retrieve",
+                  "codes": {
+                    "locator": "76:15-76:23",
+                    "name": "test-vs",
+                    "preserve": true,
+                    "type": "ValueSetRef"
+                  }
+                }
+              }
+            ],
+            "relationship": [
+              {
+                "localId": "170",
+                "locator": "77:5-77:70",
+                "alias": "P",
+                "type": "Without",
+                "expression": {
+                  "localId": "164",
+                  "locator": "77:13-77:35",
+                  "dataType": "{http://hl7.org/fhir}Procedure",
+                  "templateId": "http://hl7.org/fhir/StructureDefinition/Procedure",
+                  "codeProperty": "code",
+                  "codeComparator": "in",
+                  "type": "Retrieve",
+                  "codes": {
+                    "locator": "77:25-77:34",
+                    "name": "test-vs2",
+                    "preserve": true,
+                    "type": "ValueSetRef"
+                  }
+                },
+                "suchThat": {
+                  "localId": "169",
+                  "locator": "77:49-77:70",
+                  "type": "Equal",
+                  "operand": [
+                    {
+                      "name": "ToString",
+                      "libraryName": "FHIRHelpers",
+                      "type": "FunctionRef",
+                      "operand": [
+                        {
+                          "localId": "167",
+                          "locator": "77:49-77:56",
+                          "path": "status",
+                          "scope": "P",
+                          "type": "Property"
+                        }
+                      ]
+                    },
+                    {
+                      "localId": "168",
+                      "locator": "77:60-77:70",
+                      "valueType": "{urn:hl7-org:elm-types:r1}String",
+                      "value": "completed",
+                      "type": "Literal"
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        },
+        {
+          "localId": "181",
+          "locator": "79:1-81:77",
+          "name": "Query Using Such That Retrieve",
+          "context": "Patient",
+          "accessLevel": "Public",
+          "annotation": [
+            {
+              "type": "Annotation",
+              "s": {
+                "r": "181",
+                "s": [
+                  {
+                    "value": [
+                      "",
+                      "define ",
+                      "\"Query Using Such That Retrieve\"",
+                      ":\n  "
+                    ]
+                  },
+                  {
+                    "r": "180",
+                    "s": [
+                      {
+                        "s": [
+                          {
+                            "r": "174",
+                            "s": [
+                              {
+                                "r": "173",
+                                "s": [
+                                  {
+                                    "r": "173",
+                                    "s": [
+                                      {
+                                        "value": [
+                                          "[",
+                                          "Encounter",
+                                          ": "
+                                        ]
+                                      },
+                                      {
+                                        "s": [
+                                          {
+                                            "value": [
+                                              "\"test-vs\""
+                                            ]
+                                          }
+                                        ]
+                                      },
+                                      {
+                                        "value": [
+                                          "]"
+                                        ]
+                                      }
+                                    ]
+                                  }
+                                ]
+                              },
+                              {
+                                "value": [
+                                  " ",
+                                  "Enc"
+                                ]
+                              }
+                            ]
+                          }
+                        ]
+                      },
+                      {
+                        "value": [
+                          "\n    "
+                        ]
+                      },
+                      {
+                        "r": "179",
+                        "s": [
+                          {
+                            "value": [
+                              "with "
+                            ]
+                          },
+                          {
+                            "r": "176",
+                            "s": [
+                              {
+                                "r": "175",
+                                "s": [
+                                  {
+                                    "r": "175",
+                                    "s": [
+                                      {
+                                        "value": [
+                                          "[",
+                                          "Procedure",
+                                          ": "
+                                        ]
+                                      },
+                                      {
+                                        "s": [
+                                          {
+                                            "value": [
+                                              "\"test-vs2\""
+                                            ]
+                                          }
+                                        ]
+                                      },
+                                      {
+                                        "value": [
+                                          "]"
+                                        ]
+                                      }
+                                    ]
+                                  }
+                                ]
+                              },
+                              {
+                                "value": [
+                                  " ",
+                                  "P"
+                                ]
+                              }
+                            ]
+                          },
+                          {
+                            "value": [
+                              " such that "
+                            ]
+                          },
+                          {
+                            "r": "178",
+                            "s": [
+                              {
+                                "value": [
+                                  "("
+                                ]
+                              },
+                              {
+                                "r": "178",
+                                "s": [
+                                  {
+                                    "value": [
+                                      "exists "
+                                    ]
+                                  },
+                                  {
+                                    "r": "177",
+                                    "s": [
+                                      {
+                                        "value": [
+                                          "[",
+                                          "Encounter",
+                                          ": "
+                                        ]
+                                      },
+                                      {
+                                        "s": [
+                                          {
+                                            "value": [
+                                              "\"test-vs3\""
+                                            ]
+                                          }
+                                        ]
+                                      },
+                                      {
+                                        "value": [
+                                          "]"
+                                        ]
+                                      }
+                                    ]
+                                  }
+                                ]
+                              },
+                              {
+                                "value": [
+                                  ")"
+                                ]
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            }
+          ],
+          "expression": {
+            "localId": "180",
+            "locator": "80:3-81:77",
+            "type": "Query",
+            "source": [
+              {
+                "localId": "174",
+                "locator": "80:3-80:28",
+                "alias": "Enc",
+                "expression": {
+                  "localId": "173",
+                  "locator": "80:3-80:24",
+                  "dataType": "{http://hl7.org/fhir}Encounter",
+                  "templateId": "http://hl7.org/fhir/StructureDefinition/Encounter",
+                  "codeProperty": "type",
+                  "codeComparator": "in",
+                  "type": "Retrieve",
+                  "codes": {
+                    "locator": "80:15-80:23",
+                    "name": "test-vs",
+                    "preserve": true,
+                    "type": "ValueSetRef"
+                  }
+                }
+              }
+            ],
+            "relationship": [
+              {
+                "localId": "179",
+                "locator": "81:5-81:77",
+                "alias": "P",
+                "type": "With",
+                "expression": {
+                  "localId": "175",
+                  "locator": "81:10-81:32",
+                  "dataType": "{http://hl7.org/fhir}Procedure",
+                  "templateId": "http://hl7.org/fhir/StructureDefinition/Procedure",
+                  "codeProperty": "code",
+                  "codeComparator": "in",
+                  "type": "Retrieve",
+                  "codes": {
+                    "locator": "81:22-81:31",
+                    "name": "test-vs2",
+                    "preserve": true,
+                    "type": "ValueSetRef"
+                  }
+                },
+                "suchThat": {
+                  "localId": "178",
+                  "locator": "81:46-81:77",
+                  "type": "Exists",
+                  "operand": {
+                    "localId": "177",
+                    "locator": "81:54-81:76",
+                    "dataType": "{http://hl7.org/fhir}Encounter",
+                    "templateId": "http://hl7.org/fhir/StructureDefinition/Encounter",
+                    "codeProperty": "type",
+                    "codeComparator": "in",
+                    "type": "Retrieve",
+                    "codes": {
+                      "locator": "81:66-81:75",
+                      "name": "test-vs3",
+                      "preserve": true,
+                      "type": "ValueSetRef"
+                    }
+                  }
+                }
+              }
+            ]
+          }
+        },
+        {
+          "localId": "194",
+          "locator": "83:1-84:97",
+          "name": "Query Nested In Where",
+          "context": "Patient",
+          "accessLevel": "Public",
+          "annotation": [
+            {
+              "type": "Annotation",
+              "s": {
+                "r": "194",
+                "s": [
+                  {
+                    "value": [
+                      "",
+                      "define ",
+                      "\"Query Nested In Where\"",
+                      ":\n  "
+                    ]
+                  },
+                  {
+                    "r": "193",
+                    "s": [
+                      {
+                        "s": [
+                          {
+                            "r": "183",
+                            "s": [
+                              {
+                                "r": "182",
+                                "s": [
+                                  {
+                                    "r": "182",
+                                    "s": [
+                                      {
+                                        "value": [
+                                          "[",
+                                          "Encounter",
+                                          ": "
+                                        ]
+                                      },
+                                      {
+                                        "s": [
+                                          {
+                                            "value": [
+                                              "\"test-vs\""
+                                            ]
+                                          }
+                                        ]
+                                      },
+                                      {
+                                        "value": [
+                                          "]"
+                                        ]
+                                      }
+                                    ]
+                                  }
+                                ]
+                              },
+                              {
+                                "value": [
+                                  " ",
+                                  "E1"
+                                ]
+                              }
+                            ]
+                          }
+                        ]
+                      },
+                      {
+                        "value": [
+                          " "
+                        ]
+                      },
+                      {
+                        "r": "192",
+                        "s": [
+                          {
+                            "value": [
+                              "where "
+                            ]
+                          },
+                          {
+                            "r": "192",
+                            "s": [
+                              {
+                                "value": [
+                                  "("
+                                ]
+                              },
+                              {
+                                "r": "192",
+                                "s": [
+                                  {
+                                    "value": [
+                                      "exists "
+                                    ]
+                                  },
+                                  {
+                                    "r": "191",
+                                    "s": [
+                                      {
+                                        "s": [
+                                          {
+                                            "r": "185",
+                                            "s": [
+                                              {
+                                                "r": "184",
+                                                "s": [
+                                                  {
+                                                    "r": "184",
+                                                    "s": [
+                                                      {
+                                                        "value": [
+                                                          "[",
+                                                          "Encounter",
+                                                          ": "
+                                                        ]
+                                                      },
+                                                      {
+                                                        "s": [
+                                                          {
+                                                            "value": [
+                                                              "\"test-vs2\""
+                                                            ]
+                                                          }
+                                                        ]
+                                                      },
+                                                      {
+                                                        "value": [
+                                                          "]"
+                                                        ]
+                                                      }
+                                                    ]
+                                                  }
+                                                ]
+                                              },
+                                              {
+                                                "value": [
+                                                  " ",
+                                                  "E2"
+                                                ]
+                                              }
+                                            ]
+                                          }
+                                        ]
+                                      },
+                                      {
+                                        "value": [
+                                          " "
+                                        ]
+                                      },
+                                      {
+                                        "r": "190",
+                                        "s": [
+                                          {
+                                            "value": [
+                                              "where "
+                                            ]
+                                          },
+                                          {
+                                            "r": "190",
+                                            "s": [
+                                              {
+                                                "r": "187",
+                                                "s": [
+                                                  {
+                                                    "r": "186",
+                                                    "s": [
+                                                      {
+                                                        "value": [
+                                                          "E1"
+                                                        ]
+                                                      }
+                                                    ]
+                                                  },
+                                                  {
+                                                    "value": [
+                                                      "."
+                                                    ]
+                                                  },
+                                                  {
+                                                    "r": "187",
+                                                    "s": [
+                                                      {
+                                                        "value": [
+                                                          "status"
+                                                        ]
+                                                      }
+                                                    ]
+                                                  }
+                                                ]
+                                              },
+                                              {
+                                                "value": [
+                                                  " ",
+                                                  "=",
+                                                  " "
+                                                ]
+                                              },
+                                              {
+                                                "r": "189",
+                                                "s": [
+                                                  {
+                                                    "r": "188",
+                                                    "s": [
+                                                      {
+                                                        "value": [
+                                                          "E2"
+                                                        ]
+                                                      }
+                                                    ]
+                                                  },
+                                                  {
+                                                    "value": [
+                                                      "."
+                                                    ]
+                                                  },
+                                                  {
+                                                    "r": "189",
+                                                    "s": [
+                                                      {
+                                                        "value": [
+                                                          "status"
+                                                        ]
+                                                      }
+                                                    ]
+                                                  }
+                                                ]
+                                              }
+                                            ]
+                                          }
+                                        ]
+                                      }
+                                    ]
+                                  }
+                                ]
+                              },
+                              {
+                                "value": [
+                                  ")"
+                                ]
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            }
+          ],
+          "expression": {
+            "localId": "193",
+            "locator": "84:3-84:97",
+            "type": "Query",
+            "source": [
+              {
+                "localId": "183",
+                "locator": "84:3-84:27",
+                "alias": "E1",
+                "expression": {
+                  "localId": "182",
+                  "locator": "84:3-84:24",
+                  "dataType": "{http://hl7.org/fhir}Encounter",
+                  "templateId": "http://hl7.org/fhir/StructureDefinition/Encounter",
+                  "codeProperty": "type",
+                  "codeComparator": "in",
+                  "type": "Retrieve",
+                  "codes": {
+                    "locator": "84:15-84:23",
+                    "name": "test-vs",
+                    "preserve": true,
+                    "type": "ValueSetRef"
+                  }
+                }
+              }
+            ],
+            "relationship": [],
+            "where": {
+              "localId": "192",
+              "locator": "84:29-84:97",
+              "type": "Exists",
+              "operand": {
+                "localId": "191",
+                "locator": "84:43-84:96",
+                "type": "Query",
+                "source": [
+                  {
+                    "localId": "185",
+                    "locator": "84:43-84:68",
+                    "alias": "E2",
+                    "expression": {
+                      "localId": "184",
+                      "locator": "84:43-84:65",
+                      "dataType": "{http://hl7.org/fhir}Encounter",
+                      "templateId": "http://hl7.org/fhir/StructureDefinition/Encounter",
+                      "codeProperty": "type",
+                      "codeComparator": "in",
+                      "type": "Retrieve",
+                      "codes": {
+                        "locator": "84:55-84:64",
+                        "name": "test-vs2",
+                        "preserve": true,
+                        "type": "ValueSetRef"
+                      }
+                    }
+                  }
+                ],
+                "relationship": [],
+                "where": {
+                  "localId": "190",
+                  "locator": "84:70-84:96",
+                  "type": "Equal",
+                  "operand": [
+                    {
+                      "localId": "187",
+                      "locator": "84:76-84:84",
+                      "path": "status",
+                      "scope": "E1",
+                      "type": "Property"
+                    },
+                    {
+                      "localId": "189",
+                      "locator": "84:88-84:96",
+                      "path": "status",
+                      "scope": "E2",
+                      "type": "Property"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        {
+          "localId": "205",
+          "locator": "86:1-91:3",
+          "name": "Query Using Let",
+          "context": "Patient",
+          "accessLevel": "Public",
+          "annotation": [
+            {
+              "type": "Annotation",
+              "s": {
+                "r": "205",
+                "s": [
+                  {
+                    "value": [
+                      "",
+                      "define ",
+                      "\"Query Using Let\"",
+                      ":\n  "
+                    ]
+                  },
+                  {
+                    "r": "204",
+                    "s": [
+                      {
+                        "s": [
+                          {
+                            "r": "196",
+                            "s": [
+                              {
+                                "r": "195",
+                                "s": [
+                                  {
+                                    "r": "195",
+                                    "s": [
+                                      {
+                                        "value": [
+                                          "[",
+                                          "Encounter",
+                                          ": "
+                                        ]
+                                      },
+                                      {
+                                        "s": [
+                                          {
+                                            "value": [
+                                              "\"test-vs\""
+                                            ]
+                                          }
+                                        ]
+                                      },
+                                      {
+                                        "value": [
+                                          "]"
+                                        ]
+                                      }
+                                    ]
+                                  }
+                                ]
+                              },
+                              {
+                                "value": [
+                                  " ",
+                                  "E1"
+                                ]
+                              }
+                            ]
+                          }
+                        ]
+                      },
+                      {
+                        "value": [
+                          "\n  "
+                        ]
+                      },
+                      {
+                        "s": [
+                          {
+                            "value": [
+                              "let "
+                            ]
+                          },
+                          {
+                            "r": "199",
+                            "s": [
+                              {
+                                "value": [
+                                  "E2",
+                                  ": "
+                                ]
+                              },
+                              {
+                                "r": "198",
+                                "s": [
+                                  {
+                                    "value": [
+                                      "First",
+                                      "("
+                                    ]
+                                  },
+                                  {
+                                    "r": "197",
+                                    "s": [
+                                      {
+                                        "value": [
+                                          "[",
+                                          "Encounter",
+                                          ": "
+                                        ]
+                                      },
+                                      {
+                                        "s": [
+                                          {
+                                            "value": [
+                                              "\"test-vs2\""
+                                            ]
+                                          }
+                                        ]
+                                      },
+                                      {
+                                        "value": [
+                                          "]"
+                                        ]
+                                      }
+                                    ]
+                                  },
+                                  {
+                                    "value": [
+                                      ")"
+                                    ]
+                                  }
+                                ]
+                              }
+                            ]
+                          }
+                        ]
+                      },
+                      {
+                        "value": [
+                          "\n  "
+                        ]
+                      },
+                      {
+                        "r": "203",
+                        "s": [
+                          {
+                            "value": [
+                              "return "
+                            ]
+                          },
+                          {
+                            "r": "202",
+                            "s": [
+                              {
+                                "value": [
+                                  "{\n    "
+                                ]
+                              },
+                              {
+                                "s": [
+                                  {
+                                    "value": [
+                                      "id",
+                                      ": "
+                                    ]
+                                  },
+                                  {
+                                    "r": "201",
+                                    "s": [
+                                      {
+                                        "r": "200",
+                                        "s": [
+                                          {
+                                            "value": [
+                                              "E2"
+                                            ]
+                                          }
+                                        ]
+                                      },
+                                      {
+                                        "value": [
+                                          "."
+                                        ]
+                                      },
+                                      {
+                                        "r": "201",
+                                        "s": [
+                                          {
+                                            "value": [
+                                              "id"
+                                            ]
+                                          }
+                                        ]
+                                      }
+                                    ]
+                                  }
+                                ]
+                              },
+                              {
+                                "value": [
+                                  "\n  }"
+                                ]
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            }
+          ],
+          "expression": {
+            "localId": "204",
+            "locator": "87:3-91:3",
+            "type": "Query",
+            "source": [
+              {
+                "localId": "196",
+                "locator": "87:3-87:27",
+                "alias": "E1",
+                "expression": {
+                  "localId": "195",
+                  "locator": "87:3-87:24",
+                  "dataType": "{http://hl7.org/fhir}Encounter",
+                  "templateId": "http://hl7.org/fhir/StructureDefinition/Encounter",
+                  "codeProperty": "type",
+                  "codeComparator": "in",
+                  "type": "Retrieve",
+                  "codes": {
+                    "locator": "87:15-87:23",
+                    "name": "test-vs",
+                    "preserve": true,
+                    "type": "ValueSetRef"
+                  }
+                }
+              }
+            ],
+            "let": [
+              {
+                "localId": "199",
+                "locator": "88:7-88:40",
+                "identifier": "E2",
+                "expression": {
+                  "localId": "198",
+                  "locator": "88:11-88:40",
+                  "type": "First",
+                  "source": {
+                    "localId": "197",
+                    "locator": "88:17-88:39",
+                    "dataType": "{http://hl7.org/fhir}Encounter",
+                    "templateId": "http://hl7.org/fhir/StructureDefinition/Encounter",
+                    "codeProperty": "type",
+                    "codeComparator": "in",
+                    "type": "Retrieve",
+                    "codes": {
+                      "locator": "88:29-88:38",
+                      "name": "test-vs2",
+                      "preserve": true,
+                      "type": "ValueSetRef"
+                    }
+                  }
+                }
+              }
+            ],
+            "relationship": [],
+            "return": {
+              "localId": "203",
+              "locator": "89:3-91:3",
+              "expression": {
+                "localId": "202",
+                "locator": "89:10-91:3",
+                "type": "Tuple",
+                "element": [
+                  {
+                    "name": "id",
+                    "value": {
+                      "localId": "201",
+                      "locator": "90:9-90:13",
+                      "path": "id",
+                      "type": "Property",
+                      "source": {
+                        "localId": "200",
+                        "locator": "90:9-90:10",
+                        "name": "E2",
+                        "type": "QueryLetRef"
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        },
+        {
+          "localId": "212",
+          "locator": "93:1-97:3",
+          "name": "Query Returning Retrieve",
+          "context": "Patient",
+          "accessLevel": "Public",
+          "annotation": [
+            {
+              "type": "Annotation",
+              "s": {
+                "r": "212",
+                "s": [
+                  {
+                    "value": [
+                      "",
+                      "define ",
+                      "\"Query Returning Retrieve\"",
+                      ":\n  "
+                    ]
+                  },
+                  {
+                    "r": "211",
+                    "s": [
+                      {
+                        "s": [
+                          {
+                            "r": "207",
+                            "s": [
+                              {
+                                "r": "206",
+                                "s": [
+                                  {
+                                    "r": "206",
+                                    "s": [
+                                      {
+                                        "value": [
+                                          "[",
+                                          "Encounter",
+                                          ": "
+                                        ]
+                                      },
+                                      {
+                                        "s": [
+                                          {
+                                            "value": [
+                                              "\"test-vs\""
+                                            ]
+                                          }
+                                        ]
+                                      },
+                                      {
+                                        "value": [
+                                          "]"
+                                        ]
+                                      }
+                                    ]
+                                  }
+                                ]
+                              },
+                              {
+                                "value": [
+                                  " ",
+                                  "E1"
+                                ]
+                              }
+                            ]
+                          }
+                        ]
+                      },
+                      {
+                        "value": [
+                          "\n  "
+                        ]
+                      },
+                      {
+                        "r": "210",
+                        "s": [
+                          {
+                            "value": [
+                              "return "
+                            ]
+                          },
+                          {
+                            "r": "209",
+                            "s": [
+                              {
+                                "value": [
+                                  "{\n    "
+                                ]
+                              },
+                              {
+                                "s": [
+                                  {
+                                    "value": [
+                                      "E2",
+                                      ": "
+                                    ]
+                                  },
+                                  {
+                                    "r": "208",
+                                    "s": [
+                                      {
+                                        "value": [
+                                          "[",
+                                          "Encounter",
+                                          ": "
+                                        ]
+                                      },
+                                      {
+                                        "s": [
+                                          {
+                                            "value": [
+                                              "\"test-vs2\""
+                                            ]
+                                          }
+                                        ]
+                                      },
+                                      {
+                                        "value": [
+                                          "]"
+                                        ]
+                                      }
+                                    ]
+                                  }
+                                ]
+                              },
+                              {
+                                "value": [
+                                  "\n  }"
+                                ]
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            }
+          ],
+          "expression": {
+            "localId": "211",
+            "locator": "94:3-97:3",
+            "type": "Query",
+            "source": [
+              {
+                "localId": "207",
+                "locator": "94:3-94:27",
+                "alias": "E1",
+                "expression": {
+                  "localId": "206",
+                  "locator": "94:3-94:24",
+                  "dataType": "{http://hl7.org/fhir}Encounter",
+                  "templateId": "http://hl7.org/fhir/StructureDefinition/Encounter",
+                  "codeProperty": "type",
+                  "codeComparator": "in",
+                  "type": "Retrieve",
+                  "codes": {
+                    "locator": "94:15-94:23",
+                    "name": "test-vs",
+                    "preserve": true,
+                    "type": "ValueSetRef"
+                  }
+                }
+              }
+            ],
+            "relationship": [],
+            "return": {
+              "localId": "210",
+              "locator": "95:3-97:3",
+              "expression": {
+                "localId": "209",
+                "locator": "95:10-97:3",
+                "type": "Tuple",
+                "element": [
+                  {
+                    "name": "E2",
+                    "value": {
+                      "localId": "208",
+                      "locator": "96:9-96:31",
+                      "dataType": "{http://hl7.org/fhir}Encounter",
+                      "templateId": "http://hl7.org/fhir/StructureDefinition/Encounter",
+                      "codeProperty": "type",
+                      "codeComparator": "in",
+                      "type": "Retrieve",
+                      "codes": {
+                        "locator": "96:21-96:30",
+                        "name": "test-vs2",
+                        "preserve": true,
+                        "type": "ValueSetRef"
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        }
+      ]
+    }
+  }
+}

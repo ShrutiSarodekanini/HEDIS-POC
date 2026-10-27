@@ -1,0 +1,74 @@
+{
+  "resourceType": "Bundle",
+  "type": "collection",
+  "entry": [
+    {
+      "resource": {
+        "resourceType": "Patient",
+        "id": "d216581f-32f6-9778-b8b5-a747f61d8b6b",
+        "birthDate": "1983-11-22",
+        "gender": "male"
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Condition",
+        "id": "d216581f-32f6-9778-92f9-cf395397fc4e",
+        "subject": {
+          "reference": "urn:uuid:d216581f-32f6-9778-b8b5-a747f61d8b6b"
+        },
+        "code": {
+          "coding": [
+            {
+              "system": "http://snomed.info/sct",
+              "code": "44054006",
+              "display": "Diabetes mellitus type 2 (disorder)"
+            }
+          ],
+          "text": "Diabetes mellitus type 2 (disorder)"
+        },
+        "onsetDateTime": "2026-06-02T15:07:05+05:30",
+        "recordedDate": "2026-06-02T15:07:05+05:30"
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Encounter",
+        "id": "d216581f-32f6-9778-a734-2cbcfa1b8c93",
+        "status": "finished",
+        "class": {
+          "system": "http://terminology.hl7.org/CodeSystem/v3-ActCode",
+          "code": "AMB"
+        },
+        "period": {
+          "start": "2026-06-02T15:07:05+05:30",
+          "end": "2026-06-02T15:22:05+05:30"
+        },
+        "subject": {
+          "reference": "urn:uuid:d216581f-32f6-9778-b8b5-a747f61d8b6b"
+        }
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Observation",
+        "id": "d216581f-32f6-9778-353d-50c31cfa5972",
+        "status": "final",
+        "subject": {
+          "reference": "urn:uuid:d216581f-32f6-9778-b8b5-a747f61d8b6b"
+        },
+        "code": {
+          "coding": [
+            {
+              "system": "http://loinc.org",
+              "code": "71490-7",
+              "display": "Left eye Diabetic retinopathy severity level by Ophthalmoscopy"
+            }
+          ],
+          "text": "Left eye Diabetic retinopathy severity level by Ophthalmoscopy"
+        },
+        "effectiveDateTime": "2026-06-16T15:29:21+05:30"
+      }
+    }
+  ]
+}
