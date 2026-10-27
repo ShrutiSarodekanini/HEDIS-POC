@@ -6,6 +6,7 @@ import json
 import uuid
 from dataclasses import dataclass, field
 from decimal import Decimal, InvalidOperation
+from itertools import groupby
 from collections.abc import Iterable
 from typing import Any, Callable
 
@@ -28,11 +29,13 @@ FHIR_MODEL_MAP = {
     "CarePlan": "fhir.resources.careplan.CarePlan",
     "Claim": "fhir.resources.claim.Claim",
     "Coverage": "fhir.resources.coverage.Coverage",
+    "Location": "fhir.resources.location.Location",
     "AllergyIntolerance": "fhir.resources.allergyintolerance.AllergyIntolerance",
     "Device": "fhir.resources.device.Device",
     "ImagingStudy": "fhir.resources.imagingstudy.ImagingStudy",
     "Organization": "fhir.resources.organization.Organization",
     "Practitioner": "fhir.resources.practitioner.Practitioner",
+    "PractitionerRole": "fhir.resources.practitionerrole.PractitionerRole",
     "SupplyDelivery": "fhir.resources.supplydelivery.SupplyDelivery",
     "Basic": "fhir.resources.basic.Basic",
 }
@@ -147,14 +150,28 @@ def map_dataset(
     parsed: ParsedDataset,
     progress_callback: Callable[[str], None] | None = None,
     resource_callback: Callable[[ResourceEnvelope], None] | None = None,
+    validate: bool = True,
 ) -> MappingResult:
+    """Map source records to FHIR resources.
+    
+    Args:
+        parsed: Parsed dataset from adapters
+        progress_callback: Optional callback for progress reporting
+        resource_callback: Optional callback per resource
+        validate: Whether to validate resources during mapping (default True).
+                 Set to False if external validation will be performed later
+                 to avoid duplicate validation.
+    
+    Returns:
+        MappingResult with mapped resources and issues
+    """
     resources: list[ResourceEnvelope] = []
     issues: list[RowIssue] = []
 
     records = parsed.records_by_file
 
     for record in records.get("patients.csv", []):
-        item, item_issues = _map_record(record, map_patient)
+        item, item_issues = _map_record(record, map_patient, validate=validate)
         issues.extend(item_issues)
         if item:
             resources.append(item)
@@ -163,14 +180,24 @@ def map_dataset(
         if progress_callback:
             progress_callback("Patient")
 
-    # Build lookup for coverage records by patient for gap detection
-    coverage_by_patient: dict[str | None, list[SourceRecord]] = {}
-    for record in records.get("coverages.csv", []):
-        patient_id = record.patient_id
-        if patient_id not in coverage_by_patient:
-            coverage_by_patient[patient_id] = []
-        coverage_by_patient[patient_id].append(record)
+    # Process coverage records first so all coverage data is available for gap detection
+    # Sort by patient_id to group contiguous records - enables processing one patient at a time
+    coverage_records_raw = records.get("coverages.csv", [])
+    coverage_records_sorted = sorted(coverage_records_raw, key=lambda r: r.patient_id or "")
+    for patient_id, patient_coverage_iter in groupby(coverage_records_sorted, key=lambda r: r.patient_id):
+        # For each patient, keep only their coverage records in memory for gap detection
+        patient_coverage_list = list(patient_coverage_iter)
+        for record in patient_coverage_list:
+            item, item_issues = _map_record(record, lambda rec: map_coverage(rec, patient_coverage_list), validate=validate)
+            issues.extend(item_issues)
+            if item:
+                resources.append(item)
+                if resource_callback:
+                    resource_callback(item)
+        if progress_callback:
+            progress_callback("Coverage")
 
+    # Process other resource types (encounters, conditions, etc.)
     for filename, mapper in (
         ("encounters.csv", map_encounter),
         ("conditions.csv", map_condition),
@@ -180,10 +207,9 @@ def map_dataset(
         ("immunizations.csv", map_immunization),
         ("careplans.csv", map_careplan),
         ("claims.csv", map_claim),
-        ("coverages.csv", lambda rec: map_coverage(rec, coverage_by_patient.get(rec.patient_id, []))),
     ):
         for record in records.get(filename, []):
-            item, item_issues = _map_record(record, mapper)
+            item, item_issues = _map_record(record, mapper, validate=validate)
             issues.extend(item_issues)
             if item:
                 resources.append(item)
@@ -200,7 +226,6 @@ def map_dataset(
                         "immunizations.csv": "Immunization",
                         "careplans.csv": "CarePlan",
                         "claims.csv": "Claim",
-                        "coverages.csv": "Coverage",
                     }[filename]
                 )
 
@@ -209,9 +234,22 @@ def map_dataset(
 
 def map_source_record(
     record: SourceRecord,
-    coverage_by_patient: dict[str | None, list[SourceRecord]] | None = None,
+    coverage_by_patient: dict[str | None, list[SourceRecord]] | list[SourceRecord] | None = None,
     validate: bool = True,
 ) -> tuple[ResourceEnvelope | None, list[RowIssue]]:
+    """Map a single source record to FHIR.
+    
+    Args:
+        record: Source record to map
+        coverage_by_patient: For coverage records, either:
+                           - dict[patient_id -> list of coverage records] (for full dataset)
+                           - list of coverage records (for single patient)
+                           - None (if not mapping coverage)
+        validate: Whether to validate during mapping
+    
+    Returns:
+        Tuple of (ResourceEnvelope or None, list of validation issues)
+    """
     if record.source_file.startswith(("fhir:", "ccda:", "claims837:", "ncpdp:")):
         try:
             raw_resource = record.data["resource_json"]
@@ -257,9 +295,16 @@ def map_source_record(
         "supplies.csv": map_supply,
     }
     if record.source_file == "coverages.csv":
+        # Handle both dict (legacy/multi-patient) and list (new/single-patient) formats
+        coverage_list: list[SourceRecord] = []
+        if isinstance(coverage_by_patient, dict):
+            coverage_list = coverage_by_patient.get(record.patient_id, [])
+        elif isinstance(coverage_by_patient, list):
+            coverage_list = coverage_by_patient
+        
         return _map_record(
             record,
-            lambda current: map_coverage(current, (coverage_by_patient or {}).get(current.patient_id, [])),
+            lambda current: map_coverage(current, coverage_list),
             validate=validate,
         )
     mapper = mappers.get(record.source_file)

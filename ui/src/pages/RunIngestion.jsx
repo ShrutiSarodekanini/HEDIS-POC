@@ -10,7 +10,20 @@ export default function RunIngestion() {
   const [jobStatus, setJobStatus] = useState(null);
   const [runBadge, setRunBadge] = useState('Ready');
   const [uploadStatus, setUploadStatus] = useState('');
+  const [detectedAdapter, setDetectedAdapter] = useState('');
+  const [availableAdapters, setAvailableAdapters] = useState([]);
+  const [selectedAdapter, setSelectedAdapter] = useState('');
+  const [uploadedFiles, setUploadedFiles] = useState(null);  // Track if files were uploaded
   const fileInputRef = useRef(null);
+
+  // Friendly display names for adapters
+  const adapterDisplayNames = {
+    'synthea_csv': 'CSV',
+    'ccda_hie': 'C-CDA Documents',
+    'ehr_fhir_r4': 'FHIR JSON',
+    'claims_837': 'Claims (837)',
+    'ncpdp_pharmacy': 'NCPDP Pharmacy'
+  };
 
   useEffect(() => {
     const restoreLatestJob = async () => {
@@ -36,6 +49,8 @@ export default function RunIngestion() {
     };
 
     restoreLatestJob();
+    // Set default adapters on mount - will be updated when user uploads files
+    setAvailableAdapters(['synthea_csv', 'ccda_hie', 'ehr_fhir_r4', 'claims_837', 'ncpdp_pharmacy']);
   }, []);
 
   const handlePickFolder = () => {
@@ -50,15 +65,46 @@ export default function RunIngestion() {
     try {
       const formData = new FormData();
       files.forEach((file) => formData.append('files', file, file.name));
-      const isCcda = sourceSystem === 'C-CDA / HIE';
-      const response = await api(isCcda ? '/api/datasets/upload-ccda' : '/api/datasets/upload', {
+      
+      // Detect file type from actual files using same patterns as backend
+      const fileNames = files.map(f => f.name.toLowerCase());
+      const isCcda = fileNames.some(f => f.endsWith('.xml') || f.endsWith('.ccda'));
+      const isClaims = fileNames.some(f => f.endsWith('.837'));
+      const isNcpdp = fileNames.some(f => f.startsWith('ncpdp') || f.includes('_ncpdp'));
+      
+      // FHIR resource type patterns: practitioner*.json, patient*.json, bundle.json, etc.
+      const fhirPatterns = ['bundle', 'practitioner', 'patient', 'encounter', 'claim', 'medication', 'coverage', 'observation', 'organization', 'provider'];
+      const isFhir = fileNames.some(f => 
+        (f.endsWith('.json') || f.endsWith('.fhir')) && 
+        fhirPatterns.some(pattern => f.includes(pattern))
+      );
+      
+      // Determine which endpoint to call based on file type
+      let endpoint = '/api/datasets/upload';  // Default: Synthea CSV
+      if (isCcda) endpoint = '/api/datasets/upload-ccda';
+      else if (isClaims) endpoint = '/api/datasets/upload-claims';
+      else if (isNcpdp) endpoint = '/api/datasets/upload-ncpdp';
+      else if (isFhir) endpoint = '/api/datasets/upload-fhir';
+      
+      const response = await api(endpoint, {
         method: 'POST',
         body: formData,
       });
+      
       setInputDir(response.input_dir);
-      setUploadStatus(`Uploaded ${response.saved_files.length} ${isCcda ? 'C-CDA' : 'supported CSV'} file${response.saved_files.length === 1 ? '' : 's'}.`);
+      setUploadedFiles(response.saved_files);  // Track uploaded files
+      
+      // Capture detected adapter from response - ensure it's explicitly set
+      const detected = response.detected_adapter || 'synthea_csv';
+      const adapters = response.available_adapters || ['synthea_csv', 'ccda_hie', 'ehr_fhir_r4', 'claims_837', 'ncpdp_pharmacy'];
+      
+      setDetectedAdapter(detected);
+      setSelectedAdapter(detected);  // Always set, never leave empty
+      setAvailableAdapters(adapters);
+      
+      setUploadStatus(`✓ Uploaded ${response.saved_files.length} file${response.saved_files.length === 1 ? '' : 's'}.`);
     } catch (error) {
-      setUploadStatus(`Upload failed: ${error.message}`);
+      setUploadStatus(`✗ Upload failed: ${error.message}`);
     } finally {
       event.target.value = '';
     }
@@ -76,22 +122,23 @@ export default function RunIngestion() {
 
   const handleRun = async () => {
     try {
+      if (!inputDir.trim()) {
+        alert('Please upload files or enter a data path');
+        return;
+      }
+      if (!selectedAdapter) {
+        alert('Please select or auto-detect an adapter');
+        return;
+      }
+      
       setRunBadge('Running');
       const payload = {
         source_system: sourceSystem,
         source_description: sourceDescription,
-        input_path: inputDir.trim() || '/data/synthea/output/fhir'
+        input_path: inputDir.trim()
       };
-      const adapterName = sourceSystem === 'EHR FHIR R4'
-        ? 'ehr_fhir_r4'
-        : sourceSystem === 'C-CDA / HIE'
-          ? 'ccda_hie'
-          : sourceSystem === 'Claims 837'
-            ? 'claims_837'
-            : sourceSystem === 'NCPDP Pharmacy'
-              ? 'ncpdp_pharmacy'
-          : 'synthea_csv';
-      const response = await api(`/api/jobs/start?input_dir=${encodeURIComponent(payload.input_path)}&adapter_name=${adapterName}`, {
+      
+      const response = await api(`/api/jobs/start?input_dir=${encodeURIComponent(payload.input_path)}&adapter_name=${selectedAdapter}`, {
         method: 'POST'
       });
       setJobId(response.job_id);
@@ -166,47 +213,97 @@ export default function RunIngestion() {
             <span className="step-chip">01 / 08</span>
           </div>
 
-          <label>Source system</label>
-          <select value={sourceSystem} onChange={(e) => setSourceSystem(e.target.value)}>
-            <option>Synthea CSV</option>
-            <option>FHIR R4 bundle</option>
-            <option>EHR FHIR R4</option>
-            <option>C-CDA / HIE</option>
-            <option>Claims 837</option>
-            <option>NCPDP Pharmacy</option>
-          </select>
-
           <label>Source description</label>
           <input
             type="text"
             value={sourceDescription}
             onChange={(e) => setSourceDescription(e.target.value)}
-            placeholder="Dataset description"
+            placeholder="e.g., Synthea 30 California, FHIR bundle, C-CDA export"
           />
 
-          <label>Input path</label>
-          <input
-            type="text"
-            value={inputDir}
-            onChange={(e) => setInputDir(e.target.value)}
-            placeholder={sourceSystem === 'C-CDA / HIE' ? 'C:\\data\\ccda' : '/data/synthea/output/fhir'}
-          />
+          {uploadedFiles ? (
+            <>
+              <p style={{ fontSize: '12px', color: '#32947a', marginBottom: '8px' }}>
+                ✓ Uploaded: {uploadedFiles.join(', ')}
+              </p>
+              <div style={{ 
+                padding: '12px', 
+                marginBottom: '15px', 
+                backgroundColor: '#f0f8ff', 
+                border: '1px solid #4da6ff', 
+                borderRadius: '4px' 
+              }}>
+                <p style={{ margin: '0 0 8px 0', fontSize: '13px', fontWeight: 600, color: '#0052cc' }}>
+                  Auto-detected: <strong>{adapterDisplayNames[detectedAdapter] || detectedAdapter}</strong>
+                </p>
+                <label style={{ fontSize: '12px', display: 'block', marginBottom: '6px', color: '#626f86' }}>
+                  Change if needed:
+                </label>
+                <select 
+                  key={detectedAdapter}
+                  value={selectedAdapter || detectedAdapter}
+                  onChange={(e) => setSelectedAdapter(e.target.value)}
+                  style={{ width: '100%', padding: '6px', fontSize: '12px' }}
+                >
+                  {availableAdapters.map((adapter) => (
+                    <option key={adapter} value={adapter}>{adapterDisplayNames[adapter] || adapter}</option>
+                  ))}
+                </select>
+              </div>
+            </>
+          ) : (
+            <>
+              <label>Data source</label>
+              <input
+                ref={fileInputRef}
+                type="file"
+                webkitdirectory="true"
+                directory="true"
+                multiple
+                hidden
+                onChange={handleFolderSelected}
+              />
 
-          <input
-            ref={fileInputRef}
-            type="file"
-            webkitdirectory="true"
-            directory="true"
-            multiple
-            hidden
-            onChange={handleFolderSelected}
-          />
+              <div className="drop-zone">
+                <span className="upload-icon">↑</span>
+                <strong>Upload your data folder or <button className="inline-button" type="button" onClick={() => fileInputRef.current?.click()}>browse</button></strong>
+                <small>Auto-detects format (Synthea CSV, C-CDA, FHIR, Claims 837, NCPDP)</small>
+              </div>
 
-          <div className="drop-zone">
-            <span className="upload-icon">↑</span>
-            <strong>Select a {sourceSystem === 'C-CDA / HIE' ? 'C-CDA XML folder' : 'Synthea CSV folder'} or <button className="inline-button" type="button" onClick={handlePickFolder}>browse</button></strong>
-            <small>Upload starts automatically · {sourceSystem === 'C-CDA / HIE' ? '.xml and .ccda files' : 'Synthea CSV export only'}</small>
-          </div>
+              <label style={{ marginTop: '15px' }}>OR: Use direct path</label>
+              <input
+                type="text"
+                value={inputDir}
+                onChange={(e) => setInputDir(e.target.value)}
+                placeholder="C:\data\synthea or /data/fhir"
+              />
+              
+              {inputDir && (
+                <div style={{ 
+                  padding: '12px', 
+                  marginTop: '12px',
+                  marginBottom: '15px', 
+                  backgroundColor: '#fff3cd', 
+                  border: '1px solid #ffc107', 
+                  borderRadius: '4px' 
+                }}>
+                  <p style={{ margin: '0 0 8px 0', fontSize: '13px', fontWeight: 600, color: '#856404' }}>
+                    Select adapter:
+                  </p>
+                  <select 
+                    value={selectedAdapter} 
+                    onChange={(e) => setSelectedAdapter(e.target.value)}
+                    style={{ width: '100%', padding: '6px', fontSize: '12px' }}
+                  >
+                    <option value="">-- Choose adapter --</option>
+                    {availableAdapters.map((adapter) => (
+                      <option key={adapter} value={adapter}>{adapterDisplayNames[adapter] || adapter}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+            </>
+          )}
 
           {uploadStatus && <p className="helper-text">{uploadStatus}</p>}
 

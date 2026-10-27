@@ -75,6 +75,55 @@ def _job_status_payload(job_id: str) -> dict:
     }
 
 
+def _detect_adapter_from_files(file_list: list[str]) -> str:
+    """Auto-detect adapter from uploaded file names/extensions.
+    
+    Returns the most likely adapter name based on file patterns.
+    Defaults to 'synthea_csv' if no specific pattern matches.
+    
+    FHIR detection uses resource type naming patterns (e.g., practitioner*.json,
+    patient*.json, bundle.json) to avoid false positives on generic .json files.
+    Users can override with the dropdown if detection is incorrect.
+    """
+    lower_files = {f.lower() for f in file_list}
+    
+    # C-CDA/CCD documents → ccda_hie
+    if any(f.endswith(('.xml', '.ccda')) for f in lower_files):
+        return "ccda_hie"
+    
+    # FHIR JSON files → ehr_fhir_r4
+    # Match specific FHIR resource type patterns in filename to avoid false positives
+    # Examples: practitioner*.json, patient*.json, encounter*.json, bundle.json, claim*.json
+    fhir_resource_patterns = (
+        'bundle', 'practitioner', 'patient', 'encounter', 'claim',
+        'medication', 'coverage', 'observation', 'organization', 'provider'
+    )
+    if any(
+        (f.endswith(('.json', '.fhir')) and any(pattern in f for pattern in fhir_resource_patterns))
+        or f.endswith(('bundle.json', '_bundle.json'))
+        for f in lower_files
+    ):
+        return "ehr_fhir_r4"
+    
+    # Claims 837 files → claims_837
+    if any(f.endswith('.837') or f.endswith('_837') for f in lower_files):
+        return "claims_837"
+    
+    # NCPDP pharmacy files → ncpdp_pharmacy
+    # Matches: ncpdp*.*, *.ncpdp, *.ncpdp.txt, *_ncpdp*
+    if any(
+        f.startswith('ncpdp') or 
+        f.endswith('.ncpdp') or 
+        f.endswith('.ncpdp.txt') or
+        '_ncpdp' in f
+        for f in lower_files
+    ):
+        return "ncpdp_pharmacy"
+    
+    # Default to Synthea CSV (most common, handles .csv files)
+    return "synthea_csv"
+
+
 @router.post("/datasets/upload")
 async def upload_dataset(request: Request) -> dict:
     started_at = time.time()
@@ -106,10 +155,13 @@ async def upload_dataset(request: Request) -> dict:
             detail="No supported Synthea CSV files were uploaded. Include files like patients.csv, encounters.csv, observations.csv, etc.",
         )
 
+    detected_adapter = _detect_adapter_from_files(saved_files)
     metadata = discover_dataset(str(dataset_dir))
     completed_at = time.time()
     return {
         "input_dir": str(dataset_dir.resolve()),
+        "detected_adapter": detected_adapter,
+        "available_adapters": registry.list_adapters(),
         "saved_files": sorted(set(saved_files)),
         "found_files": metadata.found_files,
         "missing_required_files": metadata.missing_required_files,
@@ -147,16 +199,167 @@ async def upload_ccda_dataset(request: Request) -> dict:
     if not saved_files:
         raise HTTPException(status_code=400, detail="No C-CDA files were uploaded. Select .xml or .ccda documents.")
 
+    detected_adapter = _detect_adapter_from_files(saved_files)
     adapter = registry.get_adapter("ccda_hie")
     metadata = adapter.discover(str(dataset_dir))
     completed_at = time.time()
     return {
         "input_dir": str(dataset_dir.resolve()),
+        "detected_adapter": detected_adapter,
+        "available_adapters": registry.list_adapters(),
         "saved_files": sorted(set(saved_files)),
         "found_files": metadata.found_files,
         "row_counts": metadata.row_counts,
         "timelog": {
             "step": "upload_ccda_dataset",
+            "started_at": started_at,
+            "completed_at": completed_at,
+            "elapsed_seconds": round(completed_at - started_at, 3),
+        },
+    }
+
+
+@router.post("/datasets/upload-fhir")
+async def upload_fhir_dataset(request: Request) -> dict:
+    started_at = time.time()
+    form = await request.form(max_files=float("inf"))
+    files = [item for _, item in form.multi_items() if isinstance(item, StarletteUploadFile)]
+    upload_root = Path("./.uploaded_datasets")
+    upload_root.mkdir(parents=True, exist_ok=True)
+    dataset_dir = upload_root / str(uuid.uuid4())
+    dataset_dir.mkdir(parents=True, exist_ok=True)
+
+    saved_files: list[str] = []
+    supported_extensions = {".json", ".fhir"}
+    for uploaded in files:
+        target_name = Path(uploaded.filename or "").name.lower()
+        if Path(target_name).suffix not in supported_extensions and "bundle" not in target_name:
+            continue
+        with (dataset_dir / target_name).open("wb") as handle:
+            shutil.copyfileobj(uploaded.file, handle)
+        saved_files.append(target_name)
+
+    if not saved_files:
+        raise HTTPException(status_code=400, detail="No FHIR JSON files were uploaded. Upload .json or .fhir files (e.g., bundle.json).")
+
+    detected_adapter = _detect_adapter_from_files(saved_files)
+    
+    # Try to get metadata from FHIR adapter, but don't fail if discover() not available
+    metadata = None
+    try:
+        adapter = registry.get_adapter("ehr_fhir")
+        if adapter and hasattr(adapter, 'discover'):
+            metadata = adapter.discover(str(dataset_dir))
+    except Exception:
+        # If discovery fails, just continue with basic metadata
+        pass
+    
+    completed_at = time.time()
+    return {
+        "input_dir": str(dataset_dir.resolve()),
+        "detected_adapter": detected_adapter,
+        "available_adapters": registry.list_adapters(),
+        "saved_files": sorted(set(saved_files)),
+        "found_files": metadata.found_files if metadata else saved_files,
+        "row_counts": metadata.row_counts if metadata else {"fhir": len(saved_files)},
+        "timelog": {
+            "step": "upload_fhir_dataset",
+            "started_at": started_at,
+            "completed_at": completed_at,
+            "elapsed_seconds": round(completed_at - started_at, 3),
+        },
+    }
+
+
+@router.post("/datasets/upload-claims")
+async def upload_claims_dataset(request: Request) -> dict:
+    started_at = time.time()
+    form = await request.form(max_files=float("inf"))
+    files = [item for _, item in form.multi_items() if isinstance(item, StarletteUploadFile)]
+    upload_root = Path("./.uploaded_datasets")
+    upload_root.mkdir(parents=True, exist_ok=True)
+    dataset_dir = upload_root / str(uuid.uuid4())
+    dataset_dir.mkdir(parents=True, exist_ok=True)
+
+    saved_files: list[str] = []
+    supported_extensions = {".837"}
+    for uploaded in files:
+        target_name = Path(uploaded.filename or "").name.lower()
+        if Path(target_name).suffix not in supported_extensions:
+            continue
+        with (dataset_dir / target_name).open("wb") as handle:
+            shutil.copyfileobj(uploaded.file, handle)
+        saved_files.append(target_name)
+
+    if not saved_files:
+        raise HTTPException(status_code=400, detail="No Claims 837 files were uploaded. Select .837 EDI files.")
+
+    detected_adapter = _detect_adapter_from_files(saved_files)
+    adapter = registry.get_adapter("claims_837")
+    try:
+        metadata = adapter.discover(str(dataset_dir))
+    except Exception:
+        # If discovery fails, provide basic metadata
+        metadata = None
+    
+    completed_at = time.time()
+    return {
+        "input_dir": str(dataset_dir.resolve()),
+        "detected_adapter": detected_adapter,
+        "available_adapters": registry.list_adapters(),
+        "saved_files": sorted(set(saved_files)),
+        "found_files": metadata.found_files if metadata else saved_files,
+        "row_counts": metadata.row_counts if metadata else {"claims": len(saved_files)},
+        "timelog": {
+            "step": "upload_claims_dataset",
+            "started_at": started_at,
+            "completed_at": completed_at,
+            "elapsed_seconds": round(completed_at - started_at, 3),
+        },
+    }
+
+
+@router.post("/datasets/upload-ncpdp")
+async def upload_ncpdp_dataset(request: Request) -> dict:
+    started_at = time.time()
+    form = await request.form(max_files=float("inf"))
+    files = [item for _, item in form.multi_items() if isinstance(item, StarletteUploadFile)]
+    upload_root = Path("./.uploaded_datasets")
+    upload_root.mkdir(parents=True, exist_ok=True)
+    dataset_dir = upload_root / str(uuid.uuid4())
+    dataset_dir.mkdir(parents=True, exist_ok=True)
+
+    saved_files: list[str] = []
+    for uploaded in files:
+        target_name = Path(uploaded.filename or "").name.lower()
+        # Accept files that start with ncpdp or end with _ncpdp (no strict extension requirement)
+        if not (target_name.startswith('ncpdp') or '_ncpdp' in target_name):
+            continue
+        with (dataset_dir / target_name).open("wb") as handle:
+            shutil.copyfileobj(uploaded.file, handle)
+        saved_files.append(target_name)
+
+    if not saved_files:
+        raise HTTPException(status_code=400, detail="No NCPDP pharmacy files were uploaded. Include files like ncpdp_*.txt or *_ncpdp files.")
+
+    detected_adapter = _detect_adapter_from_files(saved_files)
+    adapter = registry.get_adapter("ncpdp_pharmacy")
+    try:
+        metadata = adapter.discover(str(dataset_dir))
+    except Exception:
+        # If discovery fails, provide basic metadata
+        metadata = None
+    
+    completed_at = time.time()
+    return {
+        "input_dir": str(dataset_dir.resolve()),
+        "detected_adapter": detected_adapter,
+        "available_adapters": registry.list_adapters(),
+        "saved_files": sorted(set(saved_files)),
+        "found_files": metadata.found_files if metadata else saved_files,
+        "row_counts": metadata.row_counts if metadata else {"ncpdp": len(saved_files)},
+        "timelog": {
+            "step": "upload_ncpdp_dataset",
             "started_at": started_at,
             "completed_at": completed_at,
             "elapsed_seconds": round(completed_at - started_at, 3),
@@ -207,10 +410,13 @@ async def upload_dataset_zip(file: UploadFile = File(...)) -> dict:
             detail="ZIP did not contain supported Synthea CSV files (patients.csv, encounters.csv, etc.).",
         )
 
+    detected_adapter = _detect_adapter_from_files(saved_files)
     metadata = discover_dataset(str(dataset_dir))
     completed_at = time.time()
     return {
         "input_dir": str(dataset_dir.resolve()),
+        "detected_adapter": detected_adapter,
+        "available_adapters": registry.list_adapters(),
         "saved_files": sorted(set(saved_files)),
         "found_files": metadata.found_files,
         "missing_required_files": metadata.missing_required_files,

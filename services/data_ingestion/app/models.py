@@ -209,6 +209,31 @@ class Condition(Base):
     updated_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now())
 
 
+class Location(Base):
+    """Denormalized location/facility table."""
+    __tablename__ = "location"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    location_id: Mapped[str] = mapped_column(String(150), nullable=False, unique=True, index=True)
+    name: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    status: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    address_line: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    address_city: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    address_state: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    address_postal_code: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    address_country: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    phone: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    latitude: Mapped[float | None] = mapped_column(nullable=True)
+    longitude: Mapped[float | None] = mapped_column(nullable=True)
+    
+    source_file: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    fhir_resource_pk: Mapped[int | None] = mapped_column(ForeignKey("fhir_resources.id"), nullable=True)
+    batch_id: Mapped[str | None] = mapped_column(ForeignKey("source_batches.id"), nullable=True, index=True)
+    
+    created_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
+    updated_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now())
+
+
 class Observation(Base):
     """Denormalized observation/lab/vital result table."""
     __tablename__ = "observation"

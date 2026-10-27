@@ -4,6 +4,7 @@ import logging
 import threading
 import time
 from dataclasses import dataclass, field
+from itertools import groupby
 from typing import Any
 
 from sqlalchemy import select, tuple_, update
@@ -34,19 +35,21 @@ from .models import (
     SupplyDelivery,
 )
 from .repository import (
+    batch_extract_denormalized,
     batch_fetch_fhir_resources,
     complete_job,
     bulk_upsert_resources,
     create_job,
-    extract_coverage_from_fhir,
     extract_additional_resource,
-    extract_patient_from_fhir,
-    extract_encounter_from_fhir,
     extract_condition_from_fhir,
-    extract_observation_from_fhir,
-    extract_procedure_from_fhir,
-    extract_medication_from_fhir,
+    extract_coverage_from_fhir,
+    extract_encounter_from_fhir,
     extract_immunization_from_fhir,
+    extract_location_from_fhir,
+    extract_medication_from_fhir,
+    extract_observation_from_fhir,
+    extract_patient_from_fhir,
+    extract_procedure_from_fhir,
     mark_validated_resources_persisted,
     persist_row_issues,
     persist_validation_messages,
@@ -58,6 +61,8 @@ from .validator import validate_resources
 
 STAGES = ["csv_input", "mapping", "fhir_generation", "validation", "postgresql_storage"]
 RESOURCE_BATCH_SIZE = 1000
+
+# CSV file → FHIR resource type mapping (for Synthea CSV adapter)
 FILE_RESOURCE_TYPES = {
     "patients.csv": "Patient",
     "encounters.csv": "Encounter",
@@ -79,6 +84,46 @@ FILE_RESOURCE_TYPES = {
     "providers.csv": "Practitioner",
     "supplies.csv": "SupplyDelivery",
 }
+
+# Adapter name → resource types mapping (for non-CSV adapters like claims837, ncpdp_pharmacy)
+# Keys are the source_file prefixes (before the colon), not the adapter_name
+ADAPTER_RESOURCE_TYPES = {
+    "claims837": ["Claim"],
+    "ncpdp": ["MedicationDispense"],
+    "fhir": ["Patient", "Encounter", "Condition", "Observation", "Procedure", "MedicationRequest"],
+    "ccda": ["Patient", "Encounter", "Condition", "Observation", "Procedure", "MedicationRequest"],
+}
+
+
+def resolve_resource_type(source_file: str, record_data: dict[str, Any] | None = None) -> str | None:
+    """Resolve FHIR resource type from source file identifier or record.
+    
+    Handles both CSV files and adapter-prefixed source identifiers.
+    
+    Args:
+        source_file: File identifier (e.g., "patients.csv", "claims837:file.837", "ncpdp:rx.txt")
+        record_data: Optional record data dict containing "resourceType" field
+    
+    Returns:
+        FHIR resource type string or None if unresolvable
+    """
+    # Check if record explicitly specifies resource type
+    if record_data and isinstance(record_data, dict):
+        if explicit_type := record_data.get("resourceType"):
+            return explicit_type
+    
+    # Check if it's a known CSV file
+    if resource_type := FILE_RESOURCE_TYPES.get(source_file):
+        return resource_type
+    
+    # Check for adapter-prefixed identifiers (e.g., "claims837:", "ncpdp:", "fhir:", "ccda:")
+    if ":" in source_file:
+        prefix = source_file.split(":", 1)[0]
+        # Map adapter prefix to resource types (prefer primary type)
+        adapter_types = ADAPTER_RESOURCE_TYPES.get(prefix, [])
+        return adapter_types[0] if adapter_types else None
+    
+    return None
 
 logger = logging.getLogger("uvicorn.error")
 
@@ -236,6 +281,7 @@ def _extract_denormalized(session: Any, row: Any, resource: Any) -> None:
         "Procedure": extract_procedure_from_fhir,
         "MedicationRequest": extract_medication_from_fhir,
         "Immunization": extract_immunization_from_fhir,
+        "Location": extract_location_from_fhir,
         "Coverage": extract_coverage_from_fhir,
         "AllergyIntolerance": extract_additional_resource,
         "Basic": extract_additional_resource,
@@ -304,7 +350,8 @@ def _run_streaming_conversion(job_id: str, input_dir: str, adapter: Any) -> None
     def collect_issue(issue: Any) -> None:
         nonlocal warning_count, error_count
         issue_buffer.append(issue)
-        issue_resource_type = FILE_RESOURCE_TYPES.get(issue.source_file)
+        # Safely resolve resource type from issue's source file
+        issue_resource_type = resolve_resource_type(issue.source_file)
         if issue_resource_type:
             job_manager.record_resource_progress(job_id, issue_resource_type, "failed")
         if issue.severity == "warning":
@@ -326,7 +373,8 @@ def _run_streaming_conversion(job_id: str, input_dir: str, adapter: Any) -> None
 
         resource_types: dict[str, int] = {}
         for filename, count in metadata.row_counts.items():
-            resource_type = FILE_RESOURCE_TYPES.get(filename)
+            # Safely resolve resource type from filename
+            resource_type = resolve_resource_type(filename)
             if resource_type:
                 resource_types[resource_type] = resource_types.get(resource_type, 0) + count
         job_manager.initialize_resource_progress(
@@ -363,11 +411,15 @@ def _run_streaming_conversion(job_id: str, input_dir: str, adapter: Any) -> None
             validation_seconds += time.perf_counter() - validation_start
             persistence_start = time.perf_counter()
             if valid_batch:
+                # Upsert validated resources with correct validation status
                 bulk_upsert_resources(
                     session,
                     job_id=job_id,
                     batch_id=job_manager.ensure_state(job_id).batch_id,
                     resources=valid_batch,
+                    validation_status="validated",
+                    lifecycle_status="validated",
+                    persisted=False,
                 )
                 session.flush()
                 resource_keys = [(resource.resource_type, resource.resource_id) for resource in valid_batch]
@@ -403,7 +455,12 @@ def _run_streaming_conversion(job_id: str, input_dir: str, adapter: Any) -> None
                         warning_count += 1
                     elif issue.severity == "error":
                         error_count += 1
-                resource_type = record.data.get("resourceType") or FILE_RESOURCE_TYPES[record.source_file]
+                # Safely resolve resource type from source file or record data
+                resource_type = resolve_resource_type(record.source_file, record.data)
+                if not resource_type:
+                    # Unable to determine resource type - record as failed
+                    continue
+                # Count resources from adapter sources (non-CSV files)
                 if record.source_file.startswith(("fhir:", "ccda:", "claims837:", "ncpdp:")):
                     job_manager.count_resource(job_id, resource_type)
                 if resource:
@@ -415,26 +472,30 @@ def _run_streaming_conversion(job_id: str, input_dir: str, adapter: Any) -> None
                 if len(batch) >= RESOURCE_BATCH_SIZE:
                     persist_batch(session)
 
-            coverage_by_patient: dict[str | None, list[Any]] = {}
-            for record in coverage_records:
-                coverage_by_patient.setdefault(record.patient_id, []).append(record)
-            for record in coverage_records:
-                mapping_start = time.perf_counter()
-                resource, issues = map_source_record(record, coverage_by_patient, validate=False)
-                mapping_seconds += time.perf_counter() - mapping_start
-                issue_buffer.extend(issues)
-                for issue in issues:
-                    if issue.severity == "warning":
-                        warning_count += 1
-                    elif issue.severity == "error":
-                        error_count += 1
-                if resource:
-                    batch.append(resource)
-                    mapped_count += 1
-                else:
-                    job_manager.record_resource_progress(job_id, "Coverage", "failed")
-                if len(batch) >= RESOURCE_BATCH_SIZE:
-                    persist_batch(session)
+            # Process coverage records grouped by patient to avoid loading all in memory
+            # Sort by patient_id so groupby can group contiguous records efficiently
+            coverage_records_sorted = sorted(coverage_records, key=lambda r: r.patient_id or "")
+            for patient_id, patient_coverage_iter in groupby(coverage_records_sorted, key=lambda r: r.patient_id):
+                # Convert iterator to list only for current patient's records (not all records)
+                patient_coverage_list = list(patient_coverage_iter)
+                for record in patient_coverage_list:
+                    mapping_start = time.perf_counter()
+                    # Pass only current patient's coverage records, not all coverage records
+                    resource, issues = map_source_record(record, patient_coverage_list, validate=False)
+                    mapping_seconds += time.perf_counter() - mapping_start
+                    issue_buffer.extend(issues)
+                    for issue in issues:
+                        if issue.severity == "warning":
+                            warning_count += 1
+                        elif issue.severity == "error":
+                            error_count += 1
+                    if resource:
+                        batch.append(resource)
+                        mapped_count += 1
+                    else:
+                        job_manager.record_resource_progress(job_id, "Coverage", "failed")
+                    if len(batch) >= RESOURCE_BATCH_SIZE:
+                        persist_batch(session)
             persist_batch(session)
 
         summary["total_source_records"] = sum(metadata.row_counts.values())
@@ -556,6 +617,7 @@ def run_conversion(job_id: str, input_dir: str, adapter_name: str = "synthea_csv
             parsed,
             lambda resource_type: job_manager.record_resource_progress(job_id, resource_type, "mapped"),
             resource_callback=persist_local_resource,
+            validate=not settings.validation_require_external,
         )
 
         stage(job_id, "mapping", "completed", f"Mapped {len(mapped.resources)} resources")
@@ -581,6 +643,9 @@ def run_conversion(job_id: str, input_dir: str, adapter_name: str = "synthea_csv
                     persist_row_issues(session, job_id, all_issues)
                     resource_count = 0
                     _emit(f"[pipeline] job={job_id} validation_external: starting to upsert {len(mapped.resources)} resources")
+                    # Collect resources by type for batch extraction
+                    resources_by_type_for_extraction: dict[str, list[tuple[FhirResource, dict[str, Any]]]] = {}
+                    
                     for resource, result in zip(mapped.resources, validation_results, strict=True):
                         validation_status = result.status
                         lifecycle_status = "validated" if result.status == "validated" else "quarantined"
@@ -603,23 +668,8 @@ def run_conversion(job_id: str, input_dir: str, adapter_name: str = "synthea_csv
                             metadata_json={"references": resource.references},
                         )
 
-                        # Extract denormalized data from FHIR resources
-                        if resource.resource_type == "Patient":
-                            extract_patient_from_fhir(session, row, resource.fhir)
-                        elif resource.resource_type == "Encounter":
-                            extract_encounter_from_fhir(session, row, resource.fhir)
-                        elif resource.resource_type == "Condition":
-                            extract_condition_from_fhir(session, row, resource.fhir)
-                        elif resource.resource_type == "Observation":
-                            extract_observation_from_fhir(session, row, resource.fhir)
-                        elif resource.resource_type == "Procedure":
-                            extract_procedure_from_fhir(session, row, resource.fhir)
-                        elif resource.resource_type == "Medication":
-                            extract_medication_from_fhir(session, row, resource.fhir)
-                        elif resource.resource_type == "Immunization":
-                            extract_immunization_from_fhir(session, row, resource.fhir)
-                        elif resource.resource_type == "Coverage":
-                            extract_coverage_from_fhir(session, row, resource.fhir)
+                        # Collect for batch extraction
+                        resources_by_type_for_extraction.setdefault(resource.resource_type, []).append((row, resource.fhir))
 
                         persist_validation_messages(
                             session,
@@ -643,6 +693,11 @@ def run_conversion(job_id: str, input_dir: str, adapter_name: str = "synthea_csv
                             session.flush()
                             session.commit()
                             _emit(f"[pipeline] job={job_id} validation_external: committed {resource_count} resources")
+                    
+                    _emit(f"[pipeline] job={job_id} validation_external: batch-extracting denormalized data")
+                    batch_extract_denormalized(session, resources_by_type_for_extraction)
+                    session.flush()
+                    _emit(f"[pipeline] job={job_id} validation_external: batch extraction completed")
                     
                     _emit(f"[pipeline] job={job_id} validation_external: completed upsert of {resource_count} resources")
             except Exception as e:
@@ -690,38 +745,28 @@ def run_conversion(job_id: str, input_dir: str, adapter_name: str = "synthea_csv
                     
                     # Batch-fetch all FhirResource rows to avoid N+1 queries
                     _emit(f"[pipeline] job={job_id} validation_no_external: batch-fetching {len(mapped.resources)} FHIR resources")
-                    resource_ids = [resource.resource_id for resource in mapped.resources]
-                    fhir_resources_by_id = batch_fetch_fhir_resources(session, resource_ids)
-                    _emit(f"[pipeline] job={job_id} validation_no_external: fetched {len(fhir_resources_by_id)} FHIR resources")
+                    resource_keys = [(resource.resource_type, resource.resource_id) for resource in mapped.resources]
+                    fhir_resources_by_key = batch_fetch_fhir_resources(session, resource_keys)
+                    _emit(f"[pipeline] job={job_id} validation_no_external: fetched {len(fhir_resources_by_key)} FHIR resources")
                     
-                    # Now perform extraction on flushed resources
-                    _emit(f"[pipeline] job={job_id} validation_no_external: extracting denormalized data")
+                    # Now perform batch extraction on flushed resources
+                    _emit(f"[pipeline] job={job_id} validation_no_external: batch-extracting denormalized data")
+                    # Collect resources by type for batch extraction
+                    resources_by_type_for_extraction: dict[str, list[tuple[FhirResource, dict[str, Any]]]] = {}
                     extraction_count = 0
                     for resource in mapped.resources:
-                        fhir_res = fhir_resources_by_id.get(resource.resource_id)
+                        fhir_res = fhir_resources_by_key.get((resource.resource_type, resource.resource_id))
                         if fhir_res:
-                            if resource.resource_type == "Patient":
-                                extract_patient_from_fhir(session, fhir_res, resource.fhir)
-                            elif resource.resource_type == "Encounter":
-                                extract_encounter_from_fhir(session, fhir_res, resource.fhir)
-                            elif resource.resource_type == "Condition":
-                                extract_condition_from_fhir(session, fhir_res, resource.fhir)
-                            elif resource.resource_type == "Observation":
-                                extract_observation_from_fhir(session, fhir_res, resource.fhir)
-                            elif resource.resource_type == "Procedure":
-                                extract_procedure_from_fhir(session, fhir_res, resource.fhir)
-                            elif resource.resource_type == "Medication":
-                                extract_medication_from_fhir(session, fhir_res, resource.fhir)
-                            elif resource.resource_type == "Immunization":
-                                extract_immunization_from_fhir(session, fhir_res, resource.fhir)
-                            elif resource.resource_type == "Coverage":
-                                extract_coverage_from_fhir(session, fhir_res, resource.fhir)
-
+                            resources_by_type_for_extraction.setdefault(resource.resource_type, []).append((fhir_res, resource.fhir))
                         extraction_count += 1
-                        if extraction_count % RESOURCE_BATCH_SIZE == 0:
-                            session.flush()
-                            session.commit()
-                            _emit(f"[pipeline] job={job_id} validation_no_external: committed extraction {extraction_count}/{len(mapped.resources)}")
+                    
+                    batch_extract_denormalized(session, resources_by_type_for_extraction)
+                    
+                    # Flush in batches to avoid memory issues
+                    session.flush()
+                    if extraction_count % RESOURCE_BATCH_SIZE == 0:
+                        session.commit()
+                        _emit(f"[pipeline] job={job_id} validation_no_external: committed extraction {extraction_count}/{len(mapped.resources)}")
                     
                     session.flush()
                     _emit(f"[pipeline] job={job_id} validation_no_external: extraction completed")
