@@ -4,9 +4,10 @@ applyTo: "db/**,services/**/db.py,services/**/runner.py,services/**/review*.py,s
 
 # Database: evidence lifecycle and the rules it enforces
 
-The business rule (UC-HC-02): the AI finds and quotes evidence, a trained abstractor approves or rejects it, and
-only approved evidence becomes supplemental data that the measure engine uses when it runs again. HEDIS auditors
-can ask how any number was reached, so every step is traceable and nothing decided may change afterwards.
+The business rule (UC-HC-02, `docs/requirements/UC-HC-02_HEDIS-Quality-Measure-Automation_v1.0.pdf`): the AI
+finds and quotes evidence, a trained abstractor approves or rejects it, and only approved evidence becomes
+supplemental data that the measure engine uses when it runs again. HEDIS auditors can ask how any number was reached,
+so every step is traceable and nothing decided may change afterwards.
 
 The schema follows the team schema (migration `0003_align_team_schema.py`). **The team tables are never changed**:
 no added or renamed columns. What our features need beyond them lives in our own tables linked one to one by the team

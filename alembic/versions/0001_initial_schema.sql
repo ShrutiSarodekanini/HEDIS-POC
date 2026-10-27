@@ -1,5 +1,5 @@
 -- HEDIS source-normalization schema
--- Generated from: Schema design.drawio.html
+-- Generated from: docs/architecture/Schema design.drawio.html
 --
 -- Execution order:
 --   1. SOURCE_BATCH
