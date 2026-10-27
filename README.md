@@ -32,6 +32,29 @@ Test files (synthetic) are in `data/test_uploads`: upload `synthea_20_patients.z
 files in `cohort_4_patients/`, on Data Ingestion. The stored evidence documents for those patients are in
 `data/evidence_store` and attach on their own once a batch is prioritized.
 
+### Observability (optional)
+
+```
+powershell -ExecutionPolicy Bypass -File scripts/run_demo.ps1 -Integration -Observability
+```
+
+The app serves Prometheus metrics at http://localhost:8780/metrics (or the port set in `INTEGRATION_PORT`). With
+`-Observability` the script also starts Prometheus at http://localhost:9090: in Docker when Rancher Desktop or Docker
+Desktop is running, otherwise from `PROMETHEUS_EXE` or `prometheus.exe` on PATH. Nothing is downloaded. Prometheus
+scrapes every 15s and keeps 15 days. Stop the Docker one with
+`docker compose -f observability/docker-compose.yml down`. The metrics and alerts are listed in
+[docs/design/observability-prometheus.md](docs/design/observability-prometheus.md).
+
+Useful queries (Prometheus, Graph tab):
+
+```
+histogram_quantile(0.95, sum by (le, step) (rate(hedis_batch_step_seconds_bucket[1h])))
+sum by (step) (increase(hedis_batch_failures_total[24h]))
+sum by (measure) (rate(hedis_engine_seconds_sum[1h])) / sum by (measure) (rate(hedis_engine_seconds_count[1h]))
+histogram_quantile(0.95, sum by (le, model) (rate(hedis_ai_call_seconds_bucket[1h])))
+sum by (model, kind) (increase(hedis_ai_tokens_total[24h]))
+```
+
 ## Integration branch
 
 This branch brings three lines of work together so they can be joined into one flow

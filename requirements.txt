@@ -13,6 +13,8 @@ fastapi>=0.115.5
 uvicorn>=0.32.1
 httpx>=0.28.1
 python-multipart>=0.0.9
+prometheus-client>=0.21,<1             # pipeline, engine and AI metrics at /metrics
+prometheus-fastapi-instrumentator>=7.0,<8   # request count and latency per route at /metrics
 
 # Data ingestion (Synthea CSV to FHIR); needs pydantic 2.
 # services/data_ingestion_pallavi run on its own needs fhir.resources==6.5.0 with pydantic==1.10.21, in a separate

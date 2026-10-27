@@ -48,6 +48,7 @@ coverage-percent-script
 exports/
 .uploaded_datasets/
 .integration_work/
+.observability/
 
 # Local runtime and debug artifacts
 *.db

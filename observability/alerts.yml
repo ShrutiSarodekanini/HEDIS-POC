@@ -1,0 +1,24 @@
+groups:
+  - name: hedis
+    rules:
+      - alert: HedisBatchFailed
+        expr: increase(hedis_batches_total{status="failed"}[15m]) > 0
+        labels:
+          severity: critical
+        annotations:
+          summary: A batch failed in the last 15 minutes; see hedis_batch_failures_total for the step.
+
+      - alert: HedisAiErrorRateHigh
+        expr: sum(rate(hedis_ai_calls_total{outcome!="ok"}[15m])) / sum(rate(hedis_ai_calls_total[15m])) > 0.10
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: More than 10% of model calls failed, came back empty or were cut off over 15 minutes.
+
+      - alert: HedisEngineRetried
+        expr: increase(hedis_engine_retries_total[30m]) > 0
+        labels:
+          severity: warning
+        annotations:
+          summary: The measure engine crashed and was retried in the last 30 minutes.

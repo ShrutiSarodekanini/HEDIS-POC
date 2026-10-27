@@ -33,7 +33,7 @@ from services.document_intake.db import audit
 from services.gap_priority.config import load_rules
 from services.gap_priority.runner import score_all
 
-from . import measures, pallavi, stored_evidence
+from . import measures, metrics, pallavi, stored_evidence
 from .config import SETTINGS
 
 log = logging.getLogger(__name__)
@@ -68,6 +68,7 @@ def run_batch(upload: Path, batch_id: uuid.UUID) -> None:
     step = "waiting"
     with _ONE_AT_A_TIME:
         try:
+            metrics.BATCH_RUNNING.set(1)
             step = "converting"
             _progress(batch_id, step)
             job_id, conversion = _convert(upload)
@@ -81,6 +82,7 @@ def run_batch(upload: Path, batch_id: uuid.UUID) -> None:
         except Exception as exc:  # noqa: BLE001 - every failure is recorded on the batch with its step and reason
             _fail(batch_id, _current_step(batch_id) if step == "loading" else step, exc)
         finally:
+            metrics.BATCH_RUNNING.set(0)
             if upload.is_dir():
                 shutil.rmtree(upload, ignore_errors=True)
             else:
@@ -111,10 +113,13 @@ def start_from_job(job_id: str) -> str:
 def _run_from_job(batch_id: uuid.UUID, job_id: str, persisted: int) -> None:
     with _ONE_AT_A_TIME:
         try:
+            metrics.BATCH_RUNNING.set(1)
             _progress(batch_id, "loading")
             _after_persist(batch_id, job_id, persisted)
         except Exception as exc:  # noqa: BLE001 - every failure is recorded on the batch with its step and reason
             _fail(batch_id, _current_step(batch_id), exc)
+        finally:
+            metrics.BATCH_RUNNING.set(0)
 
 
 def _current_step(batch_id: uuid.UUID) -> str:
@@ -157,6 +162,7 @@ def _after_persist(batch_id: uuid.UUID, job_id: str, persisted: int) -> None:
         _progress(batch_id, "done", None, {"documents": attached}, status="prioritized", conn=conn)
         audit(conn, "batch", str(batch_id), "batch.prioritized", {"gaps_scored": summary.gaps_scored},
               actor=SETTINGS.actor)
+    metrics.PATIENTS_PROCESSED.inc(len(loaded.patient_ids))
 
 
 def _scored(summary) -> dict:
@@ -222,6 +228,7 @@ def start_recalculation(measure_ids: list[str] | None) -> str:
 def _recalculate(batch_id: uuid.UUID, job_id: str, measure_ids: list[str] | None) -> None:
     step = "measuring"
     try:
+        metrics.BATCH_RUNNING.set(1)
         with db.connect() as conn:
             patient_ids, attributed = team_schema_loader.job_patients(conn, job_id)
             run = measures.run_measures(conn, list(patient_ids), attributed, batch_id.hex[:8],
@@ -243,6 +250,7 @@ def _recalculate(batch_id: uuid.UUID, job_id: str, measure_ids: list[str] | None
     except Exception as exc:  # noqa: BLE001 - every failure is recorded on the batch with its step and reason
         _fail(batch_id, step, exc)
     finally:
+        metrics.BATCH_RUNNING.set(0)
         _ONE_AT_A_TIME.release()
 
 
@@ -333,11 +341,20 @@ def _progress(batch_id: uuid.UUID, next_step: str, event: str | None = None, cou
     if event:
         _event(conn, batch_id, event, counts or {})
     log.info("batch %s: %s", batch_id, event or next_step)
+    if next_step == "done":
+        metrics.batch_ended(batch_id)
+    else:
+        metrics.step_started(batch_id, next_step)
+    if status == "prioritized":
+        metrics.BATCHES.labels("prioritized").inc()
 
 
 def _fail(batch_id: uuid.UUID, step: str, exc: Exception) -> None:
     reason = f"{type(exc).__name__}: {(str(exc).splitlines() or [''])[0][:300]}"
     log.error("batch %s failed while %s: %s", batch_id, step, type(exc).__name__)
+    metrics.batch_ended(batch_id)
+    metrics.BATCHES.labels("failed").inc()
+    metrics.BATCH_FAILURES.labels(step).inc()
     with db.connect() as conn:
         conn.execute("""UPDATE batch_run SET status = 'failed', step = %s, error = %s, updated_at = now()
                          WHERE batch_id = %s""", (step, reason, str(batch_id)))

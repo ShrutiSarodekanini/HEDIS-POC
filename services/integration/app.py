@@ -23,6 +23,7 @@ from fastapi import APIRouter, Depends, FastAPI, File, HTTPException, Request, U
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.routing import APIRoute
 from fastapi.staticfiles import StaticFiles
+from prometheus_fastapi_instrumentator import Instrumentator
 from pydantic import BaseModel
 
 from services.data_ingestion.app import api as ingestion_api
@@ -61,6 +62,8 @@ def _ingestion_routes() -> APIRouter:
 app = FastAPI(title="HEDIS POC integration", version="0.1.0", lifespan=_lifespan)
 app.mount("/assets", StaticFiles(directory=UI_DIR), name="assets")
 app.include_router(_ingestion_routes(), prefix="/api/ingestion")
+# handler is the route template (/api/gaps/{gap_id}), so ids in paths never become label values.
+Instrumentator().instrument(app).expose(app, endpoint="/metrics", include_in_schema=False)
 
 
 def get_conn() -> Iterator[psycopg.Connection]:

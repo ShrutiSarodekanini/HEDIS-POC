@@ -1,0 +1,22 @@
+# Prometheus for the integration app. Started by scripts/run_demo.ps1 -Observability, which renders
+# ../.observability/prometheus.yml first. Stop: docker compose -f observability/docker-compose.yml down
+services:
+  prometheus:
+    image: prom/prometheus:v3.5.0
+    container_name: hedis-prometheus
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=15d
+    ports:
+      - "9090:9090"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - ../.observability/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./alerts.yml:/etc/prometheus/alerts.yml:ro
+      - prometheus-data:/prometheus
+    restart: unless-stopped
+
+volumes:
+  prometheus-data:

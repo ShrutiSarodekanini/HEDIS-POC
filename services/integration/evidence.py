@@ -30,12 +30,13 @@ from services.evidence_extraction.validator import parse_findings, validate
 from services.gap_priority.config import load_rules
 from services.gap_priority.runner import score_all
 
-from . import parts, stars
+from . import metrics, parts, stars
 from .config import SETTINGS
 
 log = logging.getLogger(__name__)
 
 DECISIONS = {"confirm": "confirmed", "reject": "rejected"}
+_DECISION_METRIC = {"confirmed": "approved", "rejected": "rejected"}
 
 
 class Conflict(ValueError):
@@ -125,7 +126,7 @@ def _attempt(conn: psycopg.Connection, client: OpenRouterClient, capture: _Captu
     kept: list[dict] = []
     dropped: list[dict] = []
     try:
-        result = client.complete(p)
+        result = _complete(client, p)
         findings = parse_findings(result.text)
     except (ModelError, UnusableAnswer) as exc:
         raw = getattr(exc, "raw", None) or (result.text if result else None)
@@ -155,6 +156,25 @@ def _attempt(conn: psycopg.Connection, client: OpenRouterClient, capture: _Captu
          claimed_at)).fetchone()[0]
     conn.commit()
     return {**call, "attempt_id": attempt_id}, [{**k, "attempt_id": attempt_id} for k in kept], dropped
+
+
+def _complete(client: OpenRouterClient, p: Prompt) -> ModelResult:
+    """client.complete with its time, tokens and outcome recorded; any exception is re-raised unchanged."""
+    model = EXTRACTION_SETTINGS.model
+    started = time.perf_counter()
+    try:
+        result = client.complete(p)
+    except Exception as exc:
+        metrics.AI_CALLS.labels(model, metrics.ai_outcome(exc)).inc()
+        raise
+    finally:
+        metrics.AI_CALL_SECONDS.labels(model).observe(time.perf_counter() - started)
+    metrics.AI_CALLS.labels(model, "ok").inc()
+    if result.prompt_tokens is not None:
+        metrics.AI_TOKENS.labels(model, "prompt").inc(result.prompt_tokens)
+    if result.output_tokens is not None:
+        metrics.AI_TOKENS.labels(model, "output").inc(result.output_tokens)
+    return result
 
 
 def _already_proposed(conn: psycopg.Connection, gap_id: str, document_id: str, page_no: int, start: int,
@@ -248,6 +268,7 @@ def decide(conn: psycopg.Connection, evidence_id: str, decision: str, reason: st
     audit(conn, "evidence", evidence_id, f"evidence.{status}",
           {"gap_id": str(gap_id), "review_status": review_status}, actor=reviewer)
     conn.commit()
+    metrics.AI_REVIEW_DECISIONS.labels(_DECISION_METRIC[status]).inc()
     summary = score_all(conn, date.today(), load_rules())
     conn.commit()
     scenario_id = _star_scenario(conn, gap_id, reviewer)
