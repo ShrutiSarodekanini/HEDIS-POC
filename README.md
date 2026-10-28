@@ -45,6 +45,16 @@ scrapes every 15s and keeps 15 days. Stop the Docker one with
 `docker compose -f observability/docker-compose.yml down`. The metrics and alerts are listed in
 [docs/design/observability-prometheus.md](docs/design/observability-prometheus.md).
 
+In Docker the script also starts Grafana at http://localhost:3000. It opens straight on the "HEDIS pipeline"
+dashboard and needs no login to view. Editing needs the admin login: user `admin`, with the password from
+`GRAFANA_ADMIN_PASSWORD` in `.env` or the shell (default `admin`). Grafana listens on this machine only, and the same
+`down` command stops it with Prometheus.
+
+A second dashboard, "HEDIS run history" (link "Run history" at the top of the first), reads the app's database and
+lists every batch, AI call, quality check, engine run and review with its status, timing and exact error text. It
+uses a read-only login: a superuser runs `observability/grafana/readonly_role.sql` once (after the lead's OK) and sets
+its password, and the same value goes in `.env` as `GRAFANA_DB_PASSWORD`. Until then its panels show a login error.
+
 Useful queries (Prometheus, Graph tab):
 
 ```

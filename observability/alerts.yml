@@ -22,3 +22,12 @@ groups:
           severity: warning
         annotations:
           summary: The measure engine crashed and was retried in the last 30 minutes.
+
+      - alert: HedisAppDown
+        expr: up{job="hedis-integration"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: The HEDIS integration app is not answering /metrics
+          description: Prometheus could not scrape the app for over a minute. Check that it is running.

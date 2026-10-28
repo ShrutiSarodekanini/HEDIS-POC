@@ -23,7 +23,8 @@
 # EXTRACTION_MODEL and EXTRACTION_MAX_OUTPUT_TOKENS come from .env; the token limit defaults to 32768.
 # -Observability (with -Integration): the app's metrics are at http://localhost:<port>/metrics; this also starts
 # Prometheus on http://localhost:9090 in Docker when it is running, else PROMETHEUS_EXE or prometheus.exe on PATH.
-# Nothing is downloaded. Stop the Docker one with: docker compose -f observability/docker-compose.yml down
+# In Docker it also starts Grafana on http://localhost:3000 (dashboard HEDIS pipeline); Grafana needs Docker.
+# Nothing is downloaded. Stop both Docker ones with: docker compose -f observability/docker-compose.yml down
 
 param([switch]$Setup, [switch]$Integration, [string]$Schema = "", [string]$EvidenceDir = "data/evidence_store",
       [string]$UiDir = "services/integration/ui/redesign", [switch]$AllowReset, [switch]$Observability)
@@ -57,12 +58,24 @@ function Start-Observability([string]$Port) {
     [System.IO.File]::WriteAllText($config, $template.Replace("__TARGET__", $target))   # UTF-8 without a BOM
     Write-Host "`n== Metrics: http://localhost:$Port/metrics (Prometheus target $target)" -ForegroundColor Cyan
     if ($useDocker) {
+        # docker compose does not read the root .env, so pass the Grafana passwords on for this process only.
+        foreach ($key in "GRAFANA_ADMIN_PASSWORD", "GRAFANA_DB_PASSWORD") {
+            if (-not [Environment]::GetEnvironmentVariable($key) -and $envText -match "(?m)^\s*$key\s*=\s*(\S.*?)\s*$") {
+                [Environment]::SetEnvironmentVariable($key, $Matches[1].Trim('"', "'"), "Process")
+            }
+        }
+        if (-not $env:GRAFANA_DB_PASSWORD) {
+            Write-Host "Run history dashboard: set GRAFANA_DB_PASSWORD in .env (see observability/grafana/readonly_role.sql)" `
+                -ForegroundColor Yellow
+        }
         & docker compose -f observability/docker-compose.yml up -d
         if ($LASTEXITCODE -ne 0) {
             Write-Host "Warning: Prometheus did not start in Docker; the app starts anyway." -ForegroundColor Yellow
         } else {
-            Write-Host "Prometheus: http://localhost:9090 (stop: docker compose -f observability/docker-compose.yml down)" `
-                -ForegroundColor Cyan
+            Write-Host "Prometheus: http://localhost:9090" -ForegroundColor Cyan
+            Write-Host ("Grafana: http://localhost:3000 (dashboards HEDIS pipeline and HEDIS run history; admin login " +
+                "only to edit)") -ForegroundColor Cyan
+            Write-Host "Stop both: docker compose -f observability/docker-compose.yml down" -ForegroundColor Cyan
         }
     } elseif ($exe) {
         Copy-Item (Join-Path $RepoRoot "observability/alerts.yml") (Join-Path $dir "alerts.yml") -Force
@@ -70,6 +83,7 @@ function Start-Observability([string]$Port) {
         $proc = Start-Process -FilePath $exe -WindowStyle Hidden -PassThru -ArgumentList @(
             "--config.file=`"$config`"", "--storage.tsdb.path=`"$data`"", "--storage.tsdb.retention.time=15d")
         Write-Host "Prometheus: http://localhost:9090 (stop: Stop-Process -Id $($proc.Id))" -ForegroundColor Cyan
+        Write-Host "Grafana is not started: it needs Docker (Rancher Desktop or Docker Desktop)." -ForegroundColor Yellow
     } else {
         Write-Host ("Prometheus not started: start Rancher Desktop or Docker Desktop, or install Prometheus and set " +
             "PROMETHEUS_EXE. The app starts anyway.") -ForegroundColor Yellow

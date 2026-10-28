@@ -1,0 +1,20 @@
+# Connects Grafana to the app's Postgres for the run history dashboard, as the read-only login from
+# observability/grafana/readonly_role.sql. The password comes from GRAFANA_DB_PASSWORD (set by run_demo.ps1).
+apiVersion: 1
+
+datasources:
+  - name: HEDIS database
+    type: grafana-postgresql-datasource
+    uid: hedis-postgres
+    access: proxy
+    url: host.docker.internal:5432
+    user: hedis_grafana_ro
+    isDefault: false
+    editable: false
+    jsonData:
+      database: HEDISPOCDB
+      sslmode: disable
+      postgresVersion: 1600
+      timescaledb: false
+    secureJsonData:
+      password: $GRAFANA_DB_PASSWORD
