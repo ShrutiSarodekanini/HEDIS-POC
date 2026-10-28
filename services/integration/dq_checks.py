@@ -1,8 +1,8 @@
-"""The integration's bridge to Pallavi's data quality checks: her rule set and thresholds, run on the team tables.
+"""The integration's bridge to the data quality checks: their rule set and thresholds, run on the team tables.
 
-Her worker (services/data_quality_pallavi/main.py) reads her own tables, which reuse the lead's table names with
-different columns, so it cannot run on the one schema the app uses. This module runs the same checks, with her rule
-file read as it is (services/data_quality_pallavi/config/dq_rules.json) and her thresholds, over the team tables. Her
+The worker (services/data_quality_rules/main.py) reads its own tables, which reuse the lead's table names with
+different columns, so it cannot run on the one schema the app uses. This module runs the same checks, with the rule
+file read as it is (services/data_quality_rules/config/dq_rules.json) and its thresholds, over the team tables. Those
 files are not changed. Results go where the team schema keeps them: anomalies in data_anomaly (plus
 data_anomaly_detail), the batch's record counts in feed_completeness_report, and the run with every check in
 quality_run and quality_check_result (migration 0007).
@@ -12,9 +12,9 @@ Where each input comes from on the team tables:
 - codes: the batch's observation, condition, procedure, medication_request and immunization rows
 - observation unit: valueQuantity.unit of the stored resource (fhir_resource_raw); value: observation.value_quantity
 - validation errors: validation_issues of the batch's ingestion job
-- enrollment gaps: each patient's coverage periods, with her gap rule (detect_enrollment_gaps) in SQL
+- enrollment gaps: each patient's coverage periods, with the gap rule (detect_enrollment_gaps) in SQL
 
-Her multi-source ingestion (EHR FHIR, C-CDA, claims 837 and NCPDP adapters) writes her own tables and has no
+The multi-source ingestion (EHR FHIR, C-CDA, claims 837 and NCPDP adapters) writes its own tables and has no
 counterpart here; NOT_AVAILABLE lists it for the screen.
 """
 
@@ -34,9 +34,9 @@ from .config import REPO_ROOT
 
 log = logging.getLogger(__name__)
 
-RULES_PATH = REPO_ROOT / "services" / "data_quality_pallavi" / "config" / "dq_rules.json"
+RULES_PATH = REPO_ROOT / "services" / "data_quality_rules" / "config" / "dq_rules.json"
 
-# Her constants (services/data_quality_pallavi/main.py), kept equal to hers.
+# The worker's constants (services/data_quality_rules/main.py), kept equal to them.
 REQUIRED_RESOURCE_TYPES = ("Patient", "Encounter", "Condition", "Observation", "Coverage")
 MEASURE_RELEVANT_TYPES = {"Patient", "Encounter", "Condition", "Observation", "Procedure", "MedicationRequest",
                           "Coverage"}
@@ -65,7 +65,7 @@ _EVIDENCE_SOURCES = (
     ("required_immunization_codes", "Immunization", "immunization", "vaccine_code"),
 )
 
-# Her enrollment gap rule per patient: days between consecutive periods (sorted by start), positive gaps only; the
+# The enrollment gap rule per patient: days between consecutive periods (sorted by start), positive gaps only; the
 # patient is compliant when every gap is within the limit. Each coverage row carries its patient's total gap days.
 COVERAGE_ROWS = """
 WITH periods AS (
@@ -107,7 +107,7 @@ class _Results:
 
 
 def measure_rules() -> dict[str, dict]:
-    """Her rule file as it is: measure id -> rule."""
+    """The rule file as it is: measure id -> rule."""
     data = json.loads(RULES_PATH.read_text(encoding="utf-8"))
     if not isinstance(data, dict):
         raise ValueError("the data quality rule file must hold one object per measure")
@@ -120,7 +120,7 @@ def phase(rule: dict) -> int:
 
 
 def resolve_measure(measure_id: str | None, rules: dict[str, dict]) -> str | None:
-    """Her measure id normalisation: a rule id, or an alias such as COL-E for COL. None means every measure."""
+    """The measure id normalisation: a rule id, or an alias such as COL-E for COL. None means every measure."""
     if not measure_id:
         return None
     token = measure_id.strip().upper().replace("_", "-").replace(" ", "")
@@ -180,7 +180,7 @@ def run_checks(batch_id: uuid.UUID, measure_id: str | None, actor: str) -> dict:
 
 def _check(conn: psycopg.Connection, run_id: int, batch_id: uuid.UUID, job_id: str, rules: dict[str, dict],
            measure: str | None) -> dict:
-    """Her _run_dq_checks on the team tables, in the caller's transaction. Returns the run summary."""
+    """The _run_dq_checks on the team tables, in the caller's transaction. Returns the run summary."""
     out = _Results()
     counts, feed_report = _feed_counts(conn, batch_id, job_id)
     source_system = conn.execute("SELECT source_system FROM source_batch WHERE batch_id = %s",

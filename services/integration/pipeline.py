@@ -33,7 +33,7 @@ from services.document_intake.db import audit
 from services.gap_priority.config import load_rules
 from services.gap_priority.runner import score_all
 
-from . import measures, pallavi, stored_evidence
+from . import dq_checks, measures, stored_evidence
 from .config import SETTINGS
 
 log = logging.getLogger(__name__)
@@ -88,7 +88,7 @@ def run_batch(upload: Path, batch_id: uuid.UUID) -> None:
 
 
 def start_from_job(job_id: str) -> str:
-    """A batch for an ingestion job that was converted and persisted on the Data Ingestion screen (Jyothi's
+    """A batch for an ingestion job that was converted and persisted on the Data Ingestion screen (the ingestion
     endpoints); our steps continue from loading. Returns the batch_id."""
     batch_id = uuid.uuid4()
     with db.connect() as conn:
@@ -168,7 +168,7 @@ def _check_quality(batch_id: uuid.UUID) -> dict:
     """The data quality checks on the loaded batch. The measures do not read their results, so a failed run does not
     stop the batch: run_checks stores the failure on quality_run with a quality.failed event, and the batch shows it."""
     try:
-        run = pallavi.run_checks(batch_id, None, SETTINGS.actor)
+        run = dq_checks.run_checks(batch_id, None, SETTINGS.actor)
     except Exception as exc:  # noqa: BLE001 - recorded on quality_run and on the batch; the next steps do not need it
         log.error("batch %s: data quality checks failed: %s", batch_id, type(exc).__name__)
         return {"status": "failed", "reason": f"{type(exc).__name__}: {(str(exc).splitlines() or [''])[0][:300]}"}

@@ -681,7 +681,7 @@ def get_measures(batch_id: str | None = None) -> dict:
 @router.post("/run-checks")
 def run_checks(job_id: str, batch_id: str, measure_id: str | None = None, force_rerun: bool = True) -> dict:
     from .models import ConversionJob
-    from services.data_quality_pallavi.main import process_event_by_id
+    from services.data_quality_rules.main import process_event_by_id
 
     with session_scope() as session:
         job = session.get(ConversionJob, job_id)

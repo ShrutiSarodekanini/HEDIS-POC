@@ -11,8 +11,8 @@ from typing import Any
 
 from sqlalchemy import delete, func, select
 
-from services.data_ingestion_pallavi.app.db import session_scope
-from services.data_ingestion_pallavi.app.models import (
+from services.multi_source_ingestion.app.db import session_scope
+from services.multi_source_ingestion.app.models import (
     Condition,
     ConversionJob,
     Coverage,

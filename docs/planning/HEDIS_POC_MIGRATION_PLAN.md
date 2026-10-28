@@ -1,7 +1,6 @@
 # HEDIS-POC Structure Alignment Plan
 
-This repository has been aligned to the top-level structure used by:
-https://github.com/ShrutiSarodekanini/HEDIS-POC
+This repository has been aligned to the top-level structure of the team repository.
 
 Important: The reference repository is currently a skeleton (empty service files). Your local project contains the working implementation, so alignment is done in a non-destructive way.
 

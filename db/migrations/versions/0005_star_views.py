@@ -1,16 +1,16 @@
-"""Read-only views for Pradeep's rate and what-if code: measures and care_gaps over the team tables.
+"""Read-only views for the star rating and what-if code: measures and care_gaps over the team tables.
 
-His compare_measure and get_measure_catalog (common/measure_performance.py) read two tables of his own data model,
-measures and care_gaps, that the team schema does not have. These views give his queries those names over the
-team tables, so his code runs unchanged:
+The compare_measure and get_measure_catalog (common/measure_performance.py) read two tables of its own data model,
+measures and care_gaps, that the team schema does not have. These views give the queries those names over the
+team tables, so the code runs unchanged:
 
 - measures: one row per measure definition, with the measure's name from measure_rule.
 - care_gaps: one row per patient in the latest measure result who is in the denominator and not excluded. The id is
   the care_gap uuid when that patient has a gap for the measure, otherwise 'met-' plus the result's key. status is
   'closed' when the engine counts the patient as met, otherwise 'open'. Gaps a reviewer confirmed
-  (closed_pending_engine) stay 'open': they are the ones his what-if is asked to close.
+  (closed_pending_engine) stay 'open': they are the ones the what-if is asked to close.
 
-No table changes. No members view: his dashboard query falls back to the team tables without it.
+No table changes. No members view: the dashboard query falls back to the team tables without it.
 
 Revision ID: 0005
 Revises: 0004

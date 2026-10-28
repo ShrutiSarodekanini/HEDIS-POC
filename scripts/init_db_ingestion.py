@@ -9,8 +9,8 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from services.data_ingestion_pallavi.app import db
-from services.data_ingestion_pallavi.app import models  # noqa: F401
+from services.multi_source_ingestion.app import db
+from services.multi_source_ingestion.app import models  # noqa: F401
 
 
 def ensure_validation_issue_columns() -> None:
