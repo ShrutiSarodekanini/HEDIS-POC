@@ -18,7 +18,6 @@ from .repository import (
     as_issue_dict,
     as_job_dict,
     as_resource_dict,
-    clear_jobs_for_input_dir,
     enqueue_domain_event,
     list_issues_for_job,
     list_jobs,
@@ -389,20 +388,20 @@ def get_coverage_report(
         if payer:
             filters.append(Coverage.payer == payer)
         if compliance == "Compliant":
-            filters.append(Coverage.continuous_enrollment_compliant == True)
+            filters.append(Coverage.continuous_enrollment_compliant.is_(True))
         elif compliance == "Violation":
-            filters.append(Coverage.continuous_enrollment_compliant == False)
+            filters.append(Coverage.continuous_enrollment_compliant.is_(False))
         if start_date:
             try:
                 dt = datetime.fromisoformat(start_date).date()
                 filters.append(Coverage.period_end >= dt)
-            except:
+            except ValueError:  # an unparseable date filter is ignored, as before
                 pass
         if end_date:
             try:
                 dt = datetime.fromisoformat(end_date).date()
                 filters.append(Coverage.period_start <= dt)
-            except:
+            except ValueError:
                 pass
 
         if filters:

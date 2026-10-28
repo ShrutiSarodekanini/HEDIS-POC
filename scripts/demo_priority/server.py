@@ -156,7 +156,9 @@ def _generate_gap_evidence_document(conn, gap_id: str) -> dict | None:
     file_name = f"EVID-{str(gap_id).replace('-', '')[:12].upper()}-{int(time.time())}.pdf"
     destination = out_dir / file_name
     generate_document("pdf", destination, data)
-    audit(conn, "evidence", str(gap_id), "evidence.document_generated", {"file_name": file_name}, actor="demo_priority")
+    audit(conn, "evidence", str(gap_id), "evidence.document_generated", {"file_name": file_name},
+          # phi-ok: generated from the gap id and time, no patient details
+          actor="demo_priority")
     return {"file_name": file_name, "file_path": str(destination.resolve())}
 
 

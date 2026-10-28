@@ -826,7 +826,7 @@ def _run_dq_checks(
     coverage_violations = session.execute(
         select(func.count(Coverage.id)).where(
             Coverage.batch_id == dq_run.batch_id,
-            Coverage.gap_detected == True,
+            Coverage.gap_detected.is_(True),
             Coverage.gap_days.is_not(None),
             Coverage.gap_days > 45,
         )

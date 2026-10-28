@@ -30,7 +30,6 @@ SYNTHEA_SUPPORTED_FILES: dict[str, dict[str, Any]] = {
     "claims_transactions.csv": {"required": False, "id_col": "Id", "patient_col": "PATIENTID"},
     "devices.csv": {"required": False, "id_col": "UDI", "patient_col": "PATIENT", "encounter_col": "ENCOUNTER"},
     "imaging_studies.csv": {"required": False, "id_col": "Id", "patient_col": "PATIENT", "encounter_col": "ENCOUNTER"},
-    "organizations.csv": {"required": False, "id_col": "Id"},
     "payer_transitions.csv": {"required": False, "id_col": "__row__", "patient_col": "PATIENT"},
     "payers.csv": {"required": False, "id_col": "Id", "patient_required": False},
     "providers.csv": {"required": False, "id_col": "Id", "patient_required": False},

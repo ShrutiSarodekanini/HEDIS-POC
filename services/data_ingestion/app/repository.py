@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import datetime as dt
-from dataclasses import asdict
 from typing import Any
 
 from sqlalchemy import case, delete, func, select, update
@@ -190,7 +189,7 @@ def mark_validated_resources_persisted(session: Session, job_id: str) -> int:
     already_persisted = session.execute(
         select(func.count()).select_from(FhirResource).where(
             (FhirResource.job_id == job_id) & 
-            (FhirResource.persisted == True)
+            (FhirResource.persisted.is_(True))
         )
     ).scalar() or 0
     
@@ -206,7 +205,7 @@ def mark_validated_resources_persisted(session: Session, job_id: str) -> int:
         if sample:
             logger.info(f"[persist] Sample resource: id={sample.id} job_id={sample.job_id} validation_status={sample.validation_status} lifecycle_status={sample.lifecycle_status} persisted={sample.persisted}")
         else:
-            logger.info(f"[persist] Database is completely empty - no resources found anywhere")
+            logger.info("[persist] Database is completely empty - no resources found anywhere")
         return 0
     
     # Update all non-rejected, non-persisted resources
@@ -215,7 +214,7 @@ def mark_validated_resources_persisted(session: Session, job_id: str) -> int:
         .where(
             (FhirResource.job_id == job_id) &
             (FhirResource.lifecycle_status != "rejected") &
-            (FhirResource.persisted == False)
+            (FhirResource.persisted.is_(False))
         )
         .values(
             persisted=True,

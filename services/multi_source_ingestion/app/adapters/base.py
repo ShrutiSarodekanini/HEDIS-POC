@@ -11,7 +11,6 @@ import hashlib
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from collections.abc import Callable, Iterator
-from typing import Any
 
 
 @dataclass

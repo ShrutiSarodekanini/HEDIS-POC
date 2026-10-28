@@ -16,7 +16,9 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # Get database URL
-database_url = os.getenv("DATABASE_URL", "postgresql://postgres:postgres@127.0.0.1:5432/hedis_db")
+database_url = os.getenv("DATABASE_URL")
+if not database_url:
+    sys.exit("DATABASE_URL is not set; add it to the repo-root .env (see .env.example)")
 
 # Extract database name
 db_name = database_url.split("/")[-1]
@@ -140,7 +142,7 @@ try:
         if utilization > 70:
             print(f"  ⚠️  WARNING: Utilization >70% ({utilization:.1f}%)")
         else:
-            print(f"  ✅ OK: Connection pool healthy")
+            print("  ✅ OK: Connection pool healthy")
         
         print("\n" + "=" * 60)
         print("✨ Cleanup complete!")
@@ -148,7 +150,7 @@ try:
         print("   python -m services.multi_source_ingestion.main")
 
 except OperationalError as e:
-    print(f"\n❌ ERROR: Cannot connect to PostgreSQL!")
+    print("\n❌ ERROR: Cannot connect to PostgreSQL!")
     print(f"   {e}")
     print("\n🔧 Troubleshooting:")
     print("   1. Is PostgreSQL running? (Check: pg_isready)")

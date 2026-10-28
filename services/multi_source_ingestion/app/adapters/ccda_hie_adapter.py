@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import datetime as dt
 import hashlib
-import re
 import xml.etree.ElementTree as ET
 from collections.abc import Callable, Iterator
 from pathlib import Path

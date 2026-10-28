@@ -85,7 +85,6 @@ logger = logging.getLogger("uvicorn.error")
 
 def _emit(message: str) -> None:
     logger.info(message)
-    print(message, flush=True)
 
 
 @dataclass
@@ -465,7 +464,7 @@ def _run_streaming_conversion(job_id: str, input_dir: str, adapter: Any) -> None
         job_manager.set_job_status(job_id, final_status)
         _emit(f"[pipeline] job={job_id} streaming_conversion_finished status={final_status} resources={mapped_count}")
     except Exception as exc:
-        logger.exception("[pipeline] job=%s streaming_conversion_failed error=%s", job_id, exc)
+        logger.error("[pipeline] job=%s streaming_conversion_failed error=%s", job_id, type(exc).__name__)
         with session_scope() as session:
             summary["error_count"] = error_count + 1
             summary["error"] = str(exc)
@@ -779,8 +778,7 @@ def run_conversion(job_id: str, input_dir: str, adapter_name: str = "synthea_csv
         )
     except Exception as exc:  # pragma: no cover - defensive error path
         stage(job_id, "csv_input", "failed", str(exc))
-        logger.exception("[pipeline] job=%s conversion_failed error=%s", job_id, exc)
-        print(f"[pipeline] job={job_id} conversion_failed error={exc}", flush=True)
+        logger.error("[pipeline] job=%s conversion_failed error=%s", job_id, type(exc).__name__)
         with session_scope() as session:
             summary["error_count"] = summary.get("error_count", 0) + 1
             summary["timelogs"] = {

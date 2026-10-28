@@ -81,7 +81,9 @@ def main() -> int:
                 found += hit
                 if not hit:
                     problems.append(f"{gap['gap_id']} quote missing in {item['doc']}: {item['quote']}")
-                print(f"   {'ok  ' if hit else 'MISS'} {gap['gap_id']} {item['doc']}: {item['quote']}")
+                print(f"   {'ok  ' if hit else 'MISS'} {gap['gap_id']} {item['doc']}: {item['quote']}",
+                      # phi-ok: developer CLI on synthetic test documents
+                      )
         print(f"\n{found} of {total} evidence quotes are in the converted text.")
 
     if problems:
