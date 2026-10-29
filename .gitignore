@@ -18,6 +18,7 @@ Thumbs.db
 
 # Uploaded originals and page images (contain patient data)
 data/intake_store/
+data/uploads/
 
 # Measure engine (Node) and data ingestion
 node_modules/
@@ -69,6 +70,7 @@ API_TESTING_GUIDE.md
 tests/
 !tests/
 tests/*
+!tests/test_rabbitmq_pipeline.py
 !tests/data_ingestion/
 tests/data_ingestion/*
 !tests/data_ingestion/test_adapter_contract.py

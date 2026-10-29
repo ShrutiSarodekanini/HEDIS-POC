@@ -1,29 +1,38 @@
 from __future__ import annotations
 
+import asyncio
+import json
+import logging
 import shutil
 import time
 import uuid
 import zipfile
+from datetime import datetime, timezone
 from pathlib import Path
 
-from fastapi import APIRouter, File, HTTPException, Request, UploadFile
+from fastapi import APIRouter, File, HTTPException, Request, UploadFile, WebSocket, WebSocketDisconnect
 from starlette.datastructures import UploadFile as StarletteUploadFile
 
+from .adapters import registry
 from .config import settings
 from .db import session_scope
-from .adapters import registry
-from .models import FhirResource
-from .pipeline import STAGES, job_manager, launch_job, run_persist_stage
+from .models import ConversionJob, FhirResource, SourceBatch
+from .pipeline import STAGES, job_manager, run_persist_stage
+from .progress import progress_tracker
 from .repository import (
     as_issue_dict,
     as_job_dict,
     as_resource_dict,
-    clear_jobs_for_input_dir,
     list_issues_for_job,
     list_jobs,
     list_resources_for_job,
 )
+from .repository import (
+    create_job as create_job_record,
+)
 from .synthea import SUPPORTED_FILES, discover_dataset
+
+log = logging.getLogger(__name__)
 
 
 router = APIRouter(prefix="/api", tags=["conversion"])
@@ -36,11 +45,48 @@ def _require_input_dir(input_dir: str) -> str:
     return cleaned
 
 
+def _durable_stages(job: ConversionJob) -> list[dict]:
+    saved_stages = (job.summary or {}).get("timelogs", {}).get("stages", {})
+    if saved_stages:
+        return [{"name": name, **saved_stages.get(name, {})} for name in STAGES]
+
+    statuses = {name: "pending" for name in STAGES}
+    if job.status in {"completed", "partially_completed"}:
+        statuses.update({name: "completed" for name in STAGES})
+        if not job.resources_persisted:
+            statuses["postgresql_storage"] = "pending"
+    elif job.status == "running":
+        statuses["csv_input"] = "running"
+    elif job.status == "failed":
+        statuses["csv_input"] = "failed"
+
+    details = {
+        "csv_input": f"Read {job.total_source_records} source records" if job.total_source_records else "",
+        "mapping": f"Mapped {job.resources_generated} resources" if job.resources_generated else "",
+        "fhir_generation": f"Generated {job.resources_generated} resources" if job.resources_generated else "",
+        "validation": f"Validated {job.resources_validated} resources" if job.resources_validated else "",
+        "postgresql_storage": f"Persisted {job.resources_persisted} resources" if job.resources_persisted else "",
+    }
+    return [
+        {
+            "name": name,
+            "status": statuses[name],
+            "details": details[name],
+            "started_at": None,
+            "completed_at": None,
+            "elapsed_seconds": None,
+        }
+        for name in STAGES
+    ]
+
+
 def _job_status_payload(job_id: str) -> dict:
     state = job_manager.get_state(job_id)
-    if state is None:
-        with session_scope() as session:
-            resources = list_resources_for_job(session, job_id)
+    with session_scope() as session:
+        job = session.get(ConversionJob, job_id)
+        resources = list_resources_for_job(session, job_id) if job is not None else []
+
+    if job is not None and (state is None or job.status != state.status):
         progress: dict[str, dict[str, int]] = {}
         for resource in resources:
             entry = progress.setdefault(
@@ -53,7 +99,17 @@ def _job_status_payload(job_id: str) -> dict:
                 entry["warnings"] += 1
             if resource.lifecycle_status == "rejected":
                 entry["rejected"] += 1
-        return {"job_id": job_id, "status": "unknown", "stages": [], "resource_progress": progress}
+        return {
+            "job_id": job_id,
+            "status": job.status,
+            "started_at": job.started_at.isoformat() if job.started_at else None,
+            "completed_at": job.completed_at.isoformat() if job.completed_at else None,
+            "stages": _durable_stages(job),
+            "resource_progress": progress,
+        }
+
+    if state is None:
+        return {"job_id": job_id, "status": "unknown", "stages": [], "resource_progress": {}}
 
     return {
         "job_id": job_id,
@@ -75,15 +131,23 @@ def _job_status_payload(job_id: str) -> dict:
     }
 
 
-def _detect_adapter_from_files(file_list: list[str]) -> str:
-    """Auto-detect adapter from uploaded file names/extensions.
+def _is_fhir_json(path: Path) -> bool:
+    """Return whether a saved JSON upload declares a FHIR resource type."""
+    try:
+        with path.open("r", encoding="utf-8") as handle:
+            payload = json.load(handle)
+    except (OSError, UnicodeError, json.JSONDecodeError):
+        return False
+    return isinstance(payload, dict) and isinstance(payload.get("resourceType"), str)
+
+
+def _detect_adapter_from_files(file_list: list[str], dataset_dir: Path | None = None) -> str:
+    """Auto-detect an adapter from extensions and saved JSON content.
     
     Returns the most likely adapter name based on file patterns.
     Defaults to 'synthea_csv' if no specific pattern matches.
     
-    FHIR detection uses resource type naming patterns (e.g., practitioner*.json,
-    patient*.json, bundle.json) to avoid false positives on generic .json files.
-    Users can override with the dropdown if detection is incorrect.
+    JSON is considered FHIR only when its top-level object declares resourceType.
     """
     lower_files = {f.lower() for f in file_list}
     
@@ -91,17 +155,12 @@ def _detect_adapter_from_files(file_list: list[str]) -> str:
     if any(f.endswith(('.xml', '.ccda')) for f in lower_files):
         return "ccda_hie"
     
-    # FHIR JSON files → ehr_fhir_r4
-    # Match specific FHIR resource type patterns in filename to avoid false positives
-    # Examples: practitioner*.json, patient*.json, encounter*.json, bundle.json, claim*.json
-    fhir_resource_patterns = (
-        'bundle', 'practitioner', 'patient', 'encounter', 'claim',
-        'medication', 'coverage', 'observation', 'organization', 'provider'
-    )
-    if any(
-        (f.endswith(('.json', '.fhir')) and any(pattern in f for pattern in fhir_resource_patterns))
-        or f.endswith(('bundle.json', '_bundle.json'))
-        for f in lower_files
+    # FHIR files -> ehr_fhir_r4
+    if any(file_name.endswith(".fhir") for file_name in lower_files):
+        return "ehr_fhir_r4"
+    if dataset_dir is not None and any(
+        file_name.endswith(".json") and _is_fhir_json(dataset_dir / file_name)
+        for file_name in lower_files
     ):
         return "ehr_fhir_r4"
     
@@ -155,7 +214,7 @@ async def upload_dataset(request: Request) -> dict:
             detail="No supported Synthea CSV files were uploaded. Include files like patients.csv, encounters.csv, observations.csv, etc.",
         )
 
-    detected_adapter = _detect_adapter_from_files(saved_files)
+    detected_adapter = _detect_adapter_from_files(saved_files, dataset_dir)
     metadata = discover_dataset(str(dataset_dir))
     completed_at = time.time()
     return {
@@ -199,7 +258,7 @@ async def upload_ccda_dataset(request: Request) -> dict:
     if not saved_files:
         raise HTTPException(status_code=400, detail="No C-CDA files were uploaded. Select .xml or .ccda documents.")
 
-    detected_adapter = _detect_adapter_from_files(saved_files)
+    detected_adapter = _detect_adapter_from_files(saved_files, dataset_dir)
     adapter = registry.get_adapter("ccda_hie")
     metadata = adapter.discover(str(dataset_dir))
     completed_at = time.time()
@@ -242,17 +301,14 @@ async def upload_fhir_dataset(request: Request) -> dict:
     if not saved_files:
         raise HTTPException(status_code=400, detail="No FHIR JSON files were uploaded. Upload .json or .fhir files (e.g., bundle.json).")
 
-    detected_adapter = _detect_adapter_from_files(saved_files)
+    detected_adapter = _detect_adapter_from_files(saved_files, dataset_dir)
+    if detected_adapter != "ehr_fhir_r4":
+        raise HTTPException(status_code=400, detail="Uploaded JSON does not contain a FHIR resource.")
     
-    # Try to get metadata from FHIR adapter, but don't fail if discover() not available
-    metadata = None
-    try:
-        adapter = registry.get_adapter("ehr_fhir")
-        if adapter and hasattr(adapter, 'discover'):
-            metadata = adapter.discover(str(dataset_dir))
-    except Exception:
-        # If discovery fails, just continue with basic metadata
-        pass
+    adapter = registry.get_adapter("ehr_fhir_r4")
+    if adapter is None:
+        raise HTTPException(status_code=500, detail="FHIR adapter is unavailable.")
+    metadata = adapter.discover(str(dataset_dir))
     
     completed_at = time.time()
     return {
@@ -294,13 +350,11 @@ async def upload_claims_dataset(request: Request) -> dict:
     if not saved_files:
         raise HTTPException(status_code=400, detail="No Claims 837 files were uploaded. Select .837 EDI files.")
 
-    detected_adapter = _detect_adapter_from_files(saved_files)
+    detected_adapter = _detect_adapter_from_files(saved_files, dataset_dir)
     adapter = registry.get_adapter("claims_837")
-    try:
-        metadata = adapter.discover(str(dataset_dir))
-    except Exception:
-        # If discovery fails, provide basic metadata
-        metadata = None
+    if adapter is None:
+        raise HTTPException(status_code=500, detail="Claims adapter is unavailable.")
+    metadata = adapter.discover(str(dataset_dir))
     
     completed_at = time.time()
     return {
@@ -330,10 +384,10 @@ async def upload_ncpdp_dataset(request: Request) -> dict:
     dataset_dir.mkdir(parents=True, exist_ok=True)
 
     saved_files: list[str] = []
+    supported_extensions = (".ncpdp", ".ncpdp.txt", ".pharmacy", ".rx")
     for uploaded in files:
         target_name = Path(uploaded.filename or "").name.lower()
-        # Accept files that start with ncpdp or end with _ncpdp (no strict extension requirement)
-        if not (target_name.startswith('ncpdp') or '_ncpdp' in target_name):
+        if not target_name.endswith(supported_extensions):
             continue
         with (dataset_dir / target_name).open("wb") as handle:
             shutil.copyfileobj(uploaded.file, handle)
@@ -342,13 +396,11 @@ async def upload_ncpdp_dataset(request: Request) -> dict:
     if not saved_files:
         raise HTTPException(status_code=400, detail="No NCPDP pharmacy files were uploaded. Include files like ncpdp_*.txt or *_ncpdp files.")
 
-    detected_adapter = _detect_adapter_from_files(saved_files)
+    detected_adapter = _detect_adapter_from_files(saved_files, dataset_dir)
     adapter = registry.get_adapter("ncpdp_pharmacy")
-    try:
-        metadata = adapter.discover(str(dataset_dir))
-    except Exception:
-        # If discovery fails, provide basic metadata
-        metadata = None
+    if adapter is None:
+        raise HTTPException(status_code=500, detail="NCPDP adapter is unavailable.")
+    metadata = adapter.discover(str(dataset_dir))
     
     completed_at = time.time()
     return {
@@ -402,7 +454,7 @@ async def upload_dataset_zip(file: UploadFile = File(...)) -> dict:
                     shutil.copyfileobj(src, dst)
                 saved_files.append(member_name)
     except zipfile.BadZipFile as exc:
-        raise HTTPException(status_code=400, detail=f"Invalid ZIP file: {exc}") from exc
+        raise HTTPException(status_code=400, detail="The uploaded ZIP file is invalid.") from exc
 
     if not saved_files:
         raise HTTPException(
@@ -410,7 +462,7 @@ async def upload_dataset_zip(file: UploadFile = File(...)) -> dict:
             detail="ZIP did not contain supported Synthea CSV files (patients.csv, encounters.csv, etc.).",
         )
 
-    detected_adapter = _detect_adapter_from_files(saved_files)
+    detected_adapter = _detect_adapter_from_files(saved_files, dataset_dir)
     metadata = discover_dataset(str(dataset_dir))
     completed_at = time.time()
     return {
@@ -475,7 +527,8 @@ def inspect_dataset(input_dir: str) -> dict:
 
 
 @router.post("/jobs/start")
-def start_conversion_job(input_dir: str, adapter_name: str = "synthea_csv") -> dict:
+def start_conversion_job(input_dir: str, adapter_name: str = "synthea_csv",
+                         async_processing: bool = False) -> dict:
     cleaned = _require_input_dir(input_dir)
     path = Path(cleaned)
     if not path.exists() or not path.is_dir():
@@ -487,9 +540,33 @@ def start_conversion_job(input_dir: str, adapter_name: str = "synthea_csv") -> d
     metadata = adapter.discover(cleaned)
     if metadata.missing_required_files:
         raise HTTPException(status_code=400, detail={"missing_required_files": metadata.missing_required_files})
-    job_id = job_manager.create_job(cleaned, adapter_name)
-    launch_job(job_id, cleaned, adapter_name)
-    return {"job_id": job_id, "status": "started", "adapter": adapter_name}
+    # Queueing is mandatory: the sync launch path is retired in favor of RabbitMQ workers.
+    if not async_processing:
+        log.info("/jobs/start called with async_processing=false; using queued processing")
+
+    try:
+        from services.rabbitmq_messages import ConversionMessage
+        from services.reliable_messaging import enqueue_outbox_session
+
+        with session_scope() as session:
+            job = create_job_record(session, cleaned, adapter_name)
+            job_id = job.id
+            batch_id = str(job.batch_id)
+            message = ConversionMessage(
+                batch_id=batch_id,
+                job_id=job_id,
+                source_system="synthea" if adapter_name == "synthea_csv" else adapter_name,
+                file_path=cleaned,
+                file_type="csv",
+                adapter_name=adapter_name,
+            )
+            enqueue_outbox_session(session, "ingestion.convert", message)
+        job_manager.ensure_state(job_id, batch_id)
+    except Exception as exc:
+        log.error("Could not create queued ingestion job: %s", type(exc).__name__)
+        raise HTTPException(status_code=503, detail="The ingestion job could not be queued.") from exc
+
+    return {"job_id": job_id, "batch_id": batch_id, "status": "queued", "adapter": adapter_name}
 
 
 @router.post("/jobs/{job_id}/persist")
@@ -525,9 +602,10 @@ def get_job(job_id: str) -> dict:
 
 @router.get("/jobs/{job_id}/status")
 def get_job_status(job_id: str) -> dict:
-    if job_manager.get_state(job_id) is None:
+    payload = _job_status_payload(job_id)
+    if payload["status"] == "unknown":
         raise HTTPException(status_code=404, detail="Job not found")
-    return _job_status_payload(job_id)
+    return payload
 
 
 @router.get("/jobs/{job_id}/resources")
@@ -582,9 +660,11 @@ def get_coverage_report(
     limit: int = 1000,
 ) -> dict:
     """Get coverage data with optional filtering for gap analysis dashboard."""
-    from .models import Coverage
     from datetime import datetime
-    from sqlalchemy import select, and_
+
+    from sqlalchemy import and_, select
+
+    from .models import Coverage
 
     with session_scope() as session:
         query = select(Coverage)
@@ -594,20 +674,20 @@ def get_coverage_report(
         if payer:
             filters.append(Coverage.payer == payer)
         if compliance == "Compliant":
-            filters.append(Coverage.continuous_enrollment_compliant == True)
+            filters.append(Coverage.continuous_enrollment_compliant.is_(True))
         elif compliance == "Violation":
-            filters.append(Coverage.continuous_enrollment_compliant == False)
+            filters.append(Coverage.continuous_enrollment_compliant.is_(False))
         if start_date:
             try:
                 dt = datetime.fromisoformat(start_date).date()
                 filters.append(Coverage.period_end >= dt)
-            except:
+            except ValueError:
                 pass
         if end_date:
             try:
                 dt = datetime.fromisoformat(end_date).date()
                 filters.append(Coverage.period_start <= dt)
-            except:
+            except ValueError:
                 pass
 
         if filters:
@@ -652,8 +732,9 @@ def get_coverage_report(
 @router.get("/coverage/patient/{patient_id}")
 def get_patient_coverage(patient_id: str) -> dict:
     """Get all coverage records for a specific patient."""
-    from .models import Coverage
     from sqlalchemy import select
+
+    from .models import Coverage
 
     with session_scope() as session:
         coverages = session.execute(
@@ -711,16 +792,29 @@ def get_coverage_gaps(coverage_id: str) -> dict:
 # ========== Integration/Measures Support Functions ==========
 
 def _extract_root_library_reference(path: str | Path) -> str:
-    """Extract root library reference from a measure bundle or library path.
-    
-    Used by integration/measures.py to identify the main library
-    in a FHIR measure implementation guide.
-    """
-    if isinstance(path, str):
-        path = Path(path)
-    
-    # Default to library name from filename
-    return path.stem or "Library/root"
+    """Extract the root Library id from a FHIR Measure or measure Bundle."""
+    definition_path = Path(path)
+    try:
+        definition = json.loads(definition_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise ValueError("measure definition could not be read as JSON") from exc
+
+    resources = [definition]
+    if definition.get("resourceType") == "Bundle":
+        resources = [entry.get("resource", {}) for entry in definition.get("entry", [])
+                     if isinstance(entry, dict)]
+
+    for resource in resources:
+        if resource.get("resourceType") != "Measure":
+            continue
+        for reference in resource.get("library", []):
+            if not isinstance(reference, str):
+                continue
+            library_id = reference.split("|", 1)[0].rstrip("/").rsplit("/", 1)[-1]
+            if library_id:
+                return library_id
+
+    raise LookupError("measure definition has no root library reference")
 
 
 def _maybe_prune_run_request_bundle(bundle: dict, measure_id: str, path: str | Path) -> None:
@@ -741,27 +835,184 @@ def _maybe_prune_run_request_bundle(bundle: dict, measure_id: str, path: str | P
         ]
 
 
-def _to_member_result(entry: dict, measure_id: str) -> dict:
-    """Convert a FHIRPath evaluation entry to a member result object.
-    
-    Transforms a single evaluation entry from FQM execution into
-    the format expected by the measures dashboard.
-    Used by integration/measures.py to format individual patient results.
+# --- WebSocket Progress Tracking -----------------------------------------------
+
+@router.websocket("/ws/batch/{batch_id}")
+async def websocket_progress(websocket: WebSocket, batch_id: str) -> None:
     """
-    if not isinstance(entry, dict):
-        return {"member_id": None, "result": None}
-    
-    # Extract patient reference if present
-    resource = entry.get("resource", {})
-    subject = resource.get("subject", {})
-    member_id = subject.get("reference", "").replace("Patient/", "") if isinstance(subject, dict) else None
-    
-    # Construct result object
-    return {
-        "member_id": member_id,
-        "measure_id": measure_id,
-        "resource_type": resource.get("resourceType"),
-        "status": resource.get("status"),
-        "result": entry.get("result"),
-        "expression_name": entry.get("expression"),
+    WebSocket endpoint for live progress updates on batch processing.
+
+    Clients connect with: ws://localhost:8780/api/ws/batch/{batch_id}
+
+    Receives messages:
+    - {"stage": "conversion", "status": "starting", "details": {...}}
+    - {"stage": "conversion", "status": "processing", "details": {"pct": 45}}
+    - {"stage": "conversion", "status": "complete", "details": {...}}
+
+    Connect and stay open to receive live updates as workers process the batch.
+    """
+    await websocket.accept()
+    progress_tracker.register(batch_id, websocket)
+
+    # Send current progress if available
+    current_progress = progress_tracker.get_progress(batch_id)
+    if current_progress:
+        await websocket.send_json({
+            "type": "initial_state",
+            "progress": current_progress,
+        })
+
+    try:
+        previous = None
+        while True:
+            current = progress_tracker.get_progress(batch_id)
+            if current and current != previous:
+                await websocket.send_json({"type": "progress", "progress": current})
+                previous = current
+            await asyncio.sleep(1)
+    except WebSocketDisconnect:
+        progress_tracker.unregister(batch_id, websocket)
+
+
+@router.get("/batch/{batch_id}/progress")
+def get_batch_progress(batch_id: str) -> dict:
+    """
+    Get current progress of a batch.
+
+    Returns progress data showing what stage it's in and status of each worker.
+    """
+    progress = progress_tracker.get_progress(batch_id)
+    if not progress:
+        raise HTTPException(status_code=404, detail=f"No progress found for batch {batch_id}")
+    return progress
+
+
+@router.get("/progress")
+def get_all_progress() -> dict:
+    """Get progress for all active batches."""
+    return {"batches": progress_tracker.get_all_progress()}
+
+
+# --- RabbitMQ Pipeline Integration -----------------------------------------------
+
+@router.post("/upload-async")
+async def upload_file_to_pipeline(file: UploadFile = File(...)) -> dict:
+    """
+    Upload a file to start the async data ingestion pipeline via RabbitMQ.
+
+    - Accepts CSV, JSON, FHIR, C-CDA, Claims 837, and NCPDP files
+    - Creates a source batch record in database
+    - Publishes message to RabbitMQ for asynchronous processing by ConversionWorker
+    - Returns batch_id to track progress
+
+    Example:
+        curl -X POST -F "file=@patients.csv" http://localhost:8780/api/ingestion/upload-async
+
+    Response:
+        {
+            "batch_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+            "status": "processing",
+            "message": "Upload accepted. Processing started."
+        }
+    """
+    try:
+        # Import here to avoid circular dependencies
+        from services.rabbitmq_messages import ConversionMessage
+        from services.reliable_messaging import enqueue_outbox_session
+
+        # Generate batch ID
+        batch_id = str(uuid.uuid4())
+
+        original_name = (file.filename or "").lower()
+        suffix = Path(original_name).suffix
+        file_type_map = {
+            ".837": ("837", ".837"),
+            ".ccda": ("ccda", ".ccda"),
+            ".csv": ("csv", ".csv"),
+            ".fhir": ("fhir", ".fhir"),
+            ".json": ("json", ".json"),
+            ".ndjson": ("ndjson", ".ndjson"),
+            ".ncpdp": ("ncpdp", ".ncpdp"),
+            ".rx": ("rx", ".rx"),
+            ".txt": ("csv", ".csv"),
+            ".xml": ("xml", ".xml"),
+        }
+        if original_name.endswith(".ncpdp.txt"):
+            file_type, stored_suffix = "ncpdp", ".ncpdp"
+        elif suffix in file_type_map:
+            file_type, stored_suffix = file_type_map[suffix]
+        else:
+            raise HTTPException(status_code=400, detail="The uploaded file type is not supported.")
+
+        # Create uploads directory if it doesn't exist
+        upload_root = Path(".") / "data" / "uploads" / batch_id
+        upload_root.mkdir(parents=True, exist_ok=True)
+
+        # Generated names prevent patient details in client filenames from entering storage.
+        file_path = upload_root / f"source{stored_suffix}"
+        contents = await file.read()
+        with open(file_path, "wb") as f:
+            f.write(contents)
+
+        log.info("Async upload stored: batch_id=%s, size=%d bytes", batch_id, len(contents))
+
+        message = ConversionMessage(
+            batch_id=batch_id,
+            source_system="api_upload",
+            file_path=str(upload_root),
+            file_type=file_type,
+            priority=0,
+        )
+
+        # Create the batch and its first message in one transaction.
+        with session_scope() as session:
+            source_batch = SourceBatch(
+                batch_id=batch_id,
+                source_system="api_upload",
+                status="running",
+                resource_count=None,
+                started_at=datetime.now(timezone.utc)
+            )
+            session.add(source_batch)
+            enqueue_outbox_session(session, "ingestion.convert", message)
+        log.info("SourceBatch and conversion outbox message created: batch_id=%s", batch_id)
+
+        return {
+            "batch_id": batch_id,
+            "status": "processing",
+            "message": "Upload accepted. Processing started via RabbitMQ pipeline.",
+        }
+
+    except Exception as exc:
+        log.error("Async upload failed: %s", type(exc).__name__)
+        raise HTTPException(status_code=500, detail="The upload could not be queued.") from exc
+
+
+def _to_member_result(entry: dict, measure_id: str) -> dict:
+    """Convert one detailed fqm-execution result into the integration result shape."""
+    if not isinstance(entry, dict) or not isinstance(entry.get("patientId"), str):
+        raise ValueError(f"engine result for {measure_id} has no patient id")
+
+    populations = {
+        "initial_population": False,
+        "denominator": False,
+        "numerator": False,
+        "denominator_exclusion": False,
     }
+    population_keys = {
+        "initial-population": "initial_population",
+        "denominator": "denominator",
+        "numerator": "numerator",
+        "denominator-exclusion": "denominator_exclusion",
+    }
+    for group in entry.get("detailedResults", []):
+        if not isinstance(group, dict):
+            continue
+        for population in group.get("populationResults", []):
+            if not isinstance(population, dict):
+                continue
+            key = population_keys.get(population.get("populationType"))
+            if key:
+                populations[key] = populations[key] or population.get("result") is True
+
+    return {"member_id": entry["patientId"], "measure_id": measure_id, "populations": populations}
