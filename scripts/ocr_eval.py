@@ -200,7 +200,7 @@ def main() -> None:
             print(f"{r['doc']:8} {r['engine']}: {r['note']}, page confidence {r['conf']}")
     if args.show_text:
         for r in rows:
-            print(f"\n--- {r['doc']} {r['engine']}\n{r['text']}")
+            print(f"\n--- {r['doc']} {r['engine']}\n{r['text']}")  # phi-ok: developer CLI on synthetic test documents
 
 
 if __name__ == "__main__":

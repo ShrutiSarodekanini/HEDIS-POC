@@ -4,8 +4,6 @@ from dataclasses import dataclass
 from typing import Any
 
 from services.star_modeler.main import (
-    CMS_MEASURE_SET_URL,
-    CMS_RATING_YEAR,
     CMS_TECHNICAL_NOTES_URL,
 )
 

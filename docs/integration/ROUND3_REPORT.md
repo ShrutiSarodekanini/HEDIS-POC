@@ -1,6 +1,6 @@
 # Round 3 report (branch ui-integration, schema ui20, port 8785)
 
-No schema change, no change to teammates' files (Jyothi's ingestion, Pradeep's `common/` and `star_modeler`, the
+No schema change, no change to teammates' files (the ingestion code, the star rating `common/` and `star_modeler`, the
 lead's tables), no tests, no commits. Every record below is referred to by internal ID; no names or document text.
 
 ## Files changed
@@ -14,11 +14,11 @@ lead's tables), no tests, no commits. Every record below is referred to by inter
 | services/integration/evidence.py | already-proposed findings recorded in `extraction_attempts.dropped`; part stored with the reason; gap status from `parts` |
 | services/integration/export.py | exports only gaps in `closed_pending_engine` or `excluded_pending_engine` |
 | services/integration/work.py | gap panel fields; each finding gets `part`, `context`, `rule_check`, `attempt`; `ai_runs` gets pages sent, raw answer, prompt version; measures report ready and waiting-for-parts counts |
-| services/integration/pipeline.py | a batch is one zip or a folder of CSVs; CSVs go through Jyothi's `upload_dataset` |
+| services/integration/pipeline.py | a batch is one zip or a folder of CSVs; CSVs go through the ingestion `upload_dataset` |
 | services/integration/app.py | `POST /api/batches` takes `file` (one zip) or `files` (CSVs); refuses empty, mixed, several zips, other types, unsafe names |
 | services/integration/measures.py | engine retried once after 5 s when it crashes (negative exit code, 4294967295, or no output at all) |
 | services/integration/ui/redesign/index.html, app.js, styles.css | multi-file upload; finding box (GAP, FINDING, WHY, CHECK, QUOTE, IMPACT, AI RUN); gap panel on Evidence Review and on a Prioritization row click |
-| docs/integration/PRADEEP_INTEGRATION.md | rounding note corrected (KED exclusion 5/8 and COL-E 10/17 cases) |
+| docs/integration/STAR_RATING_INTEGRATION.md | rounding note corrected (KED exclusion 5/8 and COL-E 10/17 cases) |
 
 ## How the frailty part is stored
 

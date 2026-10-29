@@ -1,7 +1,7 @@
 # Schema alignment with the team schema
 
 Migration `db/migrations/versions/0003_align_team_schema.py` replaces our 0001/0002 tables with the team schema
-(Schema design.drawio, from the lead) **exactly as drawn**, plus our own tables linked to it. The team tables are
+([Schema design.drawio](../architecture/Schema%20design.drawio.html), from the lead) **exactly as drawn**, plus our own tables linked to it. The team tables are
 never changed: no added or renamed columns. Value lists and ranges written next to columns in the diagram are CHECK
 constraints; "append-only" tables refuse updates and deletes; our review rules are triggers on the team tables
 (agreed: triggers add protection, they do not change columns).
