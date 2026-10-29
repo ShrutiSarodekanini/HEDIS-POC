@@ -37,8 +37,7 @@ from services.document_intake.db import audit
 from services.gap_priority.config import load_rules
 from services.gap_priority.runner import score_all
 
-from . import dq_checks, measures, stored_evidence
-from . import pallavi
+from . import calculation, dq_checks, measures
 from .config import SETTINGS
 
 log = logging.getLogger(__name__)
@@ -254,7 +253,7 @@ def watch_ingestion(stop: threading.Event, every_seconds: float = 3.0) -> None:
 
 
 def start_recalculation(measure_ids: list[str] | None, selected_patient_ids: list[str]) -> str:
-    """Run selected patients from the latest ready batch, then prioritize their resulting gaps."""
+    """Run selected persisted patients, then prioritize their resulting gaps."""
     if not selected_patient_ids:
         raise ValueError("Select at least one patient before starting the calculation.")
     with db.connect() as conn:
@@ -262,14 +261,14 @@ def start_recalculation(measure_ids: list[str] | None, selected_patient_ids: lis
                                WHERE status IN ('ready', 'prioritized') AND ingest_job_id IS NOT NULL
                                ORDER BY started_at DESC LIMIT 1""").fetchone()
         if row is not None:
-            available_ids, _ = team_schema_loader.job_patients(conn, row[1])
+            available_ids = calculation.run_candidate_ids(conn)
     if row is None:
         raise LookupError("No calculation-ready batch yet. Ingest and persist a batch first.")
-    batch_id, job_id = uuid.UUID(row[0]), row[1]
+    batch_id = uuid.UUID(row[0])
     available = set(available_ids)
     selected = list(dict.fromkeys(selected_patient_ids))
     if unknown := set(selected) - available:
-        raise ValueError(f"{len(unknown)} selected patients are not in the latest calculation-ready batch.")
+        raise ValueError(f"{len(unknown)} selected patients are not available for calculation.")
     if not _ONE_AT_A_TIME.acquire(blocking=False):
         raise ValueError("A batch is running. Wait for it to finish, then run the calculation.")
     try:
@@ -278,20 +277,25 @@ def start_recalculation(measure_ids: list[str] | None, selected_patient_ids: lis
     except Exception:
         _ONE_AT_A_TIME.release()
         raise
-    threading.Thread(target=_recalculate, args=(batch_id, job_id, measure_ids, selected), name=f"calc-{batch_id}",
+    threading.Thread(target=_recalculate, args=(batch_id, measure_ids, selected), name=f"calc-{batch_id}",
                      daemon=True).start()
     return str(batch_id)
 
 
-def _recalculate(batch_id: uuid.UUID, job_id: str, measure_ids: list[str] | None, selected_patient_ids: list[str]) -> None:
+def _recalculate(batch_id: uuid.UUID, measure_ids: list[str] | None, selected_patient_ids: list[str]) -> None:
     step = "measuring"
     try:
         with db.connect() as conn:
-            patient_ids, attributed = team_schema_loader.job_patients(conn, job_id)
-            selected_set = set(selected_patient_ids)
-            selected = [patient_id for patient_id in patient_ids if patient_id in selected_set]
-            selected_attributed = {patient_id: attributed.get(patient_id) for patient_id in selected}
-            run = measures.run_measures(conn, selected, selected_attributed, batch_id.hex[:8],
+            selected = list(dict.fromkeys(selected_patient_ids))
+            attributed = dict.fromkeys(selected)
+            attributed.update(dict(conn.execute(
+                """SELECT patient_id, mode() WITHIN GROUP (ORDER BY organization_id)
+                     FROM encounter
+                    WHERE organization_id IS NOT NULL AND patient_id = ANY(%s)
+                    GROUP BY patient_id""",
+                (selected,),
+            ).fetchall()))
+            run = measures.run_measures(conn, selected, attributed, batch_id.hex[:8],
                                         measure_ids=measure_ids)
             engine = run.counts()
             _event(conn, batch_id, "measures.received",

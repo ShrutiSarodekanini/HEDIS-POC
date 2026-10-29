@@ -48,52 +48,37 @@ SELECT r.patient_id, r.in_denominator, r.in_numerator, coalesce(r.excluded, fals
  ORDER BY (g.status = 'open') DESC NULLS LAST, r.in_denominator DESC, r.patient_id
 """
 
-_RUN_CANDIDATES = """
-WITH latest_batch AS (
-    SELECT batch_id, ingest_job_id
-      FROM batch_run
-     WHERE status IN ('ready', 'running', 'prioritized') AND ingest_job_id IS NOT NULL
-     ORDER BY started_at DESC
-     LIMIT 1
-),
-batch_size AS (
-    SELECT (a.payload->>'bytes')::bigint AS bytes
-      FROM latest_batch b
-      LEFT JOIN audit_events a
-        ON a.entity_type = 'batch'
-       AND a.entity_id = b.batch_id::text
-       AND a.payload ? 'bytes'
-     ORDER BY a.at DESC
-     LIMIT 1
+_RUN_CANDIDATE_PATIENTS = """
+WITH eligible_patients AS (
+    SELECT DISTINCT ON (r.resource_id) r.resource_id AS patient_id, r.updated_at AS stored_at, r.job_id
+      FROM fhir_resources r
+     WHERE r.resource_type = 'Patient'
+       AND r.persisted
+       AND r.lifecycle_status <> 'rejected'
+     ORDER BY r.resource_id, r.updated_at DESC
 )
-SELECT r.resource_id AS patient_id, r.updated_at AS stored_at, s.bytes AS input_bytes
-  FROM latest_batch b
-  JOIN fhir_resources r
-    ON r.job_id = b.ingest_job_id
-   AND r.resource_type = 'Patient'
-   AND r.persisted
-   AND r.lifecycle_status <> 'rejected'
- CROSS JOIN batch_size s
- ORDER BY r.updated_at DESC, r.resource_id
+"""
+
+_RUN_CANDIDATES = _RUN_CANDIDATE_PATIENTS + """
+SELECT p.patient_id, p.stored_at, s.bytes AS input_bytes
+  FROM eligible_patients p
+  LEFT JOIN LATERAL (
+      SELECT (a.payload->>'bytes')::bigint AS bytes
+        FROM batch_run b
+        JOIN audit_events a
+          ON a.entity_type = 'batch'
+         AND a.entity_id = b.batch_id::text
+         AND a.payload ? 'bytes'
+       WHERE b.ingest_job_id = p.job_id
+       ORDER BY a.at DESC
+       LIMIT 1
+  ) s ON true
+ ORDER BY p.stored_at DESC, p.patient_id
  LIMIT %(limit)s OFFSET %(offset)s
 """
 
-_RUN_CANDIDATE_COUNT = """
-SELECT count(*)
-  FROM batch_run b
-  JOIN fhir_resources r
-    ON r.job_id = b.ingest_job_id
-   AND r.resource_type = 'Patient'
-   AND r.persisted
-   AND r.lifecycle_status <> 'rejected'
- WHERE b.status IN ('ready', 'running', 'prioritized')
-   AND b.ingest_job_id IS NOT NULL
-   AND b.started_at = (
-       SELECT max(started_at)
-         FROM batch_run
-        WHERE status IN ('ready', 'running', 'prioritized') AND ingest_job_id IS NOT NULL
-   )
-"""
+_RUN_CANDIDATE_COUNT = _RUN_CANDIDATE_PATIENTS + "SELECT count(*) FROM eligible_patients"
+_RUN_CANDIDATE_IDS = _RUN_CANDIDATE_PATIENTS + "SELECT patient_id FROM eligible_patients ORDER BY patient_id"
 
 _LATEST_CALCULATION_DURATION = """
 SELECT extract(epoch FROM (b.updated_at - e.run_at))::double precision AS seconds
@@ -153,10 +138,17 @@ def patients(conn: psycopg.Connection, measure_id: str) -> dict:
 
 
 def run_candidates(conn: psycopg.Connection, offset: int, limit: int) -> dict:
-    """Return one small page of stored patients that may be selected for an engine run."""
+    """Return one small page of every stored patient that may be selected for an engine run."""
     page_size = min(max(limit, 1), 10)
     page_offset = max(offset, 0)
     with conn.cursor(row_factory=dict_row) as cur:
         rows = cur.execute(_RUN_CANDIDATES, {"limit": page_size, "offset": page_offset}).fetchall()
         total = cur.execute(_RUN_CANDIDATE_COUNT).fetchone()["count"]
-    return {"patients": rows, "offset": page_offset, "limit": page_size, "total": total}
+        patient_ids = [row["patient_id"] for row in cur.execute(_RUN_CANDIDATE_IDS).fetchall()]
+    return {"patients": rows, "offset": page_offset, "limit": page_size, "total": total, "patient_ids": patient_ids}
+
+
+def run_candidate_ids(conn: psycopg.Connection) -> tuple[str, ...]:
+    """Return all persisted patient IDs accepted by the calculation runner."""
+    with conn.cursor(row_factory=dict_row) as cur:
+        return tuple(row["patient_id"] for row in cur.execute(_RUN_CANDIDATE_IDS).fetchall())

@@ -58,6 +58,16 @@
     };
     ui.candidateBody = $("tbody", {});
     ui.candidateCount = $("span", { class: "note" });
+    ui.candidateAll = $("input", { type: "checkbox", "aria-label": "Select all calculation-ready patients",
+      onchange: e => {
+        const patientIds = (calc.candidates && calc.candidates.patient_ids) || [];
+        for (const patientId of patientIds) {
+          if (e.target.checked) calc.selectedPatients.add(patientId);
+          else calc.selectedPatients.delete(patientId);
+        }
+        renderCandidates();
+        renderRun();
+      } });
     ui.candidatePrev = $("button", { type: "button", class: "btn btn-secondary calc-small", onclick: () => {
       calc.candidateOffset = Math.max(0, calc.candidateOffset - 10);
       loadCandidates();
@@ -70,7 +80,8 @@
       $("div", { class: "calc-section-head" },
         $("span", { class: "field-label" }, "1. Select patients"), ui.candidateCount),
       $("div", { class: "table-wrap calc-candidate-table" }, $("table", { class: "table compact" },
-        $("thead", {}, $("tr", {}, th("Run"), th("Patient ID"), th("Batch upload size"), th("Stored in FHIR"))),
+        $("thead", {}, $("tr", {}, $("th", {}, $("label", { class: "calc-select-all" }, ui.candidateAll, " Select all")),
+          th("Patient ID"), th("Batch upload size"), th("Stored in FHIR"))),
         ui.candidateBody)),
       $("div", { class: "calc-pagination" }, ui.candidatePrev, ui.candidateNext));
     const engineCard = $("section", { class: "card" },
@@ -277,6 +288,7 @@
       const box = $("input", { type: "checkbox", checked: calc.selectedPatients.has(p.patient_id), onchange: e => {
         if (e.target.checked) calc.selectedPatients.add(p.patient_id);
         else calc.selectedPatients.delete(p.patient_id);
+        renderCandidates();
         renderRun();
       } });
       return $("tr", {}, $("td", {}, box), $("td", { class: "mono" }, p.patient_id),
@@ -284,9 +296,14 @@
     }) : [emptyRow(4, calc.candidatesError ? `Could not load stored patients: ${calc.candidatesError}`
       : "No calculation-ready patients are available.")]));
     const total = page ? Number(page.total || 0) : 0;
+    const patientIds = page ? page.patient_ids || [] : [];
+    const selected = patientIds.filter(patientId => calc.selectedPatients.has(patientId)).length;
+    ui.candidateAll.checked = !!patientIds.length && selected === patientIds.length;
+    ui.candidateAll.indeterminate = selected > 0 && selected < patientIds.length;
+    ui.candidateAll.disabled = !patientIds.length;
     const shownStart = total ? Number(page.offset || 0) + 1 : 0;
     const shownEnd = Math.min(Number(page.offset || 0) + rows.length, total);
-    ui.candidateCount.textContent = total ? `${calc.selectedPatients.size} selected · ${shownStart}-${shownEnd} of ${total}`
+    ui.candidateCount.textContent = total ? `${selected} selected · ${shownStart}-${shownEnd} of ${total}`
       : "";
     ui.candidatePrev.hidden = !page || !page.offset;
     ui.candidateNext.hidden = !page || Number(page.offset || 0) + rows.length >= total;

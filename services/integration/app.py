@@ -48,7 +48,6 @@ from . import (
     evidence,
     export,
     openrouter_status,
-    pallavi,
     pipeline,
     quality,
     reset,
