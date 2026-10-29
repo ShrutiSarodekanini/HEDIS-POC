@@ -12,7 +12,7 @@ team schema has no place for lives in our own tables:
 No team table changes.
 
 Revision ID: 0007
-Revises: 0006
+Revises: 0005
 Create Date: 2026-10-26
 """
 
