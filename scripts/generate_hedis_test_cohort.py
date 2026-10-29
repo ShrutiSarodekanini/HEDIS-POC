@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import csv
-import re
 from collections import defaultdict
 from dataclasses import dataclass, field
 from datetime import datetime, date
@@ -588,7 +587,6 @@ def export_per_patient_tables(csv_dir: Path, out_dir: Path, selected_ids: set[st
 
 def write_validation(out_dir: Path, selected: list[str], matrix: dict[str, dict[str, dict[str, str]]], missing_potential: set[str], missing_any: set[str], row_counts: dict[str, int]) -> None:
     path = out_dir / "cohort_validation_summary.csv"
-    selected_set = set(selected)
 
     measures_with_relevant = []
     measures_with_potential = []

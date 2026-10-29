@@ -1,5 +1,5 @@
-"""Star modeler: star ratings from the database star_cutpoint data (Pradeep), and the command-line wrapper
-that runs the measure engine's reports mode (Jyothi). Both kept as their authors wrote them."""
+"""Star modeler: star ratings from the database star_cutpoint data, and the command-line wrapper
+that runs the measure engine's reports mode. Both kept as their authors wrote them."""
 
 from __future__ import annotations
 
@@ -216,7 +216,7 @@ def has_cutpoints_sqlalchemy(
 	)
 
 
-# Command-line wrapper for the measure engine's reports mode (Jyothi).
+# Command-line wrapper for the measure engine's reports mode.
 import subprocess  # noqa: E402
 import sys  # noqa: E402
 from pathlib import Path  # noqa: E402

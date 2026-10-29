@@ -1,8 +1,8 @@
 """Read side of the HEDIS Calculation screen: the measures the engine runs, their latest populations, and the
 per-patient results and gaps, all from measure_result, care_gap and care_gap_detail.
 
-Jyothi's engine screen runs the engine per patient and keeps the results in the browser; here the same engine runs
-through our bridge (measures.py, which reuses her command line and helpers) and every result is stored first.
+The engine screen runs the engine per patient and keeps the results in the browser; here the same engine runs
+through our bridge (measures.py, which reuses its command line and helpers) and every result is stored first.
 """
 
 import psycopg

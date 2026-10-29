@@ -44,6 +44,7 @@ from services.gap_priority.config import load_rules
 from . import (
     auth,
     calculation,
+    dq_checks,
     evidence,
     export,
     openrouter_status,
@@ -76,7 +77,7 @@ async def _lifespan(_: FastAPI) -> AsyncIterator[None]:
 
 
 def _ingestion_routes() -> APIRouter:
-    """Jyothi's ingestion and engine endpoints as they are, at /api/ingestion/... instead of her own /api/..."""
+    """The ingestion and engine endpoints as they are, at /api/ingestion/... instead of their own /api/..."""
     router = APIRouter()
     for route in ingestion_api.router.routes:
         if isinstance(route, APIRoute):
@@ -357,7 +358,7 @@ def health(conn: psycopg.Connection = Depends(get_conn),
             "evidence_dir_set": SETTINGS.evidence_dir is not None, "reset_allowed": reset.allowed(),
             "openrouter": openrouter_status.status(),
             "services": {"ingestion": {"prefix": "/api/ingestion", "schema": schema},
-                         "quality": {**pallavi.status(), "schema": schema}}}
+                         "quality": {**dq_checks.status(), "schema": schema}}}
 
 
 @app.get("/api/quality")
@@ -390,7 +391,7 @@ class QualityRunIn(BaseModel):
 @app.post("/api/quality/runs")
 def run_quality(body: QualityRunIn, _: auth.AuthUser = Depends(admin_user)) -> dict:
     """Run the data quality checks again on one loaded batch (every measure, or one); returns the new run."""
-    return pallavi.run_checks(body.batch_id, body.measure_id, SETTINGS.actor)
+    return dq_checks.run_checks(body.batch_id, body.measure_id, SETTINGS.actor)
 
 
 @app.get("/api/quality/coverage")
