@@ -1,4 +1,4 @@
-"""One small API app for the end-to-end flow, with the work list page at "/".
+"""One small API app for the end-to-end flow, with the Ops Console at "/".
 
     python -m services.integration.app            then open http://localhost:8780
 
@@ -35,7 +35,7 @@ from .config import SETTINGS
 
 log = logging.getLogger(__name__)
 
-UI_DIR = SETTINGS.ui_dir or Path(__file__).with_name("static")   # which screen set this app serves
+UI_DIR = SETTINGS.ui_dir or Path(__file__).with_name("ui") / "redesign"
 
 
 @asynccontextmanager
@@ -55,6 +55,10 @@ def _ingestion_routes() -> APIRouter:
         if isinstance(route, APIRoute):
             router.add_api_route(route.path.removeprefix(ingestion_api.router.prefix), route.endpoint,
                                  methods=sorted(route.methods), name=route.name)
+        elif hasattr(route, 'endpoint') and hasattr(route, 'path') and 'websocket' in str(type(route)).lower():
+            # Copy WebSocket routes by path  (FastAPI WebSocketRoute)
+            path = route.path.removeprefix(ingestion_api.router.prefix)
+            router.add_api_websocket_route(path, route.endpoint, name=getattr(route, 'name', None))
     return router
 
 
@@ -100,6 +104,13 @@ def _server_error(request: Request, exc: Exception) -> JSONResponse:
 @app.get("/", response_class=HTMLResponse)
 def page() -> str:
     return (UI_DIR / "index.html").read_text(encoding="utf-8")
+
+
+@app.get("/ingestion", response_class=HTMLResponse)
+def pipeline_monitor() -> str:
+    """Serve the real-time pipeline progress monitor dashboard"""
+    dashboard_path = Path(__file__).parent / "ui" / "redesign" / "pipeline-monitor.html"
+    return dashboard_path.read_text(encoding="utf-8")
 
 
 @app.post("/api/batches", status_code=202)

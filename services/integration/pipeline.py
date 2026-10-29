@@ -19,8 +19,8 @@ from datetime import date
 from pathlib import Path
 
 import psycopg
-from psycopg.types.json import Jsonb
 from fastapi import HTTPException
+from psycopg.types.json import Jsonb
 from starlette.datastructures import UploadFile
 
 from services.data_ingestion import team_schema_loader
@@ -32,6 +32,8 @@ from services.document_intake import db
 from services.document_intake.db import audit
 from services.gap_priority.config import load_rules
 from services.gap_priority.runner import score_all
+from services.rabbitmq_messages import ConversionMessage
+from services.reliable_messaging import enqueue_outbox
 
 from . import measures, pallavi, stored_evidence
 from .config import SETTINGS
@@ -46,12 +48,18 @@ class StepFailed(RuntimeError):
 
 
 def start_batch(upload: Path) -> str:
-    """Record the batch, then run it in a background thread. upload is one .zip file or a folder of .csv files.
-    Returns the batch_id to poll."""
+    """Record the batch and publish to RabbitMQ. upload is one .zip file or a folder of .csv files.
+    Returns the batch_id to poll. Uses RabbitMQ for async processing."""
     batch_id = uuid.uuid4()
     files = sorted(upload.glob("*.csv")) if upload.is_dir() else [upload]
     received = {"upload": "csv" if upload.is_dir() else "zip", "files": len(files),
                 "bytes": sum(f.stat().st_size for f in files)}
+    msg = ConversionMessage(
+        batch_id=str(batch_id),
+        source_system=team_schema_loader.SOURCE_SYSTEM,
+        file_path=str(upload),
+        file_type="zip" if upload.suffix.lower() == ".zip" else "csv",
+    )
     with db.connect() as conn:
         conn.execute("""INSERT INTO source_batch (batch_id, source_system, status, resource_count, started_at)
                         VALUES (%s, %s, 'running', 0, now())""", (batch_id, team_schema_loader.SOURCE_SYSTEM))
@@ -59,7 +67,9 @@ def start_batch(upload: Path) -> str:
                      (str(batch_id),))
         _event(conn, batch_id, "batch.received", received)
         audit(conn, "batch", str(batch_id), "batch.received", received, actor=SETTINGS.actor)
-    threading.Thread(target=run_batch, args=(upload, batch_id), name=f"batch-{batch_id}", daemon=True).start()
+        enqueue_outbox(conn, "ingestion.convert", msg)
+    log.info("Queued conversion message in outbox for batch_id=%s", batch_id)
+
     return str(batch_id)
 
 

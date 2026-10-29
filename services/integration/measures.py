@@ -22,8 +22,11 @@ from pathlib import Path
 
 import psycopg
 
-from services.data_ingestion.app.api import (_extract_root_library_reference, _maybe_prune_run_request_bundle,
-                                             _to_member_result)
+from services.data_ingestion.app.api import (
+    _extract_root_library_reference,
+    _maybe_prune_run_request_bundle,
+    _to_member_result,
+)
 from services.document_intake.db import audit
 
 from .config import SETTINGS, Settings
@@ -243,7 +246,7 @@ def _evaluate(bundle: MeasureBundle, files: dict[str, Path], work: Path, setting
             copy.parent.mkdir(parents=True, exist_ok=True)
             shutil.copyfile(files[patient_id], copy)
             added = _add_combined_bp(copy) if bundle.measure_id in COMBINED_BP_MEASURES else 0
-            _maybe_prune_run_request_bundle(copy, bundle.measure_id, bundle.path)
+            _prune_patient_bundle(copy, bundle)
             if added and _count_code(copy, BP_PANEL) < added:
                 raise RuntimeError(f"blood pressure pruning removed combined readings for {bundle.measure_id}")
             paths.append(str(copy))
@@ -266,6 +269,68 @@ def _code(resource: dict) -> str | None:
 def _count_code(path: Path, code: str) -> int:
     entries = json.loads(path.read_text(encoding="utf-8")).get("entry", [])
     return sum(1 for e in entries if e["resource"].get("resourceType") == "Observation" and _code(e["resource"]) == code)
+
+
+def _prune_patient_bundle(path: Path, measure: MeasureBundle) -> None:
+    """Apply generic pruning and, for CBP, retain the resource types its measure artifact declares."""
+    patient_bundle = json.loads(path.read_text(encoding="utf-8"))
+    _maybe_prune_run_request_bundle(patient_bundle, measure.measure_id, measure.path)
+    if measure.measure_id == "CBP":
+        definition = json.loads(measure.path.read_text(encoding="utf-8"))
+        value_set_codes: dict[str, set[tuple[str | None, str]]] = {}
+        for entry in definition.get("entry", []):
+            resource = entry.get("resource", {})
+            if resource.get("resourceType") != "ValueSet":
+                continue
+            codes = _expanded_codes(resource.get("expansion", {}).get("contains", []))
+            for key in (resource.get("id"), resource.get("url")):
+                if key:
+                    value_set_codes[key] = codes
+        required_types = {
+            requirement["type"]
+            for entry in definition.get("entry", [])
+            for requirement in entry.get("resource", {}).get("dataRequirement", [])
+            if requirement.get("type") not in (None, "Resource")
+        }
+        observation_codes = {(LOINC, code) for code in (SYSTOLIC, DIASTOLIC, BP_PANEL)}
+        for entry in definition.get("entry", []):
+            for requirement in entry.get("resource", {}).get("dataRequirement", []):
+                if requirement.get("type") != "Observation":
+                    continue
+                for code_filter in requirement.get("codeFilter", []):
+                    observation_codes.update(
+                        (coding.get("system"), coding["code"])
+                        for coding in code_filter.get("code", [])
+                        if coding.get("code")
+                    )
+                    observation_codes.update(value_set_codes.get(code_filter.get("valueSet"), set()))
+        patient_bundle["entry"] = [
+            entry
+            for entry in patient_bundle.get("entry", [])
+            if _required_cbp_resource(entry.get("resource", {}), required_types, observation_codes)
+        ]
+    path.write_text(json.dumps(patient_bundle), encoding="utf-8")
+
+
+def _expanded_codes(items: list[dict]) -> set[tuple[str | None, str]]:
+    codes = {(item.get("system"), item["code"]) for item in items if item.get("code")}
+    for item in items:
+        codes.update(_expanded_codes(item.get("contains", [])))
+    return codes
+
+
+def _required_cbp_resource(
+    resource: dict,
+    required_types: set[str],
+    observation_codes: set[tuple[str | None, str]],
+) -> bool:
+    resource_type = resource.get("resourceType")
+    if resource_type not in required_types:
+        return False
+    if resource_type != "Observation":
+        return True
+    codings = (resource.get("code") or {}).get("coding") or []
+    return any((coding.get("system"), coding.get("code")) in observation_codes for coding in codings)
 
 
 def _bp_component(code: str, display: str, source: dict) -> dict:
@@ -336,7 +401,8 @@ def _call_engine(bundle: MeasureBundle, root_ref: str | None, paths: list[str], 
     if not cli.exists():
         raise RuntimeError("Measure engine CLI is not built. Run `npm run backend:build`.")
     year = settings.measurement_year
-    cmd = ["node", str(cli), "detailed", "--measure-bundle", str(bundle.path), "--patient-bundles", *paths,
+    cmd = ["node", f"--max-old-space-size={settings.engine_node_heap_mb}", str(cli), "detailed",
+           "--measure-bundle", str(bundle.path), "--patient-bundles", *paths,
            "--measurement-period-start", f"{year}-01-01", "--measurement-period-end", f"{year}-12-31",
            "--trust-meta-profile", "false"]
     if root_ref:

@@ -8,7 +8,7 @@ and provides Publisher/Worker abstractions for easy queue interaction.
 import json
 import logging
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from hashlib import sha256
 from typing import Any, Optional
 from uuid import uuid4
@@ -63,12 +63,30 @@ class QualityCheckMessage:
 
 
 @dataclass
+class ValueSetResolveMessage:
+    """Message: Prepare measure value sets before calculation."""
+    batch_id: str
+    job_id: str
+    measure_set: str = "HEDIS"
+    priority: int = 0
+
+
+@dataclass
 class MeasureRunMessage:
     """Message: Patient/member data to calculate measures for."""
     batch_id: str
     job_id: str
     measure_set: str  # HEDIS, CMS, etc.
     member_ids: Optional[list[str]] = None
+    priority: int = 0
+
+
+@dataclass
+class GapIdentifyMessage:
+    """Message: Materialized measure results are ready for gap identification."""
+    batch_id: str
+    job_id: str
+    measure_count: int
     priority: int = 0
 
 
@@ -89,6 +107,24 @@ class DocumentAttachMessage:
     job_id: str
     gap_id: Optional[str] = None
     member_id: Optional[str] = None
+    priority: int = 0
+
+
+@dataclass
+class EvidenceExtractionMessage:
+    """Message: Extract proposed evidence for one open gap."""
+    batch_id: str
+    job_id: str
+    gap_id: str
+    remaining_gap_ids: list[str] = field(default_factory=list)
+    priority: int = 0
+
+
+@dataclass
+class StarCalculationMessage:
+    """Message: Calculate and persist the batch star-rating summary."""
+    batch_id: str
+    job_id: str
     priority: int = 0
 
 

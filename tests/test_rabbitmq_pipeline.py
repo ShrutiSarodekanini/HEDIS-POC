@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from contextlib import contextmanager
+from dataclasses import replace
 from types import SimpleNamespace
 
 import pika
@@ -362,3 +363,154 @@ def test_worker_dead_letters_after_retry_limit():
     assert channel.published[0]["exchange"] == "pipeline.dead"
     assert channel.published[0]["routing_key"] == "quality.check"
     assert channel.acknowledged == [8]
+
+
+def test_all_architecture_component_queues_are_registered():
+    from services.rabbitmq_config import QUEUES
+
+    assert {
+        "valuesets.resolve",
+        "gaps.identify",
+        "evidence.extract",
+        "stars.calculate",
+    } <= QUEUES.keys()
+
+
+def test_evidence_worker_extracts_one_gap_and_queues_next(monkeypatch):
+    from services.workers import evidence_worker
+
+    connections = [SimpleNamespace(execute=lambda *_args: None), SimpleNamespace(execute=lambda *_args: None)]
+
+    @contextmanager
+    def connect():
+        yield connections.pop(0)
+
+    extracted = []
+    handoffs = []
+    worker = evidence_worker.EvidenceWorker()
+    monkeypatch.setattr(evidence_worker.db, "connect", connect)
+    monkeypatch.setattr(
+        evidence_worker.evidence,
+        "find_evidence",
+        lambda conn, gap_id: extracted.append((conn, gap_id)) or {"saved": 2},
+    )
+    monkeypatch.setattr(
+        worker,
+        "enqueue_next",
+        lambda conn, queue, message: handoffs.append((conn, queue, message)),
+    )
+
+    result = worker.process_message(
+        {
+            "batch_id": "batch-1",
+            "job_id": "job-1",
+            "gap_id": "gap-1",
+            "remaining_gap_ids": ["gap-2"],
+        }
+    )
+
+    assert result is True
+    assert extracted[0][1] == "gap-1"
+    assert handoffs[0][1] == "evidence.extract"
+    assert handoffs[0][2].gap_id == "gap-2"
+    assert handoffs[0][2].remaining_gap_ids == []
+
+
+def test_measure_engine_uses_configured_node_heap(monkeypatch, tmp_path):
+    from services.integration import measures
+
+    captured = []
+    settings = replace(
+        measures.SETTINGS,
+        engine_root=tmp_path,
+        engine_node_heap_mb=4096,
+    )
+    cli = tmp_path / "build" / "cli.js"
+    cli.parent.mkdir()
+    cli.touch()
+    bundle = measures.MeasureBundle("CBP", tmp_path / "measure.json", "CMS165", None)
+    monkeypatch.setattr(
+        measures,
+        "_run_engine",
+        lambda command, *_args: captured.append(command) or SimpleNamespace(returncode=0, stdout="[]", stderr=""),
+    )
+
+    measures._call_engine(bundle, "CMS165", ["patient.json"], settings)
+
+    assert captured[0][:3] == ["node", "--max-old-space-size=4096", str(cli)]
+
+
+def test_cbp_pruning_uses_declared_resource_types(tmp_path):
+    import json
+
+    from services.integration import measures
+
+    definition_path = tmp_path / "measure.json"
+    definition_path.write_text(
+        json.dumps(
+            {
+                "resourceType": "Bundle",
+                "entry": [
+                    {
+                        "resource": {
+                            "resourceType": "Library",
+                            "dataRequirement": [
+                                {"type": "Patient"},
+                                {
+                                    "type": "Observation",
+                                    "codeFilter": [
+                                        {
+                                            "code": [
+                                                {
+                                                    "system": "http://loinc.org",
+                                                    "code": "85354-9",
+                                                }
+                                            ]
+                                        }
+                                    ],
+                                },
+                                {"type": "Resource"},
+                            ],
+                        }
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    patient_path = tmp_path / "patient.json"
+    patient_path.write_text(
+        json.dumps(
+            {
+                "resourceType": "Bundle",
+                "entry": [
+                    {"resource": {"resourceType": "Patient", "id": "synthetic-patient"}},
+                    {
+                        "resource": {
+                            "resourceType": "Observation",
+                            "id": "synthetic-bp",
+                            "code": {"coding": [{"system": "http://loinc.org", "code": "85354-9"}]},
+                        }
+                    },
+                    {
+                        "resource": {
+                            "resourceType": "Observation",
+                            "id": "synthetic-unrelated",
+                            "code": {"coding": [{"system": "http://loinc.org", "code": "12345-6"}]},
+                        }
+                    },
+                    {"resource": {"resourceType": "Claim", "id": "synthetic-claim"}},
+                    {"resource": {"resourceType": "ValueSet", "id": "synthetic-valueset"}},
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    measures._prune_patient_bundle(
+        patient_path,
+        measures.MeasureBundle("CBP", definition_path, "CMS165", None),
+    )
+
+    pruned = json.loads(patient_path.read_text(encoding="utf-8"))
+    assert [entry["resource"]["resourceType"] for entry in pruned["entry"]] == ["Patient", "Observation"]

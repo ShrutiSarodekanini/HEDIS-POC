@@ -1,8 +1,8 @@
 """
 DocumentsWorker: Attaches supporting evidence documents to care gaps.
 
-This is the final stage of the async pipeline. It consumes attachment instructions
-and links evidence documents (e.g., patient charts, lab results) to identified care gaps.
+This stage consumes attachment instructions and links stored evidence documents to identified care gaps,
+then starts proposed-only AI evidence extraction.
 
 It consumes messages from 'documents.attach' queue.
 
@@ -22,7 +22,7 @@ from services.document_intake.db import audit
 from services.integration import stored_evidence
 from services.integration.config import SETTINGS
 from services.rabbitmq_config import initialize_queues
-from services.rabbitmq_messages import Worker
+from services.rabbitmq_messages import EvidenceExtractionMessage, StarCalculationMessage, Worker
 
 # Setup logging
 logging.basicConfig(
@@ -39,7 +39,7 @@ class DocumentsWorker(Worker):
     Attaches evidence documents (uploaded files, chart excerpts, etc.)
     to care gaps to support gap closure and member outreach.
 
-    This is the final stage of the pipeline.
+    AI evidence extraction follows this stage.
     """
 
     def __init__(self):
@@ -99,7 +99,28 @@ class DocumentsWorker(Worker):
                 audit(conn, "batch", batch_id, "documents.attached",
                       {key: (len(value) if isinstance(value, list) else value) for key, value in attached.items()},
                       actor=SETTINGS.actor)
-                self.complete_current(conn)
+                gap_ids = [row[0] for row in conn.execute(
+                    """SELECT gap_id::text FROM care_gap
+                        WHERE patient_id = ANY(%s) AND status = 'open' ORDER BY gap_id""",
+                    (list(patient_ids),),
+                ).fetchall()]
+                conn.execute(
+                    """UPDATE batch_run SET status = 'running', step = 'extracting_evidence', updated_at = now()
+                         WHERE batch_id = %s""",
+                    (batch_id,),
+                )
+                if gap_ids:
+                    next_queue = "evidence.extract"
+                    next_message = EvidenceExtractionMessage(
+                        batch_id=batch_id,
+                        job_id=job_id,
+                        gap_id=gap_ids[0],
+                        remaining_gap_ids=gap_ids[1:],
+                    )
+                else:
+                    next_queue = "stars.calculate"
+                    next_message = StarCalculationMessage(batch_id=batch_id, job_id=job_id)
+                self.enqueue_next(conn, next_queue, next_message)
 
             logger.info("Document attachment completed for batch_id=%s", batch_id)
 

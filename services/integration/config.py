@@ -17,6 +17,7 @@ class Settings:
     measurement_year: int
     engine_root: Path              # the fqm-execution engine (services/measure_calc/engine)
     engine_chunk: int              # patient bundles per engine call, to keep Node memory bounded
+    engine_node_heap_mb: int       # V8 heap available to one measure-engine process
     work_dir: Path                 # temporary bundles and uploads, removed after each step
     evidence_dir: Path | None      # stored documents with manifest.json; None skips the attach step
     ui_dir: Path | None            # screen set served at "/" (index.html plus /assets); None serves static/
@@ -30,6 +31,7 @@ def load_settings() -> Settings:
         measurement_year=int(os.environ.get("INTEGRATION_MEASUREMENT_YEAR", "2026")),
         engine_root=REPO_ROOT / "services" / "measure_calc" / "engine",
         engine_chunk=int(os.environ.get("INTEGRATION_ENGINE_CHUNK", "50")),
+        engine_node_heap_mb=int(os.environ.get("INTEGRATION_NODE_HEAP_MB", "4096")),
         work_dir=Path(os.environ.get("INTEGRATION_WORK_DIR", REPO_ROOT / ".integration_work")),
         evidence_dir=Path(evidence) if (evidence := os.environ.get("INTEGRATION_EVIDENCE_DIR", "").strip()) else None,
         ui_dir=Path(ui) if (ui := os.environ.get("INTEGRATION_UI_DIR", "").strip()) else None,

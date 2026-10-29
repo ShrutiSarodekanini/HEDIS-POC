@@ -21,7 +21,7 @@ from services.data_ingestion.app.progress import progress_tracker
 from services.document_intake import db
 from services.integration import measures
 from services.rabbitmq_config import initialize_queues
-from services.rabbitmq_messages import GapPrioritizeMessage, Worker
+from services.rabbitmq_messages import GapIdentifyMessage, Worker
 
 # Setup logging
 logging.basicConfig(
@@ -36,7 +36,7 @@ class MeasuresWorker(Worker):
     Consumes MeasureRunMessage from 'measures.run' queue.
 
     Calculates HEDIS quality measures for members/patients
-    and publishes GapPrioritizeMessage to 'gaps.prioritize' queue.
+    and publishes GapIdentifyMessage to 'gaps.identify' queue.
     """
 
     def __init__(self):
@@ -89,18 +89,19 @@ class MeasuresWorker(Worker):
                     raise LookupError("No loaded patients are available for measure calculation")
                 run = measures.run_measures(conn, list(patient_ids), attributed_org, batch_id.replace("-", "")[:8])
                 measure_count = len(run.measures)
-                gap_msg = GapPrioritizeMessage(
+                gap_msg = GapIdentifyMessage(
                     batch_id=batch_id,
                     job_id=job_id,
+                    measure_count=measure_count,
                 )
                 conn.execute(
                     """UPDATE batch_run
-                          SET status = 'running', step = 'prioritizing',
+                          SET status = 'running', step = 'identifying_gaps',
                               counts = counts || %s, updated_at = now()
                         WHERE batch_id = %s""",
                     (Jsonb({"measures": {"count": measure_count}}), batch_id),
                 )
-                self.enqueue_next(conn, "gaps.prioritize", gap_msg)
+                self.enqueue_next(conn, "gaps.identify", gap_msg)
 
             # Send progress: processing
             asyncio.run(progress_tracker.notify(
@@ -108,21 +109,13 @@ class MeasuresWorker(Worker):
                 {"pct": 66, "message": "Computing measure values"}
             ))
 
-            # TODO: Publish GapPrioritizeMessage when actual measures are calculated
-            # with Publisher() as pub:
-            #     gap_message = GapPrioritizeMessage(
-            #         batch_id=batch_id,
-            #         gap_type=None,  # trigger full gap prioritization
-            #     )
-            #     pub.publish("gaps.prioritize", gap_message)
-
             # Send progress: publishing
             asyncio.run(progress_tracker.notify(
                 batch_id, "measures", "processing",
-                {"pct": 90, "message": "Publishing gap prioritization message"}
+                {"pct": 90, "message": "Publishing gap identification message"}
             ))
 
-            logger.info("Queued GapPrioritizeMessage in outbox for batch_id=%s", batch_id)
+            logger.info("Queued GapIdentifyMessage in outbox for batch_id=%s", batch_id)
 
             logger.info("Measures processed for batch_id=%s: %d measures", batch_id, measure_count)
 

@@ -68,8 +68,16 @@ QUEUES = {
         "description": "Perform data quality checks",
         "durable": True,
     },
+    "valuesets.resolve": {
+        "description": "Validate and resolve measure value sets",
+        "durable": True,
+    },
     "measures.run": {
         "description": "Calculate HEDIS measures",
+        "durable": True,
+    },
+    "gaps.identify": {
+        "description": "Identify care gaps from measure results",
         "durable": True,
     },
     "gaps.prioritize": {
@@ -78,6 +86,14 @@ QUEUES = {
     },
     "documents.attach": {
         "description": "Attach supporting evidence documents",
+        "durable": True,
+    },
+    "evidence.extract": {
+        "description": "Extract proposed evidence for human review",
+        "durable": True,
+    },
+    "stars.calculate": {
+        "description": "Calculate batch star ratings",
         "durable": True,
     },
 }

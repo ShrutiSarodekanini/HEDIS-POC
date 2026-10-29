@@ -586,7 +586,7 @@
     paintMeta();
     const missing = ing.meta.missing_required_files || [];
     if (missing.length) throw new Error(`Cannot start: missing required files ${missing.join(", ")}.`);
-    const r = await api(jy(`/jobs/start?input_dir=${enc(dir)}`), { method: "POST" });
+    const r = await api(jy(`/jobs/start?input_dir=${enc(dir)}&async_processing=true`), { method: "POST" });
     setJobId(r.job_id);
     ing.lastStages = {};
     ing.feed.push(`${new Date().toLocaleTimeString()}  Job started`);

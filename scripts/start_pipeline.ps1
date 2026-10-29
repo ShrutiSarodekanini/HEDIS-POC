@@ -1,7 +1,7 @@
 #!/usr/bin/env powershell
 <#
 .SYNOPSIS
-Start all 6 pipeline workers and the API server.
+Start all 10 pipeline workers and the API server.
 
 .DESCRIPTION
 This script starts the complete async ingestion pipeline:
@@ -11,9 +11,13 @@ This script starts the complete async ingestion pipeline:
   - ConversionWorker - Converts CSV/JSON/FHIR to FHIR format
   - LoadWorker - Loads FHIR resources into PostgreSQL
   - QualityWorker - Validates data quality
+    - ValueSetsWorker - Validates configured measure value sets
   - MeasuresWorker - Calculates HEDIS quality measures
+    - GapIdentifierWorker - Checkpoints identified care gaps
   - GapsWorker - Prioritizes care gaps
   - DocumentsWorker - Attaches evidence documents
+    - EvidenceWorker - Extracts proposed evidence for human review
+    - StarsWorker - Calculates the batch star summary
 
 All workers listen to RabbitMQ and process messages asynchronously.
 
@@ -64,9 +68,13 @@ $workers = @(
     @{ name = "ConversionWorker"; module = "services.workers.conversion_worker" },
     @{ name = "LoadWorker"; module = "services.workers.load_worker" },
     @{ name = "QualityWorker"; module = "services.workers.quality_worker" },
+    @{ name = "ValueSetsWorker"; module = "services.workers.valuesets_worker" },
     @{ name = "MeasuresWorker"; module = "services.workers.measures_worker" },
+    @{ name = "GapIdentifierWorker"; module = "services.workers.gap_identifier_worker" },
     @{ name = "GapsWorker"; module = "services.workers.gaps_worker" },
-    @{ name = "DocumentsWorker"; module = "services.workers.documents_worker" }
+    @{ name = "DocumentsWorker"; module = "services.workers.documents_worker" },
+    @{ name = "EvidenceWorker"; module = "services.workers.evidence_worker" },
+    @{ name = "StarsWorker"; module = "services.workers.stars_worker" }
 )
 
 Write-Host "`nHEDIS POC - Async Pipeline Startup`n" -ForegroundColor Green

@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import datetime as dt
 import logging
-from dataclasses import asdict
 from typing import Any
 
 from sqlalchemy import case, delete, func, select, tuple_, update
@@ -12,6 +11,8 @@ from sqlalchemy.orm import Session
 from .models import ConversionJob, FhirResource, SourceBatch, ValidationIssue
 from .synthea import RowIssue
 from .validator import ResourceValidationResult
+
+logger = logging.getLogger("uvicorn.error")
 
 
 def _as_dict(value: Any) -> dict[str, Any]:
@@ -136,7 +137,16 @@ def batch_fetch_fhir_resources(
 
 
 def extract_additional_resource(session: Session, fhir_resource: FhirResource, resource_json: dict[str, Any]) -> None:
-    from .models import AllergyIntolerance, BasicResource, Claim, Device, ImagingStudy, Organization, Practitioner, SupplyDelivery
+    from .models import (
+        AllergyIntolerance,
+        BasicResource,
+        Claim,
+        Device,
+        ImagingStudy,
+        Organization,
+        Practitioner,
+        SupplyDelivery,
+    )
 
     models = {
         "AllergyIntolerance": AllergyIntolerance,
@@ -493,9 +503,6 @@ def mark_validated_resources_persisted(session: Session, job_id: str) -> int:
     Mark all validated resources as persisted in the database.
     Uses batch updates to handle large datasets efficiently.
     """
-    import logging
-    logger = logging.getLogger("uvicorn.error")
-    
     # First, check what resources exist for this job
     total_count = session.execute(
         select(func.count()).select_from(FhirResource).where(FhirResource.job_id == job_id)
@@ -513,7 +520,7 @@ def mark_validated_resources_persisted(session: Session, job_id: str) -> int:
     already_persisted = session.execute(
         select(func.count()).select_from(FhirResource).where(
             (FhirResource.job_id == job_id) & 
-            (FhirResource.persisted == True)
+            FhirResource.persisted.is_(True)
         )
     ).scalar() or 0
     
@@ -529,7 +536,7 @@ def mark_validated_resources_persisted(session: Session, job_id: str) -> int:
         if sample:
             logger.info(f"[persist] Sample resource: id={sample.id} job_id={sample.job_id} validation_status={sample.validation_status} lifecycle_status={sample.lifecycle_status} persisted={sample.persisted}")
         else:
-            logger.info(f"[persist] Database is completely empty - no resources found anywhere")
+            logger.info("[persist] Database is completely empty - no resources found anywhere")
         return 0
     
     # Update all non-rejected, non-persisted resources
@@ -538,7 +545,7 @@ def mark_validated_resources_persisted(session: Session, job_id: str) -> int:
         .where(
             (FhirResource.job_id == job_id) &
             (FhirResource.lifecycle_status != "rejected") &
-            (FhirResource.persisted == False)
+            FhirResource.persisted.is_(False)
         )
         .values(
             persisted=True,

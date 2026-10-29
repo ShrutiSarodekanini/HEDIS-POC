@@ -3,7 +3,7 @@ QualityWorker: Performs data quality checks on ingested data.
 
 Third stage of the async pipeline.
 Consumes QualityCheckMessage from 'quality.check' queue.
-Produces MeasureRunMessage to 'measures.run' queue.
+Produces ValueSetResolveMessage to 'valuesets.resolve' queue.
 
 Usage:
     python -m services.workers.quality_worker
@@ -22,7 +22,7 @@ from services.integration import pallavi
 from services.integration.config import SETTINGS
 from services.rabbitmq_config import initialize_queues
 from services.rabbitmq_messages import (
-    MeasureRunMessage,
+    ValueSetResolveMessage,
     Worker,
 )
 
@@ -41,7 +41,7 @@ class QualityWorker(Worker):
     Performs data quality validations on the ingested dataset.
     Checks data completeness, validity, and consistency.
 
-    Then publishes MeasureRunMessage to 'measures.run' queue.
+    Then publishes ValueSetResolveMessage to 'valuesets.resolve' queue.
     """
 
     def __init__(self):
@@ -108,26 +108,25 @@ class QualityWorker(Worker):
             # Send progress: publishing
             asyncio.run(progress_tracker.notify(
                 batch_id, "quality", "processing",
-                {"pct": 90, "message": "Publishing measure run message"}
+                {"pct": 90, "message": "Publishing value-set resolution message"}
             ))
 
-            # Publish MeasureRunMessage to next queue
-            measure_msg = MeasureRunMessage(
+            value_set_msg = ValueSetResolveMessage(
                 batch_id=batch_id,
                 job_id=job_id,
-                measure_set="HEDIS",  # Default to HEDIS
+                measure_set="HEDIS",
             )
 
             with db.connect() as conn:
                 conn.execute(
                     """UPDATE batch_run
-                          SET status = 'running', step = 'measuring',
+                          SET status = 'running', step = 'resolving_value_sets',
                               counts = counts || %s, updated_at = now()
                         WHERE batch_id = %s""",
                     (Jsonb({"quality": checks}), batch_id),
                 )
-                self.enqueue_next(conn, "measures.run", measure_msg)
-            logger.info("Queued MeasureRunMessage in outbox for batch_id=%s", batch_id)
+                self.enqueue_next(conn, "valuesets.resolve", value_set_msg)
+            logger.info("Queued ValueSetResolveMessage in outbox for batch_id=%s", batch_id)
 
             # Send progress: complete
             asyncio.run(progress_tracker.notify(
