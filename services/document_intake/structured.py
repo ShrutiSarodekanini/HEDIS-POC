@@ -148,7 +148,7 @@ def read_rows(data: bytes, filename: str) -> tuple[list[str], list[Row]]:
         return _read_csv(data)
     if suffix in (".xlsx", ".xlsm"):
         return _read_xlsx(data)
-    raise ValueError(f"unsupported structured file type '{suffix or filename}'; use .csv or .xlsx")
+    raise ValueError(f"unsupported structured file type '{suffix or 'none'}'; use .csv or .xlsx")
 
 
 # ---------------------------------------------------------------------------------------------
@@ -462,7 +462,7 @@ def _to_date(value: Any, formats: tuple[str, ...]) -> date:
             return datetime.strptime(text, fmt).date()
         except ValueError:
             continue
-    raise ValueError(f"'{text}' is not a valid date")
+    raise ValueError("a date value is not in a supported format")
 
 
 def _check_member_and_date(values: Row, mapping: Mapping, members: dict[str, str], out: _Outcome) -> None:

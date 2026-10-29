@@ -1,9 +1,9 @@
-"""Ingestion tables follow Jyothi's models again: source_batches, and batch_id on conversion_jobs and fhir_resources.
+"""Ingestion tables follow the ingestion models: source_batches, and batch_id on conversion_jobs and fhir_resources.
 
-Her models (services/data_ingestion/app/models.py, commit cdee1be) map a nullable batch_id on ConversionJob and
+The models (services/data_ingestion/app/models.py, commit cdee1be) map a nullable batch_id on ConversionJob and
 FhirResource that references a new source_batches table, so every query on those two tables names batch_id. 0004
-created them from her earlier models without it. This adds them exactly as her models define them; her code leaves
-batch_id empty today. Her other new models reuse the lead's table names with different columns and are not created.
+created them from the earlier models without it. This adds them exactly as the models define them; the code leaves
+batch_id empty today. The other new models reuse the lead's table names with different columns and are not created.
 
 Revision ID: 0006
 Revises: 0005

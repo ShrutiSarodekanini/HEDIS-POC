@@ -2,7 +2,7 @@
 
 Branch `ui-integration`, schema `ui20`, screens app on port 8785. Nothing is committed or pushed. All data is
 synthetic (Synthea). No table or column was added, no structure of the lead's tables changed, and no file of
-Jyothi's or Pradeep's was edited.
+the ingestion or star rating code was edited.
 
 ## What is now tracked
 
@@ -29,7 +29,7 @@ Details:
   `evidence_proposal_detail` and the gap's `care_gap` row. The database trigger accepts it only with a confirming
   decision for the same evidence. Rejects write none.
 - **Star scenario.** After the decision and re-score, from the same numbers the measure cards show
-  (`work.measures`, which uses Pradeep's `assign_star_from_cutpoints`): baseline and low = the current rate and
+  (`work.measures`, which uses `assign_star_from_cutpoints` from the star rating code): baseline and low = the current rate and
   stars (the engine accepts none of the confirmed evidence), high = the projected rate and stars,
   `gaps_closed_assumed` = confirmed closures waiting for the engine. Skipped with a log line when a star rating is
   not available.
@@ -37,7 +37,7 @@ Details:
   the same records, writes the CSV, computes its sha256, then records the run and its items in one transaction (the
   file is removed if that fails). Nothing new returns `{"rows": 0}` and creates no run. The actor is the reviewer ID
   in the body, checked like a decision's reviewer, or the configured reviewer.
-- **Loader.** Same filter as the other inserts (rows her persist stage approved), `ON CONFLICT DO NOTHING`, so it
+- **Loader.** Same filter as the other inserts (rows the persist stage approved), `ON CONFLICT DO NOTHING`, so it
   stays safe to run twice. Immunization points to its patient with `patient` (not `subject`) and the mapping gives
   it no encounter, so `immunization.encounter_id` is empty. The feed report has one row per resource type, with
   `measure_relevant` true for Patient, Encounter, Condition, Observation, Procedure and Coverage, and is skipped when
@@ -71,7 +71,7 @@ exclusion findings (reviewer `abstractor.check`), then exported. The apps on 878
 | condition | 947 | |
 | conversion_jobs | 1 | |
 | coverage | 1,173 | |
-| data_anomaly | 0 | Data quality checks are Pallavi's branch `feat/data_quality_anomoly_detection`. |
+| data_anomaly | 0 | Data quality checks are on branch `feat/data_quality_anomoly_detection`. |
 | document_conversion | 30 | |
 | document_pages | 33 | |
 | document_reference | 30 | |
@@ -111,7 +111,7 @@ exclusion findings (reviewer `abstractor.check`), then exported. The apps on 878
 | star_scenario | 2 | |
 | structured_records | 0 | Filled only when a structured lab file goes through document intake; this run had none. |
 | supplemental_records | 1 | |
-| validation_issues | 0 | Jyothi's; filled when her validation finds errors, and this batch had none (0 errors). |
+| validation_issues | 0 | Ingestion's; filled when its validation finds errors, and this batch had none (0 errors). |
 
 The six empty tables are exactly the ones section 6 of the brief leaves empty on purpose.
 

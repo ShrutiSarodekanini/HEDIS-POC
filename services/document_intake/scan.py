@@ -42,7 +42,7 @@ def scan_bytes(data: bytes, filename: str) -> str:
             return INFECTED  # real-time protection removed it as soon as it was written
         return _run_scanner(path)
     except OSError as exc:
-        log.warning("virus scan of %s could not run: %s", filename, exc)
+        log.warning("virus scan could not run: %s", type(exc).__name__)
         return SCAN_FAILED
     finally:
         if path is not None:

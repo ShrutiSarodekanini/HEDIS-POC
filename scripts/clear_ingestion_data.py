@@ -4,7 +4,7 @@ Clear ingested data to allow re-mapping with updated patient fields.
 Uses raw SQL to bypass foreign key constraints.
 """
 
-from services.data_ingestion_pallavi.app.db import SessionLocal
+from services.multi_source_ingestion.app.db import SessionLocal
 from sqlalchemy import text
 
 session = SessionLocal()
