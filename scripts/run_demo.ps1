@@ -28,16 +28,20 @@ param([switch]$Setup, [switch]$Integration, [string]$Schema = "", [string]$Evide
 $ErrorActionPreference = "Stop"
 $RepoRoot = Split-Path -Parent $PSScriptRoot
 $EnvFile = Join-Path $RepoRoot ".env"
+$PythonExe = Join-Path $RepoRoot ".venv\Scripts\python.exe"
 Set-Location $RepoRoot
 
 function Invoke-Step([string]$Title, [string[]]$PyArgs) {
     Write-Host "`n== $Title" -ForegroundColor Cyan
-    & python @PyArgs
+    & $PythonExe @PyArgs
     if ($LASTEXITCODE -ne 0) { throw "Step failed: $Title" }
 }
 
 if (-not (Test-Path $EnvFile)) {
     throw ".env not found in $RepoRoot. Create it first (run guide step 1), or run scripts/db/create_local_db.ps1."
+}
+if (-not (Test-Path $PythonExe)) {
+    throw "Python environment not found at $PythonExe. Create it with: py -3.12 -m venv .venv"
 }
 $envText = Get-Content $EnvFile -Raw
 if ($envText -notmatch "(?m)^\s*DATABASE_URL\s*=\s*\S") { throw ".env has no DATABASE_URL line (run guide step 1)." }
@@ -57,7 +61,7 @@ if ($Integration) {
         if ($Schema -notmatch '^[a-z_][a-z0-9_]*$') { throw "-Schema must be a plain lower-case name." }
         # Override for this run: .env's URL with this schema on the search path instead. The URL is never printed.
         $env:INTEGRATION_SCHEMA = $Schema
-        $env:DATABASE_URL = & python -c ("import os, re, dotenv; u = dotenv.dotenv_values('.env')['DATABASE_URL']; " +
+        $env:DATABASE_URL = & $PythonExe -c ("import os, re, dotenv; u = dotenv.dotenv_values('.env')['DATABASE_URL']; " +
             "s = 'search_path%3D' + os.environ['INTEGRATION_SCHEMA']; " +
             "print(re.sub('search_path%3D[A-Za-z0-9_]+', s, u) if 'search_path%3D' in u " +
             "else u + ('&' if '?' in u else '?') + 'options=-c' + s)")
@@ -67,7 +71,7 @@ if ($Integration) {
     $Plain = "import os, dotenv, psycopg; u = os.environ.get('DATABASE_URL') or " +
         "dotenv.dotenv_values('.env')['DATABASE_URL']; " +
         "c = psycopg.connect(u.replace('postgresql+psycopg://', 'postgresql://', 1), autocommit=True); "
-    $target = & python -c ($Plain + "print(c.execute('SHOW search_path').fetchone()[0].split(',')[0].strip().strip(chr(34)))")
+    $target = & $PythonExe -c ($Plain + "print(c.execute('SHOW search_path').fetchone()[0].split(',')[0].strip().strip(chr(34)))")
     if ($LASTEXITCODE -ne 0) { throw "Could not connect to the database in .env (DATABASE_URL)." }
     if ($target -notmatch '^[a-z_][a-z0-9_]*$' -or $target -eq 'public') {
         throw ('DATABASE_URL in .env does not name the app schema (it would use public). Add ' +
@@ -81,7 +85,7 @@ if ($Integration) {
             "c.execute(sql.SQL('CREATE SCHEMA IF NOT EXISTS {}').format(sql.Identifier(os.environ['INTEGRATION_SCHEMA'])))"))
         Invoke-Step "Create or upgrade the tables (migrations to head)" @("-m", "alembic", "-c", "db/alembic.ini",
             "upgrade", "head")
-        $orgs = & python -c ($Plain + "print(c.execute('SELECT count(*) FROM organization').fetchone()[0])")
+        $orgs = & $PythonExe -c ($Plain + "print(c.execute('SELECT count(*) FROM organization').fetchone()[0])")
         if ($LASTEXITCODE -ne 0) { throw "Could not count organizations." }
         if ([int]$orgs -eq 0) {
             Invoke-Step "Load reference data (no patients)" @("scripts/db/load_seed.py", "--reference-only")
@@ -97,10 +101,10 @@ if ($Integration) {
         } finally { Pop-Location }
     }
 
-    $schemaName = & python -c ($Plain + "print(c.execute('SELECT current_schema()').fetchone()[0])")
+    $schemaName = & $PythonExe -c ($Plain + "print(c.execute('SELECT current_schema()').fetchone()[0])")
     if ($LASTEXITCODE -ne 0) { throw "Could not connect to the database in .env (DATABASE_URL)." }
     if ($schemaName -ne $target) { throw "Schema $target not found. Run with -Integration -Setup first." }
-    $migration = & python -c ($Plain + "from alembic.config import Config; from alembic.script import ScriptDirectory; " +
+    $migration = & $PythonExe -c ($Plain + "from alembic.config import Config; from alembic.script import ScriptDirectory; " +
         "head = ScriptDirectory.from_config(Config('db/alembic.ini')).get_current_head(); " +
         "found = c.execute('SELECT to_regclass(%s)', ('alembic_version',)).fetchone()[0]; " +
         "now = found and c.execute('SELECT version_num FROM alembic_version').fetchone()[0]; " +
@@ -138,7 +142,7 @@ if ($Integration) {
     $port = if ($env:INTEGRATION_PORT) { $env:INTEGRATION_PORT } else { "8780" }
     Write-Host "`n== Starting the app on schema $schemaName. Open http://localhost:$port (Ctrl+C to stop)" `
         -ForegroundColor Green
-    & python -m services.integration.app
+    & $PythonExe -m services.integration.app
     exit $LASTEXITCODE
 }
 
@@ -151,4 +155,4 @@ if ($Setup) {
 }
 
 Write-Host "`n== Starting the demo page. Open http://localhost:8771 (Ctrl+C to stop)" -ForegroundColor Green
-& python scripts/demo_priority/server.py
+& $PythonExe scripts/demo_priority/server.py

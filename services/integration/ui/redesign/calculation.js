@@ -15,6 +15,7 @@
     data: null, error: "", selected: null, filter: "", search: "", shown: PAGE,
     picked: new Set(), known: new Set(),
     rows: null, rowsFor: "", rowsError: "", seq: 0, waiting: false, starting: false, outSig: "",
+    candidates: null, candidatesError: "", candidateOffset: 0, selectedPatients: new Set(),
   };
   const ui = { boxes: new Map() };
 
@@ -23,6 +24,12 @@
   const sum = (list, f) => list.reduce((s, m) => s + Number(f(m) || 0), 0);
   const yesNo = v => (v ? "Yes" : "No");
   const words = s => (s ? String(s).replaceAll("_", " ") : "-");
+  const durationText = seconds => {
+    const total = Math.max(0, Math.round(Number(seconds || 0)));
+    const minutes = Math.floor(total / 60);
+    const remaining = total % 60;
+    return minutes ? `${minutes}m ${remaining}s` : `${remaining}s`;
+  };
   const measures = () => (calc.data && calc.data.measures) || [];
   const selectedMeasure = () => measures().find(m => m.measure === calc.selected) || null;
   const isRunning = () => !!(state.batch && state.batch.status === "running");
@@ -35,13 +42,12 @@
     if (ui.root && ui.root.isConnected) return;
     ui.root = byId("calculation-root");
     ui.loadMsg = $("p", { class: "note error", role: "status", hidden: true });
-    ui.facts = $("dl", { class: "facts" });
     ui.runStatus = $("span", {});
+    ui.runMeta = $("p", { class: "note small", role: "status" });
     ui.checks = $("div", { class: "calc-checks" });
-    ui.runBtn = $("button", { type: "button", class: "btn btn-primary", onclick: runCalc }, "Run calculation");
+    ui.runBtn = $("button", { type: "button", class: "btn btn-primary", onclick: runCalc }, "Run selected patients");
     ui.progress = $("ol", { class: "steps", hidden: true });
     ui.runMsg = $("p", { class: "note small", role: "status" });
-    ui.lastRun = $("p", { class: "note small" });
     ui.boxes.clear();
     calc.known.clear();
     calc.picked.clear();
@@ -50,20 +56,38 @@
       calc.picked = new Set(on ? calc.known : []);
       for (const box of ui.boxes.values()) box.checked = on;
     };
+    ui.candidateBody = $("tbody", {});
+    ui.candidateCount = $("span", { class: "note" });
+    ui.candidatePrev = $("button", { type: "button", class: "btn btn-secondary calc-small", onclick: () => {
+      calc.candidateOffset = Math.max(0, calc.candidateOffset - 10);
+      loadCandidates();
+    } }, "Previous 10");
+    ui.candidateNext = $("button", { type: "button", class: "btn btn-secondary calc-small", onclick: () => {
+      calc.candidateOffset += 10;
+      loadCandidates();
+    } }, "Next 10");
+    const patientPicker = $("div", { class: "stack" },
+      $("div", { class: "calc-section-head" },
+        $("span", { class: "field-label" }, "1. Select patients"), ui.candidateCount),
+      $("div", { class: "table-wrap calc-candidate-table" }, $("table", { class: "table compact" },
+        $("thead", {}, $("tr", {}, th("Run"), th("Patient ID"), th("Batch upload size"), th("Stored in FHIR"))),
+        ui.candidateBody)),
+      $("div", { class: "calc-pagination" }, ui.candidatePrev, ui.candidateNext));
     const engineCard = $("section", { class: "card" },
-      $("div", { class: "card-head" }, $("h2", {}, "Engine run"), ui.runStatus),
-      $("p", { class: "note" }, "The engine runs through our bridge and every result is stored first in measure_result, " +
-        "care_gap and care_gap_detail. This screen only reads those tables back."),
-      $("div", { class: "grid-2" },
-        $("div", { class: "stack" }, $("span", { class: "field-label" }, "Latest stored run"), ui.facts, ui.lastRun),
-        $("div", { class: "stack" },
-          $("span", { class: "field-label" }, "Measures to run"), ui.checks,
+      $("div", { class: "card-head" },
+        $("div", {}, $("h2", {}, "Run HEDIS calculation"),
+          $("p", { class: "note" }, "Select patients and measures, then run.")),
+        ui.runStatus),
+      ui.runMeta,
+      $("div", { class: "calc-run-layout" },
+        patientPicker,
+        $("div", { class: "stack calc-measures" },
+          $("span", { class: "field-label" }, "2. Choose measures"), ui.checks,
           $("div", { class: "btn-row" },
             $("button", { type: "button", class: "btn btn-secondary calc-small", onclick: () => pickAll(true) }, "Select all"),
             $("button", { type: "button", class: "btn btn-secondary calc-small", onclick: () => pickAll(false) }, "Clear")),
-          $("p", { class: "note small" }, "Runs the measure engine again for the latest batch's patients, stores the " +
-            "results and gaps, then scores the gaps again."),
-          $("div", { class: "btn-row" }, ui.runBtn),
+          $("span", { class: "field-label" }, "3. Run"),
+          $("div", { class: "btn-row calc-run-action" }, ui.runBtn),
           ui.progress, ui.runMsg)));
 
     ui.empty = $("p", { class: "empty", hidden: true }, "No engine results yet. Ingest and persist a batch on ",
@@ -161,21 +185,15 @@
     const run = d.latest_run;
     const b = state.batch;
     const running = isRunning();
-    const rows = run
-      ? [["Run id", String(run.run_id), "mono"], ["Engine", `${run.engine} ${run.engine_version}`],
-        ["Measurement year", String(run.measurement_year)], ["Run at", when(run.run_at)]]
-      : [["Engine", d.engine ? `${d.engine} ${d.engine_version || ""}`.trim() : "-"],
-        ["Measurement year", d.measurement_year == null ? "-" : String(d.measurement_year)],
-        ["Run at", "No run stored yet"]];
-    rows.push(["Batch", b ? b.batch_id.slice(0, 8) : "None yet", "mono"], ["Batch status", b ? statusText(b) : "-"]);
-    ui.facts.replaceChildren(...rows.flatMap(([k, v, cls]) => [$("dt", {}, k), $("dd", { class: cls }, v)]));
 
     ui.runStatus.replaceChildren(b ? $("span", {
       class: `status ${running ? "status-warn" : b.status === "failed" ? "status-bad" : "status-ok"}`,
-    }, running ? "Running" : b.status === "failed" ? "Failed" : "Finished") : "");
+    }, running ? "Running" : b.status === "failed" ? "Failed" : "Ready") : "");
+    ui.runMeta.textContent = running ? statusText(b)
+      : run ? `Last calculation: ${when(run.run_at)}` : "No calculation has run yet.";
 
-    ui.runBtn.disabled = running || calc.starting;
-    ui.runBtn.textContent = running ? statusText(b) : "Run calculation";
+    ui.runBtn.disabled = running || calc.starting || !calc.selectedPatients.size;
+    ui.runBtn.textContent = running ? statusText(b) : "Run selected patients";
 
     if (running) {
       const idx = RUN_STEPS.findIndex(s => s[0] === b.step);
@@ -196,21 +214,6 @@
         : "Calculation finished. The tables below show the stored results.", failed);
     }
 
-    const rc = counts().recalculation;
-    const rm = rc && rc.measures && rc.measures.engine_run_id ? rc.measures : null;
-    const scored = counts().prioritization;
-    ui.lastRun.classList.remove("error");
-    if (!running && b && b.status === "failed") {
-      ui.lastRun.textContent = `Batch failed at ${b.step}${b.error ? `: ${b.error}` : ""}.`;
-      ui.lastRun.classList.add("error");
-    } else if (rm) {
-      const which = Array.isArray(rc.requested) ? rc.requested.join(", ") : "all measures";
-      ui.lastRun.textContent = `Last recalculation (${which}, engine run ${rm.engine_run_id}): ` +
-        `${n0(rm.patients)} patients, ${n0(rm.gaps_open)} open gaps, ${n0(rm.gaps_closed_by_engine)} closed by ` +
-        `the engine, ${n0(scored && scored.gaps_scored)} gaps scored again.`;
-    } else {
-      ui.lastRun.textContent = "";
-    }
   }
 
   async function runCalc() {
@@ -219,7 +222,12 @@
       setRunMsg("Choose at least one measure.", true);
       return;
     }
-    if (calc.known.size && calc.picked.size < calc.known.size) body = { measures: [...calc.picked] };
+    if (!calc.selectedPatients.size) {
+      setRunMsg("Choose at least one patient.", true);
+      return;
+    }
+    body.patient_ids = [...calc.selectedPatients];
+    if (calc.known.size && calc.picked.size < calc.known.size) body.measures = [...calc.picked];
     calc.starting = true;
     renderRun();
     setRunMsg("Starting...");
@@ -229,7 +237,7 @@
       calc.waiting = true;
       state.batch = await loadBatch();
       poll();
-      setRunMsg(`Calculation started for ${body.measures ? body.measures.length : "all"} measures.`);
+      setRunMsg(`Calculation started for ${body.patient_ids.length} selected patients.`);
       toast("Calculation started.");
     } catch (err) {
       setRunMsg(err.message, true);
@@ -241,6 +249,49 @@
 
   // ---------------------------------------------------------------- summary, outcome table, gaps
 
+  async function loadCandidates() {
+    try {
+      const r = await api(`/api/calculation/patients?offset=${calc.candidateOffset}&limit=10`);
+      calc.candidates = r;
+      calc.candidatesError = "";
+      renderCandidates();
+    } catch (err) {
+      calc.candidates = null;
+      calc.candidatesError = err.message;
+      renderCandidates();
+    }
+  }
+
+  function formatBytes(value) {
+    if (value == null) return "Not available";
+    const bytes = Number(value || 0);
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${fmt(bytes / 1024, 1)} KB`;
+    return `${fmt(bytes / (1024 * 1024), 1)} MB`;
+  }
+
+  function renderCandidates() {
+    const page = calc.candidates;
+    const rows = page ? page.patients || [] : [];
+    ui.candidateBody.replaceChildren(...(rows.length ? rows.map(p => {
+      const box = $("input", { type: "checkbox", checked: calc.selectedPatients.has(p.patient_id), onchange: e => {
+        if (e.target.checked) calc.selectedPatients.add(p.patient_id);
+        else calc.selectedPatients.delete(p.patient_id);
+        renderRun();
+      } });
+      return $("tr", {}, $("td", {}, box), $("td", { class: "mono" }, p.patient_id),
+        $("td", {}, formatBytes(p.input_bytes)), $("td", {}, when(p.stored_at)));
+    }) : [emptyRow(4, calc.candidatesError ? `Could not load stored patients: ${calc.candidatesError}`
+      : "No calculation-ready patients are available.")]));
+    const total = page ? Number(page.total || 0) : 0;
+    const shownStart = total ? Number(page.offset || 0) + 1 : 0;
+    const shownEnd = Math.min(Number(page.offset || 0) + rows.length, total);
+    ui.candidateCount.textContent = total ? `${calc.selectedPatients.size} selected · ${shownStart}-${shownEnd} of ${total}`
+      : "";
+    ui.candidatePrev.hidden = !page || !page.offset;
+    ui.candidateNext.hidden = !page || Number(page.offset || 0) + rows.length >= total;
+  }
+
   function renderKpis() {
     const ms = measures();
     const eligible = sum(ms, m => m.denominator - m.excluded);
@@ -248,14 +299,18 @@
     const kpi = (label, value, note) => $("div", { class: "kpi" }, $("span", {}, label), $("b", {}, value),
       note ? $("small", {}, note) : null);
     ui.kpiNote.textContent = calc.data.measurement_year ? `Measurement year ${calc.data.measurement_year}` : "";
-    ui.kpis.replaceChildren(
+    const cards = [
       kpi("PATIENTS EVALUATED", n0(Math.max(0, ...ms.map(m => m.evaluated || 0))), "most in any one measure"),
+      calc.data.latest_calculation_seconds == null ? null
+        : kpi("CALCULATION TIME", durationText(calc.data.latest_calculation_seconds), "latest completed run"),
       kpi("MEASURE CHECKS", n0(sum(ms, m => m.evaluated)), "patient and measure pairs"),
       kpi("ELIGIBLE", n0(eligible), "in the measure, not excluded"),
       kpi("NUMERATOR MET", n0(met)),
       kpi("EXCLUSIONS", n0(sum(ms, m => m.excluded))),
       kpi("OPEN GAPS", n0(sum(ms, m => m.gaps_open))),
-      kpi("CURRENT RATE", pct(met, eligible), "met divided by eligible"));
+      kpi("CURRENT RATE", pct(met, eligible), "met divided by eligible"),
+    ];
+    ui.kpis.replaceChildren(...cards.filter(Boolean));
   }
 
   function renderOutcome() {
@@ -421,10 +476,11 @@
         ui.empty.hidden = true;
         return;
       }
+      syncChecks();
+      await loadCandidates();
       const hasResults = !!calc.data.latest_run || measures().some(m => m.evaluated > 0 || m.denominator > 0);
       ui.empty.hidden = hasResults;
       ui.results.hidden = !hasResults;
-      syncChecks();
       if (!hasResults) return;
       ensureSelected();
       renderKpis();

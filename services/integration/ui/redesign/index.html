@@ -18,11 +18,47 @@
   <div class="brand"><span class="brand-mark" aria-hidden="true">✓</span>HEDIS Ops Console</div>
   <div class="topbar-right">
     <span class="chip chip-warn">POC · SYNTHEA DATA ONLY</span>
+    <span class="chip" id="auth-role" hidden></span>
+    <span class="muted small" id="auth-email" hidden></span>
     <span class="avatar" id="avatar" title="Reviewer ID used on decisions">?</span>
   </div>
 </header>
 
-<div class="shell">
+<section id="auth-shell" class="auth-shell" hidden>
+  <article class="auth-card">
+    <h2 id="auth-title">Sign in</h2>
+    <p class="sub" id="auth-sub">Use lowercase email only.</p>
+
+    <label class="field-label" for="auth-email-input">Email</label>
+    <input id="auth-email-input" class="input" type="email" autocomplete="off" placeholder="user@gmail.com">
+
+    <label class="field-label" for="auth-password-input">Password</label>
+    <div class="pwd-wrap">
+      <input id="auth-password-input" class="input" type="password" autocomplete="off">
+      <button type="button" class="pwd-toggle" id="auth-show-password" aria-label="Show password"
+        aria-pressed="false" title="Show password">
+        <svg class="pwd-icon pwd-icon-eye" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+          <path d="M2 12s3.8-6 10-6 10 6 10 6-3.8 6-10 6-10-6-10-6z"></path>
+          <circle cx="12" cy="12" r="3"></circle>
+        </svg>
+        <svg class="pwd-icon pwd-icon-eye-off" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+          <path d="M2 12s3.8-6 10-6 10 6 10 6-3.8 6-10 6-10-6-10-6z"></path>
+          <circle cx="12" cy="12" r="3"></circle>
+          <path d="M4 4l16 16"></path>
+        </svg>
+      </button>
+    </div>
+
+    <button type="button" class="btn btn-primary" id="auth-primary">Sign in</button>
+    <button type="button" class="btn" id="auth-secondary">Create account</button>
+    <button type="button" class="btn" id="auth-switch-forgot">Forgot password</button>
+    <button type="button" class="btn" id="auth-switch-signin" hidden>Back to sign in</button>
+
+    <p class="note small" id="auth-result" role="status"></p>
+  </article>
+</section>
+
+<div class="shell" id="shell-root" hidden>
   <nav class="sidebar" aria-label="Main">
     <a class="nav-item" href="#dashboard" data-view="dashboard"><span class="nav-icon">▦</span>Dashboard</a>
     <a class="nav-item" href="#ingestion" data-view="ingestion"><span class="nav-icon">⤓</span>Data Ingestion</a>
@@ -31,6 +67,10 @@
     <a class="nav-item" href="#stars" data-view="stars"><span class="nav-icon">★</span>Star Rating</a>
     <a class="nav-item" href="#prioritization" data-view="prioritization"><span class="nav-icon">≡</span>Prioritization</a>
     <a class="nav-item" href="#evidence" data-view="evidence"><span class="nav-icon">▤</span>Evidence Review</a>
+    <a class="nav-item" href="#users" data-view="users"><span class="nav-icon">U</span>User Administration</a>
+    <button type="button" class="nav-item nav-item-signout" id="auth-signout" hidden>
+      <span class="nav-icon">⇦</span>Sign out
+    </button>
   </nav>
 
   <main class="main">
@@ -96,6 +136,16 @@
         <span class="layer">LAYER 2 OF 8</span>
       </div>
       <div id="calculation-root" class="view-root"></div>
+    </section>
+
+    <section id="view-users" class="view" hidden>
+      <div class="page-head">
+        <div>
+          <h1>User Administration</h1>
+          <p class="sub">Approve accounts and manage administrator access</p>
+        </div>
+      </div>
+      <div id="users-root" class="view-root"></div>
     </section>
 
     <!-- Data Quality (quality.js) -->
@@ -253,5 +303,6 @@ CHECK (status IN ('proposed', 'confirmed', 'rejected'))</pre>
 <script src="/assets/calculation.js"></script>
 <script src="/assets/quality.js"></script>
 <script src="/assets/stars.js"></script>
+<script src="/assets/users.js"></script>
 </body>
 </html>

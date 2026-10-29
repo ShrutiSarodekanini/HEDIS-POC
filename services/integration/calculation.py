@@ -48,6 +48,61 @@ SELECT r.patient_id, r.in_denominator, r.in_numerator, coalesce(r.excluded, fals
  ORDER BY (g.status = 'open') DESC NULLS LAST, r.in_denominator DESC, r.patient_id
 """
 
+_RUN_CANDIDATES = """
+WITH latest_batch AS (
+    SELECT batch_id, ingest_job_id
+      FROM batch_run
+     WHERE status IN ('ready', 'running', 'prioritized') AND ingest_job_id IS NOT NULL
+     ORDER BY started_at DESC
+     LIMIT 1
+),
+batch_size AS (
+    SELECT (a.payload->>'bytes')::bigint AS bytes
+      FROM latest_batch b
+      LEFT JOIN audit_events a
+        ON a.entity_type = 'batch'
+       AND a.entity_id = b.batch_id::text
+       AND a.payload ? 'bytes'
+     ORDER BY a.at DESC
+     LIMIT 1
+)
+SELECT r.resource_id AS patient_id, r.updated_at AS stored_at, s.bytes AS input_bytes
+  FROM latest_batch b
+  JOIN fhir_resources r
+    ON r.job_id = b.ingest_job_id
+   AND r.resource_type = 'Patient'
+   AND r.persisted
+   AND r.lifecycle_status <> 'rejected'
+ CROSS JOIN batch_size s
+ ORDER BY r.updated_at DESC, r.resource_id
+ LIMIT %(limit)s OFFSET %(offset)s
+"""
+
+_RUN_CANDIDATE_COUNT = """
+SELECT count(*)
+  FROM batch_run b
+  JOIN fhir_resources r
+    ON r.job_id = b.ingest_job_id
+   AND r.resource_type = 'Patient'
+   AND r.persisted
+   AND r.lifecycle_status <> 'rejected'
+ WHERE b.status IN ('ready', 'running', 'prioritized')
+   AND b.ingest_job_id IS NOT NULL
+   AND b.started_at = (
+       SELECT max(started_at)
+         FROM batch_run
+        WHERE status IN ('ready', 'running', 'prioritized') AND ingest_job_id IS NOT NULL
+   )
+"""
+
+_LATEST_CALCULATION_DURATION = """
+SELECT extract(epoch FROM (b.updated_at - e.run_at))::double precision AS seconds
+  FROM engine_runs e
+  JOIN batch_run b ON b.counts #>> '{recalculation,measures,engine_run_id}' = e.run_id
+ ORDER BY e.run_at DESC
+ LIMIT 1
+"""
+
 
 def overview(conn: psycopg.Connection) -> dict:
     """Every measure the engine runs, with its latest populations and gaps, and the latest engine run."""
@@ -61,6 +116,7 @@ def overview(conn: psycopg.Connection) -> dict:
             "SELECT DISTINCT measure_id FROM star_cutpoint WHERE measurement_year = %s", (year,)).fetchall()}
         run = cur.execute("""SELECT run_id, engine, engine_version, measurement_year, run_at
                                FROM engine_runs ORDER BY run_at DESC LIMIT 1""").fetchone()
+        duration = cur.execute(_LATEST_CALCULATION_DURATION).fetchone()
     out = []
     for bundle in measures.measure_bundles():
         m = bundle.measure_id
@@ -73,7 +129,7 @@ def overview(conn: psycopg.Connection) -> dict:
             "computed_at": c.get("computed_at"), "gaps_open": g.get("open", 0), "gaps_closed": g.get("closed", 0),
             "confirmed_by_reviewer": g.get("confirmed_by_reviewer", 0)})
     return {"measurement_year": year, "engine": measures.ENGINE, "engine_version": measures.ENGINE_VERSION,
-            "latest_run": run, "measures": out}
+            "latest_run": run, "latest_calculation_seconds": duration["seconds"] if duration else None, "measures": out}
 
 
 def patients(conn: psycopg.Connection, measure_id: str) -> dict:
@@ -94,3 +150,13 @@ def patients(conn: psycopg.Connection, measure_id: str) -> dict:
             r["outcome"] = "gap"
     return {"measure": measure_id, "measurement_year": SETTINGS.measurement_year,
             "inverse": measure_id in measures.INVERSE_MEASURES, "patients": rows}
+
+
+def run_candidates(conn: psycopg.Connection, offset: int, limit: int) -> dict:
+    """Return one small page of stored patients that may be selected for an engine run."""
+    page_size = min(max(limit, 1), 10)
+    page_offset = max(offset, 0)
+    with conn.cursor(row_factory=dict_row) as cur:
+        rows = cur.execute(_RUN_CANDIDATES, {"limit": page_size, "offset": page_offset}).fetchall()
+        total = cur.execute(_RUN_CANDIDATE_COUNT).fetchone()["count"]
+    return {"patients": rows, "offset": page_offset, "limit": page_size, "total": total}
