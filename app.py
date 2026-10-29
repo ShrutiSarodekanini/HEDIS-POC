@@ -27,6 +27,7 @@ from common.evidence import (
     generate_document,
     prepare_evidence_data,
 )
+from common.measure_performance import compare_measure
 from common.repository import Repository, row_to_dict
 from common.models import CareGap, Measure, Member
 from services.data_ingestion.app import api as ingestion_api

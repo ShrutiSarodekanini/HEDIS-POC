@@ -103,12 +103,12 @@ def _resolve_column_name(fieldnames: list[str], requested: str | None) -> str | 
         return None
 
     requested_norm = requested.strip().lower()
-    for field in fieldnames:
-        if _normalize_header(field) == requested:
-            return field
-    for field in fieldnames:
-        if _normalize_header(field).lower() == requested_norm:
-            return field
+    for field_name in fieldnames:
+        if _normalize_header(field_name) == requested:
+            return field_name
+    for field_name in fieldnames:
+        if _normalize_header(field_name).lower() == requested_norm:
+            return field_name
     return None
 
 

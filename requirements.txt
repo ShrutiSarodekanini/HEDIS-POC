@@ -15,12 +15,12 @@ httpx>=0.28.1
 python-multipart>=0.0.9
 
 # Data ingestion (Synthea CSV to FHIR); needs pydantic 2.
-# services/data_ingestion_pallavi run on its own needs fhir.resources==6.5.0 with pydantic==1.10.21, in a separate
+# services/multi_source_ingestion run on its own needs fhir.resources==6.5.0 with pydantic==1.10.21, in a separate
 # environment; the app does not run it (its tables reuse the team table names).
 fhir.resources>=8.0,<9.0
 
 # Document intake and conversion (US-02)
-cryptography
+cryptography>=45,<50  # 50.x wheel fails to import its Rust exceptions module on Windows.
 pypdfium2
 pypdf
 python-docx
@@ -31,7 +31,7 @@ numpy
 pytesseract
 reportlab
 
-# Star rating and mock evidence documents (Pradeep)
+# Star rating and mock evidence documents
 reportlab
 
 # Data processing

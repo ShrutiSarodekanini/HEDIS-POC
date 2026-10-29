@@ -81,9 +81,9 @@ ui/dist/
 *.log
 .vscode/.history/
 
-# Star rating app (Pradeep)
+# Star rating app
 
-# Pallavi's ingestion and dashboard
+# Multi-source ingestion and dashboard
 .env.local
 .env.*.local
 *.so

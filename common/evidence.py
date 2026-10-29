@@ -436,7 +436,7 @@ def generate_png(path: Path, data: EvidenceData) -> None:
 
     title_font = _load_handwriting_font(58)
     h_font = _load_handwriting_font(38)
-    body_font = _load_handwriting_font(30)
+    _load_handwriting_font(30)
     small_font = _load_handwriting_font(27)
     tiny_font = _load_handwriting_font(22)
 

@@ -1,7 +1,7 @@
 """What the Data Quality screen reads: loaded batches, measures with rules, runs with their checks and anomalies, and
 the coverage report.
 
-The checks run in pallavi.py; this module only reads what they stored (quality_run, quality_check_result, data_anomaly
+The checks run in dq_checks.py; this module only reads what they stored (quality_run, quality_check_result, data_anomaly
 with data_anomaly_detail) and the coverage table.
 """
 
@@ -12,7 +12,7 @@ import psycopg
 
 from services.data_ingestion import team_schema_loader
 
-from . import pallavi
+from . import dq_checks
 
 _BATCHES = """
 SELECT s.batch_id::text, s.started_at, b.status, b.step, coalesce(b.counts ? 'load', false),
@@ -44,7 +44,7 @@ SELECT a.anomaly_id::text, a.anomaly_type, d.check_type, a.severity, a.resource_
 _COVERAGE = f"""
 SELECT c.patient_id, c.coverage_id, c.payer_name, c.period_start, c.period_end, c.gap_detected, c.gap_days,
        c.compliant
-  FROM ({pallavi.COVERAGE_ROWS}) c
+  FROM ({dq_checks.COVERAGE_ROWS}) c
  WHERE (%(payer)s::text IS NULL OR c.payer_name = %(payer)s)
    AND (%(compliant)s::boolean IS NULL OR c.compliant = %(compliant)s)
    AND (%(start)s::date IS NULL OR c.period_end >= %(start)s)
@@ -59,13 +59,13 @@ _RUN_KEYS = ("run_id", "batch_id", "measure_id", "status", "actor", "summary", "
 def overview(conn: psycopg.Connection) -> dict:
     """Uploaded batches (newest first) with their run counts, the measures that have rules, and what is not
     available on the team tables."""
-    rules = pallavi.measure_rules()
-    measures = [{"measure_id": m, "phase": pallavi.phase(r), "description": r.get("description")}
-                for m, r in sorted(rules.items(), key=lambda kv: (pallavi.phase(kv[1]), kv[0]))]
+    rules = dq_checks.measure_rules()
+    measures = [{"measure_id": m, "phase": dq_checks.phase(r), "description": r.get("description")}
+                for m, r in sorted(rules.items(), key=lambda kv: (dq_checks.phase(kv[1]), kv[0]))]
     keys = ("batch_id", "started_at", "status", "step", "loaded", "runs", "latest_run_id")
     rows = conn.execute(_BATCHES, (team_schema_loader.SOURCE_SYSTEM,)).fetchall()
     return {"measures": measures, "batches": [dict(zip(keys, r)) for r in rows],
-            "not_available": pallavi.NOT_AVAILABLE}
+            "not_available": dq_checks.NOT_AVAILABLE}
 
 
 def runs(conn: psycopg.Connection, batch_id: uuid.UUID) -> dict:
@@ -90,9 +90,9 @@ def run_detail(conn: psycopg.Connection, run_id: int, severity: str | None) -> d
 
 def coverage_report(conn: psycopg.Connection, payer: str | None, compliant: bool | None, start: date | None,
                     end: date | None, limit: int) -> dict:
-    """Coverage rows with their patient's enrollment gap (the rule in pallavi.COVERAGE_ROWS), and the totals."""
+    """Coverage rows with their patient's enrollment gap (the rule in dq_checks.COVERAGE_ROWS), and the totals."""
     rows = conn.execute(_COVERAGE, {"payer": payer, "compliant": compliant, "start": start, "end": end,
-                                    "limit": limit, "gap_limit": pallavi.COVERAGE_GAP_LIMIT_DAYS}).fetchall()
+                                    "limit": limit, "gap_limit": dq_checks.COVERAGE_GAP_LIMIT_DAYS}).fetchall()
     keys = ("patient_id", "coverage_id", "payer", "period_start", "period_end", "gap_detected", "gap_days",
             "continuous_enrollment_compliant")
     records = [dict(zip(keys, r)) for r in rows]
@@ -103,4 +103,4 @@ def coverage_report(conn: psycopg.Connection, payer: str | None, compliant: bool
             "summary": {"total_covered": len(records), "continuous_enrollment": continuous,
                         "hedis_violations": sum(1 for r in records if r["gap_detected"]),
                         "compliance_rate": int(continuous / len(records) * 100) if records else 0,
-                        "gap_limit_days": pallavi.COVERAGE_GAP_LIMIT_DAYS}}
+                        "gap_limit_days": dq_checks.COVERAGE_GAP_LIMIT_DAYS}}

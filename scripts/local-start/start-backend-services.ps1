@@ -1,12 +1,18 @@
 param(
-    [string]$ProjectRoot = "D:\personal\HEDIS-Team-repo\HEDIS-POC",
+    [string]$ProjectRoot,
     [int]$ApiPort = 8000,
+    [int]$IntegrationPort = 8780,
     [switch]$InstallDeps,
     [switch]$SkipPrelaunchCleanup
 )
 
 $ErrorActionPreference = "Stop"
 
+if (-not $ProjectRoot) {
+    $ProjectRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
+}
+
+$ProjectRoot = (Resolve-Path -LiteralPath $ProjectRoot).Path
 $pythonExe = Join-Path $ProjectRoot ".venv\Scripts\python.exe"
 
 if (-not (Test-Path -LiteralPath $ProjectRoot)) {
@@ -25,8 +31,21 @@ if (-not $SkipPrelaunchCleanup) {
         $_.CommandLine -and
         ($_.CommandLine -match $escapedProjectRoot)
     }
-
+    $processesById = @{}
     foreach ($proc in $existingProcesses) {
+        $processesById[$proc.ProcessId] = $proc
+    }
+
+    do {
+        $childProcesses = @(Get-CimInstance Win32_Process -ErrorAction SilentlyContinue | Where-Object {
+            $processesById.ContainsKey($_.ParentProcessId) -and -not $processesById.ContainsKey($_.ProcessId)
+        })
+        foreach ($proc in $childProcesses) {
+            $processesById[$proc.ProcessId] = $proc
+        }
+    } while ($childProcesses.Count -gt 0)
+
+    foreach ($proc in $processesById.Values) {
         Stop-Process -Id $proc.ProcessId -Force -ErrorAction SilentlyContinue
     }
 
@@ -60,12 +79,20 @@ if (-not $?) {
     throw "Required packages are missing in .venv. Run: `"$pythonExe`" -m pip install -r `"$requirementsFile`" or start script with -InstallDeps."
 }
 
-$apiCommand = "Set-Location '$ProjectRoot'; & '$pythonExe' -m uvicorn services.data_ingestion_pallavi.main:app --host 0.0.0.0 --port $ApiPort --reload"
-$workerCommand = "Set-Location '$ProjectRoot'; & '$pythonExe' -m services.data_quality_pallavi.main"
+$apiCommand = "Set-Location '$ProjectRoot'; & '$pythonExe' -m uvicorn services.multi_source_ingestion.main:app --host 0.0.0.0 --port $ApiPort --reload"
+$workerCommand = "Set-Location '$ProjectRoot'; & '$pythonExe' -m services.data_quality_rules.main"
+$integrationUiDir = Join-Path $ProjectRoot "services\integration\ui\redesign"
+if (-not (Test-Path -LiteralPath (Join-Path $integrationUiDir "index.html"))) {
+    throw "Latest integration UI not found at $integrationUiDir"
+}
+$integrationCommand = "Set-Location '$ProjectRoot'; `$env:INTEGRATION_PORT = '$IntegrationPort'; " +
+    "`$env:INTEGRATION_UI_DIR = '$integrationUiDir'; & '$pythonExe' -m services.integration.app"
 
 Start-Process powershell -ArgumentList @("-NoExit", "-Command", $apiCommand)
 Start-Sleep -Seconds 1
 Start-Process powershell -ArgumentList @("-NoExit", "-Command", $workerCommand)
+Start-Process powershell -ArgumentList @("-NoExit", "-Command", $integrationCommand)
 
-Write-Host "Started backend API and DQ worker in separate PowerShell windows."
+Write-Host "Started backend API, DQ worker, and HEDIS Ops Console in separate PowerShell windows."
 Write-Host "API URL: http://localhost:$ApiPort"
+Write-Host "HEDIS Ops Console URL: http://localhost:$IntegrationPort"

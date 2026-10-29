@@ -29,7 +29,6 @@ logger = logging.getLogger("uvicorn.error")
 
 def _emit(message: str) -> None:
     logger.info(message)
-    print(message, flush=True)
 
 
 @dataclass
@@ -362,8 +361,7 @@ def run_conversion(job_id: str, input_dir: str) -> None:
         )
     except Exception as exc:  # pragma: no cover - defensive error path
         stage(job_id, "csv_input", "failed", str(exc))
-        logger.exception("[pipeline] job=%s conversion_failed error=%s", job_id, exc)
-        print(f"[pipeline] job={job_id} conversion_failed error={exc}", flush=True)
+        logger.error("[pipeline] job=%s conversion_failed error=%s", job_id, type(exc).__name__)
         with session_scope() as session:
             summary["error_count"] = summary.get("error_count", 0) + 1
             summary["timelogs"] = {
@@ -397,7 +395,7 @@ def run_persist_stage(job_id: str) -> int:
             session.execute(
                 select(func.count())
                 .select_from(FhirResource)
-                .where((FhirResource.job_id == job_id) & (FhirResource.persisted == True))
+                .where((FhirResource.job_id == job_id) & (FhirResource.persisted.is_(True)))
             ).scalar()
             or 0
         )

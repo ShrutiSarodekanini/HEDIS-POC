@@ -1,8 +1,8 @@
 """Read side of the HEDIS Calculation screen: the measures the engine runs, their latest populations, and the
 per-patient results and gaps, all from measure_result, care_gap and care_gap_detail.
 
-Jyothi's engine screen runs the engine per patient and keeps the results in the browser; here the same engine runs
-through our bridge (measures.py, which reuses her command line and helpers) and every result is stored first.
+The engine screen runs the engine per patient and keeps the results in the browser; here the same engine runs
+through our bridge (measures.py, which reuses its command line and helpers) and every result is stored first.
 """
 
 import psycopg
@@ -48,6 +48,46 @@ SELECT r.patient_id, r.in_denominator, r.in_numerator, coalesce(r.excluded, fals
  ORDER BY (g.status = 'open') DESC NULLS LAST, r.in_denominator DESC, r.patient_id
 """
 
+_RUN_CANDIDATE_PATIENTS = """
+WITH eligible_patients AS (
+    SELECT DISTINCT ON (r.resource_id) r.resource_id AS patient_id, r.updated_at AS stored_at, r.job_id
+      FROM fhir_resources r
+     WHERE r.resource_type = 'Patient'
+       AND r.persisted
+       AND r.lifecycle_status <> 'rejected'
+     ORDER BY r.resource_id, r.updated_at DESC
+)
+"""
+
+_RUN_CANDIDATES = _RUN_CANDIDATE_PATIENTS + """
+SELECT p.patient_id, p.stored_at, s.bytes AS input_bytes
+  FROM eligible_patients p
+  LEFT JOIN LATERAL (
+      SELECT (a.payload->>'bytes')::bigint AS bytes
+        FROM batch_run b
+        JOIN audit_events a
+          ON a.entity_type = 'batch'
+         AND a.entity_id = b.batch_id::text
+         AND a.payload ? 'bytes'
+       WHERE b.ingest_job_id = p.job_id
+       ORDER BY a.at DESC
+       LIMIT 1
+  ) s ON true
+ ORDER BY p.stored_at DESC, p.patient_id
+ LIMIT %(limit)s OFFSET %(offset)s
+"""
+
+_RUN_CANDIDATE_COUNT = _RUN_CANDIDATE_PATIENTS + "SELECT count(*) FROM eligible_patients"
+_RUN_CANDIDATE_IDS = _RUN_CANDIDATE_PATIENTS + "SELECT patient_id FROM eligible_patients ORDER BY patient_id"
+
+_LATEST_CALCULATION_DURATION = """
+SELECT extract(epoch FROM (b.updated_at - e.run_at))::double precision AS seconds
+  FROM engine_runs e
+  JOIN batch_run b ON b.counts #>> '{recalculation,measures,engine_run_id}' = e.run_id
+ ORDER BY e.run_at DESC
+ LIMIT 1
+"""
+
 
 def overview(conn: psycopg.Connection) -> dict:
     """Every measure the engine runs, with its latest populations and gaps, and the latest engine run."""
@@ -61,6 +101,7 @@ def overview(conn: psycopg.Connection) -> dict:
             "SELECT DISTINCT measure_id FROM star_cutpoint WHERE measurement_year = %s", (year,)).fetchall()}
         run = cur.execute("""SELECT run_id, engine, engine_version, measurement_year, run_at
                                FROM engine_runs ORDER BY run_at DESC LIMIT 1""").fetchone()
+        duration = cur.execute(_LATEST_CALCULATION_DURATION).fetchone()
     out = []
     for bundle in measures.measure_bundles():
         m = bundle.measure_id
@@ -73,7 +114,7 @@ def overview(conn: psycopg.Connection) -> dict:
             "computed_at": c.get("computed_at"), "gaps_open": g.get("open", 0), "gaps_closed": g.get("closed", 0),
             "confirmed_by_reviewer": g.get("confirmed_by_reviewer", 0)})
     return {"measurement_year": year, "engine": measures.ENGINE, "engine_version": measures.ENGINE_VERSION,
-            "latest_run": run, "measures": out}
+            "latest_run": run, "latest_calculation_seconds": duration["seconds"] if duration else None, "measures": out}
 
 
 def patients(conn: psycopg.Connection, measure_id: str) -> dict:
@@ -94,3 +135,20 @@ def patients(conn: psycopg.Connection, measure_id: str) -> dict:
             r["outcome"] = "gap"
     return {"measure": measure_id, "measurement_year": SETTINGS.measurement_year,
             "inverse": measure_id in measures.INVERSE_MEASURES, "patients": rows}
+
+
+def run_candidates(conn: psycopg.Connection, offset: int, limit: int) -> dict:
+    """Return one small page of every stored patient that may be selected for an engine run."""
+    page_size = min(max(limit, 1), 10)
+    page_offset = max(offset, 0)
+    with conn.cursor(row_factory=dict_row) as cur:
+        rows = cur.execute(_RUN_CANDIDATES, {"limit": page_size, "offset": page_offset}).fetchall()
+        total = cur.execute(_RUN_CANDIDATE_COUNT).fetchone()["count"]
+        patient_ids = [row["patient_id"] for row in cur.execute(_RUN_CANDIDATE_IDS).fetchall()]
+    return {"patients": rows, "offset": page_offset, "limit": page_size, "total": total, "patient_ids": patient_ids}
+
+
+def run_candidate_ids(conn: psycopg.Connection) -> tuple[str, ...]:
+    """Return all persisted patient IDs accepted by the calculation runner."""
+    with conn.cursor(row_factory=dict_row) as cur:
+        return tuple(row["patient_id"] for row in cur.execute(_RUN_CANDIDATE_IDS).fetchall())

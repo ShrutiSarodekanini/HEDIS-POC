@@ -1,8 +1,8 @@
 """Align with the team schema: the lead's tables exactly as drawn, our extra tables linked to them.
 
-The team schema (Schema design.drawio) is created as drawn: same tables, columns and types. Value lists and ranges
-written next to columns in the diagram become CHECK constraints; "append-only" tables refuse updates and deletes.
-MEASURE_DEFINITION shows no columns in the diagram, so it holds only its key here.
+The team schema (docs/architecture/Schema design.drawio.html) is created as drawn: same tables, columns and types.
+Value lists and ranges written next to columns in the diagram become CHECK constraints; "append-only" tables refuse
+updates and deletes. MEASURE_DEFINITION shows no columns in the diagram, so it holds only its key here.
 
 Everything our features need that the team schema does not have lives in our own tables, linked one to one by the
 team schema's IDs (care_gap_detail, document_conversion, evidence_proposal_detail, gap_priority_reason, measure_rule,

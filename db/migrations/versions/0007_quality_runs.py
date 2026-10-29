@@ -1,6 +1,6 @@
 """Data quality on the team tables: our run and check tables, and a one to one detail for data_anomaly.
 
-The data quality checks (services/integration/pallavi.py, rule set services/data_quality_pallavi/config/dq_rules.json)
+The data quality checks (services/integration/dq_checks.py, rule set services/data_quality_rules/config/dq_rules.json)
 write their anomalies to the lead's data_anomaly and each batch's record counts to feed_completeness_report. What the
 team schema has no place for lives in our own tables:
 
