@@ -3,15 +3,15 @@
 Adds app-managed users, bearer sessions, and password-reset tokens.
 Emails are lowercase-only. Sessions and reset tokens have server-side expiry.
 
-Revision ID: 0008
-Revises: 0007
+Revision ID: 0010_local_auth
+Revises: 0009
 Create Date: 2026-10-27
 """
 
 from alembic import op
 
-revision = "0008"
-down_revision = "0007"
+revision = "0010_local_auth"
+down_revision = "0009"
 branch_labels = None
 depends_on = None
 

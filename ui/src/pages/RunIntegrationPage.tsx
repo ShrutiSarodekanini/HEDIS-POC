@@ -132,6 +132,10 @@ export function RunIntegrationPage() {
 
   const selectedBatchMatchesJob = !jobId || !ourStepsBatch?.ingest_job_id || ourStepsBatch.ingest_job_id === jobId
   const sourceDescription = inputDir ? `Dataset path: ${inputDir}` : "Choose files or set input folder path"
+  const datasetRowCounts = useMemo(
+    () => Object.entries(datasetMeta?.row_counts ?? {}).sort(([left], [right]) => left.localeCompare(right)),
+    [datasetMeta?.row_counts],
+  )
 
   const activeOurStepIndex = useMemo(
     () => OUR_STEPS.findIndex((step) => step.key === (ourStepsBatch?.step ?? "")),
@@ -337,6 +341,53 @@ export function RunIntegrationPage() {
                 {" "}
                 rows.
               </p>
+              <p className="note">Inspected input: {datasetMeta.input_dir || "-"}</p>
+
+              {datasetMeta.found_files.length > 0 ? (
+                <div className="table-wrap">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>File</th>
+                        <th>Rows</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {datasetMeta.found_files.map((name) => {
+                        const count = datasetMeta.row_counts?.[name]
+                        return (
+                          <tr key={name}>
+                            <td>{name}</td>
+                            <td>{formatInteger(typeof count === "number" ? count : 0)}</td>
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              ) : null}
+
+              {datasetMeta.found_files.length === 0 && datasetRowCounts.length > 0 ? (
+                <div className="table-wrap">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>File</th>
+                        <th>Rows</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {datasetRowCounts.map(([name, count]) => (
+                        <tr key={name}>
+                          <td>{name}</td>
+                          <td>{formatInteger(typeof count === "number" ? count : 0)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : null}
+
               {(datasetMeta.missing_required_files ?? []).length > 0 ? (
                 <div className="chips">
                   {datasetMeta.missing_required_files.map((name) => (

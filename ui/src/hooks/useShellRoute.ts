@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react"
 
-export type AppView = "dashboard" | "ingestion" | "calculation" | "quality" | "stars" | "prioritization" | "evidence"
+export type AppView = "dashboard" | "ingestion" | "calculation" | "quality" | "stars" | "prioritization" | "evidence" | "admin"
 
 const fromHash = (hash: string): AppView => {
   if (hash === "#view-ingestion") {
@@ -20,6 +20,9 @@ const fromHash = (hash: string): AppView => {
   }
   if (hash === "#view-evidence") {
     return "evidence"
+  }
+  if (hash === "#view-admin") {
+    return "admin"
   }
   return "dashboard"
 }

@@ -9,13 +9,15 @@ import threading
 import uuid
 from contextlib import asynccontextmanager
 from pathlib import Path
+from typing import Iterator, Literal
 
-from fastapi import APIRouter, Depends, FastAPI, HTTPException
+import psycopg
+from fastapi import APIRouter, Depends, FastAPI, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 from fastapi.routing import APIRoute
 from pydantic import BaseModel, Field
-from sqlalchemy import select, text
+from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.orm import Session
 
@@ -29,10 +31,11 @@ from common.evidence import (
 )
 from common.measure_performance import compare_measure
 from common.repository import Repository, row_to_dict
-from common.models import CareGap, Measure, Member
 from services.data_ingestion.app import api as ingestion_api
 from services.data_ingestion.app.db import session_scope as ingestion_session_scope
 from services.data_ingestion.app.repository import as_job_dict as ingestion_as_job_dict, list_jobs as ingestion_list_jobs
+from services.document_intake import db as intake_db
+from services.integration import auth as integration_auth
 from services.star_modeler.main import (
     CMS_MEASURE_SET_URL,
     CMS_RATING_YEAR,
@@ -78,6 +81,41 @@ class StarRatingComparisonRequest(BaseModel):
 class StarDashboardRequest(BaseModel):
     measure_id: str | None = None
     selected_gap_ids: list[str] = Field(default_factory=list)
+
+
+class SignInIn(BaseModel):
+    email: str
+    password: str
+
+
+class SignUpIn(BaseModel):
+    email: str
+    password: str
+
+
+class UserAccessIn(BaseModel):
+    access_status: Literal["approved", "rejected"]
+
+
+class UserRoleIn(BaseModel):
+    role: Literal["admin", "user"]
+
+
+def get_auth_conn() -> Iterator[psycopg.Connection]:
+    """One psycopg connection per request for local auth/session actions."""
+    with intake_db.connect() as conn:
+        yield conn
+
+
+def current_auth_user(
+    conn: psycopg.Connection = Depends(get_auth_conn),
+    authorization: str | None = Header(default=None),
+) -> integration_auth.AuthUser:
+    return integration_auth.current_user(conn, authorization)
+
+
+def admin_auth_user(user: integration_auth.AuthUser = Depends(current_auth_user)) -> integration_auth.AuthUser:
+    return integration_auth.ensure_admin(user)
 
 
 def _ingestion_routes() -> APIRouter:
@@ -485,7 +523,32 @@ def _build_star_dashboard(
     }
 
 
-def _seed_dashboard_sample_data(session: Session) -> dict[str, int]:
+def _relation_type(session: Session, relation_name: str) -> str | None:
+    return session.execute(
+        text(
+            """SELECT table_type
+                   FROM information_schema.tables
+                  WHERE table_schema = current_schema()
+                    AND table_name = :relation_name"""
+        ),
+        {"relation_name": relation_name},
+    ).scalar_one_or_none()
+
+
+def _relation_columns(session: Session, relation_name: str) -> set[str]:
+    rows = session.execute(
+        text(
+            """SELECT column_name
+                   FROM information_schema.columns
+                  WHERE table_schema = current_schema()
+                    AND table_name = :relation_name"""
+        ),
+        {"relation_name": relation_name},
+    ).all()
+    return {str(row[0]) for row in rows}
+
+
+def _seed_dashboard_sample_data_legacy(session: Session) -> dict[str, int]:
     inserted_members = 0
     inserted_measures = 0
     inserted_gaps = 0
@@ -501,53 +564,77 @@ def _seed_dashboard_sample_data(session: Session) -> dict[str, int]:
         ("SPD", "Statin Therapy for Patients With Diabetes"),
         ("GSD", "Glycemic Status Assessment"),
         ("EED", "Eye Exam for Patients With Diabetes"),
-        # Keep COL to support existing demo data already in this repo.
         ("COL", "Colorectal Cancer Screening"),
     ]
-
-    existing_measure_ids = {
-        row[0] for row in session.execute(select(Measure.measure_id)).all()
-    }
-    for measure_id, name in sample_measures:
-        if measure_id not in existing_measure_ids:
-            session.add(
-                Measure(
-                    measure_id=measure_id,
-                    name=name,
-                    description=f"Sample measure for dashboard realism: {name}",
-                    measurement_year=2026,
-                )
-            )
-            inserted_measures += 1
-
-    # Persist parent rows before inserting care gaps that reference them.
-    session.flush()
 
     sample_members = [
         (f"M{1000 + index}", f"Patient{index:02d}", f"Demo{index:02d}")
         for index in range(1, 21)
     ]
+
+    measure_columns = _relation_columns(session, "measures")
+    member_columns = _relation_columns(session, "members")
+    gap_columns = _relation_columns(session, "care_gaps")
+
+    existing_measure_ids = {
+        str(row[0])
+        for row in session.execute(text("SELECT measure_id FROM measures")).all()
+    }
+    for measure_id, name in sample_measures:
+        if measure_id in existing_measure_ids:
+            continue
+
+        payload: dict[str, object] = {"measure_id": measure_id, "name": name}
+        if "description" in measure_columns:
+            payload["description"] = f"Sample measure for dashboard realism: {name}"
+        if "measurement_year" in measure_columns:
+            payload["measurement_year"] = 2026
+
+        columns = list(payload.keys())
+        placeholders = [f":{column}" for column in columns]
+        session.execute(
+            text(
+                "INSERT INTO measures "
+                f"({', '.join(columns)}) VALUES ({', '.join(placeholders)}) "
+                "ON CONFLICT (measure_id) DO NOTHING"
+            ),
+            payload,
+        )
+        inserted_measures += 1
+
     existing_member_ids = {
-        row[0] for row in session.execute(select(Member.member_id)).all()
+        str(row[0])
+        for row in session.execute(text("SELECT member_id FROM members")).all()
     }
     for member_id, first_name, last_name in sample_members:
-        if member_id not in existing_member_ids:
-            session.add(
-                Member(
-                    member_id=member_id,
-                    first_name=first_name,
-                    last_name=last_name,
-                    date_of_birth=dt.date(1980, 1, 1),
-                    gender="Unknown",
-                )
-            )
-            inserted_members += 1
+        if member_id in existing_member_ids:
+            continue
 
-    # Persist parent member rows before inserting care-gap children.
-    session.flush()
+        payload: dict[str, object] = {"member_id": member_id}
+        if "first_name" in member_columns:
+            payload["first_name"] = first_name
+        if "last_name" in member_columns:
+            payload["last_name"] = last_name
+        if "date_of_birth" in member_columns:
+            payload["date_of_birth"] = dt.date(1980, 1, 1)
+        if "gender" in member_columns:
+            payload["gender"] = "Unknown"
+
+        columns = list(payload.keys())
+        placeholders = [f":{column}" for column in columns]
+        session.execute(
+            text(
+                "INSERT INTO members "
+                f"({', '.join(columns)}) VALUES ({', '.join(placeholders)}) "
+                "ON CONFLICT (member_id) DO NOTHING"
+            ),
+            payload,
+        )
+        inserted_members += 1
 
     existing_gap_ids = {
-        row[0] for row in session.execute(select(CareGap.care_gap_id)).all()
+        str(row[0])
+        for row in session.execute(text("SELECT care_gap_id FROM care_gaps")).all()
     }
 
     status_pattern = ["Open", "Open", "Closed", "Open", "Closed"]
@@ -557,28 +644,206 @@ def _seed_dashboard_sample_data(session: Session) -> dict[str, int]:
                 care_gap_id = f"CG-{measure_id}-{member_id}-{seq}"
                 if care_gap_id in existing_gap_ids:
                     continue
+
                 status = status_pattern[(idx + m_idx + seq) % len(status_pattern)]
-                session.add(
-                    CareGap(
-                        care_gap_id=care_gap_id,
-                        member_id=member_id,
-                        measure_id=measure_id,
-                        description=(
-                            f"Sample gap {seq} for {measure_id} and {member_id}"
-                        ),
-                        status=status,
-                        date_identified=dt.date(2026, ((idx + seq) % 12) + 1, ((m_idx + seq) % 27) + 1),
-                        measurement_year=2026,
-                    )
+                payload: dict[str, object] = {"care_gap_id": care_gap_id}
+                if "member_id" in gap_columns:
+                    payload["member_id"] = member_id
+                if "measure_id" in gap_columns:
+                    payload["measure_id"] = measure_id
+                if "description" in gap_columns:
+                    payload["description"] = f"Sample gap {seq} for {measure_id} and {member_id}"
+                if "status" in gap_columns:
+                    payload["status"] = status
+                if "date_identified" in gap_columns:
+                    payload["date_identified"] = dt.date(2026, ((idx + seq) % 12) + 1, ((m_idx + seq) % 27) + 1)
+                if "measurement_year" in gap_columns:
+                    payload["measurement_year"] = 2026
+
+                columns = list(payload.keys())
+                placeholders = [f":{column}" for column in columns]
+                session.execute(
+                    text(
+                        "INSERT INTO care_gaps "
+                        f"({', '.join(columns)}) VALUES ({', '.join(placeholders)}) "
+                        "ON CONFLICT (care_gap_id) DO NOTHING"
+                    ),
+                    payload,
                 )
                 inserted_gaps += 1
 
-    session.flush()
     return {
         "inserted_members": inserted_members,
         "inserted_measures": inserted_measures,
         "inserted_care_gaps": inserted_gaps,
     }
+
+
+def _seed_dashboard_sample_data_compat(session: Session) -> dict[str, int]:
+    inserted_members = 0
+    inserted_gaps = 0
+
+    preferred_measure_ids = [
+        "CBP",
+        "BCS-E",
+        "BPD",
+        "CCS-E",
+        "AAB",
+        "COL-E",
+        "KED",
+        "SPD",
+        "GSD",
+        "EED",
+        "COL",
+    ]
+
+    known_measure_rows = session.execute(
+        text(
+            """SELECT measure_id, max(measurement_year) AS measurement_year
+                   FROM measure_definition
+                  GROUP BY measure_id"""
+        )
+    ).all()
+    known_measure_map: dict[str, int] = {
+        str(row[0]): int(row[1])
+        for row in known_measure_rows
+        if row[0] is not None and row[1] is not None
+    }
+
+    selected_measure_ids = [
+        measure_id
+        for measure_id in preferred_measure_ids
+        if measure_id in known_measure_map
+    ]
+    if not selected_measure_ids:
+        selected_measure_ids = sorted(known_measure_map.keys())[:8]
+
+    if not selected_measure_ids:
+        return {
+            "inserted_members": 0,
+            "inserted_measures": 0,
+            "inserted_care_gaps": 0,
+        }
+
+    sample_patients = [f"P-DEMO-{index:03d}" for index in range(1, 21)]
+    existing_patient_ids = {
+        str(row[0])
+        for row in session.execute(text("SELECT patient_id FROM patient")).all()
+    }
+
+    for idx, patient_id in enumerate(sample_patients, start=1):
+        if patient_id in existing_patient_ids:
+            continue
+
+        session.execute(
+            text(
+                """INSERT INTO patient (patient_id, mrn, gender, birth_date)
+                     VALUES (:patient_id, :mrn, :gender, :birth_date)
+                     ON CONFLICT (patient_id) DO NOTHING"""
+            ),
+            {
+                "patient_id": patient_id,
+                "mrn": f"DEMO-{idx:03d}",
+                "gender": "unknown",
+                "birth_date": dt.date(1980, 1, 1),
+            },
+        )
+        inserted_members += 1
+
+    gap_id_data_type = session.execute(
+        text(
+            """SELECT data_type
+                   FROM information_schema.columns
+                  WHERE table_schema = current_schema()
+                    AND table_name = 'care_gap'
+                    AND column_name = 'gap_id'"""
+        )
+    ).scalar_one_or_none()
+    gap_id_is_uuid = str(gap_id_data_type or "").strip().lower() == "uuid"
+
+    existing_gap_ids = {
+        str(row[0])
+        for row in session.execute(text("SELECT gap_id::text FROM care_gap")).all()
+    }
+
+    status_pattern = ["open", "open", "closed", "open", "closed"]
+    for p_idx, patient_id in enumerate(sample_patients, start=1):
+        for m_idx, measure_id in enumerate(selected_measure_ids, start=1):
+            measurement_year = known_measure_map.get(measure_id, 2026)
+            for seq in range(1, 13):
+                legacy_gap_id = f"CG-{measure_id}-{patient_id}-{seq}"
+                gap_uuid = uuid.uuid5(uuid.NAMESPACE_URL, f"hedis-demo-gap:{legacy_gap_id}")
+                gap_id = str(gap_uuid) if gap_id_is_uuid else legacy_gap_id
+                if gap_id in existing_gap_ids:
+                    continue
+
+                status = status_pattern[(p_idx + m_idx + seq) % len(status_pattern)]
+                session.execute(
+                    text(
+                        """INSERT INTO care_gap (
+                               gap_id,
+                               patient_id,
+                               measure_id,
+                               measurement_year,
+                               status,
+                               missing_element,
+                               deadline_date,
+                               opened_at
+                           ) VALUES (
+                               :gap_id,
+                               :patient_id,
+                               :measure_id,
+                               :measurement_year,
+                               :status,
+                               :missing_element,
+                               :deadline_date,
+                               :opened_at
+                           )
+                           ON CONFLICT (gap_id) DO NOTHING"""
+                    ),
+                    {
+                        "gap_id": gap_uuid if gap_id_is_uuid else gap_id,
+                        "patient_id": patient_id,
+                        "measure_id": measure_id,
+                        "measurement_year": measurement_year,
+                        "status": status,
+                        "missing_element": f"Sample gap {seq} for {measure_id}",
+                        "deadline_date": dt.date(2026, ((p_idx + seq) % 12) + 1, ((m_idx + seq) % 27) + 1),
+                        "opened_at": dt.datetime.now(dt.timezone.utc),
+                    },
+                )
+                inserted_gaps += 1
+
+    return {
+        "inserted_members": inserted_members,
+        "inserted_measures": 0,
+        "inserted_care_gaps": inserted_gaps,
+    }
+
+
+def _seed_dashboard_sample_data(session: Session) -> dict[str, int]:
+    measures_type = _relation_type(session, "measures")
+    members_type = _relation_type(session, "members")
+    care_gaps_type = _relation_type(session, "care_gaps")
+
+    if measures_type == "BASE TABLE" and members_type == "BASE TABLE" and care_gaps_type == "BASE TABLE":
+        return _seed_dashboard_sample_data_legacy(session)
+
+    patient_type = _relation_type(session, "patient")
+    care_gap_type = _relation_type(session, "care_gap")
+    measure_definition_type = _relation_type(session, "measure_definition")
+
+    if (
+        patient_type == "BASE TABLE"
+        and care_gap_type == "BASE TABLE"
+        and measure_definition_type == "BASE TABLE"
+    ):
+        return _seed_dashboard_sample_data_compat(session)
+
+    raise ValueError(
+        "Seed sample data is not supported by this database profile. "
+        "Expected either members/measures/care_gaps tables or patient/measure_definition/care_gap tables."
+    )
 
 
 _seed_lock = threading.Lock()
@@ -787,6 +1052,13 @@ def create_app(
     async def lifespan(_: FastAPI):
         if validate_database:
             database.validate()
+        try:
+            with intake_db.connect() as conn:
+                integration_auth.ensure_default_users(conn)
+        except Exception as exc:
+            raise RuntimeError(
+                "Local auth setup failed. Run `python -m alembic -c db/alembic.ini upgrade head` and retry."
+            ) from exc
         cfg.evidence_storage_dir.mkdir(parents=True, exist_ok=True)
         stop_event = asyncio.Event()
         worker_task: asyncio.Task[None] | None = None
@@ -833,6 +1105,90 @@ def create_app(
     def star_results_page():
         page_path = Path(__file__).parent / "ui" / "star_results.html"
         return HTMLResponse(page_path.read_text(encoding="utf-8"))
+
+    @app.post("/api/auth/signin")
+    def auth_signin(body: SignInIn, conn: psycopg.Connection = Depends(get_auth_conn)) -> dict:
+        try:
+            user, token, expires_at = integration_auth.signin(conn, body.email, body.password)
+        except integration_auth.AccessNotApproved as exc:
+            raise HTTPException(status_code=403, detail=str(exc)) from exc
+        except LookupError as exc:
+            raise HTTPException(status_code=401, detail=str(exc)) from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        conn.commit()
+        return {
+            "token": token,
+            "token_type": "bearer",
+            "expires_at": expires_at.isoformat(),
+            "expires_in_hours": integration_auth.SESSION_TTL_HOURS,
+            "user": {"email": user.email, "role": user.role},
+        }
+
+    @app.post("/api/auth/signup")
+    def auth_signup(body: SignUpIn, conn: psycopg.Connection = Depends(get_auth_conn)) -> dict:
+        try:
+            integration_auth.signup(conn, body.email, body.password)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        conn.commit()
+        return {
+            "status": "pending",
+            "message": "This account is awaiting administrator approval.",
+        }
+
+    @app.get("/api/auth/me")
+    def auth_me(user: integration_auth.AuthUser = Depends(current_auth_user)) -> dict:
+        return {"email": user.email, "role": user.role}
+
+    @app.post("/api/auth/signout")
+    def auth_signout(
+        conn: psycopg.Connection = Depends(get_auth_conn),
+        authorization: str | None = Header(default=None),
+        _: integration_auth.AuthUser = Depends(current_auth_user),
+    ) -> dict:
+        integration_auth.signout(conn, authorization)
+        conn.commit()
+        return {"status": "ok"}
+
+    @app.get("/api/admin/users")
+    def auth_admin_users(
+        conn: psycopg.Connection = Depends(get_auth_conn),
+        _: integration_auth.AuthUser = Depends(admin_auth_user),
+    ) -> dict:
+        return {"users": integration_auth.list_users(conn)}
+
+    @app.put("/api/admin/users/{user_id}/access")
+    def auth_admin_update_access(
+        user_id: int,
+        body: UserAccessIn,
+        conn: psycopg.Connection = Depends(get_auth_conn),
+        actor: integration_auth.AuthUser = Depends(admin_auth_user),
+    ) -> dict:
+        try:
+            updated = integration_auth.set_access_status(conn, user_id, body.access_status, actor.user_id)
+        except LookupError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        conn.commit()
+        return updated
+
+    @app.put("/api/admin/users/{user_id}/role")
+    def auth_admin_update_role(
+        user_id: int,
+        body: UserRoleIn,
+        conn: psycopg.Connection = Depends(get_auth_conn),
+        actor: integration_auth.AuthUser = Depends(admin_auth_user),
+    ) -> dict:
+        try:
+            updated = integration_auth.set_role(conn, user_id, body.role, actor.user_id)
+        except LookupError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        conn.commit()
+        return updated
 
     @app.post("/api/star-rating/calculate")
     def star_rating_calculate(

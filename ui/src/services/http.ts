@@ -1,3 +1,5 @@
+import { getAuthToken } from "./authSession"
+
 export class HttpError extends Error {
   readonly status: number
 
@@ -56,6 +58,18 @@ export const toRequestErrorMessage = (error: unknown): string => {
   return "Unknown backend request error."
 }
 
+const withAuthHeaders = (headers: Record<string, string>): Record<string, string> => {
+  const token = getAuthToken()
+  if (!token) {
+    return headers
+  }
+
+  return {
+    ...headers,
+    Authorization: `Bearer ${token}`,
+  }
+}
+
 export async function fetchJson<T>(url: string, timeoutMs: number): Promise<T> {
   const controller = new AbortController()
   const timer = window.setTimeout(() => controller.abort(), timeoutMs)
@@ -63,9 +77,9 @@ export async function fetchJson<T>(url: string, timeoutMs: number): Promise<T> {
   try {
     const response = await fetch(url, {
       method: "GET",
-      headers: {
+      headers: withAuthHeaders({
         Accept: "application/json",
-      },
+      }),
       signal: controller.signal,
     })
 
@@ -92,10 +106,10 @@ export async function postJson<T>(
   try {
     const response = await fetch(url, {
       method: "POST",
-      headers: {
+      headers: withAuthHeaders({
         Accept: "application/json",
         "Content-Type": "application/json",
-      },
+      }),
       body: JSON.stringify(body),
       signal: controller.signal,
     })
@@ -123,10 +137,41 @@ export async function postForm<T>(
   try {
     const response = await fetch(url, {
       method: "POST",
-      headers: {
+      headers: withAuthHeaders({
         Accept: "application/json",
-      },
+      }),
       body: formData,
+      signal: controller.signal,
+    })
+
+    const payload = (await response.json().catch(() => null)) as unknown
+
+    if (!response.ok) {
+      throw new HttpError(response.status, payload)
+    }
+
+    return payload as T
+  } finally {
+    window.clearTimeout(timer)
+  }
+}
+
+export async function putJson<T>(
+  url: string,
+  timeoutMs: number,
+  body: unknown,
+): Promise<T> {
+  const controller = new AbortController()
+  const timer = window.setTimeout(() => controller.abort(), timeoutMs)
+
+  try {
+    const response = await fetch(url, {
+      method: "PUT",
+      headers: withAuthHeaders({
+        Accept: "application/json",
+        "Content-Type": "application/json",
+      }),
+      body: JSON.stringify(body),
       signal: controller.signal,
     })
 

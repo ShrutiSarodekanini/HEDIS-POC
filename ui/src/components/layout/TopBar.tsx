@@ -4,6 +4,7 @@ interface TopBarProps {
   runMeta: string
   userName: string
   userRole: string
+  onLogout?: () => void
 }
 
 export function TopBar({
@@ -12,6 +13,7 @@ export function TopBar({
   runMeta,
   userName,
   userRole,
+  onLogout,
 }: TopBarProps) {
   const initial = userName.charAt(0).toUpperCase()
 
@@ -35,7 +37,14 @@ export function TopBar({
           <div className="profile-dropdown" role="menu" aria-label="Profile actions">
             <p className="profile-name">{userName}</p>
             <p className="profile-role">{userRole}</p>
-            <button type="button" className="btn profile-logout" role="menuitem">
+            <button
+              type="button"
+              className="btn profile-logout"
+              role="menuitem"
+              onClick={() => {
+                onLogout?.()
+              }}
+            >
               Logout
             </button>
           </div>

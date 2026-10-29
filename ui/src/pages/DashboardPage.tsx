@@ -284,7 +284,7 @@ export function DashboardPage({ snapshot, loading, onRetry }: DashboardPageProps
             </table>
           </div>
 
-          <a className="text-link" href="#view-dashboard">
+          <a className="text-link" href="#view-prioritization">
             View prioritized worklist
           </a>
         </article>
@@ -356,7 +356,13 @@ export function DashboardPage({ snapshot, loading, onRetry }: DashboardPageProps
         </p>
 
         <div className="actions">
-          <button type="button" className="btn outline">
+          <button
+            type="button"
+            className="btn outline"
+            onClick={() => {
+              window.location.hash = "#view-evidence"
+            }}
+          >
             Open full review
           </button>
           <button type="button" className="btn primary">
@@ -371,7 +377,7 @@ export function DashboardPage({ snapshot, loading, onRetry }: DashboardPageProps
       <article className="card star-overall-card">
         <div className="card-head row-split">
           <h2>Overall star calculation</h2>
-          <a className="text-link" href="#view-dashboard">
+          <a className="text-link" href="#view-stars">
             Open Star Rating
           </a>
         </div>
@@ -462,7 +468,7 @@ export function DashboardPage({ snapshot, loading, onRetry }: DashboardPageProps
       <article className="card">
         <div className="card-head row-split">
           <h2>Evidence review queue</h2>
-          <a className="text-link" href="#view-dashboard">
+          <a className="text-link" href="#view-evidence">
             View all
           </a>
         </div>

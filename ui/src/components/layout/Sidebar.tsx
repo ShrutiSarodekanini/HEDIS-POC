@@ -13,6 +13,7 @@ const hrefById: Record<string, string> = {
   stars: "#view-stars",
   prioritization: "#view-prioritization",
   evidence: "#view-evidence",
+  admin: "#view-admin",
 }
 
 export function Sidebar({ items, activeId }: SidebarProps) {

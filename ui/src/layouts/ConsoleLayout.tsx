@@ -13,6 +13,7 @@ interface ConsoleLayoutProps {
   userRole: string
   navItems: NavigationItem[]
   activeNavId: string
+  onLogout?: () => void
 }
 
 export function ConsoleLayout({
@@ -24,6 +25,7 @@ export function ConsoleLayout({
   userRole,
   navItems,
   activeNavId,
+  onLogout,
 }: ConsoleLayoutProps) {
   return (
     <>
@@ -36,6 +38,7 @@ export function ConsoleLayout({
         runMeta={runMeta}
         userName={userName}
         userRole={userRole}
+        onLogout={onLogout}
       />
       <Sidebar items={navItems} activeId={activeNavId} />
 
