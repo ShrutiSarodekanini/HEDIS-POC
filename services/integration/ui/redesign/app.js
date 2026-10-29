@@ -3,7 +3,8 @@
 // Every value comes from the API; text is added as text nodes, never as HTML.
 "use strict";
 
-const VIEWS = ["dashboard", "ingestion", "calculation", "quality", "stars", "prioritization", "evidence"];
+const VIEWS = ["dashboard", "ingestion", "calculation", "quality", "stars", "prioritization", "evidence", "users"];
+const AUTH_MODES = { signin: "signin", signup: "signup", forgot: "forgot" };
 // Each tab file adds { render: async () => {} } under its view name; render runs every time the tab is shown.
 const TABS = {};
 const STEPS = [
@@ -23,7 +24,7 @@ const CHANNELS = {
   provider_gap_list: "Provider gap list", member_outreach_call: "Phone", mailed_fit_kit: "Mailed kit",
 };
 const state = { gaps: [], tier: "", measures: null, health: null, openEvidence: null, scopeGap: null, batch: null,
-  polling: null };
+  polling: null, auth: null, authMode: AUTH_MODES.signin };
 
 const $ = (tag, attrs = {}, ...kids) => {
   const el = document.createElement(tag);
@@ -43,8 +44,15 @@ const shortPt = id => (id ? `pt-${id.slice(0, 4)}…` : "pt-?");
 const tierTag = t => $("span", { class: `tag tag-${t}` }, t ? t[0].toUpperCase() + t.slice(1) : "-");
 
 async function api(path, options = {}) {
-  const res = await fetch(path, options);
+  const headers = new Headers(options.headers || {});
+  const token = store("hedis.authToken") || "";
+  if (token) headers.set("Authorization", `Bearer ${token}`);
+  const res = await fetch(path, { ...options, headers });
   const body = await res.json().catch(() => ({}));
+  if (res.status === 401) {
+    clearAuth();
+    showAuthOnly();
+  }
   if (!res.ok) throw new Error(body.detail || `${res.status} ${res.statusText}`);
   return body;
 }
@@ -60,9 +68,23 @@ function toast(text) {
 function store(key, value) {
   try {
     if (value === undefined) return localStorage.getItem(key);
+    if (value === null) {
+      localStorage.removeItem(key);
+      return null;
+    }
     localStorage.setItem(key, value);
   } catch { /* storage unavailable: the page works without it */ }
   return null;
+}
+
+function clearAuth() {
+  state.auth = null;
+  store("hedis.authToken", null);
+}
+
+function clearAuthForm() {
+  byId("auth-email-input").value = "";
+  byId("auth-password-input").value = "";
 }
 
 function missingText(row) {
@@ -740,9 +762,174 @@ async function runExtraction() {
 // ---------------------------------------------------------------- shell
 
 function setAvatar() {
-  const rid = store("hedis.reviewer") || "";
-  const initials = rid.split(/[._@-]/).filter(Boolean).slice(-2).map(s => s[0].toUpperCase()).join("");
+  const email = (state.auth && state.auth.email) || "";
+  const initials = email.split(/[._@-]/).filter(Boolean).slice(0, 2).map(s => s[0].toUpperCase()).join("");
   byId("avatar").textContent = initials || "?";
+}
+
+function canView(view) {
+  if (!state.auth) return false;
+  return state.auth.role === "admin" || view === "dashboard";
+}
+
+function applyRoleAccess() {
+  const admin = state.auth && state.auth.role === "admin";
+  for (const a of document.querySelectorAll("[data-view]")) {
+    const allowed = admin || a.dataset.view === "dashboard";
+    a.hidden = !allowed;
+  }
+}
+
+function showAuthOnly() {
+  clearTimeout(state.polling);
+  byId("shell-root").hidden = true;
+  byId("auth-shell").hidden = false;
+  byId("auth-role").hidden = true;
+  byId("auth-email").hidden = true;
+  byId("auth-signout").hidden = true;
+  setAvatar();
+}
+
+function showApp() {
+  byId("auth-shell").hidden = true;
+  byId("shell-root").hidden = false;
+  byId("auth-role").textContent = (state.auth.role || "").toUpperCase();
+  byId("auth-role").className = "chip chip-role";
+  byId("auth-role").hidden = false;
+  byId("auth-email").textContent = state.auth.email || "";
+  byId("auth-email").hidden = false;
+  byId("auth-signout").hidden = false;
+  applyRoleAccess();
+  setAvatar();
+}
+
+function setAuthMode(mode) {
+  state.authMode = mode;
+  const title = byId("auth-title");
+  const sub = byId("auth-sub");
+  const primary = byId("auth-primary");
+  const secondary = byId("auth-secondary");
+  const forgot = byId("auth-switch-forgot");
+  const back = byId("auth-switch-signin");
+  const password = byId("auth-password-input");
+  const showPassword = byId("auth-show-password");
+  const result = byId("auth-result");
+  result.classList.remove("error");
+  result.textContent = "";
+
+  showPassword.setAttribute("aria-pressed", "false");
+  showPassword.setAttribute("title", "Show password");
+  showPassword.setAttribute("aria-label", "Show password");
+  password.type = "password";
+  password.placeholder = mode === AUTH_MODES.forgot ? "New password" : "Password";
+
+  if (mode === AUTH_MODES.signin) {
+    title.textContent = "Sign in";
+    sub.textContent = "Use lowercase email only.";
+    primary.textContent = "Sign in";
+    secondary.textContent = "Create account";
+    secondary.hidden = false;
+    forgot.hidden = false;
+    back.hidden = true;
+  } else if (mode === AUTH_MODES.signup) {
+    title.textContent = "Create account";
+    sub.textContent = "An administrator must approve your account before you can sign in.";
+    primary.textContent = "Sign up";
+    secondary.textContent = "Sign in";
+    secondary.hidden = false;
+    forgot.hidden = true;
+    back.hidden = true;
+  } else if (mode === AUTH_MODES.forgot) {
+    title.textContent = "Forgot password";
+    sub.textContent = "Enter your lowercase email and choose a new password.";
+    primary.textContent = "Reset password";
+    secondary.hidden = true;
+    forgot.hidden = true;
+    back.hidden = false;
+  }
+}
+
+async function submitAuth() {
+  const emailInput = byId("auth-email-input");
+  const passwordInput = byId("auth-password-input");
+  const result = byId("auth-result");
+  const email = emailInput.value.trim();
+  const password = passwordInput.value;
+
+  result.classList.remove("error");
+  if (email !== email.toLowerCase()) {
+    result.textContent = "Email must use lowercase letters only.";
+    result.classList.add("error");
+    return;
+  }
+
+  try {
+    if (state.authMode === AUTH_MODES.signin) {
+      const r = await api("/api/auth/signin", { method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }) });
+      store("hedis.authToken", r.token);
+      state.auth = r.user;
+      showApp();
+      await refresh();
+      return;
+    }
+    if (state.authMode === AUTH_MODES.signup) {
+      await api("/api/auth/signup", { method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }) });
+      clearAuth();
+      state.auth = null;
+      byId("auth-password-input").value = "";
+      showAuthOnly();
+      setAuthMode(AUTH_MODES.signin);
+      result.textContent = "Sign-up complete. An administrator must approve your account before you can sign in.";
+      return;
+    }
+    if (state.authMode === AUTH_MODES.forgot) {
+      await api("/api/auth/forgot-password", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, new_password: password }),
+      });
+      clearAuthForm();
+      setAuthMode(AUTH_MODES.signin);
+      result.textContent = "Password reset complete. Sign in now.";
+      return;
+    }
+  } catch (err) {
+    const message = err && err.message ? String(err.message) : "Request failed.";
+    if (state.authMode === AUTH_MODES.signup && message.includes("already registered")) {
+      byId("auth-password-input").value = "";
+      setAuthMode(AUTH_MODES.signin);
+      result.textContent = "This email is already registered. Please sign in.";
+      result.classList.add("error");
+      return;
+    }
+    result.textContent = message;
+    result.classList.add("error");
+  }
+}
+
+async function signout() {
+  try {
+    await api("/api/auth/signout", { method: "POST" });
+  } catch {
+    // Ignore signout failure; local session is cleared anyway.
+  }
+  clearAuth();
+  clearAuthForm();
+  setAuthMode(AUTH_MODES.signin);
+  showAuthOnly();
+}
+
+async function restoreSession() {
+  const token = store("hedis.authToken") || "";
+  if (!token) return false;
+  try {
+    state.auth = await api("/api/auth/me");
+    return true;
+  } catch {
+    clearAuth();
+    return false;
+  }
 }
 
 function currentView() {
@@ -751,7 +938,11 @@ function currentView() {
 }
 
 async function show() {
-  const view = currentView();
+  let view = currentView();
+  if (!canView(view)) {
+    view = "dashboard";
+    location.hash = "dashboard";
+  }
   for (const v of VIEWS) byId(`view-${v}`).hidden = v !== view;
   for (const a of document.querySelectorAll("[data-view]")) a.classList.toggle("active", a.dataset.view === view);
   if (view === "ingestion") renderReset();
@@ -786,11 +977,33 @@ byId("refresh").addEventListener("click", refresh);
 byId("reset").addEventListener("click", startOver);
 byId("run-extraction").addEventListener("click", runExtraction);
 byId("export").addEventListener("click", exportEvidence);
+byId("auth-primary").addEventListener("click", submitAuth);
+byId("auth-secondary").addEventListener("click", () => {
+  setAuthMode(state.authMode === AUTH_MODES.signin ? AUTH_MODES.signup : AUTH_MODES.signin);
+});
+byId("auth-switch-forgot").addEventListener("click", () => setAuthMode(AUTH_MODES.forgot));
+byId("auth-switch-signin").addEventListener("click", () => setAuthMode(AUTH_MODES.signin));
+byId("auth-signout").addEventListener("click", signout);
+byId("auth-show-password").addEventListener("click", () => {
+  const pwd = byId("auth-password-input");
+  const toggle = byId("auth-show-password");
+  const visible = pwd.type === "text";
+  pwd.type = visible ? "password" : "text";
+  toggle.setAttribute("aria-pressed", visible ? "false" : "true");
+  toggle.setAttribute("title", visible ? "Show password" : "Hide password");
+  toggle.setAttribute("aria-label", visible ? "Show password" : "Hide password");
+});
 byId("scope").addEventListener("change", e => {
   state.scopeGap = e.target.value; byId("run-result").textContent = ""; renderAiHistory(e.target.value);
   renderGapPanel(e.target.value, "gap-panel");
 });
 window.addEventListener("hashchange", show);
-setAvatar();
-// The tab scripts load after this one; start once they have registered.
-window.addEventListener("DOMContentLoaded", refresh);
+window.addEventListener("DOMContentLoaded", async () => {
+  setAuthMode(AUTH_MODES.signin);
+  if (await restoreSession()) {
+    showApp();
+    await refresh();
+  } else {
+    showAuthOnly();
+  }
+});
