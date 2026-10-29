@@ -1,4 +1,5 @@
 from services.data_ingestion.app.adapters.ccda_hie_adapter import CCDAdapter
+from services.data_ingestion.app.mapping import map_source_record
 
 
 def test_stream_skips_repeated_entry_identifier(tmp_path):
@@ -26,3 +27,19 @@ def test_stream_skips_repeated_entry_identifier(tmp_path):
     assert len(issues) == 1
     assert issues[0].code == "duplicate_ccda_entry_id"
     assert issues[0].severity == "warning"
+
+    mapped = [map_source_record(record, validate=True)[0] for record in resources]
+    assert [resource.resource_type for resource in mapped if resource] == ["Patient", "Observation"]
+
+
+def test_invalid_ccda_reports_controlled_issue(tmp_path):
+    source = tmp_path / "D-INVALID.xml"
+    source.write_text("<ClinicalDocument><broken>", encoding="utf-8")
+    issues = []
+
+    _, records = CCDAdapter().stream(str(source), issues.append)
+
+    assert list(records) == []
+    assert [(issue.code, issue.message) for issue in issues] == [
+        ("invalid_ccda_xml", "C-CDA XML is invalid."),
+    ]

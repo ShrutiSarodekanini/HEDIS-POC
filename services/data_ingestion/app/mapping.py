@@ -7,13 +7,11 @@ import uuid
 from dataclasses import dataclass, field
 from decimal import Decimal, InvalidOperation
 from itertools import groupby
-from collections.abc import Iterable
 from typing import Any, Callable
 
 from pydantic import ValidationError
 
 from .synthea import ParsedDataset, RowIssue, SourceRecord
-
 
 FHIR_NAMESPACE = uuid.UUID("44f46614-c2f4-42d0-8d47-f4f57a0535e0")
 
@@ -252,6 +250,19 @@ def map_dataset(
                         "claims.csv": "Claim",
                     }[filename]
                 )
+
+    for file_records in records.values():
+        for record in file_records:
+            if not record.source_file.startswith(("fhir:", "ccda:", "claims837:", "ncpdp:")):
+                continue
+            item, item_issues = map_source_record(record, validate=validate)
+            issues.extend(item_issues)
+            if item:
+                resources.append(item)
+                if resource_callback:
+                    resource_callback(item)
+                if progress_callback:
+                    progress_callback(item.resource_type)
 
     return MappingResult(resources=resources, issues=issues)
 

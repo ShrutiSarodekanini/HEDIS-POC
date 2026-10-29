@@ -67,6 +67,15 @@ services/measure_calc/engine/examples/**/patients/*.json
 generated_evidence/
 API_TESTING_GUIDE.md
 tests/
+!tests/
+tests/*
+!tests/data_ingestion/
+tests/data_ingestion/*
+!tests/data_ingestion/test_adapter_contract.py
+!tests/data_ingestion/test_claims_837_adapter.py
+!tests/data_ingestion/test_fhir_adapter.py
+!tests/data_ingestion/test_ncpdp_pharmacy_adapter.py
+!tests/data_ingestion/test_team_schema_loader.py
 env/
 ENV/
 .mypy_cache/

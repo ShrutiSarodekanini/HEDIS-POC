@@ -32,6 +32,8 @@ _PATIENT_REF = """coalesce(CASE WHEN r.resource_type = 'Patient' THEN r.resource
                                r.resource_json->'patient'->>'reference'), '/', 2), ''))"""
 _ENCOUNTER_REF = "nullif(split_part(r.resource_json->'encounter'->>'reference', '/', 2), '')"
 _CODE = "r.resource_json->'code'->'coding'->0->>'code'"
+_MEDICATION_CODE = """coalesce(r.resource_json->'medicationCodeableConcept'->'coding'->0->>'code',
+  r.resource_json->'medication'->'concept'->'coding'->0->>'code')"""
 
 _SOURCE_BATCH = """
 INSERT INTO source_batch (batch_id, source_system, status, resource_count, started_at)
@@ -152,7 +154,7 @@ _MEDICATIONS = f"""
 INSERT INTO medication_request (medication_request_id, patient_id, encounter_id, status, intent, medication_code,
                                 authored_on, batch_id)
 SELECT r.resource_id, p.patient_id, e.encounter_id, r.resource_json->>'status', r.resource_json->>'intent',
-       r.resource_json->'medicationCodeableConcept'->'coding'->0->>'code',
+  {_MEDICATION_CODE},
        (r.resource_json->>'authoredOn')::timestamptz, %(batch)s
   FROM fhir_resources r
   JOIN patient p ON p.patient_id = split_part(r.resource_json->'subject'->>'reference', '/', 2)
