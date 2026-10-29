@@ -34,7 +34,7 @@ def rounded_rate(numerator: int, denominator: int) -> int:
 
 def measures(conn: psycopg.Connection, as_of: date) -> dict:
     """Per measure: rate and star now, and the rate and star once confirmed closures and exclusions reach the engine,
-    all from Pradeep's functions (stars.py). The value score still comes from the gap prioritization rules."""
+    all from the star rating functions (stars.py). The value score still comes from the gap prioritization rules."""
     rules = load_rules()
     _, inputs = read_inputs(conn, as_of, rules.star_year)
     with conn.cursor(row_factory=dict_row) as cur:

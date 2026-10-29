@@ -111,7 +111,6 @@ logger = logging.getLogger("uvicorn.error")
 
 def _emit(message: str) -> None:
     logger.info(message)
-    print(message, flush=True)
 
 
 @dataclass
@@ -794,20 +793,40 @@ def run_persist_stage(job_id: str) -> int:
     with session_scope() as session:
         persisted = mark_validated_resources_persisted(session, job_id)
 
+        from sqlalchemy import func, select
+        from .models import FhirResource
+
+        total_persisted = (
+            session.execute(
+                select(func.count())
+                .select_from(FhirResource)
+                .where((FhirResource.job_id == job_id) & (FhirResource.persisted.is_(True)))
+            ).scalar()
+            or 0
+        )
+
         from .models import ConversionJob
 
         job = session.get(ConversionJob, job_id)
         if job:
             summary = job.summary or {}
-            summary["resources_persisted"] = persisted
+            summary["resources_persisted"] = total_persisted
             job.summary = summary
-            job.resources_persisted = persisted
+            job.resources_persisted = total_persisted
             if job.status == "completed" and persisted == 0:
                 job.status = "partially_completed"
 
-    stage(job_id, "postgresql_storage", "completed", f"Persisted {persisted} resources")
-    _emit(f"[pipeline] job={job_id} persist_stage_finished persisted={persisted}")
-    return persisted
+    stage(
+        job_id,
+        "postgresql_storage",
+        "completed",
+        f"Persisted {persisted} resources (total persisted: {total_persisted})",
+    )
+    _emit(
+        f"[pipeline] job={job_id} persist_stage_finished "
+        f"persisted_delta={persisted} persisted_total={total_persisted}"
+    )
+    return total_persisted
 
 
 def launch_job(job_id: str, input_dir: str, adapter_name: str = "synthea_csv") -> None:

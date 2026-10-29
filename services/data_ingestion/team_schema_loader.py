@@ -4,7 +4,7 @@ Reads only the rows the ingestion service's persist stage approved (fhir_resourc
 lifecycle_status other than 'rejected'), and writes, in the caller's transaction: source_batch (one row),
 fhir_resource_raw (every approved resource), patient, coverage, encounter, condition, observation, procedure,
 medication_request and immunization. The batch's feed_completeness_report is written by the data quality checks
-(services/integration/pallavi.py), which run next. All of it is set-based SQL over the stored JSON, so no resource
+(services/integration/dq_checks.py), which run next. All of it is set-based SQL over the stored JSON, so no resource
 passes through Python.
 
 The ingestion mapping produces no Organization or Practitioner resources and no organization on encounters, so

@@ -6,21 +6,21 @@ Branch `feat/integration`. Nothing is committed or pushed. All data used is synt
 
 ```mermaid
 flowchart LR
-  A[Upload Synthea CSV zip] --> B[Ingestion, all five stages<br/>Jyothi, called as is]
+  A[Upload Synthea CSV zip] --> B[Ingestion, all five stages<br/>called as is]
   B --> C[team_schema_loader: persisted FHIR to the lead's clinical tables]
-  C --> D[Measure engine fqm-execution<br/>Jyothi's CLI and helpers]
+  C --> D[Measure engine fqm-execution<br/>engine CLI and helpers]
   D --> E[measure_result, care_gap, care_gap_detail]
   E --> F[Gap prioritization score_all]
-  F --> G[Work list and stars<br/>Pradeep's star rating]
+  F --> G[Work list and stars<br/>star rating code]
   G --> H[Upload a document: intake and OCR]
   H --> I[AI evidence extraction: proposed only]
   I --> J[Reviewer approves or rejects]
   J --> F
 ```
 
-All five of Jyothi's ingestion stages now run, then ours: csv_input, mapping, fhir_generation and validation in
-`run_conversion`, then postgresql_storage in `run_persist_stage` (what her Persist Resources button runs). Only the
-resources her persist stage approved are loaded.
+All five ingestion stages now run, then ours: csv_input, mapping, fhir_generation and validation in
+`run_conversion`, then postgresql_storage in `run_persist_stage` (what the Persist Resources button runs). Only the
+resources the persist stage approved are loaded.
 
 One app, `python -m services.integration.app`, on http://localhost:8780 (127.0.0.1 only). The page has two tabs:
 **Upload** (the Synthea zip, with live step progress) and **Work list** (measure cards with stars, the ranked gaps,
@@ -57,7 +57,7 @@ powershell -ExecutionPolicy Bypass -File scripts/run_demo.ps1 -Integration -Sche
 | `services/integration/pipeline.py` | Background runner for one batch: converting, persisting, loading, measuring, prioritizing. Updates `batch_run` and writes a `domain_event` and audit event per step; a failure is stored with its step and first error line. |
 | `services/data_ingestion/team_schema_loader.py` | New file next to the ingestion service (none of its files changed). Set-based SQL from the persisted, non-rejected rows of `fhir_resources` into `fhir_resource_raw`, `patient`, `coverage`, `encounter`, `condition`, `observation` and `procedure`. Idempotent (a second run inserts nothing). |
 | `services/integration/measures.py` | Writes a FHIR bundle per patient, runs the engine for BCS-E, COL-E, EED, GSD, KED and CBP in chunks, checks every patient came back, then writes `engine_runs`, `measure_result`, `care_gap` and `care_gap_detail`, and closes gaps the run shows met or excluded. |
-| `services/integration/work.py` | Measure cards (rate, Pradeep's star, projected rate and star with confirmed closures and exclusions), the work list, one gap with its score breakdown, documents and evidence. |
+| `services/integration/work.py` | Measure cards (rate, star, projected rate and star with confirmed closures and exclusions), the work list, one gap with its score breakdown, documents and evidence. |
 | `services/integration/documents.py` | Sends one document for a patient through the intake service (`receive_file`, as the intake CLI does); used by the attach step. |
 | `services/integration/evidence.py` | AI extraction for a gap (prompt builder, OpenRouter client, validator), kept findings saved as `proposed`; reviewer decisions; re-score after each. |
 | `services/integration/app.py` | FastAPI app and routes. |
@@ -72,7 +72,7 @@ powershell -ExecutionPolicy Bypass -File scripts/run_demo.ps1 -Integration -Sche
 | `scripts/run_demo.ps1` | New `-Integration` (and `-Schema`) switch. Without it, behaviour is unchanged. | One command to set up and start the integration app. |
 | `.gitignore` | Adds `.integration_work/`. | Temporary engine bundles and uploads. |
 
-**No changes to Jyothi's or Pradeep's code, to the lead's tables, or to the measure engine.** Their functions are
+**No changes to the ingestion or star rating code, to the lead's tables, or to the measure engine.** Their functions are
 imported and called as they are, including some private helpers:
 
 - Ingestion (`services/data_ingestion/app`): `api.upload_dataset_zip`, `pipeline.job_manager.create_job`,
@@ -92,16 +92,16 @@ engine folder instead. The team may want to fix the root script.
 
 | # | Problem | Fix |
 |---|---|---|
-| 1 | The integration skipped Jyothi's postgresql_storage stage (her job showed `resources_persisted` 0) and loaded every row. | `pipeline.py` calls her `run_persist_stage(job_id)` after `run_conversion` (step "persisting", event `batch.persisted` between `batch.converted` and `batch.loaded`, count stored as `persisted`). The loader moved to `services/data_ingestion/team_schema_loader.py` and reads only rows with `persisted = true` and `lifecycle_status <> 'rejected'`, for every table. The step fails with her counts if the stage raises or persists nothing, and loading fails if her job's `resources_persisted` differs from the stage's count or if patients loaded differ from persisted Patient resources. |
-| 2 | GSD ran backwards: her GSD numerator is POOR control (last A1c above 9.0, an A1c without a result, or no A1c in the year), although her bundle says improvementNotation "increase". | `INVERSE_MEASURES = {"GSD"}` in `measures.py`: we store met = in denominator and not in her numerator, and a gap is her numerator and not excluded. Gap text: "Glycemic Status Assessment: most recent A1c above 9.0, or no A1c result in 2026". GSD rows carry " / numerator inverted (engine counts poor control)" in `engine_version`. Her files are not changed. |
-| 3 | CBP could never be met: her CBP library reads blood pressure only from combined readings (US Core blood pressure profile, systolic 8480-6 and diastolic 8462-4 as components), and her mapping writes two separate Observations with `valueQuantity`. | See "CBP engine file" below. |
+| 1 | The integration skipped the ingestion postgresql_storage stage (its job showed `resources_persisted` 0) and loaded every row. | `pipeline.py` calls the ingestion `run_persist_stage(job_id)` after `run_conversion` (step "persisting", event `batch.persisted` between `batch.converted` and `batch.loaded`, count stored as `persisted`). The loader moved to `services/data_ingestion/team_schema_loader.py` and reads only rows with `persisted = true` and `lifecycle_status <> 'rejected'`, for every table. The step fails with its counts if the stage raises or persists nothing, and loading fails if the job's `resources_persisted` differs from the stage's count or if patients loaded differ from persisted Patient resources. |
+| 2 | GSD ran backwards: the GSD numerator is POOR control (last A1c above 9.0, an A1c without a result, or no A1c in the year), although the bundle says improvementNotation "increase". | `INVERSE_MEASURES = {"GSD"}` in `measures.py`: we store met = in denominator and not in the numerator, and a gap is the numerator and not excluded. Gap text: "Glycemic Status Assessment: most recent A1c above 9.0, or no A1c result in 2026". GSD rows carry " / numerator inverted (engine counts poor control)" in `engine_version`. The files are not changed. |
+| 3 | CBP could never be met: the CBP library reads blood pressure only from combined readings (US Core blood pressure profile, systolic 8480-6 and diastolic 8462-4 as components), and the mapping writes two separate Observations with `valueQuantity`. | See "CBP engine file" below. |
 | 4 | An approved exclusion counted as a closure. | New review state `excluded_pending_engine` (migration 0004, downgrade maps it to `pending_review`). On confirm, a proposal whose `evidence_kind` is `exclusion` sets `excluded_pending_engine`, anything else `closed_pending_engine`; if a gap has both kinds confirmed, the exclusion wins. Both leave the work list. Projected rate: numerator plus `closed_pending_engine`, denominator minus `excluded_pending_engine`; the measure card shows both counts. |
 | 5 | `GET /api/batches/latest` was not one of the 9 agreed endpoints. | Removed. The page keeps the last batch id in localStorage (every read and write in try/catch; the page works without it) and polls `GET /api/batches/{id}`. |
 | 6 | A gap never closed when a later run showed the care done (fixed gap ids, inserts skip existing gaps). | After writing results, `measures.py` sets each still open gap of this run's patients and measure whose new result is met (or excluded) to `care_gap.status = 'closed'`, `closed_at = now()`, and `care_gap_detail.review_status = 'closed'` (or `'excluded'`), with one audit event `gap.closed_by_engine` (actor `integration`) per gap and a `gaps_closed_by_engine` count on the batch. This is how `closed_pending_engine` and `excluded_pending_engine` become final when the engine agrees. Row values only, no schema change. |
 
 ### CBP engine file
 
-For CBP only, each per-patient bundle file sent to the engine is changed before her pruning runs:
+For CBP only, each per-patient bundle file sent to the engine is changed before the pruning runs:
 
 - **Added:** for each systolic (8480-6) and diastolic (8462-4) Observation pair of the same patient with the same
   `effectiveDateTime` and the same encounter, one combined Observation: code LOINC 85354-9 "Blood pressure panel
@@ -109,16 +109,16 @@ For CBP only, each per-patient bundle file sent to the engine is changed before 
   subject, encounter and time, and two components (8480-6 and 8462-4) with their values in mm[Hg] (UCUM). Its id
   is a uuid5 of the two source ids.
 - **Left out:** the separate systolic and diastolic Observations themselves, in the CBP engine file only. With them
-  in the file her CBP query crashes ("Cannot read properties of null (reading 'isQuantity')" in the lowest reading
+  in the file the CBP query crashes ("Cannot read properties of null (reading 'isQuantity')" in the lowest reading
   sort, CQL lines 93 to 99): the engine runs with `--trust-meta-profile false`, so it treats them as blood pressure
   readings without components. Trial on the 33 non-excluded CBP denominator patients: with them, the engine call
   fails; without them, 23 of 33 met. A reading without a partner at the same time and encounter is left out too.
 - **Unchanged:** they stay in `fhir_resources`, `fhir_resource_raw` and `observation`, and in the bundles for the
   other five measures. The combined readings are never written to any table.
-- Her pruning (`_maybe_prune_run_request_bundle`) then runs as it is and keeps every combined reading (code
-  85354-9 is in her BP code list); the step fails if it ever removes one.
+- The pruning (`_maybe_prune_run_request_bundle`) then runs as it is and keeps every combined reading (code
+  85354-9 is in the BP code list); the step fails if it ever removes one.
 
-This should be revisited when Jyothi's mapping writes combined blood pressure readings itself.
+This should be revisited when the ingestion mapping writes combined blood pressure readings itself.
 
 ### Fixes found during the round
 
@@ -152,16 +152,16 @@ through `db/alembic.ini`. `public` and `.env` were not changed. To run the app a
 
 - The engine measures are the simplified public demo CQL; only CBP (CMS165) has a denominator exclusion.
   AAB, BPD, CCS-E and SPD are not in this round.
-- **BCS-E shows 0 met:** Jyothi's BCS-E CQL does not accept Synthea's mammogram code (SNOMED 71651007). For Jyothi
-  to fix; not worked around here.
-- **GSD bundle:** her bundle's improvementNotation "increase" does not match its numerator (poor control). The
-  integration inverts it (Fix 2); her bundle should be corrected.
-- **CBP:** combined readings are built for the engine only (see "CBP engine file"); to revisit when her mapping
+- **BCS-E shows 0 met:** The BCS-E CQL does not accept Synthea's mammogram code (SNOMED 71651007). For the engine
+  owner to fix; not worked around here.
+- **GSD bundle:** the bundle's improvementNotation "increase" does not match its numerator (poor control). The
+  integration inverts it (Fix 2); the bundle should be corrected.
+- **CBP:** combined readings are built for the engine only (see "CBP engine file"); to revisit when the ingestion mapping
   writes them.
-- **Her job summary:** after the persist stage, `conversion_jobs.resources_persisted` is right (300,596) but the
-  `summary` JSON still shows `resources_persisted` 0 (likely because her code sets a key on the same dict object,
-  which SQLAlchemy does not see as a change). For Jyothi; the integration checks the column.
-- **Loading time:** loading took 15 minutes in the second run (1.3 minutes in the first). Her persist stage updates
+- **Ingestion job summary:** after the persist stage, `conversion_jobs.resources_persisted` is right (300,596) but the
+  `summary` JSON still shows `resources_persisted` 0 (likely because the code sets a key on the same dict object,
+  which SQLAlchemy does not see as a change). For the ingestion owner; the integration checks the column.
+- **Loading time:** loading took 15 minutes in the second run (1.3 minutes in the first). The persist stage updates
   every row of the job, and autovacuum analyzed `fhir_resources` only at 08:46, five minutes into the load, so stale
   planner statistics are the likely cause. I tried an `ANALYZE fhir_resources` at the start of the load and timed
   the loader on the existing job in rolled-back transactions: without it 17.6 s and 15.4 s, with it 18.7 s and
@@ -199,8 +199,8 @@ Gap IDs below are internal uuids, shortened.
 | Step | Result |
 |---|---|
 | Upload | batch `bedc5b9c`, status running |
-| Ingestion (her four conversion stages) | job completed, 300,596 FHIR resources, 0 errors |
-| Persist stage (her fifth stage) | 300,596 persisted, 0 rejected; `conversion_jobs.resources_persisted` = 300,596 |
+| Ingestion (the four conversion stages) | job completed, 300,596 FHIR resources, 0 errors |
+| Persist stage (the fifth stage) | 300,596 persisted, 0 rejected; `conversion_jobs.resources_persisted` = 300,596 |
 | Loading | 250 patients (= 250 persisted Patient resources), 14,768 encounters, 181,005 observations, 42,929 procedures, 9,413 conditions, 12,828 coverage rows |
 | Engine | 105 open gaps, 0 closed by the engine (first run on this schema) |
 | Prioritizing | 105 scored: 21 high, 32 medium, 52 low; 46 mailed FIT kit, 59 provider gap list |
@@ -228,15 +228,15 @@ open is also open in the reference, except 3 BCS-E patients the reference marks 
 
 | Measure | Reference open | Ours open | Both | Reference only | Why reference only |
 |---|---|---|---|---|---|
-| BCS-E | 54 | 37 | 34 | 20 | not in her engine's denominator (her eligibility rules are narrower) |
-| COL-E | 49 | 46 | 46 | 3 | not in her engine's denominator |
-| EED | 18 | 3 | 3 | 15 | 11 not in her denominator; 4 her engine counts as met (it accepts an event the reference does not) |
-| GSD | 10 | 4 | 4 | 6 | not in her denominator (her rule needs a diabetes condition with an onset date and an encounter in 2026) |
-| KED | 17 | 5 | 5 | 12 | not in her denominator |
-| CBP | 15 | 10 | 10 | 5 | not in her denominator (her rule needs a hypertension diagnosis overlapping the first half of 2026 and a qualifying outpatient encounter) |
+| BCS-E | 54 | 37 | 34 | 20 | not in the engine's denominator (the eligibility rules are narrower) |
+| COL-E | 49 | 46 | 46 | 3 | not in the engine's denominator |
+| EED | 18 | 3 | 3 | 15 | 11 not in the denominator; 4 the engine counts as met (it accepts an event the reference does not) |
+| GSD | 10 | 4 | 4 | 6 | not in the denominator (the rule needs a diabetes condition with an onset date and an encounter in 2026) |
+| KED | 17 | 5 | 5 | 12 | not in the denominator |
+| CBP | 15 | 10 | 10 | 5 | not in the denominator (the rule needs a hypertension diagnosis overlapping the first half of 2026 and a qualifying outpatient encounter) |
 | BPD | 12 | 0 | 0 | 12 | measure not in this round |
 
-The differences come from her engine's eligibility rules, not from the integration; her engine logic is not
+The differences come from the engine's eligibility rules, not from the integration; the engine logic is not
 changed.
 
 ### Confirmations through the API
@@ -319,8 +319,8 @@ The page header showed "AI: connected (minimax/minimax-m3.1-flash:free)".
 | Step | Ended | Time |
 |---|---|---|
 | Received | 12:12:21 | |
-| Converting (her four conversion stages) | 12:13:17 | 56 s; 34,524 FHIR resources, 0 errors |
-| Persisting (her fifth stage) | 12:13:22 | 5 s; 34,524 persisted |
+| Converting (the four conversion stages) | 12:13:17 | 56 s; 34,524 FHIR resources, 0 errors |
+| Persisting (the fifth stage) | 12:13:22 | 5 s; 34,524 persisted |
 | Loading | 12:13:28 | 6 s; 20 patients |
 | Measuring | 12:16:22 | 2.9 min; 34 open gaps |
 | Prioritizing | 12:16:23 | under 1 s; 7 high, 10 medium, 17 low |
@@ -363,7 +363,7 @@ Run on 2026-10-22 against a freshly reset `integ` schema (`alembic -c db/alembic
 | Step | How | Result |
 |---|---|---|
 | Upload | `POST /api/batches` | batch `c88ea9bb`, status running |
-| Ingestion | Jyothi's upload and conversion | job completed, 300,596 FHIR resources, 0 errors, 9.5 min |
+| Ingestion | Upload and conversion | job completed, 300,596 FHIR resources, 0 errors, 9.5 min |
 | Loading | `patient_loader` | 250 patients, 14,768 encounters, 181,005 observations, 42,929 procedures, 9,413 conditions, 12,828 coverage rows, 1.3 min |
 | Engine | fqm-execution, 6 measures | 140 open gaps, 28 min; see the table below |
 | Prioritizing | `score_all` | 140 scored: 28 high, 42 medium, 70 low; 46 mailed FIT kit, 94 provider gap list |
