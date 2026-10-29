@@ -83,8 +83,7 @@ app). Do not run both against the same schema.
 
 ## Data ingestion and measure engine
 
-This workspace is aligned to the structure of:
-https://github.com/ShrutiSarodekanini/HEDIS-POC
+This workspace is aligned to the team repository structure.
 
 Top-level layout:
 - common/
@@ -319,9 +318,9 @@ Use `POST /api/star-rating/compare` with `before`, `after`, and
 applied configuration, source URL, methodology version, rating status, and
 whether the assigned Star changed.
 
-## Pallavi's multi-source ingestion and data quality
+## Multi-source ingestion and data quality
 
-Kept beside Jyothi's intake so the integrated flow is unchanged: `services/data_ingestion_pallavi/` (multi-source adapters), `services/data_quality_pallavi/` (data quality and anomaly checks) and `ui/pallavi-dashboard/` (her React dashboard). Their imports point at these folders. Her README follows.
+Kept beside the main ingestion so the integrated flow is unchanged: `services/multi_source_ingestion/` (multi-source adapters), `services/data_quality_rules/` (data quality and anomaly checks) and `ui/ingestion-dashboard/` (its React dashboard). Their imports point at these folders. Its README follows.
 
 
 End-to-end CSV-to-FHIR R4 conversion workflow for Synthea exports, including:
@@ -336,16 +335,16 @@ End-to-end CSV-to-FHIR R4 conversion workflow for Synthea exports, including:
 
 ## Architecture
 
-Main backend service: `services/data_ingestion_pallavi/main.py`
+Main backend service: `services/multi_source_ingestion/main.py`
 
 Core modules:
 
-- `services/data_ingestion_pallavi/app/synthea.py`: file discovery, parsing, row-level issues
-- `services/data_ingestion_pallavi/app/mapping.py`: deterministic mapping rules per FHIR resource
-- `services/data_ingestion_pallavi/app/validator.py`: structural + optional external validator
-- `services/data_ingestion_pallavi/app/models.py`: `ConversionJob`, `FhirResource`, `ValidationIssue`
-- `services/data_ingestion_pallavi/app/pipeline.py`: async job orchestration and stage tracking
-- `services/data_ingestion_pallavi/app/api.py`: API endpoints used by the UI
+- `services/multi_source_ingestion/app/synthea.py`: file discovery, parsing, row-level issues
+- `services/multi_source_ingestion/app/mapping.py`: deterministic mapping rules per FHIR resource
+- `services/multi_source_ingestion/app/validator.py`: structural + optional external validator
+- `services/multi_source_ingestion/app/models.py`: `ConversionJob`, `FhirResource`, `ValidationIssue`
+- `services/multi_source_ingestion/app/pipeline.py`: async job orchestration and stage tracking
+- `services/multi_source_ingestion/app/api.py`: API endpoints used by the UI
 - `ui/index.html`: simple monitoring/explorer UI
 
 Pipeline stages:

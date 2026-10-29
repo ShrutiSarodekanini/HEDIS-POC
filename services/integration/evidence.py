@@ -303,9 +303,9 @@ def _record_supplemental(conn: psycopg.Connection, evidence_id: uuid.UUID, decis
 
 
 def _star_scenario(conn: psycopg.Connection, gap_id: uuid.UUID, reviewer: str) -> str | None:
-    """Snapshot of the gap's measure after the decision, from Pradeep's what-if (stars.projection).
+    """Snapshot of the gap's measure after the decision, from the star what-if (stars.projection).
 
-    Low: the engine accepts none of the confirmed evidence (his baseline). High: it accepts all of it."""
+    Low: the engine accepts none of the confirmed evidence (the baseline). High: it accepts all of it."""
     measure_id, year = conn.execute("SELECT measure_id, measurement_year FROM care_gap WHERE gap_id = %s",
                                     (gap_id,)).fetchone()
     conn.rollback()

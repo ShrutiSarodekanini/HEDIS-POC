@@ -1,13 +1,13 @@
-"""The integration's only bridge to Pradeep's rate, star and what-if code; his files are called as they are.
+"""The integration's only bridge to the star rating, rate and what-if code; those files are called as they are.
 
 - calculate_rate and compare_measure: common/measure_performance.py
 - assign_star_from_sqlalchemy, load_cutpoints_sqlalchemy, assign_star_from_cutpoints: services/star_modeler/main.py
 
-His functions take a SQLAlchemy session and read star_cutpoint and the views measures and care_gaps (migration 0005).
+Those functions take a SQLAlchemy session and read star_cutpoint and the views measures and care_gaps (migration 0005).
 common/database.py is not used because its validate() checks the alembic revision; this module builds its own
 engine on the app's DATABASE_URL, which already carries the schema search_path.
 
-His rate keeps 2 decimals and the star is taken from that value. The gap prioritization score (services/gap_priority)
+The rate keeps 2 decimals and the star is taken from that value. The gap prioritization score (services/gap_priority)
 still rounds the rate to a whole percent first, on purpose (US-05); the two can differ near a cut point.
 """
 
@@ -31,7 +31,7 @@ SELECT count(*) FILTER (WHERE in_denominator AND NOT coalesce(excluded, false)) 
   FROM v_measure_result_latest WHERE measure_id = :measure AND measurement_year = :year
 """)
 
-# Reviewer-confirmed gaps still open in care_gap, limited to ids his care_gaps view knows (an id it does not know
+# Reviewer-confirmed gaps still open in care_gap, limited to ids the care_gaps view knows (an id it does not know
 # would make compare_measure refuse the whole request).
 _PENDING = text("""
 SELECT g.gap_id::text, d.review_status
@@ -52,7 +52,7 @@ def _engine() -> Engine:
 
 @contextmanager
 def session() -> Iterator[Session]:
-    """A read-only session for his functions; nothing is written through it."""
+    """A read-only session for the functions; nothing is written through it."""
     with sessionmaker(bind=_engine(), autoflush=False)() as s:
         try:
             yield s
@@ -66,7 +66,7 @@ def _star(s: Session, measure_id: str, year: int, rate: float | None, denominato
 
 
 def measure_card(s: Session, measure_id: str, year: int) -> dict:
-    """Rate (his calculate_rate) and star (his assign_star_from_sqlalchemy), exclusions left out."""
+    """Rate (the calculate_rate) and star (the assign_star_from_sqlalchemy), exclusions left out."""
     counts = s.execute(_COUNTS, {"measure": measure_id, "year": year}).one()
     numerator, denominator = counts.numerator, counts.denominator
     rate = calculate_rate(numerator, denominator)
@@ -78,9 +78,9 @@ def measure_card(s: Session, measure_id: str, year: int) -> dict:
 
 
 def projection(s: Session, measure_id: str, year: int) -> dict:
-    """His compare_measure with the measure's reviewer-confirmed closures selected, plus confirmed exclusions.
+    """The compare_measure with the measure's reviewer-confirmed closures selected, plus confirmed exclusions.
 
-    His what-if has no exclusion case yet (it only adds closures), so confirmed exclusions are applied here with his
+    The what-if has no exclusion case yet (it only adds closures), so confirmed exclusions are applied here with the
     calculate_rate and star: numerator after the closures, denominator minus the exclusions."""
     pending = s.execute(_PENDING, {"measure": measure_id, "year": year}).all()
     closures = [gap_id for gap_id, status in pending if status == "closed_pending_engine"]
@@ -97,7 +97,7 @@ def projection(s: Session, measure_id: str, year: int) -> dict:
 
 
 def gap_impact(s: Session, gap_id: str) -> dict | None:
-    """What closing this one gap would do (his compare_measure), the closures still needed for the next star after
+    """What closing this one gap would do (the compare_measure), the closures still needed for the next star after
     it, and what excluding the patient instead would do. None when the gap is unknown."""
     row = s.execute(text("SELECT measure_id, measurement_year FROM care_gap WHERE gap_id::text = :gap"),
                     {"gap": gap_id}).first()
@@ -160,19 +160,19 @@ SELECT r.measure_id, r.name, r.measurement_year, w.weight,
 
 
 def catalog(s: Session, year: int, star_year: int) -> list[dict]:
-    """Every measure with its Star weight and cut points (the tables his catalog screen reads)."""
+    """Every measure with its Star weight and cut points (the tables the catalog screen reads)."""
     return [dict(r._mapping) for r in s.execute(_CATALOG, {"year": year, "star_year": star_year})]
 
 
 def calculate(s: Session, measure_id: str, year: int, rate: float | None, denominator: int) -> dict:
-    """His direct star calculation for a given rate and denominator; nothing is stored."""
+    """The direct star calculation for a given rate and denominator; nothing is stored."""
     return assign_star_from_sqlalchemy(s, measure_code=measure_id, measurement_year=year, scoring_value=rate,
                                        denominator=denominator).to_dict()
 
 
 def what_if(s: Session, measure_id: str, gap_ids: list[str]) -> dict:
-    """His compare_measure for the chosen gaps (ids from his care_gaps view); nothing is stored. Raises LookupError
-    for a measure his measures view does not know."""
+    """The compare_measure for the chosen gaps (ids from the care_gaps view); nothing is stored. Raises LookupError
+    for a measure the measures view does not know."""
     try:
         return compare_measure(s, measure_id, gap_ids)
     except KeyError as exc:
