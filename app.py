@@ -10,9 +10,10 @@ import uuid
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import Depends, FastAPI, HTTPException
+from fastapi import APIRouter, Depends, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
+from fastapi.routing import APIRoute
 from pydantic import BaseModel, Field
 from sqlalchemy import select, text
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
@@ -28,6 +29,9 @@ from common.evidence import (
 )
 from common.repository import Repository, row_to_dict
 from common.models import CareGap, Measure, Member
+from services.data_ingestion.app import api as ingestion_api
+from services.data_ingestion.app.db import session_scope as ingestion_session_scope
+from services.data_ingestion.app.repository import as_job_dict as ingestion_as_job_dict, list_jobs as ingestion_list_jobs
 from services.star_modeler.main import (
     CMS_MEASURE_SET_URL,
     CMS_RATING_YEAR,
@@ -73,6 +77,20 @@ class StarRatingComparisonRequest(BaseModel):
 class StarDashboardRequest(BaseModel):
     measure_id: str | None = None
     selected_gap_ids: list[str] = Field(default_factory=list)
+
+
+def _ingestion_routes() -> APIRouter:
+    """Expose ingestion endpoints under /api/ingestion for UI compatibility."""
+    router = APIRouter()
+    for route in ingestion_api.router.routes:
+        if isinstance(route, APIRoute):
+            router.add_api_route(
+                route.path.removeprefix(ingestion_api.router.prefix),
+                route.endpoint,
+                methods=sorted(route.methods),
+                name=f"ingestion_{route.name}",
+            )
+    return router
 
 
 def _is_closed_status(status: str | None) -> bool:
@@ -125,6 +143,42 @@ def _load_dashboard_rows(session: Session) -> list[dict[str, object]]:
     return [dict(r) for r in rows]
 
 
+def _load_engine_measure_counts(session: Session) -> dict[tuple[str, int], dict[str, int]]:
+    """Use engine result populations when available, matching the integration star baseline logic."""
+    try:
+        rows = session.execute(
+            text(
+                """SELECT r.measure_id,
+                          r.measurement_year,
+                          count(*) FILTER (
+                              WHERE r.in_denominator AND NOT coalesce(r.excluded, false)
+                          ) AS denominator,
+                          count(*) FILTER (
+                              WHERE r.in_denominator
+                                AND r.in_numerator
+                                AND NOT coalesce(r.excluded, false)
+                          ) AS numerator
+                     FROM v_measure_result_latest r
+                    GROUP BY r.measure_id, r.measurement_year"""
+            )
+        ).all()
+    except SQLAlchemyError:
+        session.rollback()
+        return {}
+
+    counts: dict[tuple[str, int], dict[str, int]] = {}
+    for row in rows:
+        measure_code = str(row[0])
+        measurement_year = int(row[1])
+        denominator = max(int(row[2] or 0), 0)
+        numerator = max(int(row[3] or 0), 0)
+        counts[(measure_code, measurement_year)] = {
+            "denominator": denominator,
+            "numerator": numerator,
+        }
+    return counts
+
+
 def _build_star_dashboard(
     session: Session,
     *,
@@ -134,10 +188,12 @@ def _build_star_dashboard(
     selected_set = set(selected_gap_ids)
 
     rows = _load_dashboard_rows(session)
+    engine_counts = _load_engine_measure_counts(session)
 
     measure_stats: dict[str, dict[str, object]] = {}
     patient_stats: dict[str, dict[str, object]] = {}
     gaps_by_measure: dict[str, list[dict[str, object]]] = defaultdict(list)
+    measure_names_by_id: dict[str, str] = {}
 
     for row in rows:
         gap_id = str(row["care_gap_id"])
@@ -146,20 +202,26 @@ def _build_star_dashboard(
         p_id = str(row["member_id"])
         is_closed = _is_closed_status(str(row.get("status") or ""))
         projected_closed = is_closed or (gap_id in selected_set)
+        measure_name = str(row.get("measure_name") or m_id)
+        if m_id not in measure_names_by_id:
+            measure_names_by_id[m_id] = measure_name
 
         if m_id not in measure_stats:
             measure_stats[m_id] = {
                 "measure_id": m_id,
                 "measurement_year": measurement_year,
-                "measure_name": str(row.get("measure_name") or m_id),
+                "measure_name": measure_name,
                 "total": 0,
                 "baseline_closed": 0,
                 "projected_closed": 0,
+                "selected_open": 0,
             }
 
         measure_stats[m_id]["total"] = int(measure_stats[m_id]["total"]) + 1
         if is_closed:
             measure_stats[m_id]["baseline_closed"] = int(measure_stats[m_id]["baseline_closed"]) + 1
+        elif gap_id in selected_set:
+            measure_stats[m_id]["selected_open"] = int(measure_stats[m_id]["selected_open"]) + 1
         if projected_closed:
             measure_stats[m_id]["projected_closed"] = int(measure_stats[m_id]["projected_closed"]) + 1
 
@@ -196,15 +258,40 @@ def _build_star_dashboard(
             }
         )
 
+    for (m_id, measurement_year), counts in engine_counts.items():
+        if m_id not in measure_stats:
+            measure_stats[m_id] = {
+                "measure_id": m_id,
+                "measurement_year": measurement_year,
+                "measure_name": measure_names_by_id.get(m_id, m_id),
+                "total": 0,
+                "baseline_closed": 0,
+                "projected_closed": 0,
+                "selected_open": 0,
+            }
+        measure_stats[m_id]["engine_denominator"] = counts["denominator"]
+        measure_stats[m_id]["engine_numerator"] = counts["numerator"]
+
     measure_cards: list[dict[str, object]] = []
     for stat in measure_stats.values():
         measure_code = str(stat["measure_id"])
         measurement_year = int(stat["measurement_year"])
-        total = int(stat["total"])
-        baseline_closed = int(stat["baseline_closed"])
-        projected_closed = int(stat["projected_closed"])
-        baseline_rate = _gap_rate(int(stat["baseline_closed"]), int(stat["total"]))
-        projected_rate = _gap_rate(int(stat["projected_closed"]), int(stat["total"]))
+        fallback_total = int(stat["total"])
+        fallback_baseline_closed = int(stat["baseline_closed"])
+        selected_open = int(stat.get("selected_open") or 0)
+        engine_denominator = stat.get("engine_denominator")
+        engine_numerator = stat.get("engine_numerator")
+
+        if isinstance(engine_denominator, int) and isinstance(engine_numerator, int) and engine_denominator > 0:
+            total = engine_denominator
+            baseline_closed = min(max(engine_numerator, 0), total)
+        else:
+            total = fallback_total
+            baseline_closed = fallback_baseline_closed
+
+        projected_closed = min(total, baseline_closed + max(selected_open, 0))
+        baseline_rate = _gap_rate(baseline_closed, total)
+        projected_rate = _gap_rate(projected_closed, total)
         star_eligible = has_cutpoints_sqlalchemy(
             session,
             measure_code=measure_code,
@@ -233,7 +320,7 @@ def _build_star_dashboard(
                 "measure_name": stat["measure_name"],
                 "star_eligible": star_eligible,
                 "rating_note": (
-                    "Projected star based on current measure closure rate."
+                    "Projected star based on current measure rate and selected closure projection."
                     if star_eligible
                     else "No verified CMS star mapping configured for this measure."
                 ),
@@ -507,8 +594,22 @@ def _process_gap_automation(repo: Repository, cfg: AppConfig) -> dict[str, objec
     error_list = summary["errors"]
     assert isinstance(error_list, list)
 
-    for care_gap_row in repo.list_care_gaps():
-        care_gap = row_to_dict(care_gap_row) or {}
+    missing_tables = [
+        table_name
+        for table_name in ("members", "synthea_records")
+        if not repo.table_exists(table_name)
+    ]
+    if missing_tables:
+        gap_rows = repo.list_care_gaps()
+        summary["processed"] = len(gap_rows)
+        summary["skipped"] = True
+        summary["skip_reason"] = (
+            "Automation writeback is unavailable for this database profile "
+            f"(missing tables: {', '.join(missing_tables)})."
+        )
+        return summary
+
+    for care_gap in repo.list_care_gaps():
         member_id = str(care_gap.get("member_id") or "")
         care_gap_id = str(care_gap.get("care_gap_id") or "")
         measure_id = str(care_gap.get("measure_id") or "")
@@ -810,76 +911,53 @@ def create_app(
 
     @app.get("/api/star-rating/catalog")
     def star_rating_catalog(session: Session = Depends(database.get_session)):
-        cut_rows = session.execute(
+        rows = session.execute(
             text(
-                """SELECT measure_id, measurement_year, star_rating, rate_low_pct
-                     FROM star_cutpoint
-                    WHERE rate_low_pct IS NOT NULL
-                    ORDER BY measure_id, measurement_year, star_rating"""
-            )
-        ).all()
-        weight_rows = session.execute(
-            text(
-                """SELECT measure_id, measurement_year, weight
-                     FROM measure_star_weight
-                    WHERE star_year = :star_year"""
+                """SELECT d.measure_id,
+                          d.measurement_year,
+                          coalesce(r.name, d.measure_id) AS measure_name,
+                          w.weight,
+                          c.star_rating,
+                          c.rate_low_pct
+                     FROM measure_definition d
+                     LEFT JOIN measure_rule r
+                       ON r.measure_id = d.measure_id
+                      AND r.measurement_year = d.measurement_year
+                     LEFT JOIN measure_star_weight w
+                       ON w.measure_id = d.measure_id
+                      AND w.measurement_year = d.measurement_year
+                      AND w.star_year = :star_year
+                     LEFT JOIN star_cutpoint c
+                       ON c.measure_id = d.measure_id
+                      AND c.measurement_year = d.measurement_year
+                      AND c.rate_low_pct IS NOT NULL
+                    ORDER BY d.measure_id, d.measurement_year, c.star_rating"""
             ),
             {"star_year": CMS_RATING_YEAR},
         ).all()
-        weights = {
-            (str(row[0]), int(row[1])): int(row[2])
-            for row in weight_rows
-            if row[2] is not None
-        }
 
-        names: dict[tuple[str, int], str] = {}
-        try:
-            name_rows = session.execute(
-                text(
-                    """SELECT measure_id, measurement_year, name
-                         FROM measures"""
-                )
-            ).all()
-            names = {
-                (str(row[0]), int(row[1])): str(row[2])
-                for row in name_rows
-                if row[2]
-            }
-        except SQLAlchemyError:
-            session.rollback()
-            try:
-                name_rows = session.execute(
-                    text(
-                        """SELECT measure_id, measurement_year, min(name) AS name
-                             FROM measure_rule
-                         GROUP BY measure_id, measurement_year"""
-                    )
-                ).all()
-                names = {
-                    (str(row[0]), int(row[1])): str(row[2])
-                    for row in name_rows
-                    if row[2]
-                }
-            except SQLAlchemyError:
-                session.rollback()
-
-        grouped: dict[tuple[str, int], dict] = {}
-        for row in cut_rows:
-            key = (str(row[0]), int(row[1]))
+        grouped: dict[tuple[str, int], dict[str, object]] = {}
+        for row in rows:
+            measure_id = str(row[0])
+            measurement_year = int(row[1])
+            key = (measure_id, measurement_year)
             if key not in grouped:
+                weight = row[3]
                 grouped[key] = {
-                    "measure_code": key[0],
-                    "measurement_year": key[1],
-                    "measure_name": names.get(key, key[0]),
-                    "weight": weights.get(key),
+                    "measure_code": measure_id,
+                    "measurement_year": measurement_year,
+                    "measure_name": str(row[2]) if row[2] else measure_id,
+                    "weight": int(weight) if weight is not None else None,
                     "cut_points": [],
                 }
-            grouped[key]["cut_points"].append(
-                {
-                    "star": int(row[2]),
-                    "minimum_rate": float(row[3]),
-                }
-            )
+
+            if row[4] is not None and row[5] is not None:
+                grouped[key]["cut_points"].append(
+                    {
+                        "star": int(row[4]),
+                        "minimum_rate": float(row[5]),
+                    }
+                )
 
         return {
             "cms_rating_year": CMS_RATING_YEAR,
@@ -1002,3 +1080,45 @@ def create_app(
 
 
 app = create_app()
+app.include_router(_ingestion_routes(), prefix="/api/ingestion")
+
+
+@app.get("/api/flow")
+def ingestion_flow_snapshot() -> dict[str, object]:
+    """Return a lightweight flow snapshot compatible with the ingestion UI."""
+    with ingestion_session_scope() as session:
+        jobs = ingestion_list_jobs(session)
+        if not jobs:
+            return {"batch": None, "tasks": {}}
+
+        job = ingestion_as_job_dict(jobs[0])
+
+    raw_status = str(job.get("status") or "").lower()
+    if raw_status in {"failed", "error"}:
+        flow_status = "failed"
+    elif raw_status in {"running", "pending"}:
+        flow_status = "running"
+    elif int(job.get("resources_persisted") or 0) > 0:
+        flow_status = "prioritized"
+    else:
+        flow_status = "loaded"
+
+    return {
+        "batch": {
+            "batch_id": str(job.get("id") or ""),
+            "ingest_job_id": str(job.get("id") or ""),
+            "status": flow_status,
+            "step": "prioritizing" if flow_status == "prioritized" else "loading",
+            "updated_at": job.get("completed_at") or job.get("started_at"),
+            "counts": {
+                "resources_generated": int(job.get("resources_generated") or 0),
+                "resources_validated": int(job.get("resources_validated") or 0),
+                "resources_persisted": int(job.get("resources_persisted") or 0),
+                "warnings": int(job.get("warning_count") or 0),
+                "errors": int(job.get("error_count") or 0),
+            },
+        },
+        "tasks": {
+            "ingestion": flow_status,
+        },
+    }
