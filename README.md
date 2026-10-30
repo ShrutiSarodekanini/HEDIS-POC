@@ -42,8 +42,8 @@ The app serves Prometheus metrics at http://localhost:8780/metrics (or the port 
 `-Observability` the script also starts Prometheus at http://localhost:9090: in Docker when Rancher Desktop or Docker
 Desktop is running, otherwise from `PROMETHEUS_EXE` or `prometheus.exe` on PATH. Nothing is downloaded. Prometheus
 scrapes every 15s and keeps 15 days. Stop the Docker one with
-`docker compose -f observability/docker-compose.yml down`. The metrics and alerts are listed in
-[docs/design/observability-prometheus.md](docs/design/observability-prometheus.md).
+`docker compose -f observability/docker-compose.yml down`. The metrics are defined in
+`services/integration/metrics.py`.
 
 In Docker the script also starts Grafana at http://localhost:3000. It opens straight on the "HEDIS pipeline"
 dashboard and needs no login to view. Editing needs the admin login: user `admin`, with the password from

@@ -1,4 +1,4 @@
-"""Prometheus metrics for the integration app, all in one place (see docs/design/observability-prometheus.md).
+"""Prometheus metrics for the integration app, all in one place.
 
 Labels are fixed vocabularies only: step, measure, model, status, outcome, decision, kind. A batch id is used as a
 key in _STEPS to time steps, never as a label; no patient id, file name or text ever becomes a label value.
