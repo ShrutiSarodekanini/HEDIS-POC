@@ -1,0 +1,11 @@
+# Logs from the integration app (Loki, fed by Alloy). Shown in Explore as "HEDIS logs" and on both dashboards.
+apiVersion: 1
+
+datasources:
+  - name: HEDIS logs
+    type: loki
+    uid: hedis-loki
+    access: proxy
+    url: http://loki:3100
+    isDefault: false
+    editable: false

@@ -1,5 +1,6 @@
-# Prometheus and Grafana for the integration app. Started by scripts/run_demo.ps1 -Observability, which renders
-# ../.observability/prometheus.yml first. Stop both: docker compose -f observability/docker-compose.yml down
+# Prometheus, Grafana, Loki and Alloy for the integration app. Started by scripts/run_demo.ps1 -Observability, which
+# renders ../.observability/prometheus.yml first. Alloy tails ../logs into Loki.
+# Stop all four: docker compose -f observability/docker-compose.yml down
 services:
   prometheus:
     image: prom/prometheus:v3.5.0
@@ -23,6 +24,7 @@ services:
       - "127.0.0.1:3000:3000"
     depends_on:
       - prometheus
+      - loki
     environment:
       GF_AUTH_ANONYMOUS_ENABLED: "true"
       GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
@@ -36,6 +38,38 @@ services:
       - grafana-data:/var/lib/grafana
     restart: unless-stopped
 
+  loki:
+    image: grafana/loki:3.5.0
+    container_name: hedis-loki
+    command:
+      - -config.file=/etc/loki/loki-config.yml
+    ports:
+      - "127.0.0.1:3100:3100"
+    volumes:
+      - ./loki/loki-config.yml:/etc/loki/loki-config.yml:ro
+      - loki-data:/loki
+    restart: unless-stopped
+
+  alloy:
+    image: grafana/alloy:v1.10.0
+    container_name: hedis-alloy
+    command:
+      - run
+      - --server.http.listen-addr=0.0.0.0:12345
+      - --storage.path=/var/lib/alloy/data
+      - /etc/alloy/config.alloy
+    ports:
+      - "127.0.0.1:12345:12345"
+    depends_on:
+      - loki
+    volumes:
+      - ./alloy/config.alloy:/etc/alloy/config.alloy:ro
+      - ../logs:/var/log/hedis:ro
+      - alloy-data:/var/lib/alloy/data
+    restart: unless-stopped
+
 volumes:
   prometheus-data:
   grafana-data:
+  loki-data:
+  alloy-data:

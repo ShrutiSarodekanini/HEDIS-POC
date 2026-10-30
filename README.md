@@ -55,6 +55,12 @@ lists every batch, AI call, quality check, engine run and review with its status
 uses a read-only login: a superuser runs `observability/grafana/readonly_role.sql` once (after the lead's OK) and sets
 its password, and the same value goes in `.env` as `GRAFANA_DB_PASSWORD`. Until then its panels show a login error.
 
+Logs: the app writes its log to `logs/hedis-integration.log` (folder set by `LOG_DIR` in `.env`, rotated at 10 MB,
+5 files kept) as well as the console. In Docker, Alloy sends the lines to Loki, which keeps them for 15 days; document
+file names become `<file>` and OpenRouter user ids become `<user>` on the way (the file itself is not changed). Search
+them in Grafana > Explore > HEDIS logs, for example `{job="hedis-integration"} |= "error"` or
+`{job="hedis-integration", level="ERROR"}`. The overview has a Logs row, and run history shows the ERROR lines.
+
 Useful queries (Prometheus, Graph tab):
 
 ```

@@ -420,6 +420,33 @@
           "rawSql": "SELECT decided_at AS \"Decided at\", reviewer AS \"Reviewer\", decision AS \"Decision\",\n       reject_reason_code AS \"Reject reason code\"\n  FROM hedis.review_decisions\n WHERE $__timeFilter(decided_at)\n ORDER BY decided_at DESC\n LIMIT 500"
         }
       ]
+    },
+    {
+      "id": 17,
+      "type": "row",
+      "title": "App errors (logs)",
+      "collapsed": false,
+      "panels": [],
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 64 }
+    },
+    {
+      "id": 18,
+      "type": "logs",
+      "title": "App errors",
+      "description": "ERROR lines from the integration app's log with their tracebacks, newest first (Loki, file names and user ids masked).",
+      "datasource": { "type": "loki", "uid": "hedis-loki" },
+      "gridPos": { "h": 12, "w": 24, "x": 0, "y": 65 },
+      "options": {
+        "showTime": true, "showLabels": false, "showCommonLabels": false, "wrapLogMessage": true,
+        "prettifyLogMessage": false, "enableLogDetails": true, "dedupStrategy": "none", "sortOrder": "Descending"
+      },
+      "targets": [
+        {
+          "datasource": { "type": "loki", "uid": "hedis-loki" },
+          "refId": "A", "editorMode": "code", "queryType": "range",
+          "expr": "{job=\"hedis-integration\", level=\"ERROR\"}"
+        }
+      ]
     }
   ]
 }

@@ -2,7 +2,8 @@
 
 The integration app exposes metrics at `/metrics` on its own port (`INTEGRATION_PORT`, default 8780). Prometheus
 scrapes them every 15 seconds, keeps 15 days of history and evaluates four alert rules. Grafana shows them on one
-provisioned dashboard. There is no OpenTelemetry or RabbitMQ in this story. Every metric is defined in
+provisioned dashboard. The app's log lines go to Loki through Alloy (see Logs below). There is no OpenTelemetry or
+RabbitMQ in this story. Every metric is defined in
 `services/integration/metrics.py`.
 
 ## Label rules
@@ -139,6 +140,25 @@ tiles link to it.
   document or prompt text. `batch_run.counts` is left out entirely: a column grant cannot be limited to JSON keys,
   and besides its numbers it holds the error text of each document that failed to attach. `engine_runs.source_file`
   is left out because it is the same engine folder on every row.
+
+## Logs (Loki and Alloy)
+
+- **File**: the app writes every log line, uvicorn's included, to `logs/hedis-integration.log` as well as the console
+  (`LOG_DIR` in `.env`, default `logs`; 10 MB per file, 5 rotated files kept). Alloy only reads the repo's `logs/`.
+- **Shipping**: in the Docker setup, Alloy (`grafana/alloy:v1.10.0`, `observability/alloy/config.alloy`) tails the
+  file and pushes to Loki (`grafana/loki:3.5.0`, `observability/loki/loki-config.yml`). A traceback is joined to its
+  log line, so it is one entry. `level` (INFO, WARNING, ERROR) is a label; the logger name is structured metadata.
+  Prometheus's `GET /metrics` access lines stay in the file but are not sent. Alloy keeps its read position in the
+  `alloy-data` volume, so a restart does not send lines twice.
+- **Masking** before the lines leave Alloy: tokens ending in .pdf, .png, .jpg, .jpeg, .tif, .tiff, .csv, .json, .txt
+  or .docx become `<file>` (`.py` paths stay, so tracebacks remain readable); the value of `user_id` (JSON or
+  key=value) and `user_` tokens of 8 or more characters become `<user>`. The file on disk is not changed, and like
+  every log it must not hold patient details in the first place.
+- **Retention**: 15 days (compactor retention), stored in the `loki-data` volume. Loki and the Alloy UI listen on
+  `127.0.0.1` only (3100, 12345).
+- **Grafana**: data source "HEDIS logs" (uid `hedis-loki`). The overview has a Logs row (errors and warnings per
+  minute, and the log newest first); run history has an "App errors" panel with the ERROR lines. In Explore, search
+  with `{job="hedis-integration"} |= "error"` or `{job="hedis-integration", level="ERROR"}`.
 
 ## Later
 

@@ -123,12 +123,14 @@ def _attempt(conn: psycopg.Connection, client: OpenRouterClient, capture: _Captu
     pages_sent = [{"document_id": pg.document_id, "page_no": pg.page_no, "method": pg.method,
                    "handwritten": pg.handwritten} for pg in p.pages]
     result: ModelResult | None = None
+    failure: str | None = None
     kept: list[dict] = []
     dropped: list[dict] = []
     try:
         result = _complete(client, p)
         findings = parse_findings(result.text)
     except (ModelError, UnusableAnswer) as exc:
+        failure = type(exc).__name__
         raw = getattr(exc, "raw", None) or (result.text if result else None)
         status, error, call = "failed", str(exc), {**(capture.exchanges[-1] if capture.exchanges else {}),
                                                    "error": str(exc)}
@@ -155,6 +157,9 @@ def _attempt(conn: psycopg.Connection, client: OpenRouterClient, capture: _Captu
          result.prompt_tokens if result else None, result.output_tokens if result else None, raw,
          claimed_at)).fetchone()[0]
     conn.commit()
+    if failure:
+        # The reason can quote the provider's answer, so it stays in extraction_attempts.error, not in the log.
+        log.error("gap %s run %s attempt %s: model call failed (%s)", gap.gap_id, run_id, attempt_id, failure)
     return {**call, "attempt_id": attempt_id}, [{**k, "attempt_id": attempt_id} for k in kept], dropped
 
 

@@ -14,6 +14,7 @@ import uuid
 from collections.abc import AsyncIterator, Iterator
 from contextlib import asynccontextmanager
 from datetime import date
+from logging.handlers import RotatingFileHandler
 from pathlib import Path
 from typing import Literal
 
@@ -479,6 +480,11 @@ app.add_api_route("/api/documents/{document_id}/pages/{page_no}/image", intake_a
 
 
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
+    SETTINGS.log_dir.mkdir(parents=True, exist_ok=True)
+    log_file = RotatingFileHandler(SETTINGS.log_dir / "hedis-integration.log", maxBytes=10 * 1024 * 1024,
+                                   backupCount=5, encoding="utf-8")
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+                        handlers=[logging.StreamHandler(), log_file])
     print(f"HEDIS POC integration on http://localhost:{SETTINGS.port}")
-    uvicorn.run(app, host="127.0.0.1", port=SETTINGS.port, log_level="info")
+    # log_config=None keeps uvicorn's loggers on the root handlers above, so its lines reach the file too.
+    uvicorn.run(app, host="127.0.0.1", port=SETTINGS.port, log_level="info", log_config=None)

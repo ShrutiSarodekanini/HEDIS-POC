@@ -23,8 +23,9 @@
 # EXTRACTION_MODEL and EXTRACTION_MAX_OUTPUT_TOKENS come from .env; the token limit defaults to 32768.
 # -Observability (with -Integration): the app's metrics are at http://localhost:<port>/metrics; this also starts
 # Prometheus on http://localhost:9090 in Docker when it is running, else PROMETHEUS_EXE or prometheus.exe on PATH.
-# In Docker it also starts Grafana on http://localhost:3000 (dashboard HEDIS pipeline); Grafana needs Docker.
-# Nothing is downloaded. Stop both Docker ones with: docker compose -f observability/docker-compose.yml down
+# In Docker it also starts Grafana on http://localhost:3000 (dashboard HEDIS pipeline), and Loki with Alloy, which keep
+# the app's log (logs/hedis-integration.log) searchable in Grafana > Explore > HEDIS logs. These need Docker.
+# Nothing is downloaded. Stop all four Docker ones with: docker compose -f observability/docker-compose.yml down
 
 param([switch]$Setup, [switch]$Integration, [string]$Schema = "", [string]$EvidenceDir = "data/evidence_store",
       [string]$UiDir = "services/integration/ui/redesign", [switch]$AllowReset, [switch]$Observability)
@@ -69,6 +70,8 @@ function Start-Observability([string]$Port) {
             Write-Host "Run history dashboard: set GRAFANA_DB_PASSWORD in .env (see observability/grafana/readonly_role.sql)" `
                 -ForegroundColor Yellow
         }
+        # Alloy mounts logs/; create it first so Docker does not create it.
+        New-Item -ItemType Directory -Force (Join-Path $RepoRoot "logs") | Out-Null
         & docker compose -f observability/docker-compose.yml up -d
         if ($LASTEXITCODE -ne 0) {
             Write-Host "Warning: Prometheus did not start in Docker; the app starts anyway." -ForegroundColor Yellow
@@ -76,7 +79,8 @@ function Start-Observability([string]$Port) {
             Write-Host "Prometheus: http://localhost:9090" -ForegroundColor Cyan
             Write-Host ("Grafana: http://localhost:3000 (dashboards HEDIS pipeline and HEDIS run history; admin login " +
                 "only to edit)") -ForegroundColor Cyan
-            Write-Host "Stop both: docker compose -f observability/docker-compose.yml down" -ForegroundColor Cyan
+            Write-Host "Logs: Grafana > Explore > HEDIS logs" -ForegroundColor Cyan
+            Write-Host "Stop all four: docker compose -f observability/docker-compose.yml down" -ForegroundColor Cyan
         }
     } elseif ($exe) {
         Copy-Item (Join-Path $RepoRoot "observability/alerts.yml") (Join-Path $dir "alerts.yml") -Force

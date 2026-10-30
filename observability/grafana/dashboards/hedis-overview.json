@@ -1738,6 +1738,148 @@
       ]
     }
       ]
+    },
+    {
+      "id": 30,
+      "type": "row",
+      "title": "Logs",
+      "collapsed": false,
+      "panels": [],
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 42
+      }
+    },
+    {
+      "id": 31,
+      "type": "timeseries",
+      "title": "Errors and warnings per minute",
+      "description": "App log lines at ERROR or WARNING level per minute (Loki, file names and user ids masked).",
+      "datasource": {
+        "type": "loki",
+        "uid": "hedis-loki"
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 24,
+        "x": 0,
+        "y": 43
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0,
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "bars",
+            "fillOpacity": 80,
+            "lineWidth": 1,
+            "showPoints": "never",
+            "stacking": {
+              "mode": "normal",
+              "group": "A"
+            }
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "ERROR"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "red"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "WARNING"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "orange"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "hedis-loki"
+          },
+          "refId": "A",
+          "editorMode": "code",
+          "queryType": "range",
+          "expr": "sum by (level) (count_over_time({job=\"hedis-integration\", level=~\"ERROR|WARNING\"}[1m]))",
+          "legendFormat": "{{level}}"
+        }
+      ]
+    },
+    {
+      "id": 32,
+      "type": "logs",
+      "title": "App logs",
+      "description": "The integration app's log, newest first (Loki, file names and user ids masked). Click a line for its level and logger.",
+      "datasource": {
+        "type": "loki",
+        "uid": "hedis-loki"
+      },
+      "gridPos": {
+        "h": 14,
+        "w": 24,
+        "x": 0,
+        "y": 50
+      },
+      "options": {
+        "showTime": true,
+        "showLabels": false,
+        "showCommonLabels": false,
+        "wrapLogMessage": true,
+        "prettifyLogMessage": false,
+        "enableLogDetails": true,
+        "dedupStrategy": "none",
+        "sortOrder": "Descending"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "hedis-loki"
+          },
+          "refId": "A",
+          "editorMode": "code",
+          "queryType": "range",
+          "expr": "{job=\"hedis-integration\"}"
+        }
+      ]
     }
   ]
 }
