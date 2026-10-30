@@ -1,14 +1,14 @@
 """Require administrator approval for locally registered users.
 
-Revision ID: 0010
-Revises: 0009
+Revision ID: 0012_user_approval
+Revises: 0011_calculation_ready_batches
 Create Date: 2026-10-27
 """
 
 from alembic import op
 
-revision = "0010"
-down_revision = "0009"
+revision = "0012_user_approval"
+down_revision = "0011_calculation_ready_batches"
 branch_labels = None
 depends_on = None
 
