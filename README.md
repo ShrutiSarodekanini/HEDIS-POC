@@ -1,32 +1,53 @@
-# HEDIS-POC
+﻿# HEDIS-POC
 
 AI-enabled Healthcare Quality Measurement Platform that ingests Synthea data in the background, calculates HEDIS measure performance and CMS Star Ratings-related metrics, identifies missing care, extracts supporting clinical evidence, and generates reports for quality teams.
 
 ## Run the app
 
-Needs Python 3.11+, Node 20, PostgreSQL, and Tesseract OCR for the scanned test documents. Create `.env` in the
-repo root (copy `.env.example`) with:
+Needs Python 3.11+, Node 20, PostgreSQL, and Tesseract OCR for scanned test documents.
 
-```
-DATABASE_URL=<postgresql+psycopg URL of your database, as in .env.example>?options=-csearch_path%3Dhedis
-OPENROUTER_API_KEY=<your OpenRouter key>
-EXTRACTION_MODEL=recursive/flint-v1.0:free
-EXTRACTION_MAX_OUTPUT_TOKENS=32768
+### Single environment file for backend and frontend
+
+Use one shared `.env` at the repo root for both services:
+
+1. Copy `.env.example` to `.env`.
+2. Set required backend values (`DATABASE_URL`, model settings, etc.).
+3. Keep frontend `VITE_*` values in the same root `.env`.
+
+Do not create a separate `ui/.env`; Vite is configured to read environment variables from the repo root.
+
+### Install dependencies
+
+```powershell
+# backend deps
+python -m pip install -r requirements.txt
+
+# frontend deps
+cd ui
+npm install
+cd ..
 ```
 
-From the repo root, use the canonical integration application:
+### Run database migrations
 
-```
-# first time: packages, tables (migrations to head), reference data, measure engine build
-npm run start:setup
-# every time
-npm start
+```powershell
+python -m alembic -c alembic.ini upgrade head
 ```
 
-Then open http://localhost:8780. This is the HEDIS Ops Console. The app keeps everything in one schema, `hedis`, named by the search path at the end
-of `DATABASE_URL`; `-Setup` creates it, and the script refuses to run on `public`. Add
-`-AllowReset` to switch on "Start over" on Data Ingestion: it empties every data table and keeps the reference data
-(type the schema name to confirm).
+### Start backend
+
+```powershell
+uvicorn app:app --host 127.0.0.1 --port 8000 --reload
+```
+
+### Start frontend
+
+```powershell
+cd ui
+npm run dev
+```
+
+Open the UI URL shown by Vite (default `http://127.0.0.1:5173`).
 
 Test files (synthetic) are in `data/test_uploads`: upload `synthea_20_patients.zip` (20 patients), or the 12 CSV
 files in `cohort_4_patients/`, on Data Ingestion. The stored evidence documents for those patients are in
@@ -41,12 +62,11 @@ the way it did on its own branch; the sections below are copied from each branch
 | Part | Where |
 |---|---|
 | Schema, document intake, AI evidence extraction, gap prioritization, demo page | `db/`, `services/document_intake/`, `services/evidence_extraction/`, `services/gap_priority/`, `scripts/demo_priority/` (see `scripts/run_demo.ps1`) |
-| Data ingestion, measure engine, React UI | `services/data_ingestion/`, `services/measure_calc/engine/`, `ui/frontend/` |
+| Data ingestion, measure engine, React UI | `services/data_ingestion/`, `services/measure_calc/engine/`, `ui/` |
 | Star rating, measure comparison, mock evidence documents | `app.py`, `common/`, `alembic/`, `database/`, `ui/` (React app at `ui/index.html`) |
 
-Two migration setups exist on this branch: `db/alembic.ini` (the team schema; run with
-`python -m alembic -c db/alembic.ini upgrade head`) and the root `alembic.ini` (the star rating
-app). Do not run both against the same schema.
+Current migration path is `db/migrations` and can be run from the repo root with:
+`python -m alembic -c alembic.ini upgrade head`.
 
 ## Data ingestion and measure engine
 
@@ -61,18 +81,16 @@ Top-level layout:
 
 ## Where the working implementation lives
 
-- Backend engine: services/measure_calc/engine
-- Frontend app: ui/frontend
+- Backend API: app.py
+- Frontend app: ui/
 
 ## Quick commands (from workspace root)
 
 ```bash
-npm run backend:install
-npm run backend:test
-npm run backend:build
-npm run backend:cli -- detailed --measure-bundle <path> --patient-bundles <path1> <path2>
-npm run ui:install
-npm run ui:dev
+python -m pip install -r requirements.txt
+python -m alembic -c alembic.ini upgrade head
+uvicorn app:app --host 127.0.0.1 --port 8000 --reload
+cd ui && npm install && npm run dev
 ```
 
 ## Notes
