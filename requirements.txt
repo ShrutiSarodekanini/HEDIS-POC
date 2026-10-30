@@ -22,7 +22,7 @@ prometheus-fastapi-instrumentator>=7.0,<8   # request count and latency per rout
 fhir.resources>=8.0,<9.0
 
 # Document intake and conversion (US-02)
-cryptography
+cryptography>=45,<50  # 50.x wheel fails to import its Rust exceptions module on Windows.
 pypdfium2
 pypdf
 python-docx

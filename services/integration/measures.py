@@ -16,14 +16,18 @@ import shutil
 import subprocess
 import time
 import uuid
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from datetime import date
 from pathlib import Path
 
 import psycopg
 
-from services.data_ingestion.app.api import (_extract_root_library_reference, _maybe_prune_run_request_bundle,
-                                             _to_member_result)
+from services.data_ingestion.app.api import (
+    _extract_root_library_reference,
+    _maybe_prune_run_request_bundle,
+    _to_member_result,
+)
 from services.document_intake.db import audit
 
 from . import metrics
@@ -204,8 +208,9 @@ def run_measures(conn: psycopg.Connection, patient_ids: list[str], attributed_or
              "services/measure_calc/engine/examples"))
         names = dict(conn.execute("SELECT measure_id, name FROM measure_rule WHERE measurement_year = %s",
                                   (year,)).fetchall())
+        evaluations = _evaluate_measures(bundles, files, work, settings)
         for bundle in bundles:
-            populations = _evaluate(bundle, files, work, settings)
+            populations = evaluations[bundle.measure_id]
             run.measures[bundle.measure_id] = _write_results(conn, bundle, populations, attributed_org, run.run_id,
                                                              names.get(bundle.measure_id, bundle.measure_id), year)
             metrics.GAPS_OPEN.labels(bundle.measure_id).set(run.measures[bundle.measure_id].gaps_open)
@@ -229,6 +234,17 @@ def _write_bundles(conn: psycopg.Connection, patient_ids: list[str], folder: Pat
     if missing:
         raise RuntimeError(f"{missing} of {len(patient_ids)} patients have no stored FHIR resources")
     return files
+
+
+def _evaluate_measures(bundles: list[MeasureBundle], files: dict[str, Path], work: Path,
+                       settings: Settings) -> dict[str, dict[str, dict]]:
+    """Evaluate independent measures concurrently while retaining deterministic result persistence."""
+    worker_count = min(settings.engine_workers, len(bundles))
+    if worker_count == 1:
+        return {bundle.measure_id: _evaluate(bundle, files, work, settings) for bundle in bundles}
+    with ThreadPoolExecutor(max_workers=worker_count, thread_name_prefix="hedis-measure") as executor:
+        futures = {bundle.measure_id: executor.submit(_evaluate, bundle, files, work, settings) for bundle in bundles}
+        return {bundle.measure_id: futures[bundle.measure_id].result() for bundle in bundles}
 
 
 def _evaluate(bundle: MeasureBundle, files: dict[str, Path], work: Path, settings: Settings) -> dict[str, dict]:
