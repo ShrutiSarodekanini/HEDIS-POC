@@ -33,7 +33,9 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
 
-    db.Base.metadata.create_all(bind=db.engine)
+    # Tables are created by Alembic migrations (db/migrations/versions/), not by create_all().
+    # This ensures schema changes are version-controlled and all team members get the same schema.
+    # db.Base.metadata.create_all(bind=db.engine)
     app.include_router(api_router)
 
     @app.get("/")

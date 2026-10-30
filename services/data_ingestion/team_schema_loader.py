@@ -32,6 +32,8 @@ _PATIENT_REF = """coalesce(CASE WHEN r.resource_type = 'Patient' THEN r.resource
                                r.resource_json->'patient'->>'reference'), '/', 2), ''))"""
 _ENCOUNTER_REF = "nullif(split_part(r.resource_json->'encounter'->>'reference', '/', 2), '')"
 _CODE = "r.resource_json->'code'->'coding'->0->>'code'"
+_MEDICATION_CODE = """coalesce(r.resource_json->'medicationCodeableConcept'->'coding'->0->>'code',
+  r.resource_json->'medication'->'concept'->'coding'->0->>'code')"""
 
 _SOURCE_BATCH = """
 INSERT INTO source_batch (batch_id, source_system, status, resource_count, started_at)
@@ -57,10 +59,33 @@ WITH new AS (
 ), base AS (
     SELECT coalesce(max(substring(mrn FROM '^S-([0-9]+)$')::int), 0) AS n FROM patient
 )
-INSERT INTO patient (patient_id, mrn, gender, birth_date, birth_sex, source_file, batch_id)
+INSERT INTO patient (patient_id, mrn, gender, birth_date, birth_sex, race, ethnicity, source_file, batch_id)
 SELECT new.resource_id, 'S-' || lpad((base.n + row_number() OVER (ORDER BY new.resource_id))::text, 6, '0'),
        new.j->>'gender', (new.j->>'birthDate')::date,
-       CASE new.j->>'gender' WHEN 'male' THEN 'M' WHEN 'female' THEN 'F' END, new.source_file, %(batch)s
+       CASE new.j->>'gender' WHEN 'male' THEN 'M' WHEN 'female' THEN 'F' END,
+       -- Extract race from US Core Race extension
+       (
+         SELECT (elem->>'valueString')
+         FROM (
+           SELECT jsonb_array_elements(elem->'extension') as elem
+           FROM jsonb_array_elements(new.j->'extension') as ext(elem)
+           WHERE ext.elem->>'url' = 'http://hl7.org/fhir/us/core/StructureDefinition/us-core-race'
+         ) race_ext
+         WHERE elem->>'url' = 'text'
+         LIMIT 1
+       ),
+       -- Extract ethnicity from US Core Ethnicity extension
+       (
+         SELECT (elem->>'valueString')
+         FROM (
+           SELECT jsonb_array_elements(elem->'extension') as elem
+           FROM jsonb_array_elements(new.j->'extension') as ext(elem)
+           WHERE ext.elem->>'url' = 'http://hl7.org/fhir/us/core/StructureDefinition/us-core-ethnicity'
+         ) ethn_ext
+         WHERE elem->>'url' = 'text'
+         LIMIT 1
+       ),
+       new.source_file, %(batch)s
   FROM new, base
 """
 
@@ -129,7 +154,7 @@ _MEDICATIONS = f"""
 INSERT INTO medication_request (medication_request_id, patient_id, encounter_id, status, intent, medication_code,
                                 authored_on, batch_id)
 SELECT r.resource_id, p.patient_id, e.encounter_id, r.resource_json->>'status', r.resource_json->>'intent',
-       r.resource_json->'medicationCodeableConcept'->'coding'->0->>'code',
+  {_MEDICATION_CODE},
        (r.resource_json->>'authoredOn')::timestamptz, %(batch)s
   FROM fhir_resources r
   JOIN patient p ON p.patient_id = split_part(r.resource_json->'subject'->>'reference', '/', 2)
