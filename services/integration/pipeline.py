@@ -1,11 +1,11 @@
 """Pipeline runner: one uploaded Synthea zip from CSV files to a prioritized work list, in a background thread.
 
     ingestion (upload-zip, run_conversion, run_persist_stage) -> team_schema_loader -> data quality checks
-    -> measures -> score_all -> stored_evidence (when INTEGRATION_EVIDENCE_DIR is set)
+    -> measures -> gap scoring.
 
 batch_run shows where a batch is; after every step its status, step and counts are updated and a domain_event is
 written (batch.received, batch.converted, batch.persisted, batch.loaded, quality.checked or quality.failed,
-measures.received, gaps.identified, gaps.prioritized, documents.attached, or batch.failed with the step and reason).
+measures.received, gaps.identified, gaps.prioritized, or batch.failed with the step and reason).
 Errors keep only their first line, so row values in database error details never reach batch_run, events or logs.
 """
 
@@ -19,21 +19,25 @@ from datetime import date
 from pathlib import Path
 
 import psycopg
-from psycopg.types.json import Jsonb
 from fastapi import HTTPException
+from psycopg.types.json import Jsonb
 from starlette.datastructures import UploadFile
 
 from services.data_ingestion import team_schema_loader
 from services.data_ingestion.app.api import upload_dataset, upload_dataset_zip
 from services.data_ingestion.app.db import session_scope
 from services.data_ingestion.app.models import ConversionJob
-from services.data_ingestion.app.pipeline import job_manager, run_conversion, run_persist_stage
+from services.data_ingestion.app.pipeline import (
+    job_manager,
+    run_conversion,
+    run_persist_stage,
+)
 from services.document_intake import db
 from services.document_intake.db import audit
 from services.gap_priority.config import load_rules
 from services.gap_priority.runner import score_all
 
-from . import dq_checks, measures, stored_evidence
+from . import calculation, dq_checks, measures
 from .config import SETTINGS
 
 log = logging.getLogger(__name__)
@@ -43,6 +47,61 @@ _ONE_AT_A_TIME = threading.Lock()   # batches share the engine work folder and t
 
 class StepFailed(RuntimeError):
     """A step that could not finish; the message is safe to store and show."""
+
+
+def recover_interrupted_batches() -> None:
+    """Record an interrupted calculation while returning its already persisted batch to ready."""
+    with db.connect() as conn:
+        rows = conn.execute(
+            """SELECT batch_id, step
+                 FROM batch_run
+                WHERE status = 'running'
+                   OR (status = 'failed' AND error = 'Calculation interrupted by an integration-service restart.')
+                FOR UPDATE"""
+        ).fetchall()
+        for batch_id, step in rows:
+            conn.execute(
+                """UPDATE batch_run
+                      SET status = 'ready', step = 'ready', error = NULL,
+                          counts = counts || %s, updated_at = now()
+                    WHERE batch_id = %s""",
+                (Jsonb({"interrupted_calculation": {"step": step, "reason_code": "service_restarted"}}),
+                 str(batch_id)),
+            )
+            conn.execute("UPDATE source_batch SET status = 'completed' WHERE batch_id = %s", (batch_id,))
+            _event(conn, batch_id, "calculation.interrupted", {"step": step, "reason_code": "service_restarted"})
+            audit(conn, "batch", str(batch_id), "calculation.interrupted",
+                  {"step": step, "reason_code": "service_restarted"}, actor=SETTINGS.actor)
+    if rows:
+        log.warning("recorded %s interrupted calculations and returned their batches to ready", len(rows))
+
+
+def record_missing_upload_sizes() -> None:
+    """Write immutable byte-size metadata for existing batches while their input directories remain available."""
+    with db.connect() as conn:
+        rows = conn.execute(
+            """SELECT b.batch_id, c.input_dir
+                 FROM batch_run b
+                 JOIN conversion_jobs c ON c.id = b.ingest_job_id
+                WHERE NOT EXISTS (
+                    SELECT 1
+                      FROM audit_events a
+                     WHERE a.entity_type = 'batch'
+                       AND a.entity_id = b.batch_id::text
+                       AND a.payload ? 'bytes'
+                )"""
+        ).fetchall()
+        recorded = 0
+        for batch_id, input_dir in rows:
+            path = Path(input_dir)
+            if not path.is_dir():
+                continue
+            byte_count = sum(file.stat().st_size for file in path.rglob("*") if file.is_file())
+            audit(conn, "batch", str(batch_id), "batch.input_size_recorded",
+                  {"bytes": byte_count}, actor=SETTINGS.actor)
+            recorded += 1
+    if recorded:
+        log.info("recorded upload sizes for %s batches", recorded)
 
 
 def start_batch(upload: Path) -> str:
@@ -95,6 +154,10 @@ def start_from_job(job_id: str) -> str:
         persisted = conn.execute("SELECT resources_persisted FROM conversion_jobs WHERE id = %s",
                                  (job_id,)).fetchone()[0]
         received = {"source": "data ingestion screen", "job_id": job_id, "persisted": persisted}
+        input_dir = conn.execute("SELECT input_dir FROM conversion_jobs WHERE id = %s", (job_id,)).fetchone()[0]
+        path = Path(input_dir)
+        if path.is_dir():
+            received["bytes"] = sum(file.stat().st_size for file in path.rglob("*") if file.is_file())
         conn.execute("""INSERT INTO source_batch (batch_id, source_system, status, resource_count, started_at)
                         VALUES (%s, %s, 'running', 0, now())""", (batch_id, team_schema_loader.SOURCE_SYSTEM))
         conn.execute("""INSERT INTO batch_run (batch_id, ingest_job_id, status, step, counts)
@@ -124,8 +187,7 @@ def _current_step(batch_id: uuid.UUID) -> str:
 
 
 def _after_persist(batch_id: uuid.UUID, job_id: str, persisted: int) -> None:
-    """Our steps after the ingestion persist stage: load the lead's tables, check the data, run the measures,
-    prioritize, attach."""
+    """Load and check persisted data, then automatically run measures and score the resulting gaps."""
     with db.connect() as conn:
         loaded = team_schema_loader.load_job(conn, job_id, batch_id)
         _check_loaded(conn, job_id, persisted, loaded)
@@ -134,9 +196,9 @@ def _after_persist(batch_id: uuid.UUID, job_id: str, persisted: int) -> None:
                        "attributed_patients": sum(1 for v in loaded.attributed_org.values() if v)}
         _progress(batch_id, "checking", "batch.loaded", {"load": load_counts}, conn=conn)
 
-    _progress(batch_id, "measuring", None, {"quality": _check_quality(batch_id)})
-
+    quality = _check_quality(batch_id)
     with db.connect() as conn:
+        _progress(batch_id, "measuring", None, {"quality": quality}, conn=conn)
         run = measures.run_measures(conn, list(loaded.patient_ids), loaded.attributed_org, batch_id.hex[:8])
         engine = run.counts()
         _event(conn, batch_id, "measures.received",
@@ -146,17 +208,11 @@ def _after_persist(batch_id: uuid.UUID, job_id: str, persisted: int) -> None:
 
     with db.connect() as conn:
         summary = score_all(conn, date.today(), load_rules())
-        _progress(batch_id, "attaching", "gaps.prioritized", {"prioritization": _scored(summary)}, conn=conn)
-
-    attached = _attach(batch_id, list(loaded.patient_ids))
-    with db.connect() as conn:
-        _event(conn, batch_id, "documents.attached", attached)
-        audit(conn, "batch", str(batch_id), "documents.attached",
-              {k: (len(v) if isinstance(v, list) else v) for k, v in attached.items()}, actor=SETTINGS.actor)
         conn.execute("UPDATE source_batch SET status = 'completed' WHERE batch_id = %s", (batch_id,))
-        _progress(batch_id, "done", None, {"documents": attached}, status="prioritized", conn=conn)
-        audit(conn, "batch", str(batch_id), "batch.prioritized", {"gaps_scored": summary.gaps_scored},
-              actor=SETTINGS.actor)
+        _progress(batch_id, "done", "gaps.prioritized", {"prioritization": _scored(summary)},
+                  status="prioritized", conn=conn)
+        audit(conn, "batch", str(batch_id), "batch.prioritized",
+              {"gaps_scored": summary.gaps_scored}, actor=SETTINGS.actor)
 
 
 def _scored(summary) -> dict:
@@ -196,40 +252,55 @@ def watch_ingestion(stop: threading.Event, every_seconds: float = 3.0) -> None:
             log.error("ingestion watcher round failed: %s", type(exc).__name__)
 
 
-def start_recalculation(measure_ids: list[str] | None) -> str:
-    """Run the measure engine again for the latest finished batch's patients (all measures or the chosen ones), then
-    prioritize again. Recorded on that batch as a recalculation. Returns the batch_id."""
+def start_recalculation(measure_ids: list[str] | None, selected_patient_ids: list[str]) -> str:
+    """Run selected persisted patients, then prioritize their resulting gaps."""
+    if not selected_patient_ids:
+        raise ValueError("Select at least one patient before starting the calculation.")
     with db.connect() as conn:
         row = conn.execute("""SELECT batch_id, ingest_job_id FROM batch_run
-                               WHERE status = 'prioritized' AND ingest_job_id IS NOT NULL
+                               WHERE status IN ('ready', 'prioritized') AND ingest_job_id IS NOT NULL
                                ORDER BY started_at DESC LIMIT 1""").fetchone()
+        if row is not None:
+            available_ids = calculation.run_candidate_ids(conn)
     if row is None:
-        raise LookupError("No finished batch yet. Ingest and persist a batch first.")
-    batch_id, job_id = uuid.UUID(row[0]), row[1]
+        raise LookupError("No calculation-ready batch yet. Ingest and persist a batch first.")
+    batch_id = uuid.UUID(row[0])
+    available = set(available_ids)
+    selected = list(dict.fromkeys(selected_patient_ids))
+    if unknown := set(selected) - available:
+        raise ValueError(f"{len(unknown)} selected patients are not available for calculation.")
     if not _ONE_AT_A_TIME.acquire(blocking=False):
         raise ValueError("A batch is running. Wait for it to finish, then run the calculation.")
     try:
         _progress(batch_id, "measuring", "calculation.requested",
-                  {"recalculation": {"requested": measure_ids or "all"}})
+                  {"recalculation": {"requested": measure_ids or "all", "patient_count": len(selected)}})
     except Exception:
         _ONE_AT_A_TIME.release()
         raise
-    threading.Thread(target=_recalculate, args=(batch_id, job_id, measure_ids), name=f"calc-{batch_id}",
+    threading.Thread(target=_recalculate, args=(batch_id, measure_ids, selected), name=f"calc-{batch_id}",
                      daemon=True).start()
     return str(batch_id)
 
 
-def _recalculate(batch_id: uuid.UUID, job_id: str, measure_ids: list[str] | None) -> None:
+def _recalculate(batch_id: uuid.UUID, measure_ids: list[str] | None, selected_patient_ids: list[str]) -> None:
     step = "measuring"
     try:
         with db.connect() as conn:
-            patient_ids, attributed = team_schema_loader.job_patients(conn, job_id)
-            run = measures.run_measures(conn, list(patient_ids), attributed, batch_id.hex[:8],
+            selected = list(dict.fromkeys(selected_patient_ids))
+            attributed = dict.fromkeys(selected)
+            attributed.update(dict(conn.execute(
+                """SELECT patient_id, mode() WITHIN GROUP (ORDER BY organization_id)
+                     FROM encounter
+                    WHERE organization_id IS NOT NULL AND patient_id = ANY(%s)
+                    GROUP BY patient_id""",
+                (selected,),
+            ).fetchall()))
+            run = measures.run_measures(conn, selected, attributed, batch_id.hex[:8],
                                         measure_ids=measure_ids)
             engine = run.counts()
             _event(conn, batch_id, "measures.received",
                    {"engine_run_id": run.run_id, "patients": run.patients, "measures": engine["measures"]})
-            gaps = measures.gap_counts(conn, list(patient_ids))
+            gaps = measures.gap_counts(conn, selected)
             _progress(batch_id, "prioritizing", "gaps.identified",
                       {"recalculation": {"requested": measure_ids or "all", "measures": engine,
                                          "open_gaps": gaps}}, conn=conn)
@@ -274,19 +345,6 @@ def _convert(upload: Path) -> tuple[str, dict]:
         raise StepFailed(f"ingestion job {job_id} ended as {status}")
     return job_id, {"job_id": job_id, "job_status": status, "row_counts": uploaded["row_counts"],
                     "resources_generated": generated, "errors": errors}
-
-
-def _attach(batch_id: uuid.UUID, patient_ids: list[str]) -> dict:
-    """Stored evidence for this batch's patients, or a skip note when no evidence folder is configured."""
-    if SETTINGS.evidence_dir is None:
-        return {"skipped": "INTEGRATION_EVIDENCE_DIR is not set"}
-
-    def progress(done: int, total: int) -> None:
-        with db.connect() as conn:
-            conn.execute("""UPDATE batch_run SET counts = counts || %s, updated_at = now() WHERE batch_id = %s""",
-                         (Jsonb({"attaching": f"{done} of {total}"}), str(batch_id)))
-
-    return stored_evidence.attach(SETTINGS.evidence_dir, patient_ids, progress)
 
 
 def _persist(job_id: str) -> int:

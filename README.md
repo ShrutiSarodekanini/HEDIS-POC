@@ -14,16 +14,16 @@ EXTRACTION_MODEL=recursive/flint-v1.0:free
 EXTRACTION_MAX_OUTPUT_TOKENS=32768
 ```
 
-From the repo root:
+From the repo root, use the canonical integration application:
 
 ```
 # first time: packages, tables (migrations to head), reference data, measure engine build
-powershell -ExecutionPolicy Bypass -File scripts/run_demo.ps1 -Integration -Setup
+npm run start:setup
 # every time
-powershell -ExecutionPolicy Bypass -File scripts/run_demo.ps1 -Integration
+npm start
 ```
 
-Then open http://localhost:8780. The app keeps everything in one schema, `hedis`, named by the search path at the end
+Then open http://localhost:8780. This is the HEDIS Ops Console. The app keeps everything in one schema, `hedis`, named by the search path at the end
 of `DATABASE_URL`; `-Setup` creates it, and the script refuses to run on `public`. Add
 `-AllowReset` to switch on "Start over" on Data Ingestion: it empties every data table and keeps the reference data
 (type the schema name to confirm).
@@ -437,7 +437,7 @@ Process one event and exit:
 python -m services.data_quality.main --once
 ```
 
-Start both backend processes (API + DQ worker) in one step on Windows:
+Start the backend API, DQ worker, and latest HEDIS Ops Console in one step on Windows:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\scripts\local-start\start-backend-services.ps1
@@ -458,6 +458,7 @@ Notes:
 - The startup script now performs prelaunch cleanup by default:
   - stops existing project-scoped Python/Uvicorn processes
   - clears `__pycache__` directories under the repo
+- It always starts the latest HEDIS Ops Console UI at `http://localhost:8780`.
 - To skip cleanup once, use:
 
 ```powershell
@@ -490,7 +491,9 @@ curl "http://localhost:8000/api/dq/runs/<DQ_RUN_ID>/anomalies?limit=500"
 - Rerun in DQ/AD page can update the same `dq_run_id` for the same `(batch_id, job_id)` context.
 - This is expected: checks/anomalies are refreshed for that run context.
 
-## Run Backend + UI
+## Alternative Data Quality Dashboard
+
+This is a separate, legacy Vite dashboard. It is not the HEDIS Ops Console and uses port 5173.
 
 Terminal 1 - Backend (API + DQ worker):
 
@@ -501,14 +504,12 @@ powershell -ExecutionPolicy Bypass -File .\scripts\local-start\start-backend-ser
 Terminal 2 - UI (Vite dev server):
 
 ```powershell
-Set-Location .\ui
-npm install
-npm run dev
+npm run legacy:ui:dev
 ```
 
 UI URL:
 
-- `http://localhost:3000`
+- `http://localhost:5173`
 
 API base URL:
 
