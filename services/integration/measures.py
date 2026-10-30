@@ -30,6 +30,7 @@ from services.data_ingestion.app.api import (
 )
 from services.document_intake.db import audit
 
+from . import metrics
 from .config import SETTINGS, Settings
 
 log = logging.getLogger(__name__)
@@ -212,6 +213,7 @@ def run_measures(conn: psycopg.Connection, patient_ids: list[str], attributed_or
             populations = evaluations[bundle.measure_id]
             run.measures[bundle.measure_id] = _write_results(conn, bundle, populations, attributed_org, run.run_id,
                                                              names.get(bundle.measure_id, bundle.measure_id), year)
+            metrics.GAPS_OPEN.labels(bundle.measure_id).set(run.measures[bundle.measure_id].gaps_open)
             log.info("measure %s: %s", bundle.measure_id, vars(run.measures[bundle.measure_id]))
         return run
     finally:
@@ -342,6 +344,7 @@ def _run_engine(cmd: list[str], settings: Settings, measure_id: str, patients: i
         log.warning("engine call for %s (%d patients) crashed with exit %s and %s; retrying once in %ds",
                     measure_id, patients, completed.returncode,
                     "no output" if not completed.stderr.strip() else "an error", RETRY_WAIT_SECONDS)
+        metrics.ENGINE_RETRIES.labels(measure_id).inc()
         time.sleep(RETRY_WAIT_SECONDS)
     return completed
 
@@ -357,7 +360,8 @@ def _call_engine(bundle: MeasureBundle, root_ref: str | None, paths: list[str], 
            "--trust-meta-profile", "false"]
     if root_ref:
         cmd.extend(["--root-lib-ref", root_ref])
-    completed = _run_engine(cmd, settings, bundle.measure_id, len(paths))
+    with metrics.ENGINE_SECONDS.labels(bundle.measure_id).time():
+        completed = _run_engine(cmd, settings, bundle.measure_id, len(paths))
     if completed.returncode != 0:
         first = (completed.stderr.strip() or completed.stdout.strip() or "no output").splitlines()[0][:300]
         raise RuntimeError(f"engine failed for {bundle.measure_id} (exit {completed.returncode}): {first}")

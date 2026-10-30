@@ -21,9 +21,14 @@
 # manifest.json) are attached to their patients. -UiDir (default services/integration/ui/redesign) picks the screens.
 # -AllowReset switches on the page's "Start over" button, which empties every data table and keeps reference data.
 # EXTRACTION_MODEL and EXTRACTION_MAX_OUTPUT_TOKENS come from .env; the token limit defaults to 32768.
+# -Observability (with -Integration): the app's metrics are at http://localhost:<port>/metrics; this also starts
+# Prometheus on http://localhost:9090 in Docker when it is running, else PROMETHEUS_EXE or prometheus.exe on PATH.
+# In Docker it also starts Grafana on http://localhost:3000 (dashboard HEDIS pipeline), and Loki with Alloy, which keep
+# the app's log (logs/hedis-integration.log) searchable in Grafana > Explore > HEDIS logs. These need Docker.
+# Nothing is downloaded. Stop all four Docker ones with: docker compose -f observability/docker-compose.yml down
 
 param([switch]$Setup, [switch]$Integration, [string]$Schema = "", [string]$EvidenceDir = "data/evidence_store",
-      [string]$UiDir = "services/integration/ui/redesign", [switch]$AllowReset)
+      [string]$UiDir = "services/integration/ui/redesign", [switch]$AllowReset, [switch]$Observability)
 
 $ErrorActionPreference = "Stop"
 $RepoRoot = Split-Path -Parent $PSScriptRoot
@@ -35,6 +40,59 @@ function Invoke-Step([string]$Title, [string[]]$PyArgs) {
     Write-Host "`n== $Title" -ForegroundColor Cyan
     & $PythonExe @PyArgs
     if ($LASTEXITCODE -ne 0) { throw "Step failed: $Title" }
+}
+
+# Prometheus for the integration app: Docker when it runs, else a local prometheus.exe, else a note. Never blocks the app.
+function Start-Observability([string]$Port) {
+    $dir = Join-Path $RepoRoot ".observability"
+    New-Item -ItemType Directory -Force $dir | Out-Null
+    $useDocker = $false
+    if (Get-Command docker -ErrorAction SilentlyContinue) {
+        # Windows PowerShell turns a native command's stderr into an error under "Stop", so relax it for this check.
+        $previous = $ErrorActionPreference; $ErrorActionPreference = "Continue"
+        try { & docker info *> $null; $useDocker = $LASTEXITCODE -eq 0 } finally { $ErrorActionPreference = $previous }
+    }
+    $exe = if ($env:PROMETHEUS_EXE -and (Test-Path $env:PROMETHEUS_EXE)) { (Resolve-Path $env:PROMETHEUS_EXE).Path }
+           else { (Get-Command prometheus.exe -ErrorAction SilentlyContinue).Source }
+    $target = if ($useDocker) { "host.docker.internal:$Port" } else { "localhost:$Port" }
+    $config = Join-Path $dir "prometheus.yml"
+    $template = Get-Content (Join-Path $RepoRoot "observability/prometheus.yml.template") -Raw
+    [System.IO.File]::WriteAllText($config, $template.Replace("__TARGET__", $target))   # UTF-8 without a BOM
+    Write-Host "`n== Metrics: http://localhost:$Port/metrics (Prometheus target $target)" -ForegroundColor Cyan
+    if ($useDocker) {
+        # docker compose does not read the root .env, so pass the Grafana passwords on for this process only.
+        foreach ($key in "GRAFANA_ADMIN_PASSWORD", "GRAFANA_DB_PASSWORD") {
+            if (-not [Environment]::GetEnvironmentVariable($key) -and $envText -match "(?m)^\s*$key\s*=\s*(\S.*?)\s*$") {
+                [Environment]::SetEnvironmentVariable($key, $Matches[1].Trim('"', "'"), "Process")
+            }
+        }
+        if (-not $env:GRAFANA_DB_PASSWORD) {
+            Write-Host "Run history dashboard: set GRAFANA_DB_PASSWORD in .env (see observability/grafana/readonly_role.sql)" `
+                -ForegroundColor Yellow
+        }
+        # Alloy mounts logs/; create it first so Docker does not create it.
+        New-Item -ItemType Directory -Force (Join-Path $RepoRoot "logs") | Out-Null
+        & docker compose -f observability/docker-compose.yml up -d
+        if ($LASTEXITCODE -ne 0) {
+            Write-Host "Warning: Prometheus did not start in Docker; the app starts anyway." -ForegroundColor Yellow
+        } else {
+            Write-Host "Prometheus: http://localhost:9090" -ForegroundColor Cyan
+            Write-Host ("Grafana: http://localhost:3000 (dashboards HEDIS pipeline and HEDIS run history; admin login " +
+                "only to edit)") -ForegroundColor Cyan
+            Write-Host "Logs: Grafana > Explore > HEDIS logs" -ForegroundColor Cyan
+            Write-Host "Stop all four: docker compose -f observability/docker-compose.yml down" -ForegroundColor Cyan
+        }
+    } elseif ($exe) {
+        Copy-Item (Join-Path $RepoRoot "observability/alerts.yml") (Join-Path $dir "alerts.yml") -Force
+        $data = Join-Path $dir "data"
+        $proc = Start-Process -FilePath $exe -WindowStyle Hidden -PassThru -ArgumentList @(
+            "--config.file=`"$config`"", "--storage.tsdb.path=`"$data`"", "--storage.tsdb.retention.time=15d")
+        Write-Host "Prometheus: http://localhost:9090 (stop: Stop-Process -Id $($proc.Id))" -ForegroundColor Cyan
+        Write-Host "Grafana is not started: it needs Docker (Rancher Desktop or Docker Desktop)." -ForegroundColor Yellow
+    } else {
+        Write-Host ("Prometheus not started: start Rancher Desktop or Docker Desktop, or install Prometheus and set " +
+            "PROMETHEUS_EXE. The app starts anyway.") -ForegroundColor Yellow
+    }
 }
 
 if (-not (Test-Path $EnvFile)) {
@@ -140,6 +198,7 @@ if ($Integration) {
         $env:EXTRACTION_MAX_OUTPUT_TOKENS = "32768"
     }
     $port = if ($env:INTEGRATION_PORT) { $env:INTEGRATION_PORT } else { "8780" }
+    if ($Observability) { Start-Observability $port }
     Write-Host "`n== Starting the app on schema $schemaName. Open http://localhost:$port (Ctrl+C to stop)" `
         -ForegroundColor Green
     & $PythonExe -m services.integration.app

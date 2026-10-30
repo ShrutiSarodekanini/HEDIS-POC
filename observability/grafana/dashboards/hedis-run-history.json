@@ -1,0 +1,452 @@
+{
+  "uid": "hedis-run-history",
+  "title": "HEDIS run history",
+  "description": "Every batch, AI call, quality check, engine run and review from the app's database, with status, timing and error text. Read-only login; operational columns only.",
+  "tags": ["hedis"],
+  "editable": false,
+  "schemaVersion": 41,
+  "version": 1,
+  "refresh": "1m",
+  "time": { "from": "now-24h", "to": "now" },
+  "timezone": "browser",
+  "templating": { "list": [] },
+  "annotations": { "list": [] },
+  "links": [
+    {
+      "title": "Pipeline",
+      "type": "link",
+      "url": "/d/hedis-overview",
+      "icon": "dashboard",
+      "keepTime": true,
+      "includeVars": false,
+      "targetBlank": false,
+      "asDropdown": false,
+      "tags": [],
+      "tooltip": "HEDIS pipeline metrics (Prometheus)"
+    }
+  ],
+  "panels": [
+    {
+      "id": 1,
+      "type": "row",
+      "title": "Failures",
+      "collapsed": false,
+      "panels": [],
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 }
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "Failed batches",
+      "description": "Batches that ended as failed in the selected time range.",
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "hedis-postgres" },
+      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 1 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "noValue": "No data",
+          "mappings": [ { "type": "special", "options": { "match": "null+nan", "result": { "text": "No data", "color": "text", "index": 0 } } } ],
+          "decimals": 0,
+          "thresholds": { "mode": "absolute", "steps": [ { "color": "green", "value": null }, { "color": "red", "value": 0.5 } ] }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "colorMode": "background", "graphMode": "none", "textMode": "value", "justifyMode": "auto", "orientation": "auto"
+      },
+      "targets": [
+        {
+          "datasource": { "type": "grafana-postgresql-datasource", "uid": "hedis-postgres" },
+          "refId": "A", "format": "table", "rawQuery": true, "editorMode": "code",
+          "rawSql": "SELECT count(*) AS \"Failed batches\"\n  FROM hedis.batch_run\n WHERE status = 'failed' AND $__timeFilter(updated_at)"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "Failed AI calls",
+      "description": "Model calls (extraction attempts) that failed in the selected time range.",
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "hedis-postgres" },
+      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 1 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "noValue": "No data",
+          "mappings": [ { "type": "special", "options": { "match": "null+nan", "result": { "text": "No data", "color": "text", "index": 0 } } } ],
+          "decimals": 0,
+          "thresholds": { "mode": "absolute", "steps": [ { "color": "green", "value": null }, { "color": "red", "value": 0.5 } ] }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "colorMode": "background", "graphMode": "none", "textMode": "value", "justifyMode": "auto", "orientation": "auto"
+      },
+      "targets": [
+        {
+          "datasource": { "type": "grafana-postgresql-datasource", "uid": "hedis-postgres" },
+          "refId": "A", "format": "table", "rawQuery": true, "editorMode": "code",
+          "rawSql": "SELECT count(*) AS \"Failed AI calls\"\n  FROM hedis.extraction_attempts\n WHERE status = 'failed' AND $__timeFilter(created_at)"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "Failed quality checks (range)",
+      "description": "Data quality runs that failed in the selected time range.",
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "hedis-postgres" },
+      "gridPos": { "h": 4, "w": 6, "x": 12, "y": 1 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "noValue": "No data",
+          "mappings": [ { "type": "special", "options": { "match": "null+nan", "result": { "text": "No data", "color": "text", "index": 0 } } } ],
+          "decimals": 0,
+          "thresholds": { "mode": "absolute", "steps": [ { "color": "green", "value": null }, { "color": "red", "value": 0.5 } ] }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "colorMode": "background", "graphMode": "none", "textMode": "value", "justifyMode": "auto", "orientation": "auto"
+      },
+      "targets": [
+        {
+          "datasource": { "type": "grafana-postgresql-datasource", "uid": "hedis-postgres" },
+          "refId": "A", "format": "table", "rawQuery": true, "editorMode": "code",
+          "rawSql": "SELECT count(*) AS \"Failed quality checks\"\n  FROM hedis.quality_run\n WHERE status = 'failed' AND $__timeFilter(coalesce(completed_at, started_at))"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "type": "stat",
+      "title": "AI call success rate",
+      "description": "Finished model calls that succeeded or found no evidence, out of all finished calls (failed included).",
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "hedis-postgres" },
+      "gridPos": { "h": 4, "w": 6, "x": 18, "y": 1 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "decimals": 1,
+          "noValue": "No calls",
+          "mappings": [ { "type": "special", "options": { "match": "null+nan", "result": { "text": "No calls", "color": "text", "index": 0 } } } ],
+          "thresholds": { "mode": "absolute", "steps": [ { "color": "red", "value": null }, { "color": "orange", "value": 0.9 }, { "color": "green", "value": 0.95 } ] }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "colorMode": "background", "graphMode": "none", "textMode": "value", "justifyMode": "auto", "orientation": "auto"
+      },
+      "targets": [
+        {
+          "datasource": { "type": "grafana-postgresql-datasource", "uid": "hedis-postgres" },
+          "refId": "A", "format": "table", "rawQuery": true, "editorMode": "code",
+          "rawSql": "SELECT count(*) FILTER (WHERE status IN ('succeeded', 'no_evidence'))::float\n       / nullif(count(*) FILTER (WHERE status IN ('succeeded', 'no_evidence', 'failed')), 0) AS \"AI call success rate\"\n  FROM hedis.extraction_attempts\n WHERE $__timeFilter(created_at)"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "type": "table",
+      "title": "Everything that failed",
+      "description": "Failed batches, AI calls, AI runs and quality checks in one list, newest first, with the stored error text.",
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "hedis-postgres" },
+      "gridPos": { "h": 10, "w": 24, "x": 0, "y": 5 },
+      "fieldConfig": {
+        "defaults": { "noValue": "No failures" },
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "time" }, "properties": [ { "id": "custom.width", "value": 170 } ] },
+          { "matcher": { "id": "byName", "options": "area" }, "properties": [ { "id": "custom.width", "value": 110 } ] },
+          {
+            "matcher": { "id": "byName", "options": "error" },
+            "properties": [
+              { "id": "custom.cellOptions", "value": { "type": "auto", "wrapText": true } },
+              { "id": "custom.inspect", "value": true }
+            ]
+          }
+        ]
+      },
+      "options": { "showHeader": true, "cellHeight": "sm", "footer": { "show": false } },
+      "targets": [
+        {
+          "datasource": { "type": "grafana-postgresql-datasource", "uid": "hedis-postgres" },
+          "refId": "A", "format": "table", "rawQuery": true, "editorMode": "code",
+          "rawSql": "SELECT \"time\", area, ref, step, error FROM (\n  SELECT updated_at AS \"time\", 'Batch' AS area, batch_id AS ref, step, error\n    FROM hedis.batch_run\n   WHERE status = 'failed' AND $__timeFilter(updated_at)\n  UNION ALL\n  SELECT created_at, 'AI call', id::text, 'extraction', error\n    FROM hedis.extraction_attempts\n   WHERE status = 'failed' AND $__timeFilter(created_at)\n  UNION ALL\n  SELECT coalesce(finished_at, started_at), 'AI run', id::text, model_name, NULL\n    FROM hedis.extraction_runs\n   WHERE status = 'failed' AND $__timeFilter(coalesce(finished_at, started_at))\n  UNION ALL\n  SELECT coalesce(completed_at, started_at), 'Quality check', run_id::text, measure_id, error\n    FROM hedis.quality_run\n   WHERE status = 'failed' AND $__timeFilter(coalesce(completed_at, started_at))\n) failures\nORDER BY \"time\" DESC\nLIMIT 500"
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "type": "row",
+      "title": "Batches",
+      "collapsed": false,
+      "panels": [],
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 15 }
+    },
+    {
+      "id": 8,
+      "type": "table",
+      "title": "Batches",
+      "description": "Every batch started in the selected time range: status, last step, duration and error. Batch id matches the app.",
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "hedis-postgres" },
+      "gridPos": { "h": 10, "w": 24, "x": 0, "y": 16 },
+      "fieldConfig": {
+        "defaults": { "noValue": "No batches" },
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "Duration" }, "properties": [ { "id": "unit", "value": "s" } ] },
+          {
+            "matcher": { "id": "byName", "options": "Status" },
+            "properties": [
+              { "id": "custom.cellOptions", "value": { "type": "color-background" } },
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "prioritized": { "color": "green", "index": 0 },
+                      "running": { "color": "blue", "index": 1 },
+                      "failed": { "color": "red", "index": 2 }
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "Error" },
+            "properties": [
+              { "id": "custom.cellOptions", "value": { "type": "auto", "wrapText": true } },
+              { "id": "custom.inspect", "value": true }
+            ]
+          }
+        ]
+      },
+      "options": { "showHeader": true, "cellHeight": "sm", "footer": { "show": false } },
+      "targets": [
+        {
+          "datasource": { "type": "grafana-postgresql-datasource", "uid": "hedis-postgres" },
+          "refId": "A", "format": "table", "rawQuery": true, "editorMode": "code",
+          "rawSql": "SELECT started_at AS \"Started\", updated_at AS \"Updated\",\n       extract(epoch FROM updated_at - started_at) AS \"Duration\",\n       status AS \"Status\", step AS \"Step\", error AS \"Error\", batch_id AS \"Batch id\"\n  FROM hedis.batch_run\n WHERE $__timeFilter(started_at)\n ORDER BY started_at DESC\n LIMIT 500"
+        }
+      ]
+    },
+    {
+      "id": 9,
+      "type": "row",
+      "title": "AI calls",
+      "collapsed": false,
+      "panels": [],
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 26 }
+    },
+    {
+      "id": 10,
+      "type": "table",
+      "title": "AI calls",
+      "description": "Every model call with its run, gap, model, outcome, time, tokens and error. Attempt id matches the app.",
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "hedis-postgres" },
+      "gridPos": { "h": 10, "w": 24, "x": 0, "y": 27 },
+      "fieldConfig": {
+        "defaults": { "noValue": "No AI calls" },
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "Duration" }, "properties": [ { "id": "unit", "value": "s" }, { "id": "decimals", "value": 1 } ] },
+          {
+            "matcher": { "id": "byName", "options": "Status" },
+            "properties": [
+              { "id": "custom.cellOptions", "value": { "type": "color-background" } },
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "succeeded": { "color": "green", "index": 0 },
+                      "no_evidence": { "color": "yellow", "index": 1 },
+                      "failed": { "color": "red", "index": 2 },
+                      "queued": { "color": "blue", "index": 3 },
+                      "running": { "color": "blue", "index": 4 }
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "Error" },
+            "properties": [
+              { "id": "custom.cellOptions", "value": { "type": "auto", "wrapText": true } },
+              { "id": "custom.inspect", "value": true }
+            ]
+          }
+        ]
+      },
+      "options": { "showHeader": true, "cellHeight": "sm", "footer": { "show": false } },
+      "targets": [
+        {
+          "datasource": { "type": "grafana-postgresql-datasource", "uid": "hedis-postgres" },
+          "refId": "A", "format": "table", "rawQuery": true, "editorMode": "code",
+          "rawSql": "SELECT a.created_at AS \"Time\", a.run_id::text AS \"Run\", a.id::text AS \"Attempt\", a.gap_id::text AS \"Gap\",\n       r.model_name AS \"Model\", a.status AS \"Status\", a.duration_ms / 1000.0 AS \"Duration\",\n       a.prompt_tokens AS \"Prompt tokens\", a.output_tokens AS \"Output tokens\",\n       a.prompt_version AS \"Prompt version\", a.error AS \"Error\"\n  FROM hedis.extraction_attempts a\n  JOIN hedis.extraction_runs r ON r.id = a.run_id\n WHERE $__timeFilter(a.created_at)\n ORDER BY a.created_at DESC\n LIMIT 500"
+        }
+      ]
+    },
+    {
+      "id": 11,
+      "type": "row",
+      "title": "Quality checks",
+      "collapsed": false,
+      "panels": [],
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 37 }
+    },
+    {
+      "id": 12,
+      "type": "table",
+      "title": "Quality checks",
+      "description": "Data quality runs with measure, status, actor and error. Batch id matches the app.",
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "hedis-postgres" },
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 38 },
+      "fieldConfig": {
+        "defaults": { "noValue": "No quality checks" },
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "Status" },
+            "properties": [
+              { "id": "custom.cellOptions", "value": { "type": "color-background" } },
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "completed": { "color": "green", "index": 0 },
+                      "running": { "color": "blue", "index": 1 },
+                      "failed": { "color": "red", "index": 2 }
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "Error" },
+            "properties": [
+              { "id": "custom.cellOptions", "value": { "type": "auto", "wrapText": true } },
+              { "id": "custom.inspect", "value": true }
+            ]
+          }
+        ]
+      },
+      "options": { "showHeader": true, "cellHeight": "sm", "footer": { "show": false } },
+      "targets": [
+        {
+          "datasource": { "type": "grafana-postgresql-datasource", "uid": "hedis-postgres" },
+          "refId": "A", "format": "table", "rawQuery": true, "editorMode": "code",
+          "rawSql": "SELECT started_at AS \"Started\", completed_at AS \"Completed\", measure_id AS \"Measure\",\n       status AS \"Status\", actor AS \"Actor\", error AS \"Error\", batch_id::text AS \"Batch id\"\n  FROM hedis.quality_run\n WHERE $__timeFilter(started_at)\n ORDER BY started_at DESC\n LIMIT 500"
+        }
+      ]
+    },
+    {
+      "id": 13,
+      "type": "row",
+      "title": "Measure engine",
+      "collapsed": false,
+      "panels": [],
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 46 }
+    },
+    {
+      "id": 14,
+      "type": "table",
+      "title": "Engine runs",
+      "description": "Measure engine runs with engine version, measure spec and measurement year.",
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "hedis-postgres" },
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 47 },
+      "fieldConfig": { "defaults": { "noValue": "No engine runs" }, "overrides": [] },
+      "options": { "showHeader": true, "cellHeight": "sm", "footer": { "show": false } },
+      "targets": [
+        {
+          "datasource": { "type": "grafana-postgresql-datasource", "uid": "hedis-postgres" },
+          "refId": "A", "format": "table", "rawQuery": true, "editorMode": "code",
+          "rawSql": "SELECT run_at AS \"Run at\", run_id AS \"Run\", engine AS \"Engine\", engine_version AS \"Engine version\",\n       measure_spec_version AS \"Measure spec\", measurement_year AS \"Measurement year\"\n  FROM hedis.engine_runs\n WHERE $__timeFilter(run_at)\n ORDER BY run_at DESC\n LIMIT 500"
+        }
+      ]
+    },
+    {
+      "id": 15,
+      "type": "row",
+      "title": "Reviews",
+      "collapsed": false,
+      "panels": [],
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 55 }
+    },
+    {
+      "id": 16,
+      "type": "table",
+      "title": "Review decisions",
+      "description": "Reviewer decisions on AI-proposed evidence, with the reject reason code (free-text reasons are not shown).",
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "hedis-postgres" },
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 56 },
+      "fieldConfig": {
+        "defaults": { "noValue": "No decisions" },
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "Decision" },
+            "properties": [
+              { "id": "custom.cellOptions", "value": { "type": "color-background" } },
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "confirmed": { "color": "green", "index": 0 },
+                      "rejected": { "color": "red", "index": 1 }
+                    }
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "options": { "showHeader": true, "cellHeight": "sm", "footer": { "show": false } },
+      "targets": [
+        {
+          "datasource": { "type": "grafana-postgresql-datasource", "uid": "hedis-postgres" },
+          "refId": "A", "format": "table", "rawQuery": true, "editorMode": "code",
+          "rawSql": "SELECT decided_at AS \"Decided at\", reviewer AS \"Reviewer\", decision AS \"Decision\",\n       reject_reason_code AS \"Reject reason code\"\n  FROM hedis.review_decisions\n WHERE $__timeFilter(decided_at)\n ORDER BY decided_at DESC\n LIMIT 500"
+        }
+      ]
+    },
+    {
+      "id": 17,
+      "type": "row",
+      "title": "App errors (logs)",
+      "collapsed": false,
+      "panels": [],
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 64 }
+    },
+    {
+      "id": 18,
+      "type": "logs",
+      "title": "App errors",
+      "description": "ERROR lines from the integration app's log with their tracebacks, newest first (Loki, file names and user ids masked).",
+      "datasource": { "type": "loki", "uid": "hedis-loki" },
+      "gridPos": { "h": 12, "w": 24, "x": 0, "y": 65 },
+      "options": {
+        "showTime": true, "showLabels": false, "showCommonLabels": false, "wrapLogMessage": true,
+        "prettifyLogMessage": false, "enableLogDetails": true, "dedupStrategy": "none", "sortOrder": "Descending"
+      },
+      "targets": [
+        {
+          "datasource": { "type": "loki", "uid": "hedis-loki" },
+          "refId": "A", "editorMode": "code", "queryType": "range",
+          "expr": "{job=\"hedis-integration\", level=\"ERROR\"}"
+        }
+      ]
+    }
+  ]
+}

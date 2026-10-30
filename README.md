@@ -53,6 +53,45 @@ Test files (synthetic) are in `data/test_uploads`: upload `synthea_20_patients.z
 files in `cohort_4_patients/`, on Data Ingestion. The stored evidence documents for those patients are in
 `data/evidence_store` and attach on their own once a batch is prioritized.
 
+### Observability (optional)
+
+```
+powershell -ExecutionPolicy Bypass -File scripts/run_demo.ps1 -Integration -Observability
+```
+
+The app serves Prometheus metrics at http://localhost:8780/metrics (or the port set in `INTEGRATION_PORT`). With
+`-Observability` the script also starts Prometheus at http://localhost:9090: in Docker when Rancher Desktop or Docker
+Desktop is running, otherwise from `PROMETHEUS_EXE` or `prometheus.exe` on PATH. Nothing is downloaded. Prometheus
+scrapes every 15s and keeps 15 days. Stop the Docker one with
+`docker compose -f observability/docker-compose.yml down`. The metrics are defined in
+`services/integration/metrics.py`.
+
+In Docker the script also starts Grafana at http://localhost:3000. It opens straight on the "HEDIS pipeline"
+dashboard and needs no login to view. Editing needs the admin login: user `admin`, with the password from
+`GRAFANA_ADMIN_PASSWORD` in `.env` or the shell (default `admin`). Grafana listens on this machine only, and the same
+`down` command stops it with Prometheus.
+
+A second dashboard, "HEDIS run history" (link "Run history" at the top of the first), reads the app's database and
+lists every batch, AI call, quality check, engine run and review with its status, timing and exact error text. It
+uses a read-only login: a superuser runs `observability/grafana/readonly_role.sql` once (after the lead's OK) and sets
+its password, and the same value goes in `.env` as `GRAFANA_DB_PASSWORD`. Until then its panels show a login error.
+
+Logs: the app writes its log to `logs/hedis-integration.log` (folder set by `LOG_DIR` in `.env`, rotated at 10 MB,
+5 files kept) as well as the console. In Docker, Alloy sends the lines to Loki, which keeps them for 15 days; document
+file names become `<file>` and OpenRouter user ids become `<user>` on the way (the file itself is not changed). Search
+them in Grafana > Explore > HEDIS logs, for example `{job="hedis-integration"} |= "error"` or
+`{job="hedis-integration", level="ERROR"}`. The overview has a Logs row, and run history shows the ERROR lines.
+
+Useful queries (Prometheus, Graph tab):
+
+```
+histogram_quantile(0.95, sum by (le, step) (rate(hedis_batch_step_seconds_bucket[1h])))
+sum by (step) (increase(hedis_batch_failures_total[24h]))
+sum by (measure) (rate(hedis_engine_seconds_sum[1h])) / sum by (measure) (rate(hedis_engine_seconds_count[1h]))
+histogram_quantile(0.95, sum by (le, model) (rate(hedis_ai_call_seconds_bucket[1h])))
+sum by (model, kind) (increase(hedis_ai_tokens_total[24h]))
+```
+
 ## Integration branch
 
 This branch brings three lines of work together so they can be joined into one flow

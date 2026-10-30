@@ -1,0 +1,67 @@
+// Tails the integration app's log file (repo logs/, mounted read-only), masks file names and OpenRouter user ids,
+// and pushes the lines to Loki. Traceback lines are joined to the log line they belong to.
+
+local.file_match "hedis" {
+  path_targets = [{
+    "__path__" = "/var/log/hedis/hedis-integration*.log",
+    "job"      = "hedis-integration",
+  }]
+}
+
+loki.source.file "hedis" {
+  targets    = local.file_match.hedis.targets
+  forward_to = [loki.process.hedis.receiver]
+}
+
+loki.process "hedis" {
+  // A new entry starts with the app's timestamp; anything else (traceback lines) belongs to the entry before it.
+  stage.multiline {
+    firstline     = `^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}`
+    max_wait_time = "3s"
+  }
+
+  // Prometheus scrapes /metrics every 15s; those access lines stay in the file but are not sent to Loki.
+  stage.drop {
+    expression          = `"GET /metrics HTTP/`
+    drop_counter_reason = "metrics_scrape"
+  }
+
+  // Document file names (upload names can contain a patient's name). .py paths are left alone for tracebacks.
+  stage.replace {
+    expression = `([^\s"'=,;()\[\]<>|]+\.(?i:pdf|png|jpg|jpeg|tif|tiff|csv|json|txt|docx))\b`
+    replace    = "<file>"
+  }
+
+  // OpenRouter user ids: "user_id": "...", user_id=..., and bare user_xxxxxxxx tokens.
+  stage.replace {
+    expression = `"user_id"\s*:\s*"([^"]*)"`
+    replace    = "<user>"
+  }
+  stage.replace {
+    expression = `user_id=([^\s,;&"']+)`
+    replace    = "<user>"
+  }
+  stage.replace {
+    expression = `\b(user_[A-Za-z0-9]{8,})\b`
+    replace    = "<user>"
+  }
+
+  // "2026-10-30 10:15:02,123 ERROR services.integration.app: ..." -> level label, logger as structured metadata.
+  stage.regex {
+    expression = `^\S+ \S+ (?P<level>[A-Z]+) (?P<logger>[^\s:]+):`
+  }
+  stage.labels {
+    values = { level = "" }
+  }
+  stage.structured_metadata {
+    values = { logger = "" }
+  }
+
+  forward_to = [loki.write.local.receiver]
+}
+
+loki.write "local" {
+  endpoint {
+    url = "http://loki:3100/loki/api/v1/push"
+  }
+}
