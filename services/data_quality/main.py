@@ -1,4 +1,4 @@
-"""Data quality service wrapper.
+﻿"""Data quality service wrapper.
 
 Runs backend unit/integration checks from the aligned root layout.
 """

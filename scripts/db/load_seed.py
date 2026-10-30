@@ -196,6 +196,15 @@ def load_measures(cur) -> dict:
 
 def load_stars(cur, year: int) -> None:
     stars = json.loads((SEED / "measures" / "star_cut_points.json").read_text(encoding="utf-8"))
+    weights_source_url = next(
+        (
+            source.get("url")
+            for source in stars.get("sources", [])
+            if "measures and weights" in str(source.get("title", "")).lower()
+        ),
+        None,
+    )
+
     for s in stars["measures"]:
         cur.execute(
             """INSERT INTO measure_star_weight (measure_id, measurement_year, star_year, star_measure_id, weight,
@@ -210,6 +219,21 @@ def load_stars(cur, year: int) -> None:
                 """INSERT INTO star_cutpoint (measure_id, measurement_year, star_rating, rate_low_pct, rate_high_pct,
                        source) VALUES (%s,%s,%s,%s,%s,'cms-published-prior-year')""",
                 (s["hedis_code"], year, star, lows[star], high))
+
+    for s in stars.get("not_star_measures", []):
+        cur.execute(
+            """INSERT INTO measure_star_weight (measure_id, measurement_year, star_year, star_measure_id, weight,
+                   measure_type, higher_is_better, scoring_note, source_ref, confidence)
+               VALUES (%s,%s,%s,NULL,NULL,'not_star',NULL,%s,%s,%s)""",
+            (
+                s["hedis_code"],
+                year,
+                stars["star_year"],
+                s.get("reason"),
+                weights_source_url,
+                "high (CMS 2027 measures list)",
+            ),
+        )
 
 
 def load_engine_run(cur, run: dict) -> None:
