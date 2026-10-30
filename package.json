@@ -4,6 +4,8 @@
   "private": true,
   "description": "Root orchestrator for HEDIS-POC aligned multi-service structure",
   "scripts": {
+    "start": "powershell -ExecutionPolicy Bypass -File scripts\\run_demo.ps1 -Integration",
+    "start:setup": "powershell -ExecutionPolicy Bypass -File scripts\\run_demo.ps1 -Integration -Setup",
     "backend:install": "npm --prefix services/measure_calc/engine install",
     "backend:build": "npm --prefix services/measure_calc/engine run build",
     "backend:test": "npm --prefix services/measure_calc/engine run test",
@@ -14,7 +16,8 @@
     "backend:db:init": "python scripts/init_db.py",
     "backend:ingestion:test": "python -c \"import os,sys,pytest; os.environ['PYTEST_DISABLE_PLUGIN_AUTOLOAD']='1'; sys.exit(pytest.main(['tests/test_pipeline.py','-q']))\"",
     "ui:install": "npm --prefix ui/frontend install",
-    "ui:dev": "npm --prefix ui/frontend run dev",
+    "ui:dev": "npm run start",
+    "legacy:ui:dev": "npm --prefix ui/frontend run dev",
     "ui:build": "npm --prefix ui/frontend run build",
     "ui:test": "npm --prefix ui/frontend run test",
     "ui:lint": "npm --prefix ui/frontend run lint"

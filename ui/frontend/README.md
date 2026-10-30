@@ -4,6 +4,8 @@ Production-oriented React frontend for interacting with the FQM execution workfl
 
 Important scope note:
 - This frontend does not certify or validate official HEDIS compliance.
+- This is an alternative development frontend, not the canonical HEDIS Ops Console. Use `npm start` from the
+  repository root to launch the canonical application at http://localhost:8780.
 
 ## Prerequisites
 
@@ -46,7 +48,7 @@ Variables:
 From repository root:
 
 ```bash
-npm run ui:dev
+npm run legacy:ui:dev
 ```
 
 From `frontend/`:
