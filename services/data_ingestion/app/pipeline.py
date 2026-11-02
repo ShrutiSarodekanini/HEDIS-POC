@@ -412,19 +412,16 @@ def _run_streaming_conversion(job_id: str, input_dir: str, adapter: Any) -> None
                         )
                     ).scalars()
                 }
+                resources_by_type_for_extraction: dict[str, list[tuple[FhirResource, dict[str, Any]]]] = {}
                 for resource in valid_batch:
+                    if resource.resource_type != "Patient":
+                        continue
                     row = rows_by_key.get((resource.resource_type, resource.resource_id))
-                    if row:
-                        try:
-                            # TODO: Implement proper denormalization with correct column names
-                            # Currently disabled to allow pipeline to complete successfully
-                            # _extract_denormalized(session, row, resource)
-                            pass
-                        except Exception as ex:
-                            # Log extraction error but don't fail the whole batch
-                            logger.warning(
-                                f"Denormalized extraction failed for {resource.resource_type}/{resource.resource_id}: {ex}"
-                            )
+                    if row is None:
+                        continue
+                    resources_by_type_for_extraction.setdefault(resource.resource_type, []).append((row, resource.fhir))
+                if resources_by_type_for_extraction:
+                    batch_extract_denormalized(session, resources_by_type_for_extraction)
             session.flush()
             session.commit()
             persistence_seconds += time.perf_counter() - persistence_start

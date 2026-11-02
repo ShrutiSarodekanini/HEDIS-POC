@@ -3,7 +3,7 @@ from __future__ import annotations
 import datetime as dt
 from typing import Any
 
-from sqlalchemy import case, delete, func, select, tuple_, update
+from sqlalchemy import case, delete, func, inspect as sa_inspect, select, text, tuple_, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import Session
 
@@ -210,10 +210,127 @@ def create_job(session: Session, input_dir: str, adapter_name: str = "synthea_cs
     )
     session.add(batch)
     session.flush()
+    _ensure_legacy_source_batches_row(
+        session,
+        batch_id=batch.batch_id,
+        source_system=source_system,
+        adapter_name=adapter_name,
+        input_dir=input_dir,
+    )
     job = ConversionJob(input_dir=input_dir, status="pending", summary={}, batch_id=batch.batch_id)
     session.add(job)
     session.flush()
     return job
+
+
+def _ensure_legacy_source_batches_row(
+    session: Session,
+    *,
+    batch_id: Any,
+    source_system: str,
+    adapter_name: str,
+    input_dir: str,
+) -> None:
+    """Create a compatibility row when older schemas still FK to source_batches.
+
+    Some migrated databases still enforce conversion_jobs.batch_id -> source_batches
+    while the current ingestion models use source_batch. Creating a mirror row keeps
+    inserts valid without changing the active schema in-place.
+    """
+    bind = session.get_bind()
+    inspector = sa_inspect(bind)
+    if not inspector.has_table("source_batches"):
+        return
+
+    column_names = {column["name"] for column in inspector.get_columns("source_batches")}
+    id_column = "id" if "id" in column_names else ("batch_id" if "batch_id" in column_names else None)
+    if id_column is None:
+        return
+
+    batch_key = str(batch_id)
+    exists = session.execute(
+        text(f"SELECT 1 FROM source_batches WHERE {id_column} = :batch_id LIMIT 1"),
+        {"batch_id": batch_key},
+    ).scalar_one_or_none()
+    if exists is not None:
+        return
+
+    values: dict[str, Any] = {id_column: batch_key}
+    defaults: dict[str, Any] = {
+        "source_system": source_system,
+        "source_format": "fhir",
+        "adapter_name": adapter_name,
+        "input_source": input_dir,
+        "status": "running",
+        "resource_count": 0,
+        "resource_count_validated": 0,
+        "started_at": dt.datetime.now(dt.timezone.utc),
+    }
+    for key, value in defaults.items():
+        if key in column_names:
+            values[key] = value
+
+    columns = ", ".join(values.keys())
+    params = ", ".join(f":{key}" for key in values)
+    session.execute(text(f"INSERT INTO source_batches ({columns}) VALUES ({params})"), values)
+
+
+def _normalize_team_batch_status(status: str) -> str:
+    """Map extended ingestion statuses to source_batch allowed values.
+
+    The team table source_batch enforces CHECK(status IN ('running','completed','failed')).
+    Ingestion may use richer statuses such as 'partially_completed'.
+    """
+    normalized = (status or "").strip().lower()
+    if normalized == "partially_completed":
+        return "completed"
+    return normalized or "failed"
+
+
+def _sync_legacy_source_batches_row(
+    session: Session,
+    *,
+    batch_id: Any,
+    status: str | None = None,
+    resource_count: int | None = None,
+    resource_count_validated: int | None = None,
+    started_at: dt.datetime | None = None,
+    completed_at: dt.datetime | None = None,
+) -> None:
+    """Update compatibility source_batches row if that legacy table exists."""
+    bind = session.get_bind()
+    inspector = sa_inspect(bind)
+    if not inspector.has_table("source_batches"):
+        return
+
+    column_names = {column["name"] for column in inspector.get_columns("source_batches")}
+    id_column = "id" if "id" in column_names else ("batch_id" if "batch_id" in column_names else None)
+    if id_column is None:
+        return
+
+    values: dict[str, Any] = {"batch_id": str(batch_id)}
+    assignments: list[str] = []
+
+    updates: dict[str, Any] = {
+        "status": status,
+        "resource_count": resource_count,
+        "resource_count_validated": resource_count_validated,
+        "started_at": started_at,
+        "completed_at": completed_at,
+    }
+    for column_name, column_value in updates.items():
+        if column_name in column_names and column_value is not None:
+            values[column_name] = column_value
+            assignments.append(f"{column_name} = :{column_name}")
+
+    if not assignments:
+        return
+
+    set_clause = ", ".join(assignments)
+    session.execute(
+        text(f"UPDATE source_batches SET {set_clause} WHERE {id_column} = :batch_id"),
+        values,
+    )
 
 
 def clear_jobs_for_input_dir(session: Session, input_dir: str) -> int:
@@ -238,6 +355,13 @@ def start_job(session: Session, job_id: str) -> ConversionJob:
     if job.source_batch:
         job.source_batch.status = "running"
         job.source_batch.started_at = job.started_at
+    if job.batch_id:
+        _sync_legacy_source_batches_row(
+            session,
+            batch_id=job.batch_id,
+            status="running",
+            started_at=job.started_at,
+        )
     return job
 
 
@@ -256,10 +380,19 @@ def complete_job(session: Session, job_id: str, status: str, summary: dict[str, 
     job.warning_count = summary.get("warning_count", 0)
     job.error_count = summary.get("error_count", 0)
     if job.source_batch:
-        job.source_batch.status = status
+        job.source_batch.status = _normalize_team_batch_status(status)
         job.source_batch.resource_count = job.resources_generated
         job.source_batch.resource_count_validated = job.resources_validated
         job.source_batch.completed_at = job.completed_at
+    if job.batch_id:
+        _sync_legacy_source_batches_row(
+            session,
+            batch_id=job.batch_id,
+            status=status,
+            resource_count=job.resources_generated,
+            resource_count_validated=job.resources_validated,
+            completed_at=job.completed_at,
+        )
     return job
 
 
@@ -673,28 +806,41 @@ def batch_extract_denormalized(
     # Single flush before all batch extractions (optimization: reduces 8+ flushes to 1)
     session.flush()
     
-    for resource_type, resources in resources_by_type.items():
+    extractors = {
+        "Patient": _batch_extract_patients,
+        "Encounter": _batch_extract_encounters,
+        "Condition": _batch_extract_conditions,
+        "Observation": _batch_extract_observations,
+        "Procedure": _batch_extract_procedures,
+        "MedicationRequest": _batch_extract_medications,
+        "Immunization": _batch_extract_immunizations,
+        "Location": _batch_extract_locations,
+        "Coverage": _batch_extract_coverages,
+    }
+    # Preserve referential integrity: dependents come after Patient/Encounter.
+    ordered_types = [
+        "Patient",
+        "Encounter",
+        "Coverage",
+        "Condition",
+        "Observation",
+        "Procedure",
+        "MedicationRequest",
+        "Immunization",
+        "Location",
+    ]
+
+    for resource_type in ordered_types:
+        resources = resources_by_type.get(resource_type) or []
         if not resources:
             continue
-        
-        if resource_type == "Patient":
-            _batch_extract_patients(session, resources)
-        elif resource_type == "Encounter":
-            _batch_extract_encounters(session, resources)
-        elif resource_type == "Condition":
-            _batch_extract_conditions(session, resources)
-        elif resource_type == "Observation":
-            _batch_extract_observations(session, resources)
-        elif resource_type == "Procedure":
-            _batch_extract_procedures(session, resources)
-        elif resource_type == "MedicationRequest":
-            _batch_extract_medications(session, resources)
-        elif resource_type == "Immunization":
-            _batch_extract_immunizations(session, resources)
-        elif resource_type == "Location":
-            _batch_extract_locations(session, resources)
-        elif resource_type == "Coverage":
-            _batch_extract_coverages(session, resources)
+        extractor = extractors.get(resource_type)
+        if extractor is None:
+            continue
+        try:
+            extractor(session, resources)
+        except Exception as exc:  # pragma: no cover - defensive per-type compatibility guard
+            logger.warning("[extract] resource_type=%s skipped due to %s", resource_type, type(exc).__name__)
 
 
 def _batch_extract_patients(
@@ -716,17 +862,6 @@ def _batch_extract_patients(
         if not patient_id:
             continue
         
-        # Extract name
-        name_parts = _as_list(resource_json.get("name"))
-        name = None
-        if name_parts and name_parts[0]:
-            name_data = _as_dict(name_parts[0])
-            name = name_data.get("text")
-            if not name:
-                given = _as_list(name_data.get("given"))
-                family = name_data.get("family", "")
-                name = f"{' '.join(given)} {family}".strip() if given else family
-        
         birth_date = resource_json.get("birthDate")
         birth_date_obj = None
         if birth_date:
@@ -736,54 +871,39 @@ def _batch_extract_patients(
                 pass
         
         gender = resource_json.get("gender")
-        
-        marital_status_data = _as_dict(resource_json.get("maritalStatus"))
-        marital_coding = _as_list(marital_status_data.get("coding"))
-        marital_status = _as_dict(marital_coding[0]).get("display") if marital_coding else None
-        
-        address_parts = _as_list(resource_json.get("address"))
-        address = None
-        if address_parts:
-            addr = _as_dict(address_parts[0])
-            lines = _as_list(addr.get("line"))
-            city = addr.get("city", "")
-            state = addr.get("state", "")
-            address = f"{', '.join(lines)} {city} {state}".strip() if (lines or city) else None
-        
-        telecom_parts = _as_list(resource_json.get("telecom"))
-        phone = None
-        email = None
-        for telecom in telecom_parts:
-            if telecom.get("system") == "phone":
-                phone = telecom.get("value")
-            elif telecom.get("system") == "email":
-                email = telecom.get("value")
+
+        race = None
+        ethnicity = None
+        birth_sex = None
+        for ext in _as_list(resource_json.get("extension")):
+            ext_dict = _as_dict(ext)
+            url = str(ext_dict.get("url") or "").lower()
+            if "us-core-race" in url:
+                race = _as_dict(_as_list(_as_dict(ext_dict).get("extension"))[0]).get("valueString") if _as_list(_as_dict(ext_dict).get("extension")) else race
+            elif "us-core-ethnicity" in url:
+                ethnicity = _as_dict(_as_list(_as_dict(ext_dict).get("extension"))[0]).get("valueString") if _as_list(_as_dict(ext_dict).get("extension")) else ethnicity
+            elif "us-core-birthsex" in url:
+                birth_sex = ext_dict.get("valueCode") or birth_sex
         
         existing = existing_map.get(patient_id)
         if existing:
             _touch(existing)
-            existing.name = name
             existing.birth_date = birth_date_obj
             existing.gender = gender
-            existing.marital_status = marital_status
-            existing.address = address
-            existing.phone = phone
-            existing.email = email
+            existing.race = race
+            existing.ethnicity = ethnicity
+            existing.birth_sex = birth_sex
             existing.source_file = fhir_resource.source_file
-            existing.fhir_resource_pk = fhir_resource.id
             existing.batch_id = fhir_resource.batch_id
         else:
             session.add(Patient(
                 patient_id=patient_id,
-                name=name,
                 birth_date=birth_date_obj,
                 gender=gender,
-                marital_status=marital_status,
-                address=address,
-                phone=phone,
-                email=email,
+                race=race,
+                ethnicity=ethnicity,
+                birth_sex=birth_sex,
                 source_file=fhir_resource.source_file,
-                fhir_resource_pk=fhir_resource.id,
                 batch_id=fhir_resource.batch_id,
             ))
 
@@ -815,12 +935,13 @@ def _batch_extract_encounters(
         if encounter_type_codes:
             encounter_type = _as_dict(encounter_type_codes[0]).get("display")
         
-        encounter_class = _as_dict(resource_json.get("class")).get("display")
+        encounter_class_data = _as_dict(resource_json.get("class"))
+        encounter_class = encounter_class_data.get("code") or encounter_class_data.get("display")
         status = resource_json.get("status")
         
         period = _as_dict(resource_json.get("period"))
         start_date = period.get("start")
-        end_date = period.get("end")
+        _ = period.get("end")
         
         start_datetime = None
         end_datetime = None
@@ -835,49 +956,34 @@ def _batch_extract_encounters(
             except (ValueError, AttributeError):
                 pass
         
-        location = _as_list(resource_json.get("location"))
-        facility = None
-        if location:
-            facility = _as_dict(location[0]).get("display")
-        
-        reason_coding = _as_list(resource_json.get("reasonCode"))
-        reason_code = None
-        reason_display = None
-        if reason_coding:
-            reason_data = _as_dict(reason_coding[0])
-            reason_codes = _as_list(reason_data.get("coding"))
-            reason_code = _as_dict(reason_codes[0]).get("code") if reason_codes else None
-            reason_display = reason_data.get("text")
+        participants = _as_list(resource_json.get("participant"))
+        practitioner_npi = None
+        if participants:
+            actor_ref = _as_dict(_as_dict(participants[0]).get("individual"))
+            practitioner_npi = extract_reference_id(actor_ref)
+
+        service_provider = _as_dict(resource_json.get("serviceProvider"))
+        organization_id = extract_reference_id(service_provider)
         
         existing = existing_map.get(encounter_id)
         if existing:
             _touch(existing)
             existing.patient_id = patient_id
-            existing.encounter_type = encounter_type
-            existing.encounter_class = encounter_class
             existing.status = status
-            existing.start_date = start_datetime
-            existing.end_date = end_datetime
-            existing.facility = facility
-            existing.reason_code = reason_code
-            existing.reason_display = reason_display
-            existing.source_file = fhir_resource.source_file
-            existing.fhir_resource_pk = fhir_resource.id
+            existing.class_code = encounter_class
+            existing.practitioner_npi = practitioner_npi
+            existing.organization_id = organization_id
+            existing.period_start = start_datetime or end_datetime
             existing.batch_id = fhir_resource.batch_id
         else:
             session.add(Encounter(
                 encounter_id=encounter_id,
                 patient_id=patient_id,
-                encounter_type=encounter_type,
-                encounter_class=encounter_class,
                 status=status,
-                start_date=start_datetime,
-                end_date=end_datetime,
-                facility=facility,
-                reason_code=reason_code,
-                reason_display=reason_display,
-                source_file=fhir_resource.source_file,
-                fhir_resource_pk=fhir_resource.id,
+                class_code=encounter_class,
+                practitioner_npi=practitioner_npi,
+                organization_id=organization_id,
+                period_start=start_datetime or end_datetime,
                 batch_id=fhir_resource.batch_id,
             ))
 
@@ -907,14 +1013,7 @@ def _batch_extract_conditions(
         
         code_data = _as_dict(resource_json.get("code"))
         code_coding = _as_list(code_data.get("coding"))
-        code = None
-        display = code_data.get("text")
-        system = None
-        if code_coding:
-            code_data = _as_dict(code_coding[0])
-            code = code_data.get("code")
-            display = code_data.get("display") or display
-            system = code_data.get("system")
+        code = _as_dict(code_coding[0]).get("code") if code_coding else None
         
         onset_datetime = resource_json.get("onsetDateTime")
         onset_date = None
@@ -924,45 +1023,33 @@ def _batch_extract_conditions(
             except (ValueError, AttributeError):
                 pass
         
-        resolved_datetime = resource_json.get("abatementDateTime")
-        resolved_date = None
-        if resolved_datetime:
-            try:
-                resolved_date = dt.datetime.fromisoformat(resolved_datetime.replace('Z', '+00:00'))
-            except (ValueError, AttributeError):
-                pass
-        
-        clinical_status = _as_dict(resource_json.get("clinicalStatus"))
-        status_coding = _as_list(clinical_status.get("coding"))
-        status = _as_dict(status_coding[0]).get("display") if status_coding else None
+        clinical_status_data = _as_dict(resource_json.get("clinicalStatus"))
+        clinical_status_coding = _as_list(clinical_status_data.get("coding"))
+        clinical_status = _as_dict(clinical_status_coding[0]).get("code") if clinical_status_coding else None
+
+        verification_status_data = _as_dict(resource_json.get("verificationStatus"))
+        verification_status_coding = _as_list(verification_status_data.get("coding"))
+        verification_status = _as_dict(verification_status_coding[0]).get("code") if verification_status_coding else None
         
         existing = existing_map.get(condition_id)
         if existing:
             _touch(existing)
             existing.patient_id = patient_id
             existing.encounter_id = encounter_id
+            existing.clinical_status = clinical_status
+            existing.verification_status = verification_status
             existing.code = code
-            existing.display = display
-            existing.system = system
             existing.onset_date = onset_date
-            existing.resolved_date = resolved_date
-            existing.status = status
-            existing.source_file = fhir_resource.source_file
-            existing.fhir_resource_pk = fhir_resource.id
             existing.batch_id = fhir_resource.batch_id
         else:
             session.add(Condition(
                 condition_id=condition_id,
                 patient_id=patient_id,
                 encounter_id=encounter_id,
+                clinical_status=clinical_status,
+                verification_status=verification_status,
                 code=code,
-                display=display,
-                system=system,
                 onset_date=onset_date,
-                resolved_date=resolved_date,
-                status=status,
-                source_file=fhir_resource.source_file,
-                fhir_resource_pk=fhir_resource.id,
                 batch_id=fhir_resource.batch_id,
             ))
 
@@ -992,25 +1079,19 @@ def _batch_extract_observations(
         
         code_data = _as_dict(resource_json.get("code"))
         code_coding = _as_list(code_data.get("coding"))
-        code = None
-        display = code_data.get("text")
-        system = None
-        if code_coding:
-            code_data = _as_dict(code_coding[0])
-            code = code_data.get("code")
-            display = code_data.get("display") or display
-            system = code_data.get("system")
-        
-        value = None
-        unit = None
+        code = _as_dict(code_coding[0]).get("code") if code_coding else None
+
+        category_data = _as_list(resource_json.get("category"))
+        category_coding = _as_list(_as_dict(category_data[0]).get("coding")) if category_data else []
+        category_code = _as_dict(category_coding[0]).get("code") if category_coding else None
+
+        value_quantity_num = None
         value_quantity = _as_dict(resource_json.get("valueQuantity"))
         if value_quantity:
-            value = str(value_quantity.get("value"))
-            unit = value_quantity.get("unit")
-        else:
-            value_string = resource_json.get("valueString")
-            if value_string:
-                value = value_string
+            try:
+                value_quantity_num = float(value_quantity.get("value")) if value_quantity.get("value") is not None else None
+            except (TypeError, ValueError):
+                value_quantity_num = None
         
         effective_datetime = resource_json.get("effectiveDateTime")
         effective_date = None
@@ -1020,37 +1101,25 @@ def _batch_extract_observations(
             except (ValueError, AttributeError):
                 pass
         
-        status = resource_json.get("status")
-        
         existing = existing_map.get(observation_id)
         if existing:
             _touch(existing)
             existing.patient_id = patient_id
             existing.encounter_id = encounter_id
+            existing.category_code = category_code
             existing.code = code
-            existing.display = display
-            existing.system = system
-            existing.value = value
-            existing.unit = unit
-            existing.effective_date = effective_date
-            existing.status = status
-            existing.source_file = fhir_resource.source_file
-            existing.fhir_resource_pk = fhir_resource.id
+            existing.value_quantity = value_quantity_num
+            existing.effective_datetime = effective_date
             existing.batch_id = fhir_resource.batch_id
         else:
             session.add(Observation(
                 observation_id=observation_id,
                 patient_id=patient_id,
                 encounter_id=encounter_id,
+                category_code=category_code,
                 code=code,
-                display=display,
-                system=system,
-                value=value,
-                unit=unit,
-                effective_date=effective_date,
-                status=status,
-                source_file=fhir_resource.source_file,
-                fhir_resource_pk=fhir_resource.id,
+                value_quantity=value_quantity_num,
+                effective_datetime=effective_date,
                 batch_id=fhir_resource.batch_id,
             ))
 
@@ -1080,14 +1149,7 @@ def _batch_extract_procedures(
         
         code_data = _as_dict(resource_json.get("code"))
         code_coding = _as_list(code_data.get("coding"))
-        code = None
-        display = code_data.get("text")
-        system = None
-        if code_coding:
-            code_data = _as_dict(code_coding[0])
-            code = code_data.get("code")
-            display = code_data.get("display") or display
-            system = code_data.get("system")
+        code = _as_dict(code_coding[0]).get("code") if code_coding else None
         
         performed_datetime = resource_json.get("performedDateTime")
         performed_date = None
@@ -1099,22 +1161,14 @@ def _batch_extract_procedures(
         
         status = resource_json.get("status")
         
-        location = _as_dict(resource_json.get("location"))
-        location_name = location.get("display")
-        
         existing = existing_map.get(procedure_id)
         if existing:
             _touch(existing)
             existing.patient_id = patient_id
             existing.encounter_id = encounter_id
             existing.code = code
-            existing.display = display
-            existing.system = system
-            existing.performed_date = performed_date
             existing.status = status
-            existing.location = location_name
-            existing.source_file = fhir_resource.source_file
-            existing.fhir_resource_pk = fhir_resource.id
+            existing.performed_start = performed_date
             existing.batch_id = fhir_resource.batch_id
         else:
             session.add(Procedure(
@@ -1122,13 +1176,8 @@ def _batch_extract_procedures(
                 patient_id=patient_id,
                 encounter_id=encounter_id,
                 code=code,
-                display=display,
-                system=system,
-                performed_date=performed_date,
+                performed_start=performed_date,
                 status=status,
-                location=location_name,
-                source_file=fhir_resource.source_file,
-                fhir_resource_pk=fhir_resource.id,
                 batch_id=fhir_resource.batch_id,
             ))
 
@@ -1138,12 +1187,12 @@ def _batch_extract_medications(
     resources: list[tuple[FhirResource, dict[str, Any]]],
 ) -> None:
     """Batch-extract MedicationRequest resources."""
-    from .models import Medication
+    from .models import MedicationRequest
     
     medication_ids = [resource_json.get("id") for _, resource_json in resources if resource_json.get("id")]
     
     # Use helper to fetch existing records (session already flushed in batch_extract_denormalized)
-    existing_map = _get_existing_by_id(session, Medication, "medication_request_id", medication_ids)
+    existing_map = _get_existing_by_id(session, MedicationRequest, "medication_request_id", medication_ids)
     
     for fhir_resource, resource_json in resources:
         medication_request_id = resource_json.get("id")
@@ -1159,13 +1208,9 @@ def _batch_extract_medications(
         medication_data = _as_dict(resource_json.get("medicationCodeableConcept"))
         medication_coding = _as_list(medication_data.get("coding"))
         medication_code = None
-        medication_display = medication_data.get("text")
-        medication_system = None
         if medication_coding:
             medication_code_data = _as_dict(medication_coding[0])
             medication_code = medication_code_data.get("code")
-            medication_display = medication_code_data.get("display") or medication_display
-            medication_system = medication_code_data.get("system")
         
         authored_datetime = resource_json.get("authoredOn")
         authored_date = None
@@ -1178,40 +1223,25 @@ def _batch_extract_medications(
         status = resource_json.get("status")
         intent = resource_json.get("intent")
         
-        dosage_text = None
-        dosage_list = _as_list(resource_json.get("dosageInstruction"))
-        if dosage_list:
-            dosage_text = _as_dict(dosage_list[0]).get("text")
-        
         existing = existing_map.get(medication_request_id)
         if existing:
             _touch(existing)
             existing.patient_id = patient_id
             existing.encounter_id = encounter_id
             existing.medication_code = medication_code
-            existing.medication_display = medication_display
-            existing.medication_system = medication_system
-            existing.authored_date = authored_date
+            existing.authored_on = authored_date
             existing.status = status
             existing.intent = intent
-            existing.dosage_text = dosage_text
-            existing.source_file = fhir_resource.source_file
-            existing.fhir_resource_pk = fhir_resource.id
             existing.batch_id = fhir_resource.batch_id
         else:
-            session.add(Medication(
+            session.add(MedicationRequest(
                 medication_request_id=medication_request_id,
                 patient_id=patient_id,
                 encounter_id=encounter_id,
                 medication_code=medication_code,
-                medication_display=medication_display,
-                medication_system=medication_system,
-                authored_date=authored_date,
+                authored_on=authored_date,
                 status=status,
                 intent=intent,
-                dosage_text=dosage_text,
-                source_file=fhir_resource.source_file,
-                fhir_resource_pk=fhir_resource.id,
                 batch_id=fhir_resource.batch_id,
             ))
 
@@ -1242,13 +1272,9 @@ def _batch_extract_immunizations(
         vaccine_data = _as_dict(resource_json.get("vaccineCode"))
         vaccine_coding = _as_list(vaccine_data.get("coding"))
         vaccine_code = None
-        vaccine_display = vaccine_data.get("text")
-        vaccine_system = None
         if vaccine_coding:
             vaccine_code_data = _as_dict(vaccine_coding[0])
             vaccine_code = vaccine_code_data.get("code")
-            vaccine_display = vaccine_code_data.get("display") or vaccine_display
-            vaccine_system = vaccine_code_data.get("system")
         
         occurrence_datetime = resource_json.get("occurrenceDateTime")
         occurrence_date = None
@@ -1259,7 +1285,6 @@ def _batch_extract_immunizations(
                 pass
         
         status = resource_json.get("status")
-        lot_number = resource_json.get("lotNumber")
         
         existing = existing_map.get(immunization_id)
         if existing:
@@ -1267,13 +1292,8 @@ def _batch_extract_immunizations(
             existing.patient_id = patient_id
             existing.encounter_id = encounter_id
             existing.vaccine_code = vaccine_code
-            existing.vaccine_display = vaccine_display
-            existing.vaccine_system = vaccine_system
-            existing.occurrence_date = occurrence_date
+            existing.occurrence_datetime = occurrence_date
             existing.status = status
-            existing.lot_number = lot_number
-            existing.source_file = fhir_resource.source_file
-            existing.fhir_resource_pk = fhir_resource.id
             existing.batch_id = fhir_resource.batch_id
         else:
             session.add(Immunization(
@@ -1281,13 +1301,8 @@ def _batch_extract_immunizations(
                 patient_id=patient_id,
                 encounter_id=encounter_id,
                 vaccine_code=vaccine_code,
-                vaccine_display=vaccine_display,
-                vaccine_system=vaccine_system,
-                occurrence_date=occurrence_date,
+                occurrence_datetime=occurrence_date,
                 status=status,
-                lot_number=lot_number,
-                source_file=fhir_resource.source_file,
-                fhir_resource_pk=fhir_resource.id,
                 batch_id=fhir_resource.batch_id,
             ))
 
@@ -1344,38 +1359,25 @@ def _batch_extract_locations(
         if position:
             latitude = position.get("latitude")
             longitude = position.get("longitude")
+
+        managing_org = _as_dict(resource_json.get("managingOrganization"))
+        organization_id = extract_reference_id(managing_org)
         
         existing = existing_map.get(location_id)
         if existing:
             _touch(existing)
+            existing.organization_id = organization_id
             existing.name = name
-            existing.status = status
-            existing.address_line = address_line
-            existing.address_city = address_city
-            existing.address_state = address_state
-            existing.address_postal_code = address_postal_code
-            existing.address_country = address_country
-            existing.phone = phone
             existing.latitude = latitude
             existing.longitude = longitude
-            existing.source_file = fhir_resource.source_file
-            existing.fhir_resource_pk = fhir_resource.id
             existing.batch_id = fhir_resource.batch_id
         else:
             session.add_all((Location(
                 location_id=location_id,
+                organization_id=organization_id,
                 name=name,
-                status=status,
-                address_line=address_line,
-                address_city=address_city,
-                address_state=address_state,
-                address_postal_code=address_postal_code,
-                address_country=address_country,
-                phone=phone,
                 latitude=latitude,
                 longitude=longitude,
-                source_file=fhir_resource.source_file,
-                fhir_resource_pk=fhir_resource.id,
                 batch_id=fhir_resource.batch_id,
             ),))
 
@@ -1419,54 +1421,8 @@ def _batch_extract_coverages(
         
         payer_list = _as_list(resource_json.get("payor"))
         payer = _as_dict(payer_list[0]).get("display") if payer_list else None
-        
-        gap_detected = False
-        gap_days = None
-        gap_start_date = None
-        gap_end_date = None
-        continuous_enrollment_compliant = True
-        
-        extensions = _as_list(resource_json.get("extension"))
-        for ext in extensions:
-            ext = _as_dict(ext)
-            url = ext.get("url", "")
-            
-            if "enrollment-gap-detected" in url:
-                gap_detected = ext.get("valueBoolean", False)
-            
-            if "gap-details" in url:
-                sub_exts = _as_list(ext.get("extension"))
-                for sub_ext in sub_exts:
-                    sub_ext = _as_dict(sub_ext)
-                    sub_url = sub_ext.get("url", "")
-                    
-                    if "total-gap-days" in sub_url:
-                        gap_days = sub_ext.get("valueInteger")
-                    
-                    if "continuous-enrollment-compliant" in sub_url:
-                        continuous_enrollment_compliant = sub_ext.get("valueBoolean", True)
-                    
-                    if sub_url.endswith("/gap"):
-                        gap_sub_exts = _as_list(sub_ext.get("extension"))
-                        for gap_sub_ext in gap_sub_exts:
-                            gap_sub_ext = _as_dict(gap_sub_ext)
-                            gap_sub_url = gap_sub_ext.get("url", "")
-                            
-                            if gap_sub_url.endswith("gap-start-date"):
-                                gap_start_str = gap_sub_ext.get("valueDate")
-                                if gap_start_str:
-                                    try:
-                                        gap_start_date = dt.datetime.fromisoformat(gap_start_str).date()
-                                    except ValueError:
-                                        pass
-                            
-                            if gap_sub_url.endswith("gap-end-date"):
-                                gap_end_str = gap_sub_ext.get("valueDate")
-                                if gap_end_str:
-                                    try:
-                                        gap_end_date = dt.datetime.fromisoformat(gap_end_str).date()
-                                    except ValueError:
-                                        pass
+
+        source_eob_id = fhir_resource.source_record_id
         
         existing = existing_map.get(coverage_id)
         if existing:
@@ -1474,15 +1430,8 @@ def _batch_extract_coverages(
             existing.patient_id = patient_ref
             existing.period_start = start_date
             existing.period_end = end_date
-            existing.payer = payer
-            existing.gap_detected = gap_detected
-            existing.gap_days = gap_days
-            existing.gap_start_date = gap_start_date
-            existing.gap_end_date = gap_end_date
-            existing.continuous_enrollment_compliant = continuous_enrollment_compliant
-            existing.source_file = fhir_resource.source_file
-            existing.source_record_id = fhir_resource.source_record_id
-            existing.fhir_resource_pk = fhir_resource.id
+            existing.payer_name = payer
+            existing.source_eob_id = source_eob_id
             existing.batch_id = fhir_resource.batch_id
         else:
             session.add(Coverage(
@@ -1490,15 +1439,8 @@ def _batch_extract_coverages(
                 patient_id=patient_ref,
                 period_start=start_date,
                 period_end=end_date,
-                payer=payer,
-                gap_detected=gap_detected,
-                gap_days=gap_days,
-                gap_start_date=gap_start_date,
-                gap_end_date=gap_end_date,
-                continuous_enrollment_compliant=continuous_enrollment_compliant,
-                source_file=fhir_resource.source_file,
-                source_record_id=fhir_resource.source_record_id,
-                fhir_resource_pk=fhir_resource.id,
+                payer_name=payer,
+                source_eob_id=source_eob_id,
                 batch_id=fhir_resource.batch_id,
             ))
 
