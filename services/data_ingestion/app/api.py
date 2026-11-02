@@ -619,8 +619,54 @@ def get_job_resources(job_id: str) -> dict:
 def get_job_patients(job_id: str) -> dict:
     with session_scope() as session:
         resources = list_resources_for_job(session, job_id)
-        patients = sorted({r.patient_id for r in resources if r.patient_id})
-    return {"job_id": job_id, "patients": patients}
+
+    patient_stats: dict[str, dict[str, object]] = {}
+    for resource in resources:
+        patient_id = (resource.patient_id or "").strip()
+        if not patient_id:
+            continue
+
+        stats = patient_stats.setdefault(
+            patient_id,
+            {
+                "patient_id": patient_id,
+                "resource_count": 0,
+                "estimated_size_bytes": 0,
+                "saved_at": None,
+            },
+        )
+
+        stats["resource_count"] = int(stats["resource_count"]) + 1
+
+        if resource.resource_json is not None:
+            try:
+                payload_bytes = len(
+                    json.dumps(resource.resource_json, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
+                )
+            except (TypeError, ValueError):
+                payload_bytes = 0
+            stats["estimated_size_bytes"] = int(stats["estimated_size_bytes"]) + payload_bytes
+
+        last_seen = stats["saved_at"]
+        candidate = resource.updated_at or resource.created_at
+        if candidate is not None and (last_seen is None or candidate > last_seen):
+            stats["saved_at"] = candidate
+
+    patients = sorted(patient_stats)
+    patient_details = []
+    for patient_id in patients:
+        stats = patient_stats[patient_id]
+        saved_at = stats["saved_at"]
+        patient_details.append(
+            {
+                "patient_id": patient_id,
+                "resource_count": int(stats["resource_count"]),
+                "estimated_size_bytes": int(stats["estimated_size_bytes"]),
+                "saved_at": saved_at.isoformat() if saved_at is not None else None,
+            }
+        )
+
+    return {"job_id": job_id, "patients": patients, "patient_details": patient_details}
 
 
 @router.get("/jobs/{job_id}/patients/{patient_id}/resources")

@@ -5,6 +5,7 @@ import type {
   IngestionFlowBatch,
   IngestionJob,
   IngestionPatientDetail,
+  IngestionPatientsResponse,
   IngestionResource,
   IngestionValidationIssue,
 } from "../models/ingestion"
@@ -89,6 +90,19 @@ const saveJsonFile = (fileName: string, payload: unknown): void => {
   anchor.click()
   anchor.remove()
   URL.revokeObjectURL(url)
+}
+
+const toPatientDetails = (response: IngestionPatientsResponse): IngestionPatientDetail[] => {
+  if ((response.patient_details ?? []).length > 0) {
+    return response.patient_details ?? []
+  }
+
+  return (response.patients ?? []).map((patientId) => ({
+    patient_id: patientId,
+    resource_count: undefined,
+    estimated_size_bytes: undefined,
+    saved_at: null,
+  }))
 }
 
 export function useIngestionWorkflow() {
@@ -412,7 +426,7 @@ export function useIngestionWorkflow() {
 
     await withGuard("patients", "patients", async () => {
       const response = await loadIngestionPatients(mode, jobId)
-      const details = response.patient_details ?? []
+      const details = toPatientDetails(response)
       setPatients(details)
       if (!details.some((patient) => patient.patient_id === selectedPatientId)) {
         setSelectedPatientId("")
@@ -485,7 +499,7 @@ export function useIngestionWorkflow() {
       let details = patients
       if (details.length === 0) {
         const response = await loadIngestionPatients(mode, jobId)
-        details = response.patient_details ?? []
+        details = toPatientDetails(response)
         setPatients(details)
       }
 

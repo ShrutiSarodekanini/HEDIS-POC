@@ -860,20 +860,21 @@ def _process_gap_automation(repo: Repository, cfg: AppConfig) -> dict[str, objec
     error_list = summary["errors"]
     assert isinstance(error_list, list)
 
-    missing_tables = [
-        table_name
-        for table_name in ("members", "synthea_records")
-        if not repo.table_exists(table_name)
-    ]
-    if missing_tables:
-        gap_rows = repo.list_care_gaps()
-        summary["processed"] = len(gap_rows)
-        summary["skipped"] = True
-        summary["skip_reason"] = (
-            "Automation writeback is unavailable for this database profile "
-            f"(missing tables: {', '.join(missing_tables)})."
+    members_available = repo.table_exists("members")
+    synthea_records_available = repo.table_exists("synthea_records")
+    measures_available = repo.table_exists("measures")
+    legacy_writeback_available = (
+        members_available
+        and synthea_records_available
+        and measures_available
+    )
+
+    if not legacy_writeback_available:
+        summary["writeback_unavailable"] = True
+        summary["writeback_reason"] = (
+            "Legacy automation writeback tables are unavailable for this database profile; "
+            "running in compatibility mode without synthetic writeback records."
         )
-        return summary
 
     for care_gap in repo.list_care_gaps():
         member_id = str(care_gap.get("member_id") or "")
@@ -890,21 +891,38 @@ def _process_gap_automation(repo: Repository, cfg: AppConfig) -> dict[str, objec
             )
             continue
 
-        member = row_to_dict(repo.get_member(member_id))
-        if not member:
-            error_list.append(
-                {"care_gap_id": care_gap_id, "reason": f"Member not found: {member_id}"}
-            )
-            continue
+        if legacy_writeback_available:
+            member = row_to_dict(repo.get_member(member_id))
+            if not member:
+                error_list.append(
+                    {"care_gap_id": care_gap_id, "reason": f"Member not found: {member_id}"}
+                )
+                continue
 
-        measure = row_to_dict(repo.get_measure(measure_id))
-        if not measure:
-            error_list.append(
-                {"care_gap_id": care_gap_id, "reason": f"Measure not found: {measure_id}"}
-            )
-            continue
+            measure = row_to_dict(repo.get_measure(measure_id))
+            if not measure:
+                error_list.append(
+                    {"care_gap_id": care_gap_id, "reason": f"Measure not found: {measure_id}"}
+                )
+                continue
+        else:
+            # Compatibility profile: automation can run without legacy writeback tables.
+            member = {
+                "member_id": member_id,
+                "date_of_birth": None,
+                "gender": None,
+            }
+            measure = {
+                "measure_id": measure_id,
+                "name": measure_id,
+                "description": None,
+            }
 
         summary["processed"] = int(summary["processed"]) + 1
+
+        if not legacy_writeback_available:
+            # In compatibility mode we intentionally skip synthetic writeback-only actions.
+            continue
 
         # 1) Evidence generation (once per care gap for automation path).
         auto_evidence_fact_key = "auto_evidence_file_path:pdf"
