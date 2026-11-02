@@ -16,27 +16,28 @@ from .synthea import ParsedDataset, RowIssue, SourceRecord
 FHIR_NAMESPACE = uuid.UUID("44f46614-c2f4-42d0-8d47-f4f57a0535e0")
 
 FHIR_MODEL_MAP = {
-    "Patient": "fhir.resources.patient.Patient",
-    "Encounter": "fhir.resources.encounter.Encounter",
-    "Condition": "fhir.resources.condition.Condition",
-    "Observation": "fhir.resources.observation.Observation",
-    "Procedure": "fhir.resources.procedure.Procedure",
-    "MedicationRequest": "fhir.resources.medicationrequest.MedicationRequest",
-    "MedicationDispense": "fhir.resources.medicationdispense.MedicationDispense",
-    "Immunization": "fhir.resources.immunization.Immunization",
-    "CarePlan": "fhir.resources.careplan.CarePlan",
-    "Claim": "fhir.resources.claim.Claim",
-    "Coverage": "fhir.resources.coverage.Coverage",
-    "Location": "fhir.resources.location.Location",
-    "AllergyIntolerance": "fhir.resources.allergyintolerance.AllergyIntolerance",
-    "Device": "fhir.resources.device.Device",
-    "ImagingStudy": "fhir.resources.imagingstudy.ImagingStudy",
-    "Organization": "fhir.resources.organization.Organization",
-    "Practitioner": "fhir.resources.practitioner.Practitioner",
-    "PractitionerRole": "fhir.resources.practitionerrole.PractitionerRole",
-    "SupplyDelivery": "fhir.resources.supplydelivery.SupplyDelivery",
-    "Basic": "fhir.resources.basic.Basic",
+    "Patient": "fhir.resources.R4B.patient.Patient",
+    "Encounter": "fhir.resources.R4B.encounter.Encounter",
+    "Condition": "fhir.resources.R4B.condition.Condition",
+    "Observation": "fhir.resources.R4B.observation.Observation",
+    "Procedure": "fhir.resources.R4B.procedure.Procedure",
+    "MedicationRequest": "fhir.resources.R4B.medicationrequest.MedicationRequest",
+    "MedicationDispense": "fhir.resources.R4B.medicationdispense.MedicationDispense",
+    "Immunization": "fhir.resources.R4B.immunization.Immunization",
+    "CarePlan": "fhir.resources.R4B.careplan.CarePlan",
+    "Claim": "fhir.resources.R4B.claim.Claim",
+    "Coverage": "fhir.resources.R4B.coverage.Coverage",
+    "Location": "fhir.resources.R4B.location.Location",
+    "AllergyIntolerance": "fhir.resources.R4B.allergyintolerance.AllergyIntolerance",
+    "Device": "fhir.resources.R4B.device.Device",
+    "ImagingStudy": "fhir.resources.R4B.imagingstudy.ImagingStudy",
+    "Organization": "fhir.resources.R4B.organization.Organization",
+    "Practitioner": "fhir.resources.R4B.practitioner.Practitioner",
+    "PractitionerRole": "fhir.resources.R4B.practitionerrole.PractitionerRole",
+    "SupplyDelivery": "fhir.resources.R4B.supplydelivery.SupplyDelivery",
+    "Basic": "fhir.resources.R4B.basic.Basic",
 }
+FHIR_R5_MODEL_MAP = {resource_type: path.replace(".R4B", "") for resource_type, path in FHIR_MODEL_MAP.items()}
 
 # Cache for loaded FHIR models to avoid repeated expensive imports
 _MODEL_CACHE: dict[str, type] = {}
@@ -70,18 +71,17 @@ def deterministic_id(resource_type: str, source_file: str, source_record_id: str
     return str(uuid.uuid5(FHIR_NAMESPACE, key))
 
 
-def _load_model(resource_type: str):
+def _load_model(resource_type: str, model_map: dict[str, str] = FHIR_MODEL_MAP):
     # Check cache first to avoid expensive repeated imports
-    if resource_type in _MODEL_CACHE:
-        return _MODEL_CACHE[resource_type]
-    
-    dotted = FHIR_MODEL_MAP.get(resource_type)
+    dotted = model_map.get(resource_type)
     if dotted is None:
         raise ValueError(f"No FHIR model mapped for resource type {resource_type}.")
+    if dotted in _MODEL_CACHE:
+        return _MODEL_CACHE[dotted]
     module_name, class_name = dotted.rsplit(".", 1)
     module = __import__(module_name, fromlist=[class_name])
     model = getattr(module, class_name)
-    _MODEL_CACHE[resource_type] = model
+    _MODEL_CACHE[dotted] = model
     return model
 
 
@@ -1085,12 +1085,11 @@ def envelope(record: SourceRecord, resource_type: str, resource_id: str, fhir: d
 
 def normalize_resource(resource: ResourceEnvelope) -> ResourceEnvelope:
     model = _load_model(resource.resource_type)
-    if hasattr(model, "model_validate"):
+    try:
         validated = model.model_validate(resource.fhir)
-        resource.fhir = validated.model_dump(exclude_none=True, by_alias=True, mode="json")
-    else:
-        validated = model.parse_obj(resource.fhir)
-        resource.fhir = json.loads(validated.json(exclude_none=True, by_alias=True))
+    except ValidationError:
+        validated = _load_model(resource.resource_type, FHIR_R5_MODEL_MAP).model_validate(resource.fhir)
+    resource.fhir = validated.model_dump(exclude_none=True, by_alias=True, mode="json")
     return resource
 
 

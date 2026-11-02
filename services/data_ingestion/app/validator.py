@@ -35,31 +35,31 @@ class ResourceValidationResult:
 _MODEL_CACHE: dict[str, type] = {}
 
 FHIR_MODEL_MAP = {
-    "Patient": "fhir.resources.patient.Patient",
-    "Encounter": "fhir.resources.encounter.Encounter",
-    "Condition": "fhir.resources.condition.Condition",
-    "Observation": "fhir.resources.observation.Observation",
-    "Procedure": "fhir.resources.procedure.Procedure",
-    "MedicationRequest": "fhir.resources.medicationrequest.MedicationRequest",
-    "Immunization": "fhir.resources.immunization.Immunization",
-    "CarePlan": "fhir.resources.careplan.CarePlan",
-    "Claim": "fhir.resources.claim.Claim",
-    "Coverage": "fhir.resources.coverage.Coverage",
+    "Patient": "fhir.resources.R4B.patient.Patient",
+    "Encounter": "fhir.resources.R4B.encounter.Encounter",
+    "Condition": "fhir.resources.R4B.condition.Condition",
+    "Observation": "fhir.resources.R4B.observation.Observation",
+    "Procedure": "fhir.resources.R4B.procedure.Procedure",
+    "MedicationRequest": "fhir.resources.R4B.medicationrequest.MedicationRequest",
+    "Immunization": "fhir.resources.R4B.immunization.Immunization",
+    "CarePlan": "fhir.resources.R4B.careplan.CarePlan",
+    "Claim": "fhir.resources.R4B.claim.Claim",
+    "Coverage": "fhir.resources.R4B.coverage.Coverage",
 }
+FHIR_R5_MODEL_MAP = {resource_type: path.replace(".R4B", "") for resource_type, path in FHIR_MODEL_MAP.items()}
 
 
-def _load_model(resource_type: str):
+def _load_model(resource_type: str, model_map: dict[str, str] = FHIR_MODEL_MAP):
     # Check cache first to avoid expensive repeated imports
-    if resource_type in _MODEL_CACHE:
-        return _MODEL_CACHE[resource_type]
-    
-    dotted = FHIR_MODEL_MAP.get(resource_type)
+    dotted = model_map.get(resource_type)
     if dotted is None:
         return None
+    if dotted in _MODEL_CACHE:
+        return _MODEL_CACHE[dotted]
     module_name, class_name = dotted.rsplit(".", 1)
     module = __import__(module_name, fromlist=[class_name])
     model = getattr(module, class_name)
-    _MODEL_CACHE[resource_type] = model
+    _MODEL_CACHE[dotted] = model
     return model
 
 
@@ -88,12 +88,11 @@ def validate_resources(resources: list[ResourceEnvelope]) -> list[ResourceValida
             continue
 
         try:
-            if hasattr(model, "model_validate"):
+            try:
                 model.model_validate(resource.fhir)
-            elif hasattr(model, "parse_obj"):
-                model.parse_obj(resource.fhir)
-            else:
-                raise TypeError(f"Unsupported FHIR model API for {resource.resource_type}")
+            except ValidationError:
+                fallback = _load_model(resource.resource_type, FHIR_R5_MODEL_MAP)
+                fallback.model_validate(resource.fhir)
         except ValidationError as exc:
             for err in exc.errors():
                 path = ".".join(str(x) for x in err.get("loc", [])) or None

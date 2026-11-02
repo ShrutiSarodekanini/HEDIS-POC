@@ -2,11 +2,42 @@ from __future__ import annotations
 
 from contextlib import contextmanager
 from dataclasses import replace
+from datetime import datetime, timezone
 from types import SimpleNamespace
 
 import pika
 import pytest
 from fastapi.testclient import TestClient
+
+
+def test_job_patients_returns_filtered_resource_summaries(monkeypatch):
+    from services.data_ingestion.app import api
+
+    saved_at = datetime(2026, 1, 1, tzinfo=timezone.utc)
+    resources = [
+        SimpleNamespace(patient_id="synthetic-a", persisted=True, lifecycle_status="persisted",
+                        resource_json={"resourceType": "Patient"}, updated_at=saved_at),
+        SimpleNamespace(patient_id="synthetic-a", persisted=False, lifecycle_status="rejected",
+                        resource_json={"resourceType": "Observation"}, updated_at=saved_at),
+        SimpleNamespace(patient_id="synthetic-b", persisted=False, lifecycle_status="validated",
+                        resource_json={"resourceType": "Encounter"}, updated_at=saved_at),
+    ]
+
+    @contextmanager
+    def session_scope():
+        yield SimpleNamespace()
+
+    monkeypatch.setattr(api, "session_scope", session_scope)
+    monkeypatch.setattr(api, "list_resources_for_job", lambda _session, _job_id: resources)
+
+    result = api.get_job_patients("job-1", persisted_only=False, bundleable_only=True)
+    persisted = api.get_job_patients("job-1", persisted_only=True, bundleable_only=True)
+
+    assert result["patients"] == ["synthetic-a", "synthetic-b"]
+    assert [item["resource_count"] for item in result["patient_details"]] == [1, 1]
+    assert all(item["estimated_size_bytes"] > 0 for item in result["patient_details"])
+    assert all(item["saved_at"] == saved_at.isoformat() for item in result["patient_details"])
+    assert persisted["patients"] == ["synthetic-a"]
 
 
 def test_start_job_enqueues_existing_job_and_batch_in_transaction(monkeypatch, tmp_path):
@@ -90,6 +121,20 @@ def test_conversion_worker_resolves_registered_adapter_names():
     assert worker._get_adapter_name("ccda_hie", "ccda") == "ccda_hie"
     assert worker._get_adapter_name("claims_837", "csv") == "claims_837"
     assert worker._get_adapter_name("ncpdp_pharmacy", "csv") == "ncpdp_pharmacy"
+
+
+def test_quality_worker_preserves_quality_summary_contract(monkeypatch):
+    from services.workers import quality_worker
+
+    summary = {"run_id": 7, "status": "completed", "checks": 46, "failed": 2, "anomalies": 3}
+    monkeypatch.setattr(quality_worker.dq_checks, "run_checks", lambda *_args: summary)
+
+    result = quality_worker.QualityWorker()._run_quality_checks(
+        "12345678-1234-5678-1234-567812345678",
+        "comprehensive",
+    )
+
+    assert result == summary
 
 
 def test_job_status_prefers_durable_worker_state(monkeypatch):
@@ -464,6 +509,10 @@ def test_cbp_pruning_uses_declared_resource_types(tmp_path):
                                                 {
                                                     "system": "http://loinc.org",
                                                     "code": "85354-9",
+                                                },
+                                                {
+                                                    "system": "http://loinc.org",
+                                                    "code": "71802-3",
                                                 }
                                             ]
                                         }
@@ -496,7 +545,7 @@ def test_cbp_pruning_uses_declared_resource_types(tmp_path):
                         "resource": {
                             "resourceType": "Observation",
                             "id": "synthetic-unrelated",
-                            "code": {"coding": [{"system": "http://loinc.org", "code": "12345-6"}]},
+                            "code": {"coding": [{"system": "http://loinc.org", "code": "71802-3"}]},
                         }
                     },
                     {"resource": {"resourceType": "Claim", "id": "synthetic-claim"}},

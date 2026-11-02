@@ -18,7 +18,7 @@ from psycopg.types.json import Jsonb
 
 from services.data_ingestion.app.progress import progress_tracker
 from services.document_intake import db
-from services.integration import pallavi
+from services.integration import dq_checks
 from services.integration.config import SETTINGS
 from services.rabbitmq_config import initialize_queues
 from services.rabbitmq_messages import (
@@ -101,8 +101,8 @@ class QualityWorker(Worker):
 
             logger.info(
                 f"✓ Quality checks complete: "
-                f"warnings={checks.get('warning_count', 0)}, "
-                f"errors={checks.get('error_count', 0)}"
+                f"anomalies={checks.get('anomalies', 0)}, "
+                f"failed={checks.get('failed', 0)}"
             )
 
             # Send progress: publishing
@@ -131,7 +131,7 @@ class QualityWorker(Worker):
             # Send progress: complete
             asyncio.run(progress_tracker.notify(
                 batch_id, "quality", "complete",
-                {"pct": 100, "message": f"Quality checks complete: {checks.get('error_count', 0)} errors"}
+                {"pct": 100, "message": f"Quality checks complete: {checks.get('failed', 0)} failed"}
             ))
 
             return True
@@ -162,12 +162,7 @@ class QualityWorker(Worker):
             Dict with check results, warning/error counts
         """
         try:
-            result = pallavi.run_checks(UUID(batch_id), None, SETTINGS.actor)
-            return {
-                "warning_count": result.get("anomalies", 0),
-                "error_count": result.get("failed", 0),
-                "checks_run": result.get("checks", 0),
-            }
+            return dq_checks.run_checks(UUID(batch_id), None, SETTINGS.actor)
 
         except Exception as exc:
             logger.error("Quality checks failed for batch_id=%s: %s", batch_id, type(exc).__name__)

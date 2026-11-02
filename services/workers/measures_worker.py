@@ -88,6 +88,7 @@ class MeasuresWorker(Worker):
                 if not patient_ids:
                     raise LookupError("No loaded patients are available for measure calculation")
                 run = measures.run_measures(conn, list(patient_ids), attributed_org, batch_id.replace("-", "")[:8])
+                engine_counts = run.counts()
                 measure_count = len(run.measures)
                 gap_msg = GapIdentifyMessage(
                     batch_id=batch_id,
@@ -99,7 +100,7 @@ class MeasuresWorker(Worker):
                           SET status = 'running', step = 'identifying_gaps',
                               counts = counts || %s, updated_at = now()
                         WHERE batch_id = %s""",
-                    (Jsonb({"measures": {"count": measure_count}}), batch_id),
+                    (Jsonb({"measures": engine_counts}), batch_id),
                 )
                 self.enqueue_next(conn, "gaps.identify", gap_msg)
 
