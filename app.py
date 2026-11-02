@@ -1,15 +1,16 @@
 from __future__ import annotations
 
 import asyncio
-from collections import defaultdict
-import json
 import datetime as dt
+import json
 import os
 import threading
 import uuid
+from collections import defaultdict
+from collections.abc import Iterator
 from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import Iterator, Literal
+from typing import Literal
 
 import psycopg
 from fastapi import APIRouter, Depends, FastAPI, Header, HTTPException
@@ -32,10 +33,10 @@ from common.evidence import (
 from common.measure_performance import compare_measure
 from common.repository import Repository, row_to_dict
 from services.data_ingestion.app import api as ingestion_api
-from services.data_ingestion.app.db import session_scope as ingestion_session_scope
-from services.data_ingestion.app.repository import as_job_dict as ingestion_as_job_dict, list_jobs as ingestion_list_jobs
 from services.document_intake import db as intake_db
 from services.integration import auth as integration_auth
+from services.integration import calculation as integration_calculation
+from services.integration import pipeline as integration_pipeline
 from services.star_modeler.main import (
     CMS_MEASURE_SET_URL,
     CMS_RATING_YEAR,
@@ -99,6 +100,11 @@ class UserAccessIn(BaseModel):
 
 class UserRoleIn(BaseModel):
     role: Literal["admin", "user"]
+
+
+class CalculationRequest(BaseModel):
+    measures: list[str] | None = None
+    patient_ids: list[str] | None = None
 
 
 def get_auth_conn() -> Iterator[psycopg.Connection]:
@@ -809,7 +815,7 @@ def _seed_dashboard_sample_data_compat(session: Session) -> dict[str, int]:
                         "status": status,
                         "missing_element": f"Sample gap {seq} for {measure_id}",
                         "deadline_date": dt.date(2026, ((p_idx + seq) % 12) + 1, ((m_idx + seq) % 27) + 1),
-                        "opened_at": dt.datetime.now(dt.timezone.utc),
+                        "opened_at": dt.datetime.now(dt.UTC),
                     },
                 )
                 inserted_gaps += 1
@@ -860,20 +866,21 @@ def _process_gap_automation(repo: Repository, cfg: AppConfig) -> dict[str, objec
     error_list = summary["errors"]
     assert isinstance(error_list, list)
 
-    missing_tables = [
-        table_name
-        for table_name in ("members", "synthea_records")
-        if not repo.table_exists(table_name)
-    ]
-    if missing_tables:
-        gap_rows = repo.list_care_gaps()
-        summary["processed"] = len(gap_rows)
-        summary["skipped"] = True
-        summary["skip_reason"] = (
-            "Automation writeback is unavailable for this database profile "
-            f"(missing tables: {', '.join(missing_tables)})."
+    members_available = repo.table_exists("members")
+    synthea_records_available = repo.table_exists("synthea_records")
+    measures_available = repo.table_exists("measures")
+    legacy_writeback_available = (
+        members_available
+        and synthea_records_available
+        and measures_available
+    )
+
+    if not legacy_writeback_available:
+        summary["writeback_unavailable"] = True
+        summary["writeback_reason"] = (
+            "Legacy automation writeback tables are unavailable for this database profile; "
+            "running in compatibility mode without synthetic writeback records."
         )
-        return summary
 
     for care_gap in repo.list_care_gaps():
         member_id = str(care_gap.get("member_id") or "")
@@ -890,21 +897,38 @@ def _process_gap_automation(repo: Repository, cfg: AppConfig) -> dict[str, objec
             )
             continue
 
-        member = row_to_dict(repo.get_member(member_id))
-        if not member:
-            error_list.append(
-                {"care_gap_id": care_gap_id, "reason": f"Member not found: {member_id}"}
-            )
-            continue
+        if legacy_writeback_available:
+            member = row_to_dict(repo.get_member(member_id))
+            if not member:
+                error_list.append(
+                    {"care_gap_id": care_gap_id, "reason": f"Member not found: {member_id}"}
+                )
+                continue
 
-        measure = row_to_dict(repo.get_measure(measure_id))
-        if not measure:
-            error_list.append(
-                {"care_gap_id": care_gap_id, "reason": f"Measure not found: {measure_id}"}
-            )
-            continue
+            measure = row_to_dict(repo.get_measure(measure_id))
+            if not measure:
+                error_list.append(
+                    {"care_gap_id": care_gap_id, "reason": f"Measure not found: {measure_id}"}
+                )
+                continue
+        else:
+            # Compatibility profile: automation can run without legacy writeback tables.
+            member = {
+                "member_id": member_id,
+                "date_of_birth": None,
+                "gender": None,
+            }
+            measure = {
+                "measure_id": measure_id,
+                "name": measure_id,
+                "description": None,
+            }
 
         summary["processed"] = int(summary["processed"]) + 1
+
+        if not legacy_writeback_available:
+            # In compatibility mode we intentionally skip synthetic writeback-only actions.
+            continue
 
         # 1) Evidence generation (once per care gap for automation path).
         auto_evidence_fact_key = "auto_evidence_file_path:pdf"
@@ -1059,14 +1083,26 @@ def create_app(
             raise RuntimeError(
                 "Local auth setup failed. Run `python -m alembic -c db/alembic.ini upgrade head` and retry."
             ) from exc
+        integration_pipeline.recover_interrupted_batches()
+        integration_pipeline.record_missing_upload_sizes()
         cfg.evidence_storage_dir.mkdir(parents=True, exist_ok=True)
         stop_event = asyncio.Event()
         worker_task: asyncio.Task[None] | None = None
+        ingestion_watcher_stop = threading.Event()
+        ingestion_watcher = threading.Thread(
+            target=integration_pipeline.watch_ingestion,
+            args=(ingestion_watcher_stop,),
+            name="ingestion-watcher",
+            daemon=True,
+        )
+        ingestion_watcher.start()
         if auto_enabled:
             worker_task = asyncio.create_task(auto_gap_worker(stop_event))
         try:
             yield
         finally:
+            ingestion_watcher_stop.set()
+            ingestion_watcher.join(timeout=5)
             if worker_task is not None:
                 stop_event.set()
                 await worker_task
@@ -1442,40 +1478,37 @@ app.include_router(_ingestion_routes(), prefix="/api/ingestion")
 
 @app.get("/api/flow")
 def ingestion_flow_snapshot() -> dict[str, object]:
-    """Return a lightweight flow snapshot compatible with the ingestion UI."""
-    with ingestion_session_scope() as session:
-        jobs = ingestion_list_jobs(session)
-        if not jobs:
-            return {"batch": None, "tasks": {}}
+    """Return the persisted integration workflow state for the ingestion UI."""
+    with intake_db.connect() as conn:
+        return integration_pipeline.flow(conn)
 
-        job = ingestion_as_job_dict(jobs[0])
 
-    raw_status = str(job.get("status") or "").lower()
-    if raw_status in {"failed", "error"}:
-        flow_status = "failed"
-    elif raw_status in {"running", "pending"}:
-        flow_status = "running"
-    elif int(job.get("resources_persisted") or 0) > 0:
-        flow_status = "prioritized"
-    else:
-        flow_status = "loaded"
+@app.get("/api/calculation")
+def get_calculation() -> dict:
+    """Return stored HEDIS engine populations and gaps for the calculation screen."""
+    with intake_db.connect() as conn:
+        return integration_calculation.overview(conn)
 
+
+@app.get("/api/calculation/patients")
+def get_calculation_candidates(offset: int = 0, limit: int = 10) -> dict:
+    with intake_db.connect() as conn:
+        return integration_calculation.run_candidates(conn, offset, limit)
+
+
+@app.get("/api/calculation/{measure_id}/patients")
+def get_calculation_patients(measure_id: str) -> dict:
+    with intake_db.connect() as conn:
+        return integration_calculation.patients(conn, measure_id)
+
+
+@app.post("/api/calculation/run", status_code=202)
+def run_calculation(body: CalculationRequest | None = None) -> dict:
+    """Run selected measures for supplied patients, or every available persisted patient by default."""
     return {
-        "batch": {
-            "batch_id": str(job.get("id") or ""),
-            "ingest_job_id": str(job.get("id") or ""),
-            "status": flow_status,
-            "step": "prioritizing" if flow_status == "prioritized" else "loading",
-            "updated_at": job.get("completed_at") or job.get("started_at"),
-            "counts": {
-                "resources_generated": int(job.get("resources_generated") or 0),
-                "resources_validated": int(job.get("resources_validated") or 0),
-                "resources_persisted": int(job.get("resources_persisted") or 0),
-                "warnings": int(job.get("warning_count") or 0),
-                "errors": int(job.get("error_count") or 0),
-            },
-        },
-        "tasks": {
-            "ingestion": flow_status,
-        },
+        "batch_id": integration_pipeline.start_recalculation(
+            body.measures if body else None,
+            body.patient_ids if body else None,
+        ),
+        "status": "running",
     }

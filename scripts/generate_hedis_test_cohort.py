@@ -1,14 +1,35 @@
 from __future__ import annotations
 
 import csv
+import json
+import subprocess
+import tempfile
 from collections import defaultdict
 from dataclasses import dataclass, field
-from datetime import datetime, date
+from datetime import date, datetime
 from pathlib import Path
 from typing import Any
 
+from services.data_ingestion.app import mapping, synthea
+from services.data_ingestion.app.api import (
+    _extract_root_library_reference,
+    _to_member_result,
+)
 
 MEASURES = ["AAB", "BCSE", "BPD", "CBP", "CCSE", "COLE", "EED", "GSD", "KED", "SPD"]
+ENGINE_BUNDLE_FOLDERS = {
+    "AAB": "independent_public_aab",
+    "BCSE": "independent_public_bcse",
+    "BPD": "independent_public_bpd",
+    "CBP": "independent_public_cbp",
+    "CCSE": "independent_public_ccse",
+    "COLE": "independent_public_cole",
+    "EED": "independent_public_eed",
+    "GSD": "independent_public_gsd",
+    "KED": "independent_public_ked",
+    "SPD": "independent_public_spd",
+}
+INVERSE_MEASURES = {"GSD"}
 
 
 @dataclass
@@ -453,7 +474,9 @@ def write_coverage_csv(out_dir: Path, selected: list[str], facts: dict[str, Pati
     dst = out_dir / "patient_measure_coverage.csv"
     cols = ["patient_id", "gender", "birthdate", "age_2026"]
     for m in MEASURES:
-        cols.extend([f"{m}_status", f"{m}_evidence", f"{m}_missing"])
+        cols.extend([f"{m}_status", f"{m}_status_source", f"{m}_evidence", f"{m}_missing"])
+
+    engine_matrix = _engine_populations_for_selected(out_dir, selected)
 
     with dst.open("w", newline="", encoding="utf-8") as fo:
         writer = csv.DictWriter(fo, fieldnames=cols)
@@ -467,10 +490,134 @@ def write_coverage_csv(out_dir: Path, selected: list[str], facts: dict[str, Pati
                 "age_2026": pf.age_2026 if pf.age_2026 is not None else "",
             }
             for m in MEASURES:
-                row[f"{m}_status"] = matrix[pid][m]["status"]
+                engine_status = _engine_status(m, engine_matrix.get(pid, {}).get(m))
+                if engine_status is not None:
+                    row[f"{m}_status"] = engine_status
+                    row[f"{m}_status_source"] = "engine"
+                else:
+                    row[f"{m}_status"] = matrix[pid][m]["status"]
+                    row[f"{m}_status_source"] = "heuristic_fallback"
                 row[f"{m}_evidence"] = matrix[pid][m]["evidence"]
                 row[f"{m}_missing"] = matrix[pid][m]["missing"]
             writer.writerow(row)
+
+
+def _engine_status(measure_id: str, populations: dict[str, bool | None] | None) -> str | None:
+    if not populations:
+        return None
+    denominator = populations.get("denominator")
+    numerator = populations.get("numerator")
+    excluded = populations.get("denominator_exclusion")
+    if measure_id in INVERSE_MEASURES and denominator is True and isinstance(numerator, bool):
+        numerator = not numerator
+    if denominator is not True:
+        return "not_in_population"
+    if excluded is True:
+        return "excluded"
+    if numerator is True:
+        return "met"
+    if numerator is False:
+        return "gap"
+    return "unresolved"
+
+
+def _engine_populations_for_selected(out_dir: Path, selected: list[str]) -> dict[str, dict[str, dict[str, bool | None]]]:
+    engine_root = Path(__file__).resolve().parents[1] / "services" / "measure_calc" / "engine"
+    cli = engine_root / "build" / "cli.js"
+    if not cli.exists():
+        return {}
+    examples = engine_root / "examples"
+
+    result: dict[str, dict[str, dict[str, bool | None]]] = {}
+    for pid in selected:
+        patient_dir = out_dir / "per_patient" / pid
+        if not patient_dir.exists():
+            continue
+        patient_bundle = _build_patient_bundle_for_engine(patient_dir)
+        if patient_bundle is None:
+            continue
+        result[pid] = {}
+        with tempfile.TemporaryDirectory() as td:
+            patient_bundle_path = Path(td) / "patient.json"
+            patient_bundle_path.write_text(json.dumps(patient_bundle), encoding="utf-8")
+            for measure, folder in ENGINE_BUNDLE_FOLDERS.items():
+                bundle_path = next((examples / folder).glob("*-bundle.json"), None)
+                if bundle_path is None:
+                    continue
+                root_ref = _extract_root_library_reference(bundle_path)
+                cmd = [
+                    "node",
+                    str(cli),
+                    "detailed",
+                    "--measure-bundle",
+                    str(bundle_path),
+                    "--patient-bundles",
+                    str(patient_bundle_path),
+                    "--root-lib-ref",
+                    root_ref,
+                    "--measurement-period-start",
+                    "2026-01-01",
+                    "--measurement-period-end",
+                    "2026-12-31",
+                    "--trust-meta-profile",
+                    "false",
+                ]
+                completed = subprocess.run(
+                    cmd,
+                    cwd=engine_root,
+                    text=True,
+                    capture_output=True,
+                    timeout=180,
+                    check=False,
+                )
+                if completed.returncode != 0:
+                    continue
+                payload = json.loads(completed.stdout)
+                if not isinstance(payload, list) or not payload:
+                    continue
+                member = _to_member_result(payload[0], measure)
+                if member.get("status") != "completed":
+                    continue
+                populations = member.get("populations")
+                if isinstance(populations, dict):
+                    result[pid][measure] = populations
+    return result
+
+
+def _build_patient_bundle_for_engine(patient_dir: Path) -> dict[str, Any] | None:
+    parsed = synthea.parse_dataset(str(patient_dir))
+    mapped = mapping.map_dataset(parsed, validate=False)
+    by_patient = mapping.bundles_by_patient(mapped.resources)
+    if len(by_patient) != 1:
+        return None
+    bundle = next(iter(by_patient.values()))
+    _normalize_bundle_for_engine(bundle)
+    return bundle
+
+
+def _normalize_bundle_for_engine(bundle: dict[str, Any]) -> None:
+    entries = bundle.get("entry")
+    if not isinstance(entries, list):
+        return
+    for entry in entries:
+        resource = entry.get("resource") if isinstance(entry, dict) else None
+        if not isinstance(resource, dict):
+            continue
+        if resource.get("resourceType") == "Encounter":
+            if "period" not in resource and isinstance(resource.get("actualPeriod"), dict):
+                resource["period"] = resource.pop("actualPeriod")
+            if isinstance(resource.get("class"), list) and len(resource["class"]) == 1:
+                resource["class"] = resource["class"][0]
+        elif resource.get("resourceType") == "Procedure":
+            if "performedDateTime" not in resource and isinstance(resource.get("occurrenceDateTime"), str):
+                resource["performedDateTime"] = resource.pop("occurrenceDateTime")
+        elif resource.get("resourceType") == "MedicationRequest":
+            medication = resource.get("medication")
+            if "medicationCodeableConcept" not in resource and isinstance(medication, dict):
+                concept = medication.get("concept")
+                if isinstance(concept, dict):
+                    resource["medicationCodeableConcept"] = concept
+                    resource.pop("medication", None)
 
 
 def write_measure_anchor_csv(out_dir: Path, measure_anchor: dict[str, str], matrix: dict[str, dict[str, dict[str, str]]]) -> None:

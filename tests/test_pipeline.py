@@ -1,11 +1,18 @@
 from __future__ import annotations
 
 import importlib
+import json
 import os
 import sys
+import threading
 import time
+import uuid
+from contextlib import contextmanager
+from datetime import date
 from pathlib import Path
+from types import SimpleNamespace
 
+import pytest
 from fastapi.testclient import TestClient
 
 
@@ -48,6 +55,142 @@ def test_mapping_preserves_patient_and_encounter_references():
     assert observations
     assert observations[0].fhir["subject"]["reference"].startswith("Patient/")
     assert observations[0].fhir["encounter"]["reference"].startswith("Encounter/")
+
+
+def test_encounter_mapping_uses_validated_source_fields():
+    from services.data_ingestion.app.mapping import map_encounter
+    from services.data_ingestion.app.synthea import SourceRecord
+
+    encounter, issues = map_encounter(
+        SourceRecord(
+            source_file="encounters.csv",
+            row_number=1,
+            source_record_id="encounter-1",
+            patient_id="patient-1",
+            encounter_id=None,
+            data={"START": "2026-01-01T10:00:00Z", "STOP": "2026-01-01T11:00:00Z"},
+        )
+    )
+
+    assert issues == []
+    assert encounter is not None
+    assert encounter.fhir["actualPeriod"]["start"]
+    assert "period" not in encounter.fhir
+
+
+def test_procedure_and_medication_mapping_use_validated_source_fields():
+    from services.data_ingestion.app.mapping import (
+        map_medication_request,
+        map_procedure,
+    )
+    from services.data_ingestion.app.synthea import SourceRecord
+
+    procedure, procedure_issues = map_procedure(
+        SourceRecord(
+            source_file="procedures.csv",
+            row_number=1,
+            source_record_id="procedure-1",
+            patient_id="patient-1",
+            encounter_id="encounter-1",
+            data={"CODE": "123", "DESCRIPTION": "Test procedure", "DATE": "2026-01-01T10:00:00Z"},
+        )
+    )
+    medication, medication_issues = map_medication_request(
+        SourceRecord(
+            source_file="medications.csv",
+            row_number=1,
+            source_record_id="medication-1",
+            patient_id="patient-1",
+            encounter_id="encounter-1",
+            data={"CODE": "456", "DESCRIPTION": "Test medication", "START": "2026-01-01T10:00:00Z"},
+        )
+    )
+
+    assert procedure_issues == []
+    assert procedure is not None
+    assert procedure.fhir["occurrenceDateTime"]
+    assert "performedDateTime" not in procedure.fhir
+    assert medication_issues == []
+    assert medication is not None
+    assert medication.fhir["medication"]["concept"]["coding"][0]["code"] == "456"
+    assert "medicationCodeableConcept" not in medication.fhir
+
+
+def test_engine_bundle_normalizes_r5_fields_for_measure_evaluation():
+    from services.integration.measures import _normalize_measure_bundle_fields
+
+    bundle = {
+        "resourceType": "Bundle",
+        "entry": [
+            {
+                "resource": {
+                    "resourceType": "Encounter",
+                    "actualPeriod": {"start": "2026-01-01T00:00:00Z"},
+                }
+            },
+            {
+                "resource": {
+                    "resourceType": "Procedure",
+                    "occurrenceDateTime": "2026-01-01T00:00:00Z",
+                }
+            },
+            {
+                "resource": {
+                    "resourceType": "MedicationRequest",
+                    "medication": {"concept": {"coding": [{"code": "456"}]}},
+                }
+            },
+        ],
+    }
+
+    normalized = json.loads(_normalize_measure_bundle_fields(json.dumps(bundle)))
+    encounter, procedure, medication = (entry["resource"] for entry in normalized["entry"])
+
+    assert encounter["period"] == {"start": "2026-01-01T00:00:00Z"}
+    assert "actualPeriod" not in encounter
+    assert procedure["performedDateTime"] == "2026-01-01T00:00:00Z"
+    assert "occurrenceDateTime" not in procedure
+    assert medication["medicationCodeableConcept"]["coding"][0]["code"] == "456"
+    assert "medication" not in medication
+
+
+def test_extract_root_library_reference_uses_measure_library_relationship(tmp_path: Path):
+    from services.data_ingestion.app.api import _extract_root_library_reference
+
+    bundle_path = tmp_path / "renamed-measure-bundle.json"
+    bundle_path.write_text(
+        json.dumps(
+            {
+                "resourceType": "Bundle",
+                "entry": [
+                    {
+                        "resource": {
+                            "resourceType": "Measure",
+                            "id": "measure-id",
+                            "library": ["https://example.test/Library/root-library|1.0.0"],
+                        }
+                    },
+                    {
+                        "resource": {
+                            "resourceType": "Library",
+                            "id": "dependency-library",
+                            "url": "https://example.test/Library/dependency-library",
+                        }
+                    },
+                    {
+                        "resource": {
+                            "resourceType": "Library",
+                            "id": "root-library",
+                            "url": "https://example.test/Library/root-library",
+                        }
+                    },
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    assert _extract_root_library_reference(bundle_path) == "root-library"
 
 
 def test_claims_use_synthea_patientid_column(tmp_path: Path):
@@ -189,6 +332,238 @@ def test_to_member_result_supports_population_aliases():
     assert result["outcome"] == "numerator_not_met"
 
 
+def test_to_member_result_coerces_population_result_types():
+    from services.data_ingestion.app.api import _to_member_result
+
+    cli_entry = {
+        "patientId": "patient-2b",
+        "detailedResults": [
+            {
+                "populationResults": [
+                    {"populationType": "IPP", "result": "true"},
+                    {"populationType": "DEN", "result": 1},
+                    {"populationType": "NUM", "result": "0"},
+                ]
+            }
+        ],
+    }
+
+    result = _to_member_result(cli_entry, "SPD")
+
+    assert result["status"] == "completed"
+    assert result["populations"]["initial_population"] is True
+    assert result["populations"]["denominator"] is True
+    assert result["populations"]["numerator"] is False
+    assert result["outcome"] == "numerator_not_met"
+
+
+def test_measure_evaluator_consumes_normalized_populations(monkeypatch, tmp_path: Path):
+    from services.integration import measures
+
+    patient_path = tmp_path / "patient-1.json"
+    patient_path.write_text('{"resourceType": "Bundle", "entry": []}', encoding="utf-8")
+    measure_path = (
+        Path("services/measure_calc/engine/examples/independent_public_bcse")
+        / "PublicBreastCancerScreeningTechnicalDemo-bundle.json"
+    )
+    bundle = measures.MeasureBundle("GSD", measure_path, "PublicBreastCancerScreeningTechnicalDemo", None)
+    monkeypatch.setattr(
+        measures,
+        "_call_engine",
+        lambda *_: [
+            {
+                "patientId": "patient-1",
+                "detailedResults": [
+                    {
+                        "populationResults": [
+                            {"populationType": "DEN", "result": True},
+                            {"populationType": "NUM", "result": False},
+                        ]
+                    }
+                ],
+            }
+        ],
+    )
+
+    results = measures._evaluate(
+        bundle,
+        {"patient-1": patient_path},
+        tmp_path / "work",
+        SimpleNamespace(engine_chunk=1),
+    )
+
+    assert results == {
+        "patient-1": {
+            "initial_population": None,
+            "denominator": True,
+            "denominator_exclusion": None,
+            "denominator_exception": None,
+            "numerator": False,
+        }
+    }
+
+
+def test_measure_evaluator_rejects_unresolved_population_results(monkeypatch, tmp_path: Path):
+    from services.integration import measures
+
+    patient_path = tmp_path / "patient-1.json"
+    patient_path.write_text('{"resourceType": "Bundle", "entry": []}', encoding="utf-8")
+    measure_path = (
+        Path("services/measure_calc/engine/examples/independent_public_bcse")
+        / "PublicBreastCancerScreeningTechnicalDemo-bundle.json"
+    )
+    bundle = measures.MeasureBundle("BCS-E", measure_path, "PublicBreastCancerScreeningTechnicalDemo", None)
+    monkeypatch.setattr(
+        measures,
+        "_call_engine",
+        lambda *_: [
+            {
+                "patientId": "patient-1",
+                "detailedResults": [{"populationResults": [{"populationType": "denominator", "result": "unknown"}]}],
+            }
+        ],
+    )
+
+    with pytest.raises(RuntimeError, match="unresolved populations"):
+        measures._evaluate(
+            bundle,
+            {"patient-1": patient_path},
+            tmp_path / "work",
+            SimpleNamespace(engine_chunk=1),
+        )
+
+
+def test_measure_evaluator_rejects_duplicate_patient_results(monkeypatch, tmp_path: Path):
+    from services.integration import measures
+
+    patient_path = tmp_path / "patient-1.json"
+    patient_path.write_text('{"resourceType": "Bundle", "entry": []}', encoding="utf-8")
+    measure_path = (
+        Path("services/measure_calc/engine/examples/independent_public_bcse")
+        / "PublicBreastCancerScreeningTechnicalDemo-bundle.json"
+    )
+    bundle = measures.MeasureBundle("GSD", measure_path, "PublicBreastCancerScreeningTechnicalDemo", None)
+    duplicate_result = {
+        "patientId": "patient-1",
+        "detailedResults": [
+            {"populationResults": [{"populationType": "DEN", "result": True}, {"populationType": "NUM", "result": False}]}
+        ],
+    }
+    monkeypatch.setattr(measures, "_call_engine", lambda *_: [duplicate_result, duplicate_result])
+
+    with pytest.raises(RuntimeError, match="duplicate patient results"):
+        measures._evaluate(
+            bundle,
+            {"patient-1": patient_path},
+            tmp_path / "work",
+            SimpleNamespace(engine_chunk=1),
+        )
+
+
+def test_recalculation_defaults_to_patients_in_latest_ready_batch(monkeypatch):
+    from services.integration import pipeline
+
+    batch_id = "11111111-1111-1111-1111-111111111111"
+    started: dict[str, object] = {}
+
+    class Result:
+        def fetchone(self):
+            return (batch_id, "job-1")
+
+    class Connection:
+        def execute(self, *_):
+            return Result()
+
+    @contextmanager
+    def fake_connect():
+        yield Connection()
+
+    class Thread:
+        def __init__(self, *, args, **_):
+            started["args"] = args
+
+        def start(self):
+            started["started"] = True
+
+    monkeypatch.setattr(pipeline.db, "connect", fake_connect)
+    monkeypatch.setattr(
+        pipeline.team_schema_loader,
+        "job_patients",
+        lambda *_: (("patient-current",), {"patient-current": None}),
+    )
+    monkeypatch.setattr(pipeline, "_progress", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(pipeline.threading, "Thread", Thread)
+
+    try:
+        assert pipeline.start_recalculation(["BCS-E"]) == batch_id
+    finally:
+        if pipeline._ONE_AT_A_TIME.locked():
+            pipeline._ONE_AT_A_TIME.release()
+
+    assert started["started"] is True
+    assert started["args"] == (
+        uuid.UUID(batch_id),
+        "job-1",
+        ["BCS-E"],
+        ["patient-current"],
+    )
+
+
+def test_recalculation_uses_the_batch_patient_attributes(monkeypatch):
+    from services.integration import pipeline
+
+    captured: dict[str, object] = {}
+
+    @contextmanager
+    def fake_connect():
+        yield object()
+
+    class Run:
+        run_id = "engine-run"
+        patients = 1
+
+        def counts(self):
+            return {"measures": {}}
+
+    monkeypatch.setattr(pipeline.db, "connect", fake_connect)
+    monkeypatch.setattr(
+        pipeline.team_schema_loader,
+        "job_patients",
+        lambda *_: (("patient-current", "patient-other"), {"patient-current": "org-current", "patient-other": None}),
+    )
+    monkeypatch.setattr(
+        pipeline.measures,
+        "run_measures",
+        lambda _conn, patient_ids, attributed, _batch_label, ingest_job_id, **_kwargs: (
+            captured.update(patient_ids=patient_ids, attributed=attributed, ingest_job_id=ingest_job_id) or Run()
+        ),
+    )
+    monkeypatch.setattr(pipeline.measures, "gap_counts", lambda *_: {})
+    monkeypatch.setattr(pipeline, "_event", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(pipeline, "_progress", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(pipeline, "load_rules", lambda: object())
+    monkeypatch.setattr(
+        pipeline,
+        "score_all",
+        lambda *_: SimpleNamespace(gaps_scored=0, tiers={}, channels={}, rules_version="test", as_of=date(2026, 1, 1)),
+    )
+    monkeypatch.setattr(pipeline, "audit", lambda *_args, **_kwargs: None)
+
+    pipeline._ONE_AT_A_TIME.acquire()
+    pipeline._recalculate(
+        uuid.UUID("11111111-1111-1111-1111-111111111111"),
+        "job-1",
+        ["BCS-E"],
+        ["patient-current"],
+    )
+
+    assert captured == {
+        "patient_ids": ["patient-current"],
+        "attributed": {"patient-current": "org-current"},
+        "ingest_job_id": "job-1",
+    }
+
+
 def test_pruned_execution_results_are_non_definitive():
     from services.data_ingestion.app.api import _to_member_result
 
@@ -285,3 +660,42 @@ def test_end_to_end_api_pipeline_and_rerun_idempotency(tmp_path: Path):
     resources_resp_2 = client.get(f"/api/jobs/{job2}/resources")
     resources_2 = resources_resp_2.json()["resources"]
     assert len(resources_2) <= len(resources)
+
+
+def test_root_app_starts_integration_watcher(monkeypatch):
+    root_app = importlib.import_module("app")
+    watcher_started = threading.Event()
+    watcher_stopped = threading.Event()
+    lifecycle_calls: list[str] = []
+    expected_flow = {"batch": {"status": "measuring"}, "ingest_job": None, "tables": {}}
+
+    @contextmanager
+    def fake_connect():
+        yield object()
+
+    def fake_watch_ingestion(stop: threading.Event) -> None:
+        watcher_started.set()
+        stop.wait(timeout=1)
+        watcher_stopped.set()
+
+    monkeypatch.setattr(root_app.intake_db, "connect", fake_connect)
+    monkeypatch.setattr(root_app.integration_auth, "ensure_default_users", lambda _: None)
+    monkeypatch.setattr(
+        root_app.integration_pipeline,
+        "recover_interrupted_batches",
+        lambda: lifecycle_calls.append("recover"),
+    )
+    monkeypatch.setattr(
+        root_app.integration_pipeline,
+        "record_missing_upload_sizes",
+        lambda: lifecycle_calls.append("record_sizes"),
+    )
+    monkeypatch.setattr(root_app.integration_pipeline, "watch_ingestion", fake_watch_ingestion)
+    monkeypatch.setattr(root_app.integration_pipeline, "flow", lambda _: expected_flow)
+
+    with TestClient(root_app.create_app(validate_database=False)):
+        assert watcher_started.wait(timeout=1)
+
+    assert watcher_stopped.wait(timeout=1)
+    assert lifecycle_calls == ["recover", "record_sizes"]
+    assert root_app.ingestion_flow_snapshot() == expected_flow

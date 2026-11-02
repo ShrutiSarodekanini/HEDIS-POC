@@ -37,7 +37,7 @@ from services.document_intake.db import audit
 from services.gap_priority.config import load_rules
 from services.gap_priority.runner import score_all
 
-from . import calculation, dq_checks, measures
+from . import dq_checks, measures
 from .config import SETTINGS
 
 log = logging.getLogger(__name__)
@@ -151,10 +151,20 @@ def start_from_job(job_id: str) -> str:
     endpoints); our steps continue from loading. Returns the batch_id."""
     batch_id = uuid.uuid4()
     with db.connect() as conn:
-        persisted = conn.execute("SELECT resources_persisted FROM conversion_jobs WHERE id = %s",
-                                 (job_id,)).fetchone()[0]
+        job = conn.execute(
+            "SELECT resources_persisted, input_dir FROM conversion_jobs WHERE id = %s FOR UPDATE",
+            (job_id,),
+        ).fetchone()
+        if job is None:
+            raise LookupError("Persisted ingestion job no longer exists.")
+        existing = conn.execute(
+            "SELECT batch_id FROM batch_run WHERE ingest_job_id = %s ORDER BY started_at LIMIT 1",
+            (job_id,),
+        ).fetchone()
+        if existing is not None:
+            return str(existing[0])
+        persisted, input_dir = job
         received = {"source": "data ingestion screen", "job_id": job_id, "persisted": persisted}
-        input_dir = conn.execute("SELECT input_dir FROM conversion_jobs WHERE id = %s", (job_id,)).fetchone()[0]
         path = Path(input_dir)
         if path.is_dir():
             received["bytes"] = sum(file.stat().st_size for file in path.rglob("*") if file.is_file())
@@ -199,7 +209,13 @@ def _after_persist(batch_id: uuid.UUID, job_id: str, persisted: int) -> None:
     quality = _check_quality(batch_id)
     with db.connect() as conn:
         _progress(batch_id, "measuring", None, {"quality": quality}, conn=conn)
-        run = measures.run_measures(conn, list(loaded.patient_ids), loaded.attributed_org, batch_id.hex[:8])
+        run = measures.run_measures(
+            conn,
+            list(loaded.patient_ids),
+            loaded.attributed_org,
+            batch_id.hex[:8],
+            job_id,
+        )
         engine = run.counts()
         _event(conn, batch_id, "measures.received",
                {"engine_run_id": run.run_id, "patients": run.patients, "measures": engine["measures"]})
@@ -252,21 +268,21 @@ def watch_ingestion(stop: threading.Event, every_seconds: float = 3.0) -> None:
             log.error("ingestion watcher round failed: %s", type(exc).__name__)
 
 
-def start_recalculation(measure_ids: list[str] | None, selected_patient_ids: list[str]) -> str:
-    """Run selected persisted patients, then prioritize their resulting gaps."""
-    if not selected_patient_ids:
-        raise ValueError("Select at least one patient before starting the calculation.")
+def start_recalculation(measure_ids: list[str] | None, selected_patient_ids: list[str] | None = None) -> str:
+    """Run selected persisted patients, or every available patient when none are specified."""
     with db.connect() as conn:
         row = conn.execute("""SELECT batch_id, ingest_job_id FROM batch_run
                                WHERE status IN ('ready', 'prioritized') AND ingest_job_id IS NOT NULL
                                ORDER BY started_at DESC LIMIT 1""").fetchone()
         if row is not None:
-            available_ids = calculation.run_candidate_ids(conn)
+            available_ids, _ = team_schema_loader.job_patients(conn, row[1])
     if row is None:
         raise LookupError("No calculation-ready batch yet. Ingest and persist a batch first.")
-    batch_id = uuid.UUID(row[0])
+    batch_id, job_id = uuid.UUID(row[0]), row[1]
     available = set(available_ids)
-    selected = list(dict.fromkeys(selected_patient_ids))
+    selected = list(dict.fromkeys(selected_patient_ids or available_ids))
+    if not selected:
+        raise ValueError("No persisted patients are available for calculation.")
     if unknown := set(selected) - available:
         raise ValueError(f"{len(unknown)} selected patients are not available for calculation.")
     if not _ONE_AT_A_TIME.acquire(blocking=False):
@@ -277,25 +293,23 @@ def start_recalculation(measure_ids: list[str] | None, selected_patient_ids: lis
     except Exception:
         _ONE_AT_A_TIME.release()
         raise
-    threading.Thread(target=_recalculate, args=(batch_id, measure_ids, selected), name=f"calc-{batch_id}",
+    threading.Thread(target=_recalculate, args=(batch_id, job_id, measure_ids, selected), name=f"calc-{batch_id}",
                      daemon=True).start()
     return str(batch_id)
 
 
-def _recalculate(batch_id: uuid.UUID, measure_ids: list[str] | None, selected_patient_ids: list[str]) -> None:
+def _recalculate(batch_id: uuid.UUID, job_id: str, measure_ids: list[str] | None,
+                 selected_patient_ids: list[str]) -> None:
     step = "measuring"
     try:
         with db.connect() as conn:
-            selected = list(dict.fromkeys(selected_patient_ids))
-            attributed = dict.fromkeys(selected)
-            attributed.update(dict(conn.execute(
-                """SELECT patient_id, mode() WITHIN GROUP (ORDER BY organization_id)
-                     FROM encounter
-                    WHERE organization_id IS NOT NULL AND patient_id = ANY(%s)
-                    GROUP BY patient_id""",
-                (selected,),
-            ).fetchall()))
-            run = measures.run_measures(conn, selected, attributed, batch_id.hex[:8],
+            patient_ids, attributed = team_schema_loader.job_patients(conn, job_id)
+            selected_set = set(selected_patient_ids)
+            selected = [patient_id for patient_id in patient_ids if patient_id in selected_set]
+            if not selected:
+                raise RuntimeError("The selected patients are no longer available in the calculation batch.")
+            selected_attributed = {patient_id: attributed.get(patient_id) for patient_id in selected}
+            run = measures.run_measures(conn, selected, selected_attributed, batch_id.hex[:8], job_id,
                                         measure_ids=measure_ids)
             engine = run.counts()
             _event(conn, batch_id, "measures.received",

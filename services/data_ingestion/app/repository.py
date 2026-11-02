@@ -3,7 +3,8 @@ from __future__ import annotations
 import datetime as dt
 from typing import Any
 
-from sqlalchemy import case, delete, func, inspect as sa_inspect, select, text, tuple_, update
+from sqlalchemy import case, delete, func, select, text, tuple_, update
+from sqlalchemy import inspect as sa_inspect
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import Session
 
@@ -134,7 +135,16 @@ def batch_fetch_fhir_resources(
 
 
 def extract_additional_resource(session: Session, fhir_resource: FhirResource, resource_json: dict[str, Any]) -> None:
-    from .models import AllergyIntolerance, BasicResource, Claim, Device, ImagingStudy, Organization, Practitioner, SupplyDelivery
+    from .models import (
+        AllergyIntolerance,
+        BasicResource,
+        Claim,
+        Device,
+        ImagingStudy,
+        Organization,
+        Practitioner,
+        SupplyDelivery,
+    )
 
     models = {
         "AllergyIntolerance": AllergyIntolerance,
@@ -1151,7 +1161,7 @@ def _batch_extract_procedures(
         code_coding = _as_list(code_data.get("coding"))
         code = _as_dict(code_coding[0]).get("code") if code_coding else None
         
-        performed_datetime = resource_json.get("performedDateTime")
+        performed_datetime = resource_json.get("occurrenceDateTime") or resource_json.get("performedDateTime")
         performed_date = None
         if performed_datetime:
             try:
@@ -1986,7 +1996,7 @@ def extract_procedure_from_fhir(
         system = code_data.get("system")
     
     # Extract performed date
-    performed_datetime = resource_json.get("performedDateTime")
+    performed_datetime = resource_json.get("occurrenceDateTime") or resource_json.get("performedDateTime")
     performed_date = None
     if performed_datetime:
         try:

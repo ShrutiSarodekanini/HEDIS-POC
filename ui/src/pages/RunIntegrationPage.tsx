@@ -69,12 +69,10 @@ export function RunIntegrationPage() {
     ourStepsTasks,
     messages,
     busy,
-    canPersist,
     inspectDataset,
     uploadFiles,
     startJob,
     refreshJob,
-    persistJob,
     loadValidation,
     loadPatients,
     selectPatient,
@@ -183,7 +181,7 @@ export function RunIntegrationPage() {
         <div>
           <h1>Run Ingestion</h1>
           <p>
-            Upload, inspect, run, persist, and export ingestion output using the backend ingestion workflow.
+            Upload, inspect, run, and export ingestion output using the backend ingestion workflow.
           </p>
         </div>
         <div className="actions">
@@ -318,16 +316,6 @@ export function RunIntegrationPage() {
               }}
             >
               {busy.start ? "Starting..." : "Start ingestion"}
-            </button>
-            <button
-              type="button"
-              className="btn outline"
-              disabled={!mode || !jobId || busy.persist || !canPersist}
-              onClick={() => {
-                void persistJob()
-              }}
-            >
-              {busy.persist ? "Persisting..." : "Persist resources"}
             </button>
           </div>
 
@@ -538,7 +526,7 @@ export function RunIntegrationPage() {
 
       <article className="card">
         <div className="card-head row-split">
-          <h2>Our steps after persist</h2>
+          <h2>Our steps after ingestion</h2>
           <button
             type="button"
             className="btn outline"
@@ -556,7 +544,7 @@ export function RunIntegrationPage() {
         {!mode?.flowPath ? (
           <p className="card-message">This backend profile does not expose the flow endpoint.</p>
         ) : !ourStepsBatch ? (
-          <p className="card-message">Not started yet: persist a job to start post-ingestion workflow steps.</p>
+          <p className="card-message">Not started yet: run an ingestion job to start post-ingestion workflow steps.</p>
         ) : (
           <>
             <p className="note">

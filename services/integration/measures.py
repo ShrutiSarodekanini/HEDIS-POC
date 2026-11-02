@@ -75,10 +75,24 @@ INVERSE_MEASURES = {"GSD"}
 MISSING_ELEMENT = {"GSD": "Glycemic Status Assessment: most recent A1c above 9.0, or no A1c result in {year}"}
 
 _BUNDLES = """
+WITH job_resources AS (
+    SELECT coalesce(
+               CASE WHEN r.resource_type = 'Patient' THEN r.resource_id END,
+               nullif(split_part(coalesce(r.resource_json->'subject'->>'reference',
+                                          r.resource_json->'beneficiary'->>'reference',
+                                          r.resource_json->'patient'->>'reference'), '/', 2), '')
+           ) AS patient_id,
+           r.resource_id,
+           r.resource_json
+      FROM fhir_resources r
+     WHERE r.job_id = %s
+       AND r.persisted
+       AND r.lifecycle_status <> 'rejected'
+)
 SELECT patient_id,
        jsonb_build_object('resourceType', 'Bundle', 'type', 'collection',
-                          'entry', jsonb_agg(jsonb_build_object('resource', raw) ORDER BY resource_pk))::text
-  FROM fhir_resource_raw
+                          'entry', jsonb_agg(jsonb_build_object('resource', resource_json) ORDER BY resource_id))::text
+  FROM job_resources
  WHERE patient_id = ANY(%s)
  GROUP BY patient_id
 """
@@ -185,7 +199,8 @@ def measure_bundles() -> list[MeasureBundle]:
 
 
 def run_measures(conn: psycopg.Connection, patient_ids: list[str], attributed_org: dict[str, str | None],
-                 batch_label: str, settings: Settings = SETTINGS, measure_ids: list[str] | None = None) -> EngineRun:
+                 batch_label: str, ingest_job_id: str, settings: Settings = SETTINGS,
+                 measure_ids: list[str] | None = None) -> EngineRun:
     """Run the engine for these patients (all measures, or the chosen ones) and write results and gaps in the
     caller's transaction."""
     bundles = measure_bundles()
@@ -198,7 +213,7 @@ def run_measures(conn: psycopg.Connection, patient_ids: list[str], attributed_or
     work = settings.work_dir / f"engine-{batch_label}"
     shutil.rmtree(work, ignore_errors=True)
     try:
-        files = _write_bundles(conn, patient_ids, work / "patients")
+        files = _write_bundles(conn, patient_ids, work / "patients", ingest_job_id)
         run = EngineRun(run_id=f"{ENGINE}-{batch_label}-{uuid.uuid4().hex[:8]}", patients=len(files))
         conn.execute(
             """INSERT INTO engine_runs (run_id, engine, engine_version, measure_spec_version, measurement_year, run_at,
@@ -218,20 +233,56 @@ def run_measures(conn: psycopg.Connection, patient_ids: list[str], attributed_or
         shutil.rmtree(work, ignore_errors=True)
 
 
-def _write_bundles(conn: psycopg.Connection, patient_ids: list[str], folder: Path) -> dict[str, Path]:
-    """One FHIR collection bundle per patient, from every raw resource stored for that patient."""
+def _write_bundles(conn: psycopg.Connection, patient_ids: list[str], folder: Path, ingest_job_id: str) -> dict[str, Path]:
+    """One FHIR collection bundle per patient, from approved resources in this ingestion job."""
     folder.mkdir(parents=True, exist_ok=True)
     files: dict[str, Path] = {}
     with conn.cursor(name="integration_bundles") as cur:
-        cur.execute(_BUNDLES, (list(patient_ids),))
+        cur.execute(_BUNDLES, (ingest_job_id, list(patient_ids)))
         for patient_id, bundle_text in cur:
             path = folder / f"{len(files):06d}.json"
-            path.write_text(bundle_text, encoding="utf-8")
+            path.write_text(_normalize_measure_bundle_fields(bundle_text), encoding="utf-8")
             files[patient_id] = path
     missing = len(set(patient_ids) - set(files))
     if missing:
         raise RuntimeError(f"{missing} of {len(patient_ids)} patients have no stored FHIR resources")
     return files
+
+
+def _normalize_measure_bundle_fields(bundle_text: str) -> str:
+    """Translate stored R5 fields into R4 fields used by the measure libraries."""
+    bundle = json.loads(bundle_text)
+    if not isinstance(bundle, dict):
+        raise TypeError("Stored patient bundle must be a FHIR object.")
+    entries = bundle.get("entry")
+    if not isinstance(entries, list):
+        raise TypeError("Stored patient bundle must contain FHIR entries.")
+
+    changed = False
+    for entry in entries:
+        resource = entry.get("resource") if isinstance(entry, dict) else None
+        if not isinstance(resource, dict):
+            continue
+        if resource.get("resourceType") == "Encounter":
+            if "period" not in resource and isinstance(resource.get("actualPeriod"), dict):
+                resource["period"] = resource.pop("actualPeriod")
+                changed = True
+            if isinstance(resource.get("class"), list) and len(resource["class"]) == 1:
+                resource["class"] = resource["class"][0]
+                changed = True
+        elif resource.get("resourceType") == "Procedure":
+            if "performedDateTime" not in resource and isinstance(resource.get("occurrenceDateTime"), str):
+                resource["performedDateTime"] = resource.pop("occurrenceDateTime")
+                changed = True
+        elif resource.get("resourceType") == "MedicationRequest":
+            medication = resource.get("medication")
+            if "medicationCodeableConcept" not in resource and isinstance(medication, dict):
+                concept = medication.get("concept")
+                if isinstance(concept, dict):
+                    resource["medicationCodeableConcept"] = concept
+                    resource.pop("medication")
+                    changed = True
+    return json.dumps(bundle) if changed else bundle_text
 
 
 def _evaluate_measures(bundles: list[MeasureBundle], files: dict[str, Path], work: Path,
@@ -265,6 +316,13 @@ def _evaluate(bundle: MeasureBundle, files: dict[str, Path], work: Path, setting
             paths.append(str(copy))
         for entry in _call_engine(bundle, root_ref, paths, settings):
             member = _to_member_result(entry, bundle.measure_id)
+            if member.get("status") != "completed":
+                raise RuntimeError(
+                    f"engine returned unresolved populations for {bundle.measure_id} patient "
+                    f"{member.get('member_id')}: {member.get('errors') or member.get('warnings') or member.get('outcome')}"
+                )
+            if member["member_id"] in results:
+                raise RuntimeError(f"engine returned duplicate patient results for {bundle.measure_id}")
             results[member["member_id"]] = member["populations"]
         shutil.rmtree(work / bundle.measure_id, ignore_errors=True)
     sent, back = set(patients), set(results)
@@ -367,7 +425,7 @@ def _call_engine(bundle: MeasureBundle, root_ref: str | None, paths: list[str], 
         first = (completed.stderr.strip() or completed.stdout.strip() or "no output").splitlines()[0][:300]
         raise RuntimeError(f"engine output for {bundle.measure_id} is not JSON: {first}") from exc
     if not isinstance(payload, list):
-        raise RuntimeError(f"engine returned no patient list for {bundle.measure_id}")
+        raise TypeError(f"engine returned no patient list for {bundle.measure_id}")
     return payload
 
 
