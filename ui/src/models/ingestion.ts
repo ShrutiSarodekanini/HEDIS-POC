@@ -87,7 +87,7 @@ export interface IngestionPatientDetail {
 export interface IngestionPatientsResponse {
   job_id: string
   patients: string[]
-  patient_details: IngestionPatientDetail[]
+  patient_details?: IngestionPatientDetail[]
 }
 
 export interface IngestionResource {
