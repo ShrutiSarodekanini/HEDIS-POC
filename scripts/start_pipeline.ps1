@@ -41,20 +41,43 @@ if (-not (Test-Path $python)) {
 
 Set-Location $projectRoot
 
-$postgresContainer = docker ps -a --filter "name=^/hedis-postgres$" --format "{{.Names}}"
+$containerCli = $null
+if (Get-Command docker -ErrorAction SilentlyContinue) {
+    $containerCli = "docker"
+} elseif (Get-Command podman -ErrorAction SilentlyContinue) {
+    $containerCli = "podman"
+} else {
+    throw "Neither docker nor podman is available in PATH. Install one container runtime first."
+}
+
+Write-Host "Using container runtime: $containerCli" -ForegroundColor Gray
+
+$postgresContainer = & $containerCli ps -a --filter "name=^/hedis-postgres$" --format "{{.Names}}"
 if ($postgresContainer -eq "hedis-postgres") {
-    docker start hedis-postgres | Out-Null
+    & $containerCli start hedis-postgres | Out-Null
     if ($LASTEXITCODE -ne 0) { throw "Could not start PostgreSQL container" }
 } else {
     Write-Warning "hedis-postgres container was not found; DATABASE_URL must point to a running PostgreSQL server."
 }
 
-docker compose up -d rabbitmq
-if ($LASTEXITCODE -ne 0) { throw "Could not start RabbitMQ container" }
+if ($containerCli -eq "docker") {
+    docker compose up -d rabbitmq
+    if ($LASTEXITCODE -ne 0) { throw "Could not start RabbitMQ container" }
+} else {
+    $rabbitContainer = & podman ps -a --filter "name=^/hedis-rabbitmq$" --format "{{.Names}}"
+    if ($rabbitContainer -eq "hedis-rabbitmq") {
+        podman start hedis-rabbitmq | Out-Null
+        if ($LASTEXITCODE -ne 0) { throw "Could not start RabbitMQ container" }
+    } else {
+        # Podman fallback without docker-compose: create RabbitMQ container directly.
+        podman run -d --name hedis-rabbitmq --hostname rabbitmq -p 5672:5672 -p 15672:15672 -e RABBITMQ_DEFAULT_USER=guest -e RABBITMQ_DEFAULT_PASS=guest -v rabbitmq_data:/var/lib/rabbitmq docker.io/library/rabbitmq:3.13-management | Out-Null
+        if ($LASTEXITCODE -ne 0) { throw "Could not start RabbitMQ container" }
+    }
+}
 
 $rabbitReady = $false
 for ($attempt = 1; $attempt -le 30; $attempt++) {
-    docker exec hedis-rabbitmq rabbitmq-diagnostics -q ping 2>$null | Out-Null
+    & $containerCli exec hedis-rabbitmq rabbitmq-diagnostics -q ping 2>$null | Out-Null
     if ($LASTEXITCODE -eq 0) {
         $rabbitReady = $true
         break
