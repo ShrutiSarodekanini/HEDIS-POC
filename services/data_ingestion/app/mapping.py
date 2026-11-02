@@ -204,7 +204,10 @@ def map_dataset(
 
     # Process coverage records first so all coverage data is available for gap detection
     # Sort by patient_id to group contiguous records - enables processing one patient at a time
-    coverage_records_raw = records.get("coverages.csv", [])
+    coverage_records_raw = [
+        *records.get("coverages.csv", []),
+        *records.get("payer_transitions.csv", []),
+    ]
     coverage_records_sorted = sorted(coverage_records_raw, key=lambda r: r.patient_id or "")
     for patient_id, patient_coverage_iter in groupby(coverage_records_sorted, key=lambda r: r.patient_id):
         # For each patient, keep only their coverage records in memory for gap detection
@@ -497,17 +500,17 @@ def map_encounter(record: SourceRecord) -> tuple[ResourceEnvelope | None, list[R
         "resourceType": "Encounter",
         "id": resource_id,
         "status": "finished",
-        "class": {"system": "http://terminology.hl7.org/CodeSystem/v3-ActCode", "code": "AMB"},
+        "class": [{"coding": [{"system": "http://terminology.hl7.org/CodeSystem/v3-ActCode", "code": "AMB"}]}],
         "subject": patient_ref(record.patient_id),
-        "period": {"start": started},
+        "actualPeriod": {"start": started},
         "identifier": [{"system": "urn:synthea:encounters", "value": record.source_record_id}],
     }
 
     if end := to_iso_datetime(record.data.get("STOP")):
-        fhir["period"]["end"] = end
+        fhir["actualPeriod"]["end"] = end
 
     if reason := codeable_concept(record.data.get("REASONCODE"), record.data.get("REASONDESCRIPTION")):
-        fhir["reasonCode"] = [reason]
+        fhir["reason"] = [{"value": [{"concept": reason}]}]
 
     return envelope(record, "Encounter", resource_id, fhir), []
 
@@ -583,7 +586,7 @@ def map_procedure(record: SourceRecord) -> tuple[ResourceEnvelope | None, list[R
         "identifier": [{"system": "urn:synthea:procedures", "value": record.source_record_id}],
     }
     if performed:
-        fhir["performedDateTime"] = performed
+        fhir["occurrenceDateTime"] = performed
 
     return envelope(record, "Procedure", fhir["id"], fhir), []
 
@@ -602,7 +605,9 @@ def map_medication_request(record: SourceRecord) -> tuple[ResourceEnvelope | Non
         "intent": "order",
         "subject": patient_ref(record.patient_id),
         "encounter": encounter_ref(record.encounter_id),
-        "medicationCodeableConcept": codeable_concept(code, display, system="http://www.nlm.nih.gov/research/umls/rxnorm"),
+        "medication": {
+            "concept": codeable_concept(code, display, system="http://www.nlm.nih.gov/research/umls/rxnorm"),
+        },
         "identifier": [{"system": "urn:synthea:medications", "value": record.source_record_id}],
     }
     if authored:
@@ -727,11 +732,12 @@ def map_payer_transition(record: SourceRecord) -> tuple[ResourceEnvelope, list[R
         "resourceType": "Coverage",
         "id": deterministic_id("Coverage", record.source_file, record.source_record_id),
         "status": "active",
+        "kind": "insurance",
         "beneficiary": patient_ref(record.patient_id),
-        "payor": [{"display": record.data.get("PAYER") or "Unknown payer"}],
+        "insurer": {"display": record.data.get("PAYER") or "Unknown payer"},
     }
-    start = to_iso_date(record.data.get("START"))
-    end = to_iso_date(record.data.get("END"))
+    start = to_iso_date(record.data.get("START") or record.data.get("START_DATE"))
+    end = to_iso_date(record.data.get("END") or record.data.get("END_DATE"))
     if start or end:
         fhir["period"] = {key: value for key, value in (("start", start), ("end", end)) if value}
     return _map_additional_resource(record, "Coverage", fhir)
@@ -769,9 +775,10 @@ def map_supply(record: SourceRecord) -> tuple[ResourceEnvelope, list[RowIssue]]:
 
 def map_claim(record: SourceRecord) -> tuple[ResourceEnvelope | None, list[RowIssue]]:
     created = (
-        to_iso_date(record.data.get("DATE"))
+        to_iso_date(record.data.get("SERVICEDATE"))
+        or to_iso_date(record.data.get("DATE"))
         or to_iso_date(record.data.get("START"))
-        or dt.datetime.utcnow().date().isoformat()
+        or dt.datetime.now(dt.UTC).date().isoformat()
     )
     fhir = {
         "resourceType": "Claim",
@@ -931,8 +938,9 @@ def map_coverage(record: SourceRecord, all_coverage_records: list[SourceRecord] 
         "resourceType": "Coverage",
         "id": deterministic_id("Coverage", record.source_file, record.source_record_id),
         "status": "active",
+        "kind": "insurance",
         "beneficiary": patient_ref(record.patient_id),
-        "payor": [{"display": record.data.get("PAYER", "Unknown") or "Unknown"}],
+        "insurer": {"display": record.data.get("PAYER", "Unknown") or "Unknown"},
         "identifier": [{"system": "urn:synthea:coverages", "value": record.source_record_id}],
     }
 

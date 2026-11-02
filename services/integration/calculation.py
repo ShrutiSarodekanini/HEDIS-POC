@@ -11,7 +11,26 @@ from psycopg.rows import dict_row
 from . import measures
 from .config import SETTINGS
 
-_COUNTS = """
+_CURRENT_BATCH_PATIENTS = """
+WITH calculation_batch AS (
+    SELECT ingest_job_id
+      FROM batch_run
+     WHERE status IN ('ready', 'prioritized')
+       AND ingest_job_id IS NOT NULL
+     ORDER BY started_at DESC
+     LIMIT 1
+), eligible_patients AS (
+    SELECT DISTINCT ON (r.resource_id) r.resource_id AS patient_id, r.updated_at AS stored_at, r.job_id
+      FROM fhir_resources r
+      JOIN calculation_batch b ON b.ingest_job_id = r.job_id
+     WHERE r.resource_type = 'Patient'
+       AND r.persisted
+       AND r.lifecycle_status <> 'rejected'
+     ORDER BY r.resource_id, r.updated_at DESC
+)
+"""
+
+_COUNTS = _CURRENT_BATCH_PATIENTS + """
 SELECT r.measure_id,
        count(*) AS evaluated,
        count(*) FILTER (WHERE r.in_denominator) AS denominator,
@@ -20,27 +39,31 @@ SELECT r.measure_id,
        count(*) FILTER (WHERE r.in_denominator AND NOT coalesce(r.excluded, false) AND NOT r.in_numerator) AS not_met,
        max(r.computed_at) AS computed_at
   FROM v_measure_result_latest r
+  JOIN eligible_patients p ON p.patient_id = r.patient_id
  WHERE r.measurement_year = %(year)s
  GROUP BY r.measure_id
 """
 
-_GAPS = """
+_GAPS = _CURRENT_BATCH_PATIENTS + """
 SELECT g.measure_id,
        count(*) FILTER (WHERE g.status = 'open') AS open,
        count(*) FILTER (WHERE g.status = 'closed') AS closed,
        count(*) FILTER (WHERE d.review_status IN ('closed_pending_engine', 'excluded_pending_engine'))
            AS confirmed_by_reviewer
-  FROM care_gap g LEFT JOIN care_gap_detail d ON d.gap_id = g.gap_id
+  FROM care_gap g
+  JOIN eligible_patients p ON p.patient_id = g.patient_id
+  LEFT JOIN care_gap_detail d ON d.gap_id = g.gap_id
  WHERE g.measurement_year = %(year)s
  GROUP BY g.measure_id
 """
 
-_PATIENTS = """
+_PATIENTS = _CURRENT_BATCH_PATIENTS + """
 SELECT r.patient_id, r.in_denominator, r.in_numerator, coalesce(r.excluded, false) AS excluded, r.computed_at,
        r.engine_version, g.gap_id::text AS gap_id, g.status AS gap_status, g.missing_element,
        coalesce(d.review_status, CASE WHEN g.gap_id IS NULL THEN NULL ELSE 'open' END) AS review_status,
        d.engine_run_id
   FROM v_measure_result_latest r
+  JOIN eligible_patients p ON p.patient_id = r.patient_id
   LEFT JOIN care_gap g ON g.patient_id = r.patient_id AND g.measure_id = r.measure_id
                       AND g.measurement_year = r.measurement_year
   LEFT JOIN care_gap_detail d ON d.gap_id = g.gap_id
@@ -48,16 +71,7 @@ SELECT r.patient_id, r.in_denominator, r.in_numerator, coalesce(r.excluded, fals
  ORDER BY (g.status = 'open') DESC NULLS LAST, r.in_denominator DESC, r.patient_id
 """
 
-_RUN_CANDIDATE_PATIENTS = """
-WITH eligible_patients AS (
-    SELECT DISTINCT ON (r.resource_id) r.resource_id AS patient_id, r.updated_at AS stored_at, r.job_id
-      FROM fhir_resources r
-     WHERE r.resource_type = 'Patient'
-       AND r.persisted
-       AND r.lifecycle_status <> 'rejected'
-     ORDER BY r.resource_id, r.updated_at DESC
-)
-"""
+_RUN_CANDIDATE_PATIENTS = _CURRENT_BATCH_PATIENTS
 
 _RUN_CANDIDATES = _RUN_CANDIDATE_PATIENTS + """
 SELECT p.patient_id, p.stored_at, s.bytes AS input_bytes
@@ -138,7 +152,7 @@ def patients(conn: psycopg.Connection, measure_id: str) -> dict:
 
 
 def run_candidates(conn: psycopg.Connection, offset: int, limit: int) -> dict:
-    """Return one small page of every stored patient that may be selected for an engine run."""
+    """Return one small page of patients from the latest calculation-ready batch."""
     page_size = min(max(limit, 1), 10)
     page_offset = max(offset, 0)
     with conn.cursor(row_factory=dict_row) as cur:
@@ -146,9 +160,3 @@ def run_candidates(conn: psycopg.Connection, offset: int, limit: int) -> dict:
         total = cur.execute(_RUN_CANDIDATE_COUNT).fetchone()["count"]
         patient_ids = [row["patient_id"] for row in cur.execute(_RUN_CANDIDATE_IDS).fetchall()]
     return {"patients": rows, "offset": page_offset, "limit": page_size, "total": total, "patient_ids": patient_ids}
-
-
-def run_candidate_ids(conn: psycopg.Connection) -> tuple[str, ...]:
-    """Return all persisted patient IDs accepted by the calculation runner."""
-    with conn.cursor(row_factory=dict_row) as cur:
-        return tuple(row["patient_id"] for row in cur.execute(_RUN_CANDIDATE_IDS).fetchall())

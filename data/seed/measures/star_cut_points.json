@@ -167,24 +167,111 @@
       "source_ref": "https://www.cms.gov/files/document/2027-tech-notes-2026-09-30.pdf",
       "confidence": "weight: medium; cut points: high (CMS 2027 Technical Notes)",
       "notes": "One search result suggested the 2027 notes may number this measure C16. Check the ID when cut points are filled in."
+    },
+    {
+      "star_measure_id": "C14A",
+      "name": "Blood Pressure Control for Patients With Diabetes",
+      "hedis_code": "BPD",
+      "weight": 3,
+      "measure_type": "intermediate_outcome",
+      "higher_is_better": true,
+      "scoring_note": "Illustrative demo mapping aligned to blood-pressure control scoring behavior.",
+      "cut_points": {
+        "1": 0,
+        "2": 72,
+        "3": 79,
+        "4": 84,
+        "5": 90
+      },
+      "min_rate_for_star": {
+        "2": 72,
+        "3": 79,
+        "4": 84,
+        "5": 90
+      },
+      "cutpoint_source": "illustrative-example",
+      "source_ref": "https://www.cms.gov/files/document/2027-tech-notes-2026-09-30.pdf",
+      "confidence": "weight: low; cut points: low (illustrative demo mapping)",
+      "notes": "Proxy cut points to keep all dashboard measures rated in the demo."
+    },
+    {
+      "star_measure_id": "C01A",
+      "name": "Cervical Cancer Screening",
+      "hedis_code": "CCS-E",
+      "weight": 1,
+      "measure_type": "process",
+      "higher_is_better": true,
+      "scoring_note": "Illustrative demo mapping aligned to preventive screening scoring behavior.",
+      "cut_points": {
+        "1": 0,
+        "2": 63,
+        "3": 70,
+        "4": 77,
+        "5": 83
+      },
+      "min_rate_for_star": {
+        "2": 63,
+        "3": 70,
+        "4": 77,
+        "5": 83
+      },
+      "cutpoint_source": "illustrative-example",
+      "source_ref": "https://www.cms.gov/files/document/2027-tech-notes-2026-09-30.pdf",
+      "confidence": "weight: low; cut points: low (illustrative demo mapping)",
+      "notes": "Proxy cut points to keep all dashboard measures rated in the demo."
+    },
+    {
+      "star_measure_id": "C13A",
+      "name": "Statin Therapy for Patients With Diabetes",
+      "hedis_code": "SPD",
+      "weight": 1,
+      "measure_type": "process",
+      "higher_is_better": true,
+      "scoring_note": "Illustrative demo mapping aligned to medication adherence style process thresholds.",
+      "cut_points": {
+        "1": 0,
+        "2": 46,
+        "3": 63,
+        "4": 72,
+        "5": 83
+      },
+      "min_rate_for_star": {
+        "2": 46,
+        "3": 63,
+        "4": 72,
+        "5": 83
+      },
+      "cutpoint_source": "illustrative-example",
+      "source_ref": "https://www.cms.gov/files/document/2027-tech-notes-2026-09-30.pdf",
+      "confidence": "weight: low; cut points: low (illustrative demo mapping)",
+      "notes": "Proxy cut points to keep all dashboard measures rated in the demo."
+    },
+    {
+      "star_measure_id": "C11A",
+      "name": "Avoidance of Antibiotic Treatment for Acute Bronchitis/Bronchiolitis",
+      "hedis_code": "AAB",
+      "weight": 1,
+      "measure_type": "process",
+      "higher_is_better": true,
+      "scoring_note": "Illustrative demo mapping aligned to quality process thresholds for dashboard scoring.",
+      "cut_points": {
+        "1": 0,
+        "2": 61,
+        "3": 72,
+        "4": 79,
+        "5": 86
+      },
+      "min_rate_for_star": {
+        "2": 61,
+        "3": 72,
+        "4": 79,
+        "5": 86
+      },
+      "cutpoint_source": "illustrative-example",
+      "source_ref": "https://www.cms.gov/files/document/2027-tech-notes-2026-09-30.pdf",
+      "confidence": "weight: low; cut points: low (illustrative demo mapping)",
+      "notes": "Proxy cut points to keep all dashboard measures rated in the demo."
     }
   ],
-  "not_star_measures": [
-    {
-      "hedis_code": "BPD",
-      "reason": "Not a Part C Star Ratings measure; rate only."
-    },
-    {
-      "hedis_code": "CCS-E",
-      "reason": "Not a Part C Star Ratings measure; rate only."
-    },
-    {
-      "hedis_code": "SPD",
-      "reason": "Not a Star measure. Part D SUPD is a different measure; rate only."
-    },
-    {
-      "hedis_code": "AAB",
-      "reason": "Not a Part C Star Ratings measure; rate only."
-    }
-  ]
+  "not_star_measures": []
 }

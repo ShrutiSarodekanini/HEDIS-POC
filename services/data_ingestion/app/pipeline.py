@@ -343,6 +343,8 @@ def _run_streaming_conversion(job_id: str, input_dir: str, adapter: Any) -> None
         )
         stage(job_id, "mapping", "running", "Mapping and persisting records in bounded batches")
         stage(job_id, "validation", "running", "Validating resources during streaming")
+        stage(job_id, "fhir_generation", "running", "Generating FHIR resources during streaming conversion")
+        stage(job_id, "postgresql_storage", "running", "Persisting validated resources during streaming conversion")
 
         coverage_records: list[Any] = []
         batch: list[Any] = []

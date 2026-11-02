@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import asyncio
 import json
@@ -151,7 +151,7 @@ def _detect_adapter_from_files(file_list: list[str], dataset_dir: Path | None = 
     """
     lower_files = {f.lower() for f in file_list}
     
-    # C-CDA/CCD documents → ccda_hie
+    # C-CDA/CCD documents ΓåÆ ccda_hie
     if any(f.endswith(('.xml', '.ccda')) for f in lower_files):
         return "ccda_hie"
     
@@ -164,11 +164,11 @@ def _detect_adapter_from_files(file_list: list[str], dataset_dir: Path | None = 
     ):
         return "ehr_fhir_r4"
     
-    # Claims 837 files → claims_837
+    # Claims 837 files ΓåÆ claims_837
     if any(f.endswith('.837') or f.endswith('_837') for f in lower_files):
         return "claims_837"
     
-    # NCPDP pharmacy files → ncpdp_pharmacy
+    # NCPDP pharmacy files ΓåÆ ncpdp_pharmacy
     # Matches: ncpdp*.*, *.ncpdp, *.ncpdp.txt, *_ncpdp*
     if any(
         f.startswith('ncpdp') or 
