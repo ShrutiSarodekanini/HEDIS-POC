@@ -1,14 +1,14 @@
 """Add transactional outbox and inbox tables for RabbitMQ delivery.
 
-Revision ID: 0009
-Revises: 0008
-Create Date: 2026-10-28
+Revision ID: 0013_reliable_messaging
+Revises: 0012_user_approval
+Create Date: 2026-11-02
 """
 
 from alembic import op
 
-revision = "0009"
-down_revision = "0008"
+revision = "0013_reliable_messaging"
+down_revision = "0012_user_approval"
 branch_labels = None
 depends_on = None
 
