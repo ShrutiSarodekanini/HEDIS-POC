@@ -109,7 +109,11 @@ const starWhatIfInFlight = new Map<string, Promise<StarWhatIfResult>>()
 
 const now = (): number => Date.now()
 
-const starOverviewCacheKey = (mode: StarCapabilities["mode"]): string => mode
+const starOverviewCacheKey = (
+  mode: StarCapabilities["mode"],
+  measureId: string | null,
+  selectedGapIds: string[],
+): string => `${mode}|${measureId ?? ""}|${[...selectedGapIds].sort().join(",")}`
 
 const starWhatIfCacheKey = (
   mode: StarCapabilities["mode"],
@@ -189,6 +193,8 @@ const mapDashboardMeasureCards = (dashboard: StarDashboardResponse): StarMeasure
     measureId: row.measure_id,
     measureName: row.measure_name,
     measurementYear: row.measurement_year,
+    weight: row.weight ?? null,
+    measureType: row.measure_type ?? null,
     starEligible: row.star_eligible,
     total: row.total_gaps,
     baselineNumerator: row.baseline_closed,
@@ -199,6 +205,46 @@ const mapDashboardMeasureCards = (dashboard: StarDashboardResponse): StarMeasure
     projectedStar: row.projected_star,
     starDelta: row.star_delta,
   }))
+
+const calculateOverallFromMeasureCards = (measureCards: StarMeasureCard[]): NonNullable<StarOverview["overall"]> => {
+  const ratedMeasures = measureCards.filter((row) => row.starEligible).length
+  const ratedWithData = measureCards.filter(
+    (row) => row.starEligible && row.baselineStar != null && row.projectedStar != null,
+  )
+
+  const weightedAverage = (rows: StarMeasureCard[], starKey: "baselineStar" | "projectedStar"): number | null => {
+    let totalWeight = 0
+    let weightedSum = 0
+
+    for (const row of rows) {
+      const star = row[starKey]
+      if (star == null) {
+        continue
+      }
+      const weight = row.weight != null && row.weight > 0 ? row.weight : 1
+      totalWeight += weight
+      weightedSum += star * weight
+    }
+
+    if (totalWeight <= 0) {
+      return null
+    }
+    return Number((weightedSum / totalWeight).toFixed(2))
+  }
+
+  const baselineStar = weightedAverage(ratedWithData, "baselineStar")
+  const projectedStar = weightedAverage(ratedWithData, "projectedStar")
+
+  return {
+    ratedMeasures,
+    ratedMeasuresWithData: ratedWithData.length,
+    totalMeasures: measureCards.length,
+    unratedMeasures: Math.max(measureCards.length - ratedMeasures, 0),
+    baselineStar,
+    projectedStar,
+    delta: baselineStar == null || projectedStar == null ? null : Number((projectedStar - baselineStar).toFixed(2)),
+  }
+}
 
 const mapIntegrationMeasureCards = (
   calculation: IntegrationCalculationResponse | null,
@@ -266,10 +312,12 @@ export async function discoverStarCapabilities(): Promise<StarCapabilities> {
 
 export async function loadStarOverview(
   capabilities: StarCapabilities,
-  options?: { forceFresh?: boolean },
+  options?: { forceFresh?: boolean; measureId?: string | null; selectedGapIds?: string[] },
 ): Promise<StarOverview> {
   const forceFresh = Boolean(options?.forceFresh)
-  const key = starOverviewCacheKey(capabilities.mode)
+  const selectedGapIds = options?.selectedGapIds ?? []
+  const measureId = options?.measureId ?? null
+  const key = starOverviewCacheKey(capabilities.mode, measureId, selectedGapIds)
 
   if (!forceFresh) {
     const cached = starOverviewCache.get(key)
@@ -303,6 +351,9 @@ export async function loadStarOverview(
         measureCards,
         overall: {
           ratedMeasures: measureCards.filter((row) => row.starEligible).length,
+          ratedMeasuresWithData: measureCards.filter((row) => row.starEligible && row.total > 0).length,
+          totalMeasures: measureCards.length,
+          unratedMeasures: measureCards.filter((row) => !row.starEligible).length,
           baselineStar: null,
           projectedStar: null,
           delta: null,
@@ -316,11 +367,14 @@ export async function loadStarOverview(
         withApiBase(envConfig.dashboardSummaryPath),
         timeoutMs,
         {
-          measure_id: envConfig.dashboardDefaultMeasureId ?? null,
-          selected_gap_ids: [],
+          measure_id: measureId ?? envConfig.dashboardDefaultMeasureId ?? null,
+          selected_gap_ids: selectedGapIds,
         },
       ),
     ])
+
+    const measureCards = mapDashboardMeasureCards(dashboard)
+    const calculatedOverall = calculateOverallFromMeasureCards(measureCards)
 
     return {
       mode: "dashboard",
@@ -329,13 +383,8 @@ export async function loadStarOverview(
       catalogUrl: catalog.cms_measure_set_url,
       notesUrl: catalog.cms_technical_notes_url,
       measures: mapDashboardCatalogMeasures(catalog),
-      measureCards: mapDashboardMeasureCards(dashboard),
-      overall: {
-        ratedMeasures: dashboard.overall.rated_measure_count,
-        baselineStar: dashboard.overall.baseline_star,
-        projectedStar: dashboard.overall.projected_star,
-        delta: dashboard.overall.star_delta,
-      },
+      measureCards,
+      overall: calculatedOverall,
     } satisfies StarOverview
   })()
     .then((value) => {
