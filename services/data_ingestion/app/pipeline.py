@@ -8,12 +8,14 @@ from itertools import groupby
 from typing import Any
 
 from pydantic import ValidationError
+from sqlalchemy import func, select, tuple_
 
 from .adapters import registry
 from .config import settings
 from .db import session_scope
 from .mapping import bundles_by_patient, map_dataset, map_source_record, normalize_resource, validation_issue
 from .models import (
+    ConversionJob,
     FhirResource,
 )
 from .repository import (
@@ -380,6 +382,26 @@ def _run_streaming_conversion(job_id: str, input_dir: str, adapter: Any) -> None
                     persisted=True,
                 )
                 session.flush()
+                resource_keys = [(resource.resource_type, resource.resource_id) for resource in valid_batch]
+                rows_by_key = {
+                    (row.resource_type, row.resource_id): row
+                    for row in session.execute(
+                        select(FhirResource).where(
+                            FhirResource.job_id == job_id,
+                            tuple_(FhirResource.resource_type, FhirResource.resource_id).in_(resource_keys),
+                        )
+                    ).scalars()
+                }
+                resources_by_type_for_extraction: dict[str, list[tuple[FhirResource, dict[str, Any]]]] = {}
+                for resource in valid_batch:
+                    if resource.resource_type != "Patient":
+                        continue
+                    row = rows_by_key.get((resource.resource_type, resource.resource_id))
+                    if row is None:
+                        continue
+                    resources_by_type_for_extraction.setdefault(resource.resource_type, []).append((row, resource.fhir))
+                if resources_by_type_for_extraction:
+                    batch_extract_denormalized(session, resources_by_type_for_extraction)
             session.flush()
             session.commit()
             persistence_seconds += time.perf_counter() - persistence_start
@@ -793,9 +815,6 @@ def run_persist_stage(job_id: str) -> int:
     with session_scope() as session:
         persisted = mark_validated_resources_persisted(session, job_id)
 
-        from sqlalchemy import func, select
-        from .models import FhirResource
-
         total_persisted = (
             session.execute(
                 select(func.count())
@@ -804,8 +823,6 @@ def run_persist_stage(job_id: str) -> int:
             ).scalar()
             or 0
         )
-
-        from .models import ConversionJob
 
         job = session.get(ConversionJob, job_id)
         if job:

@@ -3,7 +3,7 @@ from __future__ import annotations
 import datetime as dt
 from typing import Any
 
-from sqlalchemy import exists, inspect, select
+from sqlalchemy import exists, inspect, select, text
 from sqlalchemy.orm import Session
 
 from common.models import CareGap, Measure, Member, SyntheaRecord
@@ -12,6 +12,10 @@ from common.models import CareGap, Measure, Member, SyntheaRecord
 class Repository:
     def __init__(self, session: Session) -> None:
         self.session = session
+
+    def table_exists(self, table_name: str) -> bool:
+        inspector = inspect(self.session.bind)
+        return inspector.has_table(table_name)
 
     def get_member(self, member_id: str) -> Member | None:
         return self.session.get(Member, member_id)
@@ -22,9 +26,18 @@ class Repository:
     def get_measure(self, measure_id: str) -> Measure | None:
         return self.session.get(Measure, measure_id)
 
-    def list_care_gaps(self) -> list[CareGap]:
-        statement = select(CareGap).order_by(CareGap.care_gap_id.asc())
-        return list(self.session.scalars(statement))
+    def list_care_gaps(self) -> list[dict[str, Any]]:
+        """Return care gaps as dictionaries with compatibility for optional columns."""
+        inspector = inspect(self.session.bind)
+        columns = {item["name"] for item in inspector.get_columns("care_gaps")}
+        date_identified_sql = "date_identified" if "date_identified" in columns else "NULL::date AS date_identified"
+        statement = text(
+            "SELECT care_gap_id, member_id, measure_id, description, status, "
+            f"{date_identified_sql}, measurement_year "
+            "FROM care_gaps ORDER BY care_gap_id ASC"
+        )
+        rows = self.session.execute(statement).mappings().all()
+        return [dict(row) for row in rows]
 
     def get_supporting_records(
         self,

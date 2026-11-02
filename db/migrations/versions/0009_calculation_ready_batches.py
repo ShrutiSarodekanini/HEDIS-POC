@@ -1,14 +1,14 @@
 """Allow loaded batches to wait for an explicitly selected engine calculation.
 
-Revision ID: 0009
-Revises: 0008
+Revision ID: 0011_calculation_ready_batches
+Revises: 0010_local_auth
 Create Date: 2026-10-27
 """
 
 from alembic import op
 
-revision = "0009"
-down_revision = "0008"
+revision = "0011_calculation_ready_batches"
+down_revision = "0010_local_auth"
 branch_labels = None
 depends_on = None
 
