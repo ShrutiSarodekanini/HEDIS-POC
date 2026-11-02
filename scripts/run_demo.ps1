@@ -25,6 +25,8 @@
 # Prometheus on http://localhost:9090 in Docker when it is running, else PROMETHEUS_EXE or prometheus.exe on PATH.
 # In Docker it also starts Grafana on http://localhost:3000 (dashboard HEDIS pipeline), and Loki with Alloy, which keep
 # the app's log (logs/hedis-integration.log) searchable in Grafana > Explore > HEDIS logs. These need Docker.
+# Prometheus also scrapes the new UI's backend (root app.py, UI_BACKEND_PORT, default 8000) and Alloy reads its
+# logs/hedis-app.log; both show on the "HEDIS new UI" dashboard. app.py and the UI are started on their own (README).
 # Nothing is downloaded. Stop all four Docker ones with: docker compose -f observability/docker-compose.yml down
 
 param([switch]$Setup, [switch]$Integration, [string]$Schema = "", [string]$EvidenceDir = "data/evidence_store",
@@ -55,10 +57,15 @@ function Start-Observability([string]$Port) {
     $exe = if ($env:PROMETHEUS_EXE -and (Test-Path $env:PROMETHEUS_EXE)) { (Resolve-Path $env:PROMETHEUS_EXE).Path }
            else { (Get-Command prometheus.exe -ErrorAction SilentlyContinue).Source }
     $target = if ($useDocker) { "host.docker.internal:$Port" } else { "localhost:$Port" }
+    $uiPort = if ($env:UI_BACKEND_PORT) { $env:UI_BACKEND_PORT }
+              elseif ($envText -match "(?m)^\s*UI_BACKEND_PORT\s*=\s*(\d+)\s*$") { $Matches[1] } else { "8000" }
+    $uiTarget = if ($useDocker) { "host.docker.internal:$uiPort" } else { "localhost:$uiPort" }
     $config = Join-Path $dir "prometheus.yml"
     $template = Get-Content (Join-Path $RepoRoot "observability/prometheus.yml.template") -Raw
-    [System.IO.File]::WriteAllText($config, $template.Replace("__TARGET__", $target))   # UTF-8 without a BOM
+    # UTF-8 without a BOM
+    [System.IO.File]::WriteAllText($config, $template.Replace("__TARGET__", $target).Replace("__UI_TARGET__", $uiTarget))
     Write-Host "`n== Metrics: http://localhost:$Port/metrics (Prometheus target $target)" -ForegroundColor Cyan
+    Write-Host "New UI backend metrics: http://localhost:$uiPort/metrics (Prometheus target $uiTarget)" -ForegroundColor Cyan
     if ($useDocker) {
         # docker compose does not read the root .env, so pass the Grafana passwords on for this process only.
         foreach ($key in "GRAFANA_ADMIN_PASSWORD", "GRAFANA_DB_PASSWORD") {
@@ -77,8 +84,8 @@ function Start-Observability([string]$Port) {
             Write-Host "Warning: Prometheus did not start in Docker; the app starts anyway." -ForegroundColor Yellow
         } else {
             Write-Host "Prometheus: http://localhost:9090" -ForegroundColor Cyan
-            Write-Host ("Grafana: http://localhost:3000 (dashboards HEDIS pipeline and HEDIS run history; admin login " +
-                "only to edit)") -ForegroundColor Cyan
+            Write-Host ("Grafana: http://localhost:3000 (dashboards HEDIS pipeline, HEDIS run history and HEDIS new UI; " +
+                "admin login only to edit)") -ForegroundColor Cyan
             Write-Host "Logs: Grafana > Explore > HEDIS logs" -ForegroundColor Cyan
             Write-Host "Stop all four: docker compose -f observability/docker-compose.yml down" -ForegroundColor Cyan
         }

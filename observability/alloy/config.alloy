@@ -1,11 +1,17 @@
-// Tails the integration app's log file (repo logs/, mounted read-only), masks file names and OpenRouter user ids,
-// and pushes the lines to Loki. Traceback lines are joined to the log line they belong to.
+// Tails the integration app's log and the new UI backend's log (repo logs/, mounted read-only), masks emails, file
+// names and OpenRouter user ids, and pushes the lines to Loki. Traceback lines are joined to their log line.
 
 local.file_match "hedis" {
-  path_targets = [{
-    "__path__" = "/var/log/hedis/hedis-integration*.log",
-    "job"      = "hedis-integration",
-  }]
+  path_targets = [
+    {
+      "__path__" = "/var/log/hedis/hedis-integration*.log",
+      "job"      = "hedis-integration",
+    },
+    {
+      "__path__" = "/var/log/hedis/hedis-app*.log",
+      "job"      = "hedis-ui-backend",
+    },
+  ]
 }
 
 loki.source.file "hedis" {
@@ -24,6 +30,12 @@ loki.process "hedis" {
   stage.drop {
     expression          = `"GET /metrics HTTP/`
     drop_counter_reason = "metrics_scrape"
+  }
+
+  // Email addresses (sign-in and admin screens).
+  stage.replace {
+    expression = `([A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,})`
+    replace    = "<email>"
   }
 
   // Document file names (upload names can contain a patient's name). .py paths are left alone for tracebacks.

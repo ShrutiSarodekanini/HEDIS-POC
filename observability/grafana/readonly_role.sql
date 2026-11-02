@@ -35,3 +35,16 @@ GRANT SELECT (run_id, engine, engine_version, measure_spec_version, measurement_
     ON hedis.engine_runs TO hedis_grafana_ro;
 GRANT SELECT (id, reviewer, decision, reject_reason_code, decided_at)
     ON hedis.review_decisions TO hedis_grafana_ro;
+
+-- "HEDIS new UI" dashboard (root app.py). Left out on purpose: conversion_jobs.input_dir and summary (paths and upload
+-- names), validation_issues.diagnostic, source_file, resource_id and source_record_id (can quote source records),
+-- app_user.email and password_hash, auth_session.token_hash.
+GRANT SELECT (id, status, started_at, completed_at, total_source_records, resources_generated, resources_validated,
+              resources_persisted, warning_count, error_count, batch_id)
+    ON hedis.conversion_jobs TO hedis_grafana_ro;
+GRANT SELECT (id, job_id, resource_type, severity, issue_category, error_code, field_path, created_at)
+    ON hedis.validation_issues TO hedis_grafana_ro;
+GRANT SELECT (user_id, role, is_active, access_status, created_at, updated_at)
+    ON hedis.app_user TO hedis_grafana_ro;
+GRANT SELECT (session_id, user_id, created_at, expires_at, revoked_at)
+    ON hedis.auth_session TO hedis_grafana_ro;

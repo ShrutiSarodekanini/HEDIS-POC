@@ -31,6 +31,18 @@
       "asDropdown": false,
       "tags": [],
       "tooltip": "Every batch, AI call, quality check, engine run and review, with errors (Postgres)"
+    },
+    {
+      "title": "New UI",
+      "type": "link",
+      "url": "/d/hedis-new-ui",
+      "icon": "dashboard",
+      "keepTime": true,
+      "includeVars": false,
+      "targetBlank": false,
+      "asDropdown": false,
+      "tags": [],
+      "tooltip": "The React UI's backend (app.py) and browser errors"
     }
   ],
   "panels": [

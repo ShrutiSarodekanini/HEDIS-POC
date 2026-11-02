@@ -82,6 +82,34 @@ file names become `<file>` and OpenRouter user ids become `<user>` on the way (t
 them in Grafana > Explore > HEDIS logs, for example `{job="hedis-integration"} |= "error"` or
 `{job="hedis-integration", level="ERROR"}`. The overview has a Logs row, and run history shows the ERROR lines.
 
+#### Monitoring the new React UI (app.py on 8000, UI on 5173)
+
+Three terminals from the repo root:
+
+```powershell
+# 1. monitoring (Prometheus, Grafana, Loki, Alloy) plus the integration app on 8780
+powershell -ExecutionPolicy Bypass -File scripts/run_demo.ps1 -Integration -Observability
+# 2. the new UI's backend
+python -m uvicorn app:app --host 127.0.0.1 --port 8000 --reload
+# 3. the UI
+cd ui; npm run dev
+```
+
+Prometheus scrapes app.py at http://localhost:8000/metrics as job `hedis-ui-backend` (port from `UI_BACKEND_PORT`
+in `.env`, default 8000); both targets show on http://localhost:9090/targets. app.py writes `logs/hedis-app.log`
+(same format and rotation; tracebacks keep their frames but not the exception text, and access lines show route
+templates with ids as `{id}`), which Alloy sends to Loki as job `hedis-ui-backend`, with emails masked as `<email>`
+in both logs. The browser reports JavaScript errors, unhandled promise rejections and failed API calls to
+`POST /api/client-errors` (route templates and a short masked message only, at most 30 a minute).
+
+Everything shows on the Grafana dashboard "HEDIS new UI" (link "New UI" on the overview): backend up, requests,
+4xx, 5xx and p95 time per route, requests to routes app.py does not serve (handler `none`), star calculations,
+evidence generations, gap automation runs, seed runs, sign-ins and admin changes, browser errors per minute, the
+backend log and its errors, and the ingestion jobs, validation issues, sign-in sessions and account changes from
+Postgres. Alerts `HedisUiBackendDown` and `HedisUiServerErrors` cover the backend. The metrics are defined in
+`common/app_metrics.py`. For the run history tables, rerun `observability/grafana/readonly_role.sql` (it is safe to
+run again) so the read-only login can read them.
+
 Useful queries (Prometheus, Graph tab):
 
 ```
