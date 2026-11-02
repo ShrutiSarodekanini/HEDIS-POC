@@ -433,7 +433,7 @@ def get_calculation_patients(measure_id: str, conn: psycopg.Connection = Depends
 
 class CalculationIn(BaseModel):
     measures: list[str] | None = None
-    patient_ids: list[str]
+    patient_ids: list[str] | None = None
 
 
 @app.post("/api/calculation/run", status_code=202)

@@ -1,17 +1,19 @@
 from __future__ import annotations
 
+import json
 import shutil
 import time
 import uuid
 import zipfile
 from pathlib import Path
+from typing import Any
 
 from fastapi import APIRouter, File, HTTPException, Request, UploadFile
 from starlette.datastructures import UploadFile as StarletteUploadFile
 
+from .adapters import registry
 from .config import settings
 from .db import session_scope
-from .adapters import registry
 from .models import FhirResource
 from .pipeline import STAGES, job_manager, launch_job, run_persist_stage
 from .repository import (
@@ -25,8 +27,9 @@ from .repository import (
 )
 from .synthea import SUPPORTED_FILES, discover_dataset
 
-
 router = APIRouter(prefix="/api", tags=["conversion"])
+_BP_MEASURE_HINTS = ("BPD", "CBP", "CMS165", "CONTROLLINGHIGHBP")
+_BP_OBSERVATION_CODES = {"8480-6", "8462-4", "85354-9"}
 
 
 def _require_input_dir(input_dir: str) -> str:
@@ -541,8 +544,54 @@ def get_job_resources(job_id: str) -> dict:
 def get_job_patients(job_id: str) -> dict:
     with session_scope() as session:
         resources = list_resources_for_job(session, job_id)
-        patients = sorted({r.patient_id for r in resources if r.patient_id})
-    return {"job_id": job_id, "patients": patients}
+
+    patient_stats: dict[str, dict[str, object]] = {}
+    for resource in resources:
+        patient_id = (resource.patient_id or "").strip()
+        if not patient_id:
+            continue
+
+        stats = patient_stats.setdefault(
+            patient_id,
+            {
+                "patient_id": patient_id,
+                "resource_count": 0,
+                "estimated_size_bytes": 0,
+                "saved_at": None,
+            },
+        )
+
+        stats["resource_count"] = int(stats["resource_count"]) + 1
+
+        if resource.resource_json is not None:
+            try:
+                payload_bytes = len(
+                    json.dumps(resource.resource_json, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
+                )
+            except (TypeError, ValueError):
+                payload_bytes = 0
+            stats["estimated_size_bytes"] = int(stats["estimated_size_bytes"]) + payload_bytes
+
+        last_seen = stats["saved_at"]
+        candidate = resource.updated_at or resource.created_at
+        if candidate is not None and (last_seen is None or candidate > last_seen):
+            stats["saved_at"] = candidate
+
+    patients = sorted(patient_stats)
+    patient_details = []
+    for patient_id in patients:
+        stats = patient_stats[patient_id]
+        saved_at = stats["saved_at"]
+        patient_details.append(
+            {
+                "patient_id": patient_id,
+                "resource_count": int(stats["resource_count"]),
+                "estimated_size_bytes": int(stats["estimated_size_bytes"]),
+                "saved_at": saved_at.isoformat() if saved_at is not None else None,
+            }
+        )
+
+    return {"job_id": job_id, "patients": patients, "patient_details": patient_details}
 
 
 @router.get("/jobs/{job_id}/patients/{patient_id}/resources")
@@ -582,9 +631,11 @@ def get_coverage_report(
     limit: int = 1000,
 ) -> dict:
     """Get coverage data with optional filtering for gap analysis dashboard."""
-    from .models import Coverage
     from datetime import datetime
-    from sqlalchemy import select, and_
+
+    from sqlalchemy import and_, select
+
+    from .models import Coverage
 
     with session_scope() as session:
         query = select(Coverage)
@@ -652,8 +703,9 @@ def get_coverage_report(
 @router.get("/coverage/patient/{patient_id}")
 def get_patient_coverage(patient_id: str) -> dict:
     """Get all coverage records for a specific patient."""
-    from .models import Coverage
     from sqlalchemy import select
+
+    from .models import Coverage
 
     with session_scope() as session:
         coverages = session.execute(
@@ -711,57 +763,217 @@ def get_coverage_gaps(coverage_id: str) -> dict:
 # ========== Integration/Measures Support Functions ==========
 
 def _extract_root_library_reference(path: str | Path) -> str:
-    """Extract root library reference from a measure bundle or library path.
-    
-    Used by integration/measures.py to identify the main library
-    in a FHIR measure implementation guide.
-    """
-    if isinstance(path, str):
-        path = Path(path)
-    
-    # Default to library name from filename
-    return path.stem or "Library/root"
+    """Return a measure bundle's root Library identifier from its FHIR resources."""
+    bundle_path = Path(path)
+    payload = json.loads(bundle_path.read_text(encoding="utf-8"))
+    if not isinstance(payload, dict):
+        raise TypeError(f"Measure bundle {bundle_path.name} must contain a FHIR resource object.")
 
-
-def _maybe_prune_run_request_bundle(bundle: dict, measure_id: str, path: str | Path) -> None:
-    """Optionally prune a run request bundle to remove unnecessary resources.
-    
-    Modifies bundle in place to remove resources that are not needed for
-    FQM execution to reduce payload size and improve performance.
-    Used by integration/measures.py during measure execution.
-    """
-    if not isinstance(bundle, dict):
-        return
-    
-    # Remove ValueSet resources (they're referenced but not needed for execution)
-    if "entry" in bundle and isinstance(bundle["entry"], list):
-        bundle["entry"] = [
-            entry for entry in bundle["entry"]
-            if not isinstance(entry, dict) or entry.get("resource", {}).get("resourceType") != "ValueSet"
+    if payload.get("resourceType") == "Bundle":
+        entries = payload.get("entry")
+        if not isinstance(entries, list):
+            raise ValueError(f"Measure bundle {bundle_path.name} has no FHIR entries.")
+        resources = [
+            entry["resource"]
+            for entry in entries
+            if isinstance(entry, dict) and isinstance(entry.get("resource"), dict)
         ]
+    else:
+        resources = [payload]
+
+    libraries = [resource for resource in resources if resource.get("resourceType") == "Library"]
+    measures = [resource for resource in resources if resource.get("resourceType") == "Measure"]
+
+    if measures:
+        references = measures[0].get("library")
+        if not isinstance(references, list) or not references:
+            raise ValueError(f"Measure bundle {bundle_path.name} has no root Library reference.")
+        for reference in references:
+            if not isinstance(reference, str) or not reference.strip():
+                continue
+            canonical = reference.split("|", 1)[0].rstrip("/")
+            for library in libraries:
+                identifier = library.get("id") or library.get("name")
+                if not isinstance(identifier, str) or not identifier.strip():
+                    continue
+                if canonical == library.get("url") or canonical.rsplit("/", 1)[-1] == identifier:
+                    return identifier
+        raise LookupError(f"Measure bundle {bundle_path.name} does not contain its referenced root Library.")
+
+    if len(libraries) == 1:
+        identifier = libraries[0].get("id") or libraries[0].get("name")
+        if isinstance(identifier, str) and identifier.strip():
+            return identifier
+
+    raise LookupError(f"Measure bundle {bundle_path.name} has no unambiguous root Library.")
+
+
+def _is_bp_measure_request(measure_id: str, bundle_path: Path) -> bool:
+    probe = f"{measure_id}|{bundle_path.name}|{bundle_path.parent.name}".upper()
+    return any(hint in probe for hint in _BP_MEASURE_HINTS)
+
+
+def _observation_is_bp_related(resource: dict[str, Any]) -> bool:
+    codings = (resource.get("code") or {}).get("coding") or []
+    if any(isinstance(coding, dict) and coding.get("code") in _BP_OBSERVATION_CODES for coding in codings):
+        return True
+    text = json.dumps(resource).lower()
+    return any(term in text for term in ("blood pressure", "systolic", "diastolic"))
+
+
+def _prune_bp_bundle_payload(payload: dict[str, Any]) -> tuple[dict[str, Any], int, int]:
+    if payload.get("resourceType") != "Bundle":
+        return payload, 0, 0
+
+    entries = payload.get("entry")
+    if not isinstance(entries, list):
+        raise TypeError("Blood pressure engine bundle has no FHIR entries.")
+
+    kept_types = {
+        "Patient",
+        "Encounter",
+        "Condition",
+        "Observation",
+        "Procedure",
+        "MedicationRequest",
+        "CarePlan",
+        "Immunization",
+    }
+    kept_entries = []
+    removed_count = 0
+    for entry in entries:
+        resource = entry.get("resource") if isinstance(entry, dict) else None
+        if not isinstance(resource, dict):
+            removed_count += 1
+            continue
+        resource_type = resource.get("resourceType")
+        if resource_type not in kept_types or (
+            resource_type == "Observation" and not _observation_is_bp_related(resource)
+        ):
+            removed_count += 1
+            continue
+        kept_entries.append(entry)
+
+    if not removed_count:
+        return payload, len(entries), 0
+    pruned_payload = dict(payload)
+    pruned_payload["entry"] = kept_entries
+    return pruned_payload, len(kept_entries), removed_count
+
+
+def _maybe_prune_run_request_bundle(temp_path: Path, measure_id: str, bundle_path: Path) -> None:
+    """Reduce only BP measure bundles to the resources their CQL requires."""
+    if not _is_bp_measure_request(measure_id, bundle_path):
+        return
+
+    payload = json.loads(temp_path.read_text(encoding="utf-8"))
+    if not isinstance(payload, dict):
+        raise TypeError("Blood pressure engine bundle must contain a FHIR resource object.")
+    pruned_payload, _, removed_count = _prune_bp_bundle_payload(payload)
+    if removed_count:
+        temp_path.write_text(json.dumps(pruned_payload), encoding="utf-8")
 
 
 def _to_member_result(entry: dict, measure_id: str) -> dict:
-    """Convert a FHIRPath evaluation entry to a member result object.
-    
-    Transforms a single evaluation entry from FQM execution into
-    the format expected by the measures dashboard.
-    Used by integration/measures.py to format individual patient results.
-    """
+    """Normalize FQM detailed results into the shared measure-engine result contract."""
     if not isinstance(entry, dict):
-        return {"member_id": None, "result": None}
-    
-    # Extract patient reference if present
-    resource = entry.get("resource", {})
-    subject = resource.get("subject", {})
-    member_id = subject.get("reference", "").replace("Patient/", "") if isinstance(subject, dict) else None
-    
-    # Construct result object
+        raise TypeError("FQM engine returned a non-object patient result.")
+
+    patient_id = entry.get("patientId")
+    if not isinstance(patient_id, str) or not patient_id.strip():
+        raise ValueError("FQM engine result has no patient identifier.")
+
+    population_map: dict[str, bool | None] = {
+        "initial_population": None,
+        "denominator": None,
+        "denominator_exclusion": None,
+        "denominator_exception": None,
+        "numerator": None,
+    }
+    population_names = {
+        "initial_population": "initial_population",
+        "initial-population": "initial_population",
+        "ipp": "initial_population",
+        "denominator": "denominator",
+        "den": "denominator",
+        "denominator_exclusion": "denominator_exclusion",
+        "denominator-exclusion": "denominator_exclusion",
+        "denex": "denominator_exclusion",
+        "denominator_exception": "denominator_exception",
+        "denominator-exception": "denominator_exception",
+        "denexcep": "denominator_exception",
+        "numerator": "numerator",
+        "num": "numerator",
+    }
+    def _coerce_population_result(value: object) -> bool | None:
+        if isinstance(value, bool):
+            return value
+        if isinstance(value, int) and value in (0, 1):
+            return bool(value)
+        if isinstance(value, str):
+            lowered = value.strip().lower()
+            if lowered in {"true", "1"}:
+                return True
+            if lowered in {"false", "0"}:
+                return False
+        return None
+
+    detailed_results = entry.get("detailedResults")
+    if not isinstance(detailed_results, list):
+        raise TypeError(f"FQM engine result for measure {measure_id} has no detailed results.")
+
+    for group in detailed_results:
+        if not isinstance(group, dict):
+            continue
+        population_results = group.get("populationResults")
+        if not isinstance(population_results, list):
+            continue
+        for population in population_results:
+            if not isinstance(population, dict):
+                continue
+            population_type = population.get("populationType")
+            if not isinstance(population_type, str):
+                continue
+            key = population_names.get(population_type.strip().lower())
+            coerced = _coerce_population_result(population.get("result"))
+            if key is not None and coerced is not None:
+                population_map[key] = population_map[key] is True or coerced
+
+    errors: list[dict[str, str]] = []
+    denominator = population_map["denominator"] is True
+    numerator = population_map["numerator"]
+    if all(value is None for value in population_map.values()):
+        outcome = "unresolved_policy"
+        errors.append(
+            {
+                "message": (
+                    f"FQM engine returned no recognized population boolean results for measure {measure_id}."
+                )
+            }
+        )
+    elif not denominator:
+        outcome = "not_in_population"
+    elif numerator is True:
+        outcome = "numerator_met"
+    elif numerator is False:
+        outcome = "numerator_not_met"
+    else:
+        outcome = "unresolved_policy"
+        errors.append(
+            {
+                "message": (
+                    f"FQM engine returned denominator=true with no definitive numerator result for measure {measure_id}."
+                )
+            }
+        )
+
     return {
-        "member_id": member_id,
+        "member_id": patient_id,
         "measure_id": measure_id,
-        "resource_type": resource.get("resourceType"),
-        "status": resource.get("status"),
-        "result": entry.get("result"),
-        "expression_name": entry.get("expression"),
+        "status": "completed" if outcome != "unresolved_policy" else "unresolved",
+        "outcome": outcome,
+        "populations": population_map,
+        "data_quality_flags": [],
+        "warnings": [],
+        "errors": errors,
     }

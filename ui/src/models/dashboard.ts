@@ -20,6 +20,9 @@ export interface StarCatalogResponse {
 
 export interface StarDashboardOverall {
   rated_measure_count: number
+  rated_measure_with_data_count?: number
+  total_measure_count?: number
+  unrated_measure_count?: number
   baseline_star: number | null
   projected_star: number | null
   star_delta: number | null
@@ -29,13 +32,15 @@ export interface StarDashboardMeasureCard {
   measure_id: string
   measurement_year: number
   measure_name: string
+  weight?: number | null
+  measure_type?: string | null
   star_eligible: boolean
   rating_note: string
   total_gaps: number
   baseline_closed: number
   projected_closed: number
-  baseline_rate: number
-  projected_rate: number
+  baseline_rate: number | null
+  projected_rate: number | null
   baseline_star: number | null
   projected_star: number | null
   star_delta: number | null

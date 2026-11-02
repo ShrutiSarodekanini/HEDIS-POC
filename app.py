@@ -1,16 +1,17 @@
 from __future__ import annotations
 
 import asyncio
-from collections import defaultdict
-import json
 import datetime as dt
+import json
 import logging
 import os
 import threading
 import uuid
+from collections import defaultdict
+from collections.abc import Iterator
 from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import Iterator, Literal
+from typing import Literal
 
 import psycopg
 from fastapi import APIRouter, Depends, FastAPI, Header, HTTPException
@@ -36,10 +37,10 @@ from common.evidence import (
 from common.measure_performance import compare_measure
 from common.repository import Repository, row_to_dict
 from services.data_ingestion.app import api as ingestion_api
-from services.data_ingestion.app.db import session_scope as ingestion_session_scope
-from services.data_ingestion.app.repository import as_job_dict as ingestion_as_job_dict, list_jobs as ingestion_list_jobs
 from services.document_intake import db as intake_db
 from services.integration import auth as integration_auth
+from services.integration import calculation as integration_calculation
+from services.integration import pipeline as integration_pipeline
 from services.star_modeler.main import (
     CMS_MEASURE_SET_URL,
     CMS_RATING_YEAR,
@@ -116,6 +117,11 @@ class UserAccessIn(BaseModel):
 
 class UserRoleIn(BaseModel):
     role: Literal["admin", "user"]
+
+
+class CalculationRequest(BaseModel):
+    measures: list[str] | None = None
+    patient_ids: list[str] | None = None
 
 
 def get_auth_conn() -> Iterator[psycopg.Connection]:
@@ -235,6 +241,49 @@ def _load_engine_measure_counts(session: Session) -> dict[tuple[str, int], dict[
     return counts
 
 
+def _load_measure_catalog(session: Session) -> dict[tuple[str, int], dict[str, object]]:
+    """Load measure metadata used by the star dashboard from reference tables."""
+    try:
+        rows = session.execute(
+            text(
+                """SELECT d.measure_id,
+                          d.measurement_year,
+                          coalesce(r.name, d.measure_id) AS measure_name,
+                          w.weight,
+                          w.measure_type
+                     FROM measure_definition d
+                     LEFT JOIN measure_rule r
+                       ON r.measure_id = d.measure_id
+                      AND r.measurement_year = d.measurement_year
+                     LEFT JOIN measure_star_weight w
+                       ON w.measure_id = d.measure_id
+                      AND w.measurement_year = d.measurement_year
+                      AND w.star_year = :star_year
+                    ORDER BY d.measure_id, d.measurement_year"""
+            ),
+            {"star_year": CMS_RATING_YEAR},
+        ).all()
+    except SQLAlchemyError:
+        session.rollback()
+        return {}
+
+    catalog: dict[tuple[str, int], dict[str, object]] = {}
+    for row in rows:
+        measure_code = str(row[0])
+        measurement_year = int(row[1])
+        measure_name = str(row[2] or measure_code)
+        weight = row[3]
+        measure_type = str(row[4]) if row[4] is not None else None
+        catalog[(measure_code, measurement_year)] = {
+            "measure_id": measure_code,
+            "measurement_year": measurement_year,
+            "measure_name": measure_name,
+            "weight": int(weight) if weight is not None else None,
+            "measure_type": measure_type,
+        }
+    return catalog
+
+
 def _build_star_dashboard(
     session: Session,
     *,
@@ -245,11 +294,21 @@ def _build_star_dashboard(
 
     rows = _load_dashboard_rows(session)
     engine_counts = _load_engine_measure_counts(session)
+    catalog_entries = _load_measure_catalog(session)
 
     measure_stats: dict[str, dict[str, object]] = {}
     patient_stats: dict[str, dict[str, object]] = {}
     gaps_by_measure: dict[str, list[dict[str, object]]] = defaultdict(list)
     measure_names_by_id: dict[str, str] = {}
+    catalog_by_measure_id: dict[str, dict[str, object]] = {}
+
+    for entry in catalog_entries.values():
+        m_id = str(entry["measure_id"])
+        existing = catalog_by_measure_id.get(m_id)
+        if existing is None or int(entry["measurement_year"]) > int(existing["measurement_year"]):
+            catalog_by_measure_id[m_id] = entry
+        if m_id not in measure_names_by_id:
+            measure_names_by_id[m_id] = str(entry["measure_name"])
 
     for row in rows:
         gap_id = str(row["care_gap_id"])
@@ -258,7 +317,12 @@ def _build_star_dashboard(
         p_id = str(row["member_id"])
         is_closed = _is_closed_status(str(row.get("status") or ""))
         projected_closed = is_closed or (gap_id in selected_set)
-        measure_name = str(row.get("measure_name") or m_id)
+        catalog_entry = catalog_by_measure_id.get(m_id, {})
+        measure_name = str(
+            row.get("measure_name")
+            or catalog_entry.get("measure_name")
+            or m_id
+        )
         if m_id not in measure_names_by_id:
             measure_names_by_id[m_id] = measure_name
 
@@ -271,6 +335,8 @@ def _build_star_dashboard(
                 "baseline_closed": 0,
                 "projected_closed": 0,
                 "selected_open": 0,
+                "weight": catalog_entry.get("weight"),
+                "measure_type": catalog_entry.get("measure_type"),
             }
 
         measure_stats[m_id]["total"] = int(measure_stats[m_id]["total"]) + 1
@@ -315,18 +381,45 @@ def _build_star_dashboard(
         )
 
     for (m_id, measurement_year), counts in engine_counts.items():
+        catalog_entry = catalog_by_measure_id.get(m_id, {})
         if m_id not in measure_stats:
             measure_stats[m_id] = {
                 "measure_id": m_id,
                 "measurement_year": measurement_year,
-                "measure_name": measure_names_by_id.get(m_id, m_id),
+                "measure_name": measure_names_by_id.get(
+                    m_id,
+                    str(catalog_entry.get("measure_name") or m_id),
+                ),
                 "total": 0,
                 "baseline_closed": 0,
                 "projected_closed": 0,
                 "selected_open": 0,
+                "weight": catalog_entry.get("weight"),
+                "measure_type": catalog_entry.get("measure_type"),
             }
         measure_stats[m_id]["engine_denominator"] = counts["denominator"]
         measure_stats[m_id]["engine_numerator"] = counts["numerator"]
+
+    for entry in catalog_by_measure_id.values():
+        m_id = str(entry["measure_id"])
+        if m_id not in measure_stats:
+            measure_stats[m_id] = {
+                "measure_id": m_id,
+                "measurement_year": int(entry["measurement_year"]),
+                "measure_name": str(entry["measure_name"]),
+                "total": 0,
+                "baseline_closed": 0,
+                "projected_closed": 0,
+                "selected_open": 0,
+                "weight": entry.get("weight"),
+                "measure_type": entry.get("measure_type"),
+            }
+            continue
+
+        if measure_stats[m_id].get("weight") is None and entry.get("weight") is not None:
+            measure_stats[m_id]["weight"] = entry.get("weight")
+        if measure_stats[m_id].get("measure_type") is None and entry.get("measure_type") is not None:
+            measure_stats[m_id]["measure_type"] = entry.get("measure_type")
 
     measure_cards: list[dict[str, object]] = []
     for stat in measure_stats.values():
@@ -369,17 +462,22 @@ def _build_star_dashboard(
         )
         baseline_star = baseline_result.assigned_star_rating
         projected_star = projected_result.assigned_star_rating
+        measure_type = str(stat.get("measure_type") or "").strip().lower()
+        if star_eligible:
+            rating_note = "Projected star based on current measure rate and selected closure projection."
+        elif measure_type == "not_star":
+            rating_note = "Not in the CMS 2027 Medicare Advantage Star Ratings measure set (tracked as rate only)."
+        else:
+            rating_note = "No verified CMS star mapping configured for this measure."
         measure_cards.append(
             {
                 "measure_id": stat["measure_id"],
                 "measurement_year": measurement_year,
                 "measure_name": stat["measure_name"],
+                "weight": stat.get("weight"),
+                "measure_type": stat.get("measure_type"),
                 "star_eligible": star_eligible,
-                "rating_note": (
-                    "Projected star based on current measure rate and selected closure projection."
-                    if star_eligible
-                    else "No verified CMS star mapping configured for this measure."
-                ),
+                "rating_note": rating_note,
                 "total_gaps": total,
                 "baseline_closed": baseline_closed,
                 "projected_closed": projected_closed,
@@ -395,27 +493,38 @@ def _build_star_dashboard(
 
     measure_cards.sort(key=lambda item: str(item["measure_id"]))
 
-    rated_measure_cards = [
-        item for item in measure_cards if item["baseline_star"] is not None
+    rated_measure_count = sum(1 for item in measure_cards if bool(item["star_eligible"]))
+    rated_with_data_cards = [
+        item
+        for item in measure_cards
+        if bool(item["star_eligible"])
+        and item["baseline_star"] is not None
+        and item["projected_star"] is not None
     ]
-    baseline_overall = (
-        round(
-            sum(float(item["baseline_star"]) for item in rated_measure_cards)
-            / len(rated_measure_cards),
-            2,
-        )
-        if rated_measure_cards
-        else None
-    )
-    projected_overall = (
-        round(
-            sum(float(item["projected_star"]) for item in rated_measure_cards)
-            / len(rated_measure_cards),
-            2,
-        )
-        if rated_measure_cards
-        else None
-    )
+
+    def _weighted_overall(cards: list[dict[str, object]], star_key: str) -> float | None:
+        total_weight = 0.0
+        weighted_sum = 0.0
+        for item in cards:
+            star_value = item.get(star_key)
+            if not isinstance(star_value, (int, float)):
+                continue
+
+            weight_value = item.get("weight")
+            if isinstance(weight_value, (int, float)) and weight_value > 0:
+                weight = float(weight_value)
+            else:
+                weight = 1.0
+
+            total_weight += weight
+            weighted_sum += float(star_value) * weight
+
+        if total_weight <= 0:
+            return None
+        return round(weighted_sum / total_weight, 2)
+
+    baseline_overall = _weighted_overall(rated_with_data_cards, "baseline_star")
+    projected_overall = _weighted_overall(rated_with_data_cards, "projected_star")
 
     patient_rows: list[dict[str, object]] = []
     for stat in patient_stats.values():
@@ -525,7 +634,10 @@ def _build_star_dashboard(
             ),
         },
         "overall": {
-            "rated_measure_count": len(rated_measure_cards),
+            "rated_measure_count": rated_measure_count,
+            "rated_measure_with_data_count": len(rated_with_data_cards),
+            "total_measure_count": len(measure_cards),
+            "unrated_measure_count": max(len(measure_cards) - rated_measure_count, 0),
             "baseline_star": baseline_overall,
             "projected_star": projected_overall,
             "star_delta": None
@@ -826,7 +938,7 @@ def _seed_dashboard_sample_data_compat(session: Session) -> dict[str, int]:
                         "status": status,
                         "missing_element": f"Sample gap {seq} for {measure_id}",
                         "deadline_date": dt.date(2026, ((p_idx + seq) % 12) + 1, ((m_idx + seq) % 27) + 1),
-                        "opened_at": dt.datetime.now(dt.timezone.utc),
+                        "opened_at": dt.datetime.now(dt.UTC),
                     },
                 )
                 inserted_gaps += 1
@@ -877,20 +989,21 @@ def _process_gap_automation(repo: Repository, cfg: AppConfig) -> dict[str, objec
     error_list = summary["errors"]
     assert isinstance(error_list, list)
 
-    missing_tables = [
-        table_name
-        for table_name in ("members", "synthea_records")
-        if not repo.table_exists(table_name)
-    ]
-    if missing_tables:
-        gap_rows = repo.list_care_gaps()
-        summary["processed"] = len(gap_rows)
-        summary["skipped"] = True
-        summary["skip_reason"] = (
-            "Automation writeback is unavailable for this database profile "
-            f"(missing tables: {', '.join(missing_tables)})."
+    members_available = repo.table_exists("members")
+    synthea_records_available = repo.table_exists("synthea_records")
+    measures_available = repo.table_exists("measures")
+    legacy_writeback_available = (
+        members_available
+        and synthea_records_available
+        and measures_available
+    )
+
+    if not legacy_writeback_available:
+        summary["writeback_unavailable"] = True
+        summary["writeback_reason"] = (
+            "Legacy automation writeback tables are unavailable for this database profile; "
+            "running in compatibility mode without synthetic writeback records."
         )
-        return summary
 
     for care_gap in repo.list_care_gaps():
         member_id = str(care_gap.get("member_id") or "")
@@ -907,21 +1020,38 @@ def _process_gap_automation(repo: Repository, cfg: AppConfig) -> dict[str, objec
             )
             continue
 
-        member = row_to_dict(repo.get_member(member_id))
-        if not member:
-            error_list.append(
-                {"care_gap_id": care_gap_id, "reason": f"Member not found: {member_id}"}
-            )
-            continue
+        if legacy_writeback_available:
+            member = row_to_dict(repo.get_member(member_id))
+            if not member:
+                error_list.append(
+                    {"care_gap_id": care_gap_id, "reason": f"Member not found: {member_id}"}
+                )
+                continue
 
-        measure = row_to_dict(repo.get_measure(measure_id))
-        if not measure:
-            error_list.append(
-                {"care_gap_id": care_gap_id, "reason": f"Measure not found: {measure_id}"}
-            )
-            continue
+            measure = row_to_dict(repo.get_measure(measure_id))
+            if not measure:
+                error_list.append(
+                    {"care_gap_id": care_gap_id, "reason": f"Measure not found: {measure_id}"}
+                )
+                continue
+        else:
+            # Compatibility profile: automation can run without legacy writeback tables.
+            member = {
+                "member_id": member_id,
+                "date_of_birth": None,
+                "gender": None,
+            }
+            measure = {
+                "measure_id": measure_id,
+                "name": measure_id,
+                "description": None,
+            }
 
         summary["processed"] = int(summary["processed"]) + 1
+
+        if not legacy_writeback_available:
+            # In compatibility mode we intentionally skip synthetic writeback-only actions.
+            continue
 
         # 1) Evidence generation (once per care gap for automation path).
         auto_evidence_fact_key = "auto_evidence_file_path:pdf"
@@ -1077,14 +1207,26 @@ def create_app(
             raise RuntimeError(
                 "Local auth setup failed. Run `python -m alembic -c db/alembic.ini upgrade head` and retry."
             ) from exc
+        integration_pipeline.recover_interrupted_batches()
+        integration_pipeline.record_missing_upload_sizes()
         cfg.evidence_storage_dir.mkdir(parents=True, exist_ok=True)
         stop_event = asyncio.Event()
         worker_task: asyncio.Task[None] | None = None
+        ingestion_watcher_stop = threading.Event()
+        ingestion_watcher = threading.Thread(
+            target=integration_pipeline.watch_ingestion,
+            args=(ingestion_watcher_stop,),
+            name="ingestion-watcher",
+            daemon=True,
+        )
+        ingestion_watcher.start()
         if auto_enabled:
             worker_task = asyncio.create_task(auto_gap_worker(stop_event))
         try:
             yield
         finally:
+            ingestion_watcher_stop.set()
+            ingestion_watcher.join(timeout=5)
             if worker_task is not None:
                 stop_event.set()
                 await worker_task
@@ -1490,40 +1632,37 @@ Instrumentator(should_group_untemplated=True).instrument(app).expose(app, endpoi
 @app.get("/api/flow")
 @app_metrics.track_route("ingestion flow")
 def ingestion_flow_snapshot() -> dict[str, object]:
-    """Return a lightweight flow snapshot compatible with the ingestion UI."""
-    with ingestion_session_scope() as session:
-        jobs = ingestion_list_jobs(session)
-        if not jobs:
-            return {"batch": None, "tasks": {}}
+    """Return the persisted integration workflow state for the ingestion UI."""
+    with intake_db.connect() as conn:
+        return integration_pipeline.flow(conn)
 
-        job = ingestion_as_job_dict(jobs[0])
 
-    raw_status = str(job.get("status") or "").lower()
-    if raw_status in {"failed", "error"}:
-        flow_status = "failed"
-    elif raw_status in {"running", "pending"}:
-        flow_status = "running"
-    elif int(job.get("resources_persisted") or 0) > 0:
-        flow_status = "prioritized"
-    else:
-        flow_status = "loaded"
+@app.get("/api/calculation")
+def get_calculation() -> dict:
+    """Return stored HEDIS engine populations and gaps for the calculation screen."""
+    with intake_db.connect() as conn:
+        return integration_calculation.overview(conn)
 
+
+@app.get("/api/calculation/patients")
+def get_calculation_candidates(offset: int = 0, limit: int = 10) -> dict:
+    with intake_db.connect() as conn:
+        return integration_calculation.run_candidates(conn, offset, limit)
+
+
+@app.get("/api/calculation/{measure_id}/patients")
+def get_calculation_patients(measure_id: str) -> dict:
+    with intake_db.connect() as conn:
+        return integration_calculation.patients(conn, measure_id)
+
+
+@app.post("/api/calculation/run", status_code=202)
+def run_calculation(body: CalculationRequest | None = None) -> dict:
+    """Run selected measures for supplied patients, or every available persisted patient by default."""
     return {
-        "batch": {
-            "batch_id": str(job.get("id") or ""),
-            "ingest_job_id": str(job.get("id") or ""),
-            "status": flow_status,
-            "step": "prioritizing" if flow_status == "prioritized" else "loading",
-            "updated_at": job.get("completed_at") or job.get("started_at"),
-            "counts": {
-                "resources_generated": int(job.get("resources_generated") or 0),
-                "resources_validated": int(job.get("resources_validated") or 0),
-                "resources_persisted": int(job.get("resources_persisted") or 0),
-                "warnings": int(job.get("warning_count") or 0),
-                "errors": int(job.get("error_count") or 0),
-            },
-        },
-        "tasks": {
-            "ingestion": flow_status,
-        },
+        "batch_id": integration_pipeline.start_recalculation(
+            body.measures if body else None,
+            body.patient_ids if body else None,
+        ),
+        "status": "running",
     }

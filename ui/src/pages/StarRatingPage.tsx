@@ -210,7 +210,11 @@ export function StarRatingPage() {
         <div className="kpi-grid four">
           <article className="kpi-card">
             <span>Rated measures</span>
-            <strong>{formatInteger(overview?.overall?.ratedMeasures ?? 0)}</strong>
+            <strong>
+              {`${formatInteger(overview?.overall?.ratedMeasures ?? 0)}${overview?.overall?.totalMeasures != null
+                ? ` / ${formatInteger(overview.overall.totalMeasures)}`
+                : ""}`}
+            </strong>
           </article>
           <article className="kpi-card">
             <span>Baseline overall star</span>
@@ -229,6 +233,10 @@ export function StarRatingPage() {
         </div>
 
         <p className="note">
+          {overview?.overall?.ratedMeasuresWithData != null && overview?.overall?.ratedMeasures != null
+            ? `Overall stars use weighted CMS measure stars for ${formatInteger(overview.overall.ratedMeasuresWithData)} rated measures with data.`
+            : ""}
+          {overview?.overall?.ratedMeasuresWithData != null && overview?.overall?.ratedMeasures != null ? " " : ""}
           {overview?.catalogUrl ? (
             <>
               Measure set: <a className="text-link" href={overview.catalogUrl} target="_blank" rel="noreferrer">CMS reference</a>
