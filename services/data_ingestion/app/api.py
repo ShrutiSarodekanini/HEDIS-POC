@@ -616,17 +616,21 @@ def get_job_resources(job_id: str) -> dict:
 
 
 @router.get("/jobs/{job_id}/patients")
-def get_job_patients(job_id: str) -> dict:
+def get_job_patients(job_id: str, persisted_only: bool = False, bundleable_only: bool = False) -> dict:
     with session_scope() as session:
         resources = list_resources_for_job(session, job_id)
 
-    patient_stats: dict[str, dict[str, object]] = {}
+    details: dict[str, dict[str, object]] = {}
     for resource in resources:
         patient_id = (resource.patient_id or "").strip()
         if not patient_id:
             continue
+        if persisted_only and not resource.persisted:
+            continue
+        if bundleable_only and resource.lifecycle_status == "rejected":
+            continue
 
-        stats = patient_stats.setdefault(
+        detail = details.setdefault(
             patient_id,
             {
                 "patient_id": patient_id,
@@ -636,7 +640,7 @@ def get_job_patients(job_id: str) -> dict:
             },
         )
 
-        stats["resource_count"] = int(stats["resource_count"]) + 1
+        detail["resource_count"] = int(detail["resource_count"]) + 1
 
         if resource.resource_json is not None:
             try:
@@ -645,28 +649,23 @@ def get_job_patients(job_id: str) -> dict:
                 )
             except (TypeError, ValueError):
                 payload_bytes = 0
-            stats["estimated_size_bytes"] = int(stats["estimated_size_bytes"]) + payload_bytes
+            detail["estimated_size_bytes"] = int(detail["estimated_size_bytes"]) + payload_bytes
 
-        last_seen = stats["saved_at"]
         candidate = resource.updated_at or resource.created_at
-        if candidate is not None and (last_seen is None or candidate > last_seen):
-            stats["saved_at"] = candidate
+        current_saved = detail["saved_at"]
+        if candidate is not None and (current_saved is None or candidate > current_saved):
+            detail["saved_at"] = candidate
 
-    patients = sorted(patient_stats)
-    patient_details = []
-    for patient_id in patients:
-        stats = patient_stats[patient_id]
-        saved_at = stats["saved_at"]
-        patient_details.append(
-            {
-                "patient_id": patient_id,
-                "resource_count": int(stats["resource_count"]),
-                "estimated_size_bytes": int(stats["estimated_size_bytes"]),
-                "saved_at": saved_at.isoformat() if saved_at is not None else None,
-            }
-        )
+    patient_details = sorted(details.values(), key=lambda item: str(item["patient_id"]))
+    for detail in patient_details:
+        saved_at = detail["saved_at"]
+        detail["saved_at"] = saved_at.isoformat() if saved_at is not None else None
 
-    return {"job_id": job_id, "patients": patients, "patient_details": patient_details}
+    return {
+        "job_id": job_id,
+        "patients": [str(item["patient_id"]) for item in patient_details],
+        "patient_details": patient_details,
+    }
 
 
 @router.get("/jobs/{job_id}/patients/{patient_id}/resources")
@@ -1040,16 +1039,30 @@ def _to_member_result(entry: dict, measure_id: str) -> dict:
         raise ValueError(f"engine result for {measure_id} has no patient id")
 
     populations = {
-        "initial_population": False,
-        "denominator": False,
-        "numerator": False,
-        "denominator_exclusion": False,
+        "initial_population": None,
+        "denominator": None,
+        "denominator_exclusion": None,
+        "denominator_exception": None,
+        "numerator": None,
     }
     population_keys = {
         "initial-population": "initial_population",
+        "initial_population": "initial_population",
+        "ipp": "initial_population",
         "denominator": "denominator",
-        "numerator": "numerator",
+        "den": "denominator",
         "denominator-exclusion": "denominator_exclusion",
+        "denominator_exclusion": "denominator_exclusion",
+        "denex": "denominator_exclusion",
+        "denominator-exception": "denominator_exception",
+        "denominator_exception": "denominator_exception",
+        "denexcep": "denominator_exception",
+        "numerator": "numerator",
+        "num": "numerator",
+        "measure-population": "measure_population",
+        "measure_population": "measure_population",
+        "measure-observation": "measure_observation",
+        "measure_observation": "measure_observation",
     }
     for group in entry.get("detailedResults", []):
         if not isinstance(group, dict):
@@ -1057,8 +1070,28 @@ def _to_member_result(entry: dict, measure_id: str) -> dict:
         for population in group.get("populationResults", []):
             if not isinstance(population, dict):
                 continue
-            key = population_keys.get(population.get("populationType"))
-            if key:
-                populations[key] = populations[key] or population.get("result") is True
+            population_type = population.get("populationType")
+            key = population_keys.get(population_type.strip().lower()) if isinstance(population_type, str) else None
+            if not key or population.get("result") is None:
+                continue
+            populations[key] = bool(populations.get(key)) or bool(population["result"])
 
-    return {"member_id": entry["patientId"], "measure_id": measure_id, "populations": populations}
+    if populations["denominator"] is not True:
+        outcome = "not_in_population"
+    elif populations["numerator"] is True:
+        outcome = "numerator_met"
+    elif populations["numerator"] is False:
+        outcome = "numerator_not_met"
+    else:
+        outcome = "unresolved_policy"
+
+    return {
+        "member_id": entry["patientId"],
+        "measure_id": measure_id,
+        "status": "completed" if outcome != "unresolved_policy" else "unresolved",
+        "outcome": outcome,
+        "populations": populations,
+        "data_quality_flags": [],
+        "warnings": [],
+        "errors": [],
+    }
