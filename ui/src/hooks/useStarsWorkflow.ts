@@ -46,10 +46,10 @@ export function useStarsWorkflow() {
     measureId: string,
     gaps: string[],
     options?: { forceFresh?: boolean },
-  ): Promise<void> => {
+  ): Promise<StarWhatIfResult | null> => {
     if (!measureId) {
       setWhatIfResult(null)
-      return
+      return null
     }
 
     setLoadingWhatIf(true)
@@ -58,9 +58,11 @@ export function useStarsWorkflow() {
       const result = await loadStarWhatIf(currentCapabilities, measureId, gaps, options)
       setWhatIfResult(result)
       setSelectedGapIds(result.selectedGapIds)
+      return result
     } catch (error) {
       setWhatIfResult(null)
       setErrorMessage(toRequestErrorMessage(error))
+      return null
     } finally {
       setLoadingWhatIf(false)
     }
@@ -118,7 +120,11 @@ export function useStarsWorkflow() {
     setLoadingOverview(true)
     setErrorMessage("")
     try {
-      const nextOverview = await loadStarOverview(capabilities, { forceFresh: true })
+      const nextOverview = await loadStarOverview(capabilities, {
+        forceFresh: true,
+        measureId: selectedMeasureId || null,
+        selectedGapIds,
+      })
       setOverview(nextOverview)
 
       const keepSelected = nextOverview.measureCards.some((row) => row.measureId === selectedMeasureId)
@@ -180,7 +186,15 @@ export function useStarsWorkflow() {
 
     setStatusMessage("")
     setErrorMessage("")
-    await loadWhatIfForMeasure(capabilities, selectedMeasureId, selectedGapIds, { forceFresh: true })
+    const projection = await loadWhatIfForMeasure(capabilities, selectedMeasureId, selectedGapIds, { forceFresh: true })
+    if (capabilities.mode === "dashboard") {
+      const overviewWithSelection = await loadStarOverview(capabilities, {
+        forceFresh: true,
+        measureId: selectedMeasureId,
+        selectedGapIds: projection?.selectedGapIds ?? selectedGapIds,
+      })
+      setOverview(overviewWithSelection)
+    }
     setComparisonResult(null)
     setStatusMessage("Projection refreshed.")
   }, [capabilities, loadWhatIfForMeasure, selectedGapIds, selectedMeasureId])
@@ -254,6 +268,15 @@ export function useStarsWorkflow() {
       const projection = await loadStarWhatIf(capabilities, selectedMeasureId, selectedGapIds, { forceFresh: true })
       setWhatIfResult(projection)
       setSelectedGapIds(projection.selectedGapIds)
+
+      if (capabilities.mode === "dashboard") {
+        const overviewWithSelection = await loadStarOverview(capabilities, {
+          forceFresh: true,
+          measureId: selectedMeasureId,
+          selectedGapIds: projection.selectedGapIds,
+        })
+        setOverview(overviewWithSelection)
+      }
 
       if (projection.baselineDenominator <= 0) {
         setErrorMessage("Cannot compare stars: denominator is zero.")

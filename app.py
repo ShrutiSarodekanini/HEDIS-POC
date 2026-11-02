@@ -224,6 +224,49 @@ def _load_engine_measure_counts(session: Session) -> dict[tuple[str, int], dict[
     return counts
 
 
+def _load_measure_catalog(session: Session) -> dict[tuple[str, int], dict[str, object]]:
+    """Load measure metadata used by the star dashboard from reference tables."""
+    try:
+        rows = session.execute(
+            text(
+                """SELECT d.measure_id,
+                          d.measurement_year,
+                          coalesce(r.name, d.measure_id) AS measure_name,
+                          w.weight,
+                          w.measure_type
+                     FROM measure_definition d
+                     LEFT JOIN measure_rule r
+                       ON r.measure_id = d.measure_id
+                      AND r.measurement_year = d.measurement_year
+                     LEFT JOIN measure_star_weight w
+                       ON w.measure_id = d.measure_id
+                      AND w.measurement_year = d.measurement_year
+                      AND w.star_year = :star_year
+                    ORDER BY d.measure_id, d.measurement_year"""
+            ),
+            {"star_year": CMS_RATING_YEAR},
+        ).all()
+    except SQLAlchemyError:
+        session.rollback()
+        return {}
+
+    catalog: dict[tuple[str, int], dict[str, object]] = {}
+    for row in rows:
+        measure_code = str(row[0])
+        measurement_year = int(row[1])
+        measure_name = str(row[2] or measure_code)
+        weight = row[3]
+        measure_type = str(row[4]) if row[4] is not None else None
+        catalog[(measure_code, measurement_year)] = {
+            "measure_id": measure_code,
+            "measurement_year": measurement_year,
+            "measure_name": measure_name,
+            "weight": int(weight) if weight is not None else None,
+            "measure_type": measure_type,
+        }
+    return catalog
+
+
 def _build_star_dashboard(
     session: Session,
     *,
@@ -234,11 +277,21 @@ def _build_star_dashboard(
 
     rows = _load_dashboard_rows(session)
     engine_counts = _load_engine_measure_counts(session)
+    catalog_entries = _load_measure_catalog(session)
 
     measure_stats: dict[str, dict[str, object]] = {}
     patient_stats: dict[str, dict[str, object]] = {}
     gaps_by_measure: dict[str, list[dict[str, object]]] = defaultdict(list)
     measure_names_by_id: dict[str, str] = {}
+    catalog_by_measure_id: dict[str, dict[str, object]] = {}
+
+    for entry in catalog_entries.values():
+        m_id = str(entry["measure_id"])
+        existing = catalog_by_measure_id.get(m_id)
+        if existing is None or int(entry["measurement_year"]) > int(existing["measurement_year"]):
+            catalog_by_measure_id[m_id] = entry
+        if m_id not in measure_names_by_id:
+            measure_names_by_id[m_id] = str(entry["measure_name"])
 
     for row in rows:
         gap_id = str(row["care_gap_id"])
@@ -247,7 +300,12 @@ def _build_star_dashboard(
         p_id = str(row["member_id"])
         is_closed = _is_closed_status(str(row.get("status") or ""))
         projected_closed = is_closed or (gap_id in selected_set)
-        measure_name = str(row.get("measure_name") or m_id)
+        catalog_entry = catalog_by_measure_id.get(m_id, {})
+        measure_name = str(
+            row.get("measure_name")
+            or catalog_entry.get("measure_name")
+            or m_id
+        )
         if m_id not in measure_names_by_id:
             measure_names_by_id[m_id] = measure_name
 
@@ -260,6 +318,8 @@ def _build_star_dashboard(
                 "baseline_closed": 0,
                 "projected_closed": 0,
                 "selected_open": 0,
+                "weight": catalog_entry.get("weight"),
+                "measure_type": catalog_entry.get("measure_type"),
             }
 
         measure_stats[m_id]["total"] = int(measure_stats[m_id]["total"]) + 1
@@ -304,18 +364,45 @@ def _build_star_dashboard(
         )
 
     for (m_id, measurement_year), counts in engine_counts.items():
+        catalog_entry = catalog_by_measure_id.get(m_id, {})
         if m_id not in measure_stats:
             measure_stats[m_id] = {
                 "measure_id": m_id,
                 "measurement_year": measurement_year,
-                "measure_name": measure_names_by_id.get(m_id, m_id),
+                "measure_name": measure_names_by_id.get(
+                    m_id,
+                    str(catalog_entry.get("measure_name") or m_id),
+                ),
                 "total": 0,
                 "baseline_closed": 0,
                 "projected_closed": 0,
                 "selected_open": 0,
+                "weight": catalog_entry.get("weight"),
+                "measure_type": catalog_entry.get("measure_type"),
             }
         measure_stats[m_id]["engine_denominator"] = counts["denominator"]
         measure_stats[m_id]["engine_numerator"] = counts["numerator"]
+
+    for entry in catalog_by_measure_id.values():
+        m_id = str(entry["measure_id"])
+        if m_id not in measure_stats:
+            measure_stats[m_id] = {
+                "measure_id": m_id,
+                "measurement_year": int(entry["measurement_year"]),
+                "measure_name": str(entry["measure_name"]),
+                "total": 0,
+                "baseline_closed": 0,
+                "projected_closed": 0,
+                "selected_open": 0,
+                "weight": entry.get("weight"),
+                "measure_type": entry.get("measure_type"),
+            }
+            continue
+
+        if measure_stats[m_id].get("weight") is None and entry.get("weight") is not None:
+            measure_stats[m_id]["weight"] = entry.get("weight")
+        if measure_stats[m_id].get("measure_type") is None and entry.get("measure_type") is not None:
+            measure_stats[m_id]["measure_type"] = entry.get("measure_type")
 
     measure_cards: list[dict[str, object]] = []
     for stat in measure_stats.values():
@@ -358,17 +445,22 @@ def _build_star_dashboard(
         )
         baseline_star = baseline_result.assigned_star_rating
         projected_star = projected_result.assigned_star_rating
+        measure_type = str(stat.get("measure_type") or "").strip().lower()
+        if star_eligible:
+            rating_note = "Projected star based on current measure rate and selected closure projection."
+        elif measure_type == "not_star":
+            rating_note = "Not in the CMS 2027 Medicare Advantage Star Ratings measure set (tracked as rate only)."
+        else:
+            rating_note = "No verified CMS star mapping configured for this measure."
         measure_cards.append(
             {
                 "measure_id": stat["measure_id"],
                 "measurement_year": measurement_year,
                 "measure_name": stat["measure_name"],
+                "weight": stat.get("weight"),
+                "measure_type": stat.get("measure_type"),
                 "star_eligible": star_eligible,
-                "rating_note": (
-                    "Projected star based on current measure rate and selected closure projection."
-                    if star_eligible
-                    else "No verified CMS star mapping configured for this measure."
-                ),
+                "rating_note": rating_note,
                 "total_gaps": total,
                 "baseline_closed": baseline_closed,
                 "projected_closed": projected_closed,
@@ -384,27 +476,38 @@ def _build_star_dashboard(
 
     measure_cards.sort(key=lambda item: str(item["measure_id"]))
 
-    rated_measure_cards = [
-        item for item in measure_cards if item["baseline_star"] is not None
+    rated_measure_count = sum(1 for item in measure_cards if bool(item["star_eligible"]))
+    rated_with_data_cards = [
+        item
+        for item in measure_cards
+        if bool(item["star_eligible"])
+        and item["baseline_star"] is not None
+        and item["projected_star"] is not None
     ]
-    baseline_overall = (
-        round(
-            sum(float(item["baseline_star"]) for item in rated_measure_cards)
-            / len(rated_measure_cards),
-            2,
-        )
-        if rated_measure_cards
-        else None
-    )
-    projected_overall = (
-        round(
-            sum(float(item["projected_star"]) for item in rated_measure_cards)
-            / len(rated_measure_cards),
-            2,
-        )
-        if rated_measure_cards
-        else None
-    )
+
+    def _weighted_overall(cards: list[dict[str, object]], star_key: str) -> float | None:
+        total_weight = 0.0
+        weighted_sum = 0.0
+        for item in cards:
+            star_value = item.get(star_key)
+            if not isinstance(star_value, (int, float)):
+                continue
+
+            weight_value = item.get("weight")
+            if isinstance(weight_value, (int, float)) and weight_value > 0:
+                weight = float(weight_value)
+            else:
+                weight = 1.0
+
+            total_weight += weight
+            weighted_sum += float(star_value) * weight
+
+        if total_weight <= 0:
+            return None
+        return round(weighted_sum / total_weight, 2)
+
+    baseline_overall = _weighted_overall(rated_with_data_cards, "baseline_star")
+    projected_overall = _weighted_overall(rated_with_data_cards, "projected_star")
 
     patient_rows: list[dict[str, object]] = []
     for stat in patient_stats.values():
@@ -514,7 +617,10 @@ def _build_star_dashboard(
             ),
         },
         "overall": {
-            "rated_measure_count": len(rated_measure_cards),
+            "rated_measure_count": rated_measure_count,
+            "rated_measure_with_data_count": len(rated_with_data_cards),
+            "total_measure_count": len(measure_cards),
+            "unrated_measure_count": max(len(measure_cards) - rated_measure_count, 0),
             "baseline_star": baseline_overall,
             "projected_star": projected_overall,
             "star_delta": None

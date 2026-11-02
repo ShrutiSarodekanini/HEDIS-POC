@@ -22,6 +22,8 @@ export interface StarMeasureCard {
   measureId: string
   measureName: string
   measurementYear: number
+  weight?: number | null
+  measureType?: string | null
   starEligible: boolean
   total: number
   baselineNumerator: number
@@ -43,6 +45,9 @@ export interface StarOverview {
   measureCards: StarMeasureCard[]
   overall: {
     ratedMeasures: number
+    ratedMeasuresWithData?: number
+    totalMeasures?: number
+    unratedMeasures?: number
     baselineStar: number | null
     projectedStar: number | null
     delta: number | null

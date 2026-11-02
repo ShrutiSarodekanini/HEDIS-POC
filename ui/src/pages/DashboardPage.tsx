@@ -170,7 +170,7 @@ export function DashboardPage({ snapshot, loading, onRetry }: DashboardPageProps
 
   const measureRows = [...measureCards]
     .filter((card) => card.star_eligible)
-    .sort((a, b) => b.projected_rate - a.projected_rate)
+    .sort((a, b) => (b.projected_rate ?? Number.NEGATIVE_INFINITY) - (a.projected_rate ?? Number.NEGATIVE_INFINITY))
     .slice(0, 5)
 
   const tierRows = buildPriorityMix(measureCards)

@@ -206,6 +206,11 @@ def load_stars(cur, year: int) -> None:
     )
 
     for s in stars["measures"]:
+        cutpoint_source = str(s.get("cutpoint_source") or "cms-published-prior-year")
+        if cutpoint_source not in {"cms-published-prior-year", "illustrative-example"}:
+            raise ValueError(
+                f"Unsupported cutpoint source '{cutpoint_source}' for measure {s.get('hedis_code')}"
+            )
         cur.execute(
             """INSERT INTO measure_star_weight (measure_id, measurement_year, star_year, star_measure_id, weight,
                    measure_type, higher_is_better, scoring_note, source_ref, confidence)
@@ -217,8 +222,8 @@ def load_stars(cur, year: int) -> None:
             high = lows.get(star + 1, 100 if star == 5 else None)
             cur.execute(
                 """INSERT INTO star_cutpoint (measure_id, measurement_year, star_rating, rate_low_pct, rate_high_pct,
-                       source) VALUES (%s,%s,%s,%s,%s,'cms-published-prior-year')""",
-                (s["hedis_code"], year, star, lows[star], high))
+                       source) VALUES (%s,%s,%s,%s,%s,%s)""",
+                (s["hedis_code"], year, star, lows[star], high, cutpoint_source))
 
     for s in stars.get("not_star_measures", []):
         cur.execute(
