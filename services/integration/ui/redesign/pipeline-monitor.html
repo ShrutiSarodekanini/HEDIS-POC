@@ -1,0 +1,573 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HEDIS POC - Pipeline Monitor</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            max-width: 1000px;
+            width: 100%;
+            padding: 40px;
+        }
+
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 32px;
+        }
+
+        .subtitle {
+            color: #888;
+            margin-bottom: 30px;
+            font-size: 16px;
+        }
+
+        .section {
+            margin-bottom: 40px;
+        }
+
+        .section-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #667eea;
+        }
+
+        .form-group {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        input[type="text"] {
+            flex: 1;
+            padding: 12px 15px;
+            border: 2px solid #ddd;
+            border-radius: 6px;
+            font-size: 14px;
+            transition: border-color 0.3s;
+        }
+
+        input[type="text"]:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        button {
+            padding: 12px 24px;
+            background: #667eea;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+
+        button:hover {
+            background: #5568d3;
+        }
+
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+
+        .upload-section {
+            border: 2px dashed #667eea;
+            border-radius: 8px;
+            padding: 30px;
+            text-align: center;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+
+        .upload-section:hover {
+            background: #f9f9ff;
+        }
+
+        .upload-section.active {
+            background: #e8eaf6;
+        }
+
+        .upload-section input {
+            display: none;
+        }
+
+        .upload-text {
+            color: #667eea;
+            font-weight: 600;
+            margin-bottom: 5px;
+        }
+
+        .upload-hint {
+            color: #999;
+            font-size: 13px;
+        }
+
+        .progress-container {
+            background: #f5f5f5;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+
+        .stage {
+            display: flex;
+            align-items: center;
+            padding: 12px;
+            margin-bottom: 10px;
+            background: white;
+            border-radius: 6px;
+            border-left: 4px solid #ddd;
+        }
+
+        .stage.active {
+            border-left-color: #667eea;
+            background: #f9f9ff;
+        }
+
+        .stage.complete {
+            border-left-color: #4caf50;
+            background: #f1f8f4;
+        }
+
+        .stage.error {
+            border-left-color: #f44336;
+            background: #fef5f5;
+        }
+
+        .stage-icon {
+            font-size: 20px;
+            margin-right: 15px;
+            min-width: 30px;
+        }
+
+        .stage-content {
+            flex: 1;
+        }
+
+        .stage-name {
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 4px;
+        }
+
+        .stage-status {
+            font-size: 13px;
+            color: #666;
+        }
+
+        .stage-pct {
+            font-weight: 600;
+            color: #667eea;
+            min-width: 60px;
+            text-align: right;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 6px;
+            background: #e0e0e0;
+            border-radius: 3px;
+            overflow: hidden;
+            margin-top: 8px;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: #667eea;
+            transition: width 0.3s ease;
+        }
+
+        .log {
+            background: #1e1e1e;
+            color: #d4d4d4;
+            border-radius: 6px;
+            padding: 15px;
+            font-family: 'Monaco', 'Courier New', monospace;
+            font-size: 12px;
+            max-height: 300px;
+            overflow-y: auto;
+            line-height: 1.6;
+        }
+
+        .log-entry {
+            margin-bottom: 8px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid #333;
+        }
+
+        .log-entry:last-child {
+            border-bottom: none;
+            margin-bottom: 0;
+            padding-bottom: 0;
+        }
+
+        .log-time {
+            color: #888;
+        }
+
+        .log-info {
+            color: #4fc3f7;
+        }
+
+        .log-success {
+            color: #81c784;
+        }
+
+        .log-error {
+            color: #e57373;
+        }
+
+        .status-badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+            margin-left: 10px;
+        }
+
+        .status-connecting {
+            background: #fff3e0;
+            color: #f57c00;
+        }
+
+        .status-connected {
+            background: #e8f5e9;
+            color: #2e7d32;
+        }
+
+        .status-disconnected {
+            background: #ffebee;
+            color: #c62828;
+        }
+
+        .info-box {
+            background: #e3f2fd;
+            border-left: 4px solid #2196f3;
+            padding: 15px;
+            border-radius: 4px;
+            margin-bottom: 20px;
+            color: #1565c0;
+            font-size: 13px;
+        }
+
+        .info-box code {
+            background: #bbdefb;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: monospace;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🚀 HEDIS POC - Pipeline Monitor</h1>
+        <p class="subtitle">Real-time batch processing with WebSocket updates</p>
+
+        <!-- Upload Section -->
+        <div class="section">
+            <div class="section-title">1. Upload File</div>
+            <div class="upload-section" onclick="document.getElementById('fileInput').click()">
+                <div class="upload-text">📁 Click or drag to upload CSV file</div>
+                <div class="upload-hint">Supported: CSV, JSON, FHIR formats</div>
+                <input type="file" id="fileInput" accept=".csv,.json,.fhir,.ndjson">
+            </div>
+        </div>
+
+        <!-- Batch Tracking Section -->
+        <div class="section">
+            <div class="section-title">2. Track Batch</div>
+            <div class="form-group">
+                <input type="text" id="batchId" placeholder="Enter batch ID (or upload above)" readonly>
+                <button onclick="connectWebSocket()">🔌 Connect WebSocket</button>
+                <button onclick="checkProgress()">📊 Check Progress</button>
+            </div>
+            <div class="info-box">
+                💡 After uploading a file, use the batch ID below to connect and watch live progress
+            </div>
+        </div>
+
+        <!-- Status Section -->
+        <div class="section">
+            <div class="section-title">
+                Status
+                <span id="wsStatus" class="status-badge status-disconnected">Disconnected</span>
+            </div>
+            <div id="progressContainer" class="progress-container" style="display: none;">
+                <div id="pipelineStages"></div>
+            </div>
+            <div id="noProgress" class="info-box">
+                ⏳ No batch selected. Upload a file or enter a batch ID and connect.
+            </div>
+        </div>
+
+        <!-- Log Section -->
+        <div class="section">
+            <div class="section-title">Live Event Log</div>
+            <div class="log" id="eventLog">
+                <div class="log-entry">
+                    <span class="log-time">Ready to start...</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = 'http://localhost:8780/api/ingestion';
+        const WS_BASE = 'ws://localhost:8780/api/ingestion';
+
+        let ws = null;
+        let currentBatchId = null;
+
+        const stages = [
+            { name: 'Conversion', id: 'conversion', icon: '🔄' },
+            { name: 'Load', id: 'load', icon: '💾' },
+            { name: 'Quality Check', id: 'quality', icon: '✓' },
+            { name: 'Measures', id: 'measures', icon: '📊' },
+            { name: 'Gaps', id: 'gaps', icon: '⭐' },
+            { name: 'Documents', id: 'documents', icon: '📎' }
+        ];
+
+        function log(message, type = 'info') {
+            const logDiv = document.getElementById('eventLog');
+            const entry = document.createElement('div');
+            entry.className = `log-entry`;
+            
+            const time = new Date().toLocaleTimeString();
+            let typeClass = `log-${type}`;
+            
+            entry.innerHTML = `
+                <span class="log-time">[${time}]</span>
+                <span class="${typeClass}">${message}</span>
+            `;
+            
+            logDiv.appendChild(entry);
+            logDiv.scrollTop = logDiv.scrollHeight;
+        }
+
+        function updateStatus(status) {
+            const badge = document.getElementById('wsStatus');
+            badge.textContent = status;
+            
+            if (status === 'Connected') {
+                badge.className = 'status-badge status-connected';
+            } else if (status === 'Connecting...') {
+                badge.className = 'status-badge status-connecting';
+            } else {
+                badge.className = 'status-badge status-disconnected';
+            }
+        }
+
+        async function uploadFile() {
+            const fileInput = document.getElementById('fileInput');
+            const file = fileInput.files[0];
+            
+            if (!file) {
+                log('No file selected', 'error');
+                return;
+            }
+
+            log(`Uploading ${file.name}...`, 'info');
+            
+            const formData = new FormData();
+            formData.append('file', file);
+
+            try {
+                const response = await fetch(`${API_BASE}/upload-async`, {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (!response.ok) {
+                    throw new Error(`Upload failed: ${response.statusText}`);
+                }
+
+                const data = await response.json();
+                currentBatchId = data.batch_id;
+                
+                document.getElementById('batchId').value = data.batch_id;
+                log(`✓ File uploaded! Batch ID: ${data.batch_id}`, 'success');
+                log(`Message: ${data.message}`, 'info');
+                
+                // Auto-connect WebSocket
+                setTimeout(() => connectWebSocket(), 500);
+            } catch (error) {
+                log(`Upload error: ${error.message}`, 'error');
+            }
+        }
+
+        function connectWebSocket() {
+            const batchId = document.getElementById('batchId').value;
+            
+            if (!batchId) {
+                log('Please enter or upload a batch ID', 'error');
+                return;
+            }
+
+            currentBatchId = batchId;
+            
+            if (ws) {
+                ws.close();
+            }
+
+            updateStatus('Connecting...');
+            log(`Connecting to batch: ${batchId}`, 'info');
+
+            ws = new WebSocket(`${WS_BASE}/ws/batch/${batchId}`);
+
+            ws.onopen = () => {
+                updateStatus('Connected');
+                log('✓ WebSocket connected! Waiting for updates...', 'success');
+                document.getElementById('noProgress').style.display = 'none';
+                document.getElementById('progressContainer').style.display = 'block';
+                renderStages();
+            };
+
+            ws.onmessage = (event) => {
+                const message = JSON.parse(event.data);
+                
+                if (message.type === 'initial_state') {
+                    log('Initial state loaded', 'info');
+                    renderProgress(message.progress);
+                } else {
+                    const stage = message.stage;
+                    const status = message.status;
+                    log(`${stage}: ${status} ${message.details.pct ? `(${message.details.pct}%)` : ''}`, 'info');
+                    renderProgress(message.all_progress);
+                }
+            };
+
+            ws.onerror = (error) => {
+                log(`WebSocket error: ${error}`, 'error');
+                updateStatus('Disconnected');
+            };
+
+            ws.onclose = () => {
+                updateStatus('Disconnected');
+                log('WebSocket disconnected', 'info');
+            };
+        }
+
+        function renderStages() {
+            const container = document.getElementById('pipelineStages');
+            container.innerHTML = '';
+            
+            stages.forEach(stage => {
+                const stageEl = document.createElement('div');
+                stageEl.className = 'stage';
+                stageEl.id = `stage-${stage.id}`;
+                stageEl.innerHTML = `
+                    <div class="stage-icon">${stage.icon}</div>
+                    <div class="stage-content">
+                        <div class="stage-name">${stage.name}</div>
+                        <div class="stage-status">Waiting...</div>
+                        <div class="progress-bar"><div class="progress-fill" style="width: 0%"></div></div>
+                    </div>
+                    <div class="stage-pct">0%</div>
+                `;
+                container.appendChild(stageEl);
+            });
+        }
+
+        function renderProgress(progress) {
+            if (!progress || !progress.stages) return;
+
+            Object.entries(progress.stages).forEach(([stageKey, stageData]) => {
+                const stageEl = document.getElementById(`stage-${stageKey}`);
+                if (!stageEl) return;
+
+                const status = stageData.status;
+                stageEl.className = 'stage';
+                
+                if (status === 'complete') {
+                    stageEl.classList.add('complete');
+                } else if (status === 'error') {
+                    stageEl.classList.add('error');
+                } else if (status === 'processing' || status === 'starting') {
+                    stageEl.classList.add('active');
+                }
+
+                const pct = stageData.pct || 0;
+                const statusEl = stageEl.querySelector('.stage-status');
+                const pctEl = stageEl.querySelector('.stage-pct');
+                const fillEl = stageEl.querySelector('.progress-fill');
+
+                statusEl.textContent = status.charAt(0).toUpperCase() + status.slice(1);
+                pctEl.textContent = `${pct}%`;
+                fillEl.style.width = `${pct}%`;
+            });
+        }
+
+        async function checkProgress() {
+            const batchId = document.getElementById('batchId').value;
+            
+            if (!batchId) {
+                log('Please enter a batch ID', 'error');
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE}/batch/${batchId}/progress`);
+                if (!response.ok) {
+                    throw new Error(`Not found: ${response.statusText}`);
+                }
+
+                const data = await response.json();
+                log('✓ Progress fetched', 'success');
+                renderProgress(data);
+            } catch (error) {
+                log(`Error: ${error.message}`, 'error');
+            }
+        }
+
+        // Handle file drag and drop
+        const uploadSection = document.querySelector('.upload-section');
+        uploadSection.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadSection.classList.add('active');
+        });
+
+        uploadSection.addEventListener('dragleave', () => {
+            uploadSection.classList.remove('active');
+        });
+
+        uploadSection.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadSection.classList.remove('active');
+            document.getElementById('fileInput').files = e.dataTransfer.files;
+            uploadFile();
+        });
+
+        // Handle file input change
+        document.getElementById('fileInput').addEventListener('change', uploadFile);
+
+        log('Pipeline monitor loaded. Ready to upload files!', 'success');
+    </script>
+</body>
+</html>

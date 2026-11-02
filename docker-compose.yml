@@ -1,0 +1,29 @@
+version: '3.9'
+
+services:
+  rabbitmq:
+    image: rabbitmq:3.13-management
+    container_name: hedis-rabbitmq
+    hostname: rabbitmq
+    ports:
+      - "5672:5672"      # AMQP port
+      - "15672:15672"    # Management UI
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-guest}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:-guest}
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - hedis-network
+
+volumes:
+  rabbitmq_data:
+
+networks:
+  hedis-network:
+    driver: bridge

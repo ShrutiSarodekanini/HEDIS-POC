@@ -49,6 +49,27 @@ npm run dev
 
 Open the UI URL shown by Vite (default `http://127.0.0.1:5173`).
 
+RabbitMQ ingestion also requires the transactional outbox dispatcher and all six consumers. Run these as supervised
+processes in deployment; for local development, start each command in its own terminal:
+
+```powershell
+python -m services.outbox_dispatcher
+python -m services.workers.conversion_worker
+python -m services.workers.load_worker
+python -m services.workers.quality_worker
+python -m services.workers.measures_worker
+python -m services.workers.gaps_worker
+python -m services.workers.documents_worker
+```
+
+Inspect dead letters without displaying payloads, then replay or purge a confirmed smoke-test queue:
+
+```powershell
+python scripts/rabbitmq_dlq.py status --queue all
+python scripts/rabbitmq_dlq.py replay --queue measures.run --limit 10
+python scripts/rabbitmq_dlq.py purge --queue measures.run --confirm-smoke-test-only
+```
+
 Test files (synthetic) are in `data/test_uploads`: upload `synthea_20_patients.zip` (20 patients), or the 12 CSV
 files in `cohort_4_patients/`, on Data Ingestion. The stored evidence documents for those patients are in
 `data/evidence_store` and attach on their own once a batch is prioritized.

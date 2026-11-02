@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import datetime as dt
+import logging
 from typing import Any
 
 from sqlalchemy import case, delete, func, select, text, tuple_, update
@@ -11,6 +12,8 @@ from sqlalchemy.orm import Session
 from .models import ConversionJob, FhirResource, SourceBatch, ValidationIssue
 from .synthea import RowIssue
 from .validator import ResourceValidationResult
+
+logger = logging.getLogger("uvicorn.error")
 
 
 def _as_dict(value: Any) -> dict[str, Any]:
@@ -634,9 +637,6 @@ def mark_validated_resources_persisted(session: Session, job_id: str) -> int:
     Mark all validated resources as persisted in the database.
     Uses batch updates to handle large datasets efficiently.
     """
-    import logging
-    logger = logging.getLogger("uvicorn.error")
-    
     # First, check what resources exist for this job
     total_count = session.execute(
         select(func.count()).select_from(FhirResource).where(FhirResource.job_id == job_id)
@@ -654,7 +654,7 @@ def mark_validated_resources_persisted(session: Session, job_id: str) -> int:
     already_persisted = session.execute(
         select(func.count()).select_from(FhirResource).where(
             (FhirResource.job_id == job_id) & 
-            (FhirResource.persisted.is_(True))
+            FhirResource.persisted.is_(True)
         )
     ).scalar() or 0
     
@@ -679,7 +679,7 @@ def mark_validated_resources_persisted(session: Session, job_id: str) -> int:
         .where(
             (FhirResource.job_id == job_id) &
             (FhirResource.lifecycle_status != "rejected") &
-            (FhirResource.persisted.is_(False))
+            FhirResource.persisted.is_(False)
         )
         .values(
             persisted=True,
