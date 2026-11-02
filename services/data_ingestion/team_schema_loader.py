@@ -141,7 +141,8 @@ ON CONFLICT (observation_id) DO NOTHING
 _PROCEDURES = f"""
 INSERT INTO procedure (procedure_id, patient_id, encounter_id, status, code, performed_start, batch_id)
 SELECT r.resource_id, p.patient_id, e.encounter_id, r.resource_json->>'status', {_CODE},
-       coalesce(r.resource_json->>'performedDateTime', r.resource_json->'performedPeriod'->>'start')::timestamptz,
+       coalesce(r.resource_json->>'occurrenceDateTime', r.resource_json->>'performedDateTime',
+                r.resource_json->'performedPeriod'->>'start')::timestamptz,
        %(batch)s
   FROM fhir_resources r
   JOIN patient p ON p.patient_id = split_part(r.resource_json->'subject'->>'reference', '/', 2)

@@ -384,6 +384,15 @@ Initialize schema:
 python scripts/init_db.py
 ```
 
+Load the measure and star reference data before persisting a dataset for HEDIS calculation:
+
+```bash
+python scripts/db/load_seed.py --reference-only
+```
+
+This seeds reference organizations, practitioners, measure definitions and rules, and star cut points; it does not
+seed patient records.
+
 Tables created:
 
 - `conversion_jobs`

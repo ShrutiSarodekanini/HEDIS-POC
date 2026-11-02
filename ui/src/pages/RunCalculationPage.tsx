@@ -8,7 +8,7 @@ type OutcomeFilter = "" | "gap" | "met" | "excluded" | "not in population"
 const OUTCOME_FILTERS: Array<{ value: OutcomeFilter; label: string }> = [
   { value: "", label: "All" },
   { value: "gap", label: "Gap" },
-  { value: "met", label: "Met" },
+  { value: "met", label: "Closed" },
   { value: "excluded", label: "Excluded" },
   { value: "not in population", label: "Not in population" },
 ]
@@ -19,6 +19,9 @@ const toOutcomeLabel = (value: string): string => {
   const normalized = normalizeOutcome(value)
   if (normalized.length === 0) {
     return "-"
+  }
+  if (normalized === "met") {
+    return "Closed"
   }
   return normalized.replace(/_/g, " ").replace(/\b\w/g, (part) => part.toUpperCase())
 }
@@ -42,7 +45,6 @@ export function RunCalculationPage() {
     capabilities,
     loadingSetup,
     setupError,
-    loadingOverview,
     loadingPatients,
     runningCalculation,
     overview,
@@ -58,7 +60,6 @@ export function RunCalculationPage() {
     toggleMeasureForRun,
     selectAllMeasuresForRun,
     clearMeasuresForRun,
-    refresh,
     run,
   } = useCalculationWorkflow()
 
@@ -97,18 +98,6 @@ export function RunCalculationPage() {
         <div>
           <h1>Run Gap Calculation</h1>
           <p>Run calculation, review outcomes by measure, and inspect patient-level gap results.</p>
-        </div>
-        <div className="actions">
-          <button
-            type="button"
-            className="btn outline"
-            disabled={loadingOverview || loadingPatients}
-            onClick={() => {
-              void refresh()
-            }}
-          >
-            {loadingOverview || loadingPatients ? "Refreshing..." : "Refresh"}
-          </button>
         </div>
       </div>
 
@@ -211,7 +200,7 @@ export function RunCalculationPage() {
             <strong>{formatInteger(overview?.measures.reduce((sum, item) => sum + Math.max(0, item.inMeasure - item.excluded), 0) ?? 0)}</strong>
           </article>
           <article className="kpi-card">
-            <span>Numerator met</span>
+            <span>Closed</span>
             <strong>{formatInteger(overview?.measures.reduce((sum, item) => sum + item.met, 0) ?? 0)}</strong>
           </article>
           <article className="kpi-card">
@@ -234,7 +223,7 @@ export function RunCalculationPage() {
                 <th>Measure</th>
                 <th>Type</th>
                 <th>In measure</th>
-                <th>Met</th>
+                <th>Closed</th>
                 <th>Excluded</th>
                 <th>Not met</th>
                 <th>Rate</th>
@@ -325,7 +314,7 @@ export function RunCalculationPage() {
               <tr>
                 <th>Patient</th>
                 <th>In denominator</th>
-                <th>Met</th>
+                <th>Closed</th>
                 <th>Excluded</th>
                 <th>Outcome</th>
                 <th>Gap status</th>
