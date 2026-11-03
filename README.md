@@ -124,8 +124,12 @@ Migrations live in `db/migrations` and only add or change schema objects. They r
 python -m alembic -c db/alembic.ini upgrade head
 ```
 
-To start from scratch, drop and recreate the schema in Postgres (`DROP SCHEMA <schema> CASCADE; CREATE SCHEMA
-<schema>;`), then run the script with `-Setup`. The backend creates the default users at startup.
+The script creates the schema named in `DATABASE_URL` when it does not exist (`scripts/db/ensure_schema.py`). A
+schema that exists but belongs to another user is left alone; the script stops and prints the `ALTER SCHEMA ... OWNER
+TO` command a superuser runs.
+
+To start from scratch, drop the schema (`DROP SCHEMA <schema> CASCADE;`) and run the script with `-Setup`. The
+backend creates the default users at startup.
 
 ## Monitoring
 

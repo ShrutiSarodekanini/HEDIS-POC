@@ -144,6 +144,8 @@ Write-Host "  Everything is installed" -ForegroundColor DarkGray
 if ($LASTEXITCODE -ne 0) { throw "Postgres from .env's DATABASE_URL is not answering. Start or restart it and run this again." }
 
 Write-Host "`n== Database" -ForegroundColor Cyan
+& $Python scripts/db/ensure_schema.py
+if ($LASTEXITCODE -ne 0) { throw "The schema in .env's DATABASE_URL is not usable (see the message above)." }
 & $Python -m alembic -c db/alembic.ini upgrade head
 if ($LASTEXITCODE -ne 0) { throw "Migrations failed." }
 if ($Setup) {
