@@ -58,14 +58,12 @@ export function PrioritizationPage() {
     selectedGapId,
     channelMix,
     loadingSetup,
-    loadingOverview,
     loadingWorklist,
     loadingGapDetail,
     setupError,
     errorMessage,
     statusMessage,
     retrySetup,
-    refreshAll,
     setFilter,
     selectGap,
   } = usePrioritizationWorkflow()
@@ -134,18 +132,6 @@ export function PrioritizationPage() {
         <div>
           <h1>Prioritization</h1>
           <p>Rank open gaps using live likelihood, value, and engagement scores from backend rules.</p>
-        </div>
-        <div className="actions">
-          <button
-            type="button"
-            className="btn outline"
-            disabled={loadingOverview || loadingWorklist}
-            onClick={() => {
-              void refreshAll()
-            }}
-          >
-            {loadingOverview || loadingWorklist ? "Refreshing..." : "Refresh"}
-          </button>
         </div>
       </div>
 
