@@ -1680,7 +1680,13 @@ def run_calculation(body: CalculationRequest | None = None) -> dict:
             body.measures if body else None,
             body.patient_ids if body else None,
         )
-    except (LookupError, ValueError) as exc:
-        # No ready batch, a batch already running, or unknown patients: the user can act on these, so not a 500.
+        print(f"Started recalculation with batch_id: {batch_id}")
+    except integration_pipeline.CalculationNotReadyError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
-    return {"batch_id": batch_id, "status": "running"}
+    except (LookupError, ValueError) as exc:
+        # A batch already running, or unknown patients: the user can act on these, so not a 500.
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    return {
+        "batch_id": batch_id,
+        "status": "running",
+    }

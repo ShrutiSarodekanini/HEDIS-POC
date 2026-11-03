@@ -33,7 +33,6 @@ export function StarRatingPage() {
     selectedMeasureId,
     selectedGapIds,
     loadingSetup,
-    loadingOverview,
     loadingWhatIf,
     runningCalculation,
     runningComparison,
@@ -41,7 +40,6 @@ export function StarRatingPage() {
     errorMessage,
     statusMessage,
     retrySetup,
-    refreshOverview,
     selectMeasure,
     toggleGap,
     selectAllOpenGaps,
@@ -100,18 +98,6 @@ export function StarRatingPage() {
         <div>
           <h1>Star Rating</h1>
           <p>Evaluate current stars, simulate gap closures, and compare before versus after outcomes.</p>
-        </div>
-        <div className="actions">
-          <button
-            type="button"
-            className="btn outline"
-            disabled={loadingOverview}
-            onClick={() => {
-              void refreshOverview()
-            }}
-          >
-            {loadingOverview ? "Refreshing..." : "Refresh"}
-          </button>
         </div>
       </div>
 

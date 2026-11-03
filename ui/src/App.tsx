@@ -82,7 +82,9 @@ function App() {
   const dashboard = snapshot?.dashboard.data
   const runMeta = dashboard
     ? `${formatDateTime(snapshot?.fetchedAt)} | ${formatInteger(dashboard.patient_rows.length)} patients | ${formatInteger(dashboard.measure_cards.length)} measures`
-    : "Data unavailable from backend"
+    : activeView === "dashboard"
+      ? (loading ? "Loading dashboard summary..." : "No dashboard snapshot loaded yet")
+      : "Open Dashboard for live backend summary"
 
   const navItems = useMemo(() => navigationItems, [])
 

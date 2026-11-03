@@ -284,6 +284,10 @@ def watch_ingestion(stop: threading.Event, every_seconds: float = 3.0) -> None:
             log.error("ingestion watcher round failed: %s", type(exc).__name__)
 
 
+class CalculationNotReadyError(LookupError):
+    """No batch is ready for a calculation yet."""
+
+
 def start_recalculation(measure_ids: list[str] | None, selected_patient_ids: list[str] | None = None) -> str:
     """Run selected persisted patients, or every available patient when none are specified."""
     with db.connect() as conn:
@@ -297,7 +301,7 @@ def start_recalculation(measure_ids: list[str] | None, selected_patient_ids: lis
     if row is None and running is not None:
         raise ValueError(f"A batch is still running ({running[0]}). Wait for it to finish, then run the calculation.")
     if row is None:
-        raise LookupError("No calculation-ready batch yet. Ingest and persist a batch first.")
+        raise CalculationNotReadyError("No calculation-ready batch yet. Ingest and persist a batch first.")
     batch_id, job_id = uuid.UUID(row[0]), row[1]
     available = set(available_ids)
     selected = list(dict.fromkeys(selected_patient_ids or available_ids))
