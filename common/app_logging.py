@@ -1,6 +1,6 @@
-"""File logging for the root app.py (the new UI's backend), set up at import because uvicorn --reload has no __main__.
+"""File logging for the root app.py (the one backend), set up at import because uvicorn --reload has no __main__.
 
-Same line format as logs/hedis-integration.log, so the Alloy pipeline parses both. Tracebacks keep their frames but
+The line format is the one the Alloy pipeline parses (observability/alloy/config.alloy). Tracebacks keep their frames but
 lose the exception message, and access-log paths lose ids and query strings: neither may carry patient details.
 """
 

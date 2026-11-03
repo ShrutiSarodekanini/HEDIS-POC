@@ -21,9 +21,6 @@ class Settings:
     engine_workers: int            # concurrent measure processes; kept low for stable Node memory use
     work_dir: Path                 # temporary bundles and uploads, removed after each step
     evidence_dir: Path | None      # stored documents with manifest.json; None skips the attach step
-    ui_dir: Path | None            # screen set served at "/" (index.html plus /assets); None serves ui/redesign/
-    port: int
-    log_dir: Path                  # hedis-integration.log, tailed by Alloy into Loki (observability/)
 
 
 def load_settings() -> Settings:
@@ -37,9 +34,6 @@ def load_settings() -> Settings:
         engine_workers=max(1, int(os.environ.get("INTEGRATION_ENGINE_WORKERS", "2"))),
         work_dir=Path(os.environ.get("INTEGRATION_WORK_DIR", REPO_ROOT / ".integration_work")),
         evidence_dir=Path(evidence) if (evidence := os.environ.get("INTEGRATION_EVIDENCE_DIR", "").strip()) else None,
-        ui_dir=Path(ui) if (ui := os.environ.get("INTEGRATION_UI_DIR", "").strip()) else None,
-        port=int(os.environ.get("INTEGRATION_PORT", "8780")),
-        log_dir=REPO_ROOT / os.environ.get("LOG_DIR", "logs"),
     )
 
 

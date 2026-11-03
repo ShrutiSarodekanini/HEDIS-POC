@@ -951,7 +951,7 @@ async def upload_file_to_pipeline(file: UploadFile = File(...)) -> dict:
     - Returns batch_id to track progress
 
     Example:
-        curl -X POST -F "file=@patients.csv" http://localhost:8780/api/ingestion/upload-async
+        curl -X POST -F "file=@patients.csv" http://localhost:8000/api/ingestion/upload-async
 
     Response:
         {

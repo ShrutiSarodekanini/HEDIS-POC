@@ -73,7 +73,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "hedis-prometheus" },
           "refId": "A",
-          "expr": "up{job=\"hedis-ui-backend\"}",
+          "expr": "up{job=\"hedis-api\"}",
           "instant": true,
           "range": false
         }
@@ -104,7 +104,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "hedis-prometheus" },
           "refId": "A",
-          "expr": "sum(increase(http_requests_total{job=\"hedis-ui-backend\", handler!=\"/metrics\"}[$__range])) or vector(0)",
+          "expr": "sum(increase(http_requests_total{job=\"hedis-api\", handler!=\"/metrics\"}[$__range])) or vector(0)",
           "instant": true,
           "range": false
         }
@@ -135,7 +135,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "hedis-prometheus" },
           "refId": "A",
-          "expr": "sum(increase(http_requests_total{job=\"hedis-ui-backend\", status=\"5xx\"}[$__range])) or vector(0)",
+          "expr": "sum(increase(http_requests_total{job=\"hedis-api\", status=\"5xx\"}[$__range])) or vector(0)",
           "instant": true,
           "range": false
         }
@@ -166,7 +166,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "hedis-prometheus" },
           "refId": "A",
-          "expr": "sum(increase(http_requests_total{job=\"hedis-ui-backend\", handler=\"none\"}[$__range])) or vector(0)",
+          "expr": "sum(increase(http_requests_total{job=\"hedis-api\", handler=\"none\"}[$__range])) or vector(0)",
           "instant": true,
           "range": false
         }
@@ -234,7 +234,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "hedis-prometheus" },
           "refId": "A",
-          "expr": "sum by (handler) (rate(http_requests_total{job=\"hedis-ui-backend\", handler!=\"/metrics\"}[$__rate_interval]))",
+          "expr": "sum by (handler) (rate(http_requests_total{job=\"hedis-api\", handler!=\"/metrics\"}[$__rate_interval]))",
           "legendFormat": "{{handler}}",
           "instant": false,
           "range": true
@@ -264,7 +264,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "hedis-prometheus" },
           "refId": "A",
-          "expr": "histogram_quantile(0.95, sum by (le, handler) (rate(http_request_duration_seconds_bucket{job=\"hedis-ui-backend\", handler!=\"/metrics\"}[$__rate_interval])))",
+          "expr": "histogram_quantile(0.95, sum by (le, handler) (rate(http_request_duration_seconds_bucket{job=\"hedis-api\", handler!=\"/metrics\"}[$__rate_interval])))",
           "legendFormat": "{{handler}}",
           "instant": false,
           "range": true
@@ -294,7 +294,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "hedis-prometheus" },
           "refId": "A",
-          "expr": "sum by (handler) (rate(http_requests_total{job=\"hedis-ui-backend\", status=\"4xx\"}[$__rate_interval]))",
+          "expr": "sum by (handler) (rate(http_requests_total{job=\"hedis-api\", status=\"4xx\"}[$__rate_interval]))",
           "legendFormat": "{{handler}}",
           "instant": false,
           "range": true
@@ -324,7 +324,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "hedis-prometheus" },
           "refId": "A",
-          "expr": "sum by (handler) (rate(http_requests_total{job=\"hedis-ui-backend\", status=\"5xx\"}[$__rate_interval]))",
+          "expr": "sum by (handler) (rate(http_requests_total{job=\"hedis-api\", status=\"5xx\"}[$__rate_interval]))",
           "legendFormat": "{{handler}}",
           "instant": false,
           "range": true
@@ -356,7 +356,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "hedis-prometheus" },
           "refId": "A",
-          "expr": "sum by (method, status) (increase(http_requests_total{job=\"hedis-ui-backend\", handler=\"none\"}[$__range]))",
+          "expr": "sum by (method, status) (increase(http_requests_total{job=\"hedis-api\", handler=\"none\"}[$__range]))",
           "legendFormat": "{{method}} {{status}}",
           "instant": true,
           "range": false
@@ -810,7 +810,7 @@
           "refId": "A",
           "editorMode": "code",
           "queryType": "range",
-          "expr": "{job=\"hedis-ui-backend\"}"
+          "expr": "{job=\"hedis-api\"}"
         }
       ]
     },
@@ -837,7 +837,7 @@
           "refId": "A",
           "editorMode": "code",
           "queryType": "range",
-          "expr": "{job=\"hedis-ui-backend\", level=~\"ERROR|WARNING\"}"
+          "expr": "{job=\"hedis-api\", level=~\"ERROR|WARNING\"}"
         }
       ]
     },

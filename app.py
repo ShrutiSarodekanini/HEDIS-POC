@@ -17,7 +17,7 @@ import psycopg
 from fastapi import APIRouter, Depends, FastAPI, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
-from fastapi.routing import APIRoute
+from fastapi.routing import APIRoute, APIWebSocketRoute
 from pydantic import BaseModel, Field
 from prometheus_fastapi_instrumentator import Instrumentator
 from sqlalchemy import text
@@ -41,6 +41,7 @@ from services.document_intake import db as intake_db
 from services.integration import auth as integration_auth
 from services.integration import calculation as integration_calculation
 from services.integration import pipeline as integration_pipeline
+from services.integration import routes as integration_routes
 from services.star_modeler.main import (
     CMS_MEASURE_SET_URL,
     CMS_RATING_YEAR,
@@ -150,6 +151,13 @@ def _ingestion_routes() -> APIRouter:
                 route.path.removeprefix(ingestion_api.router.prefix),
                 route.endpoint,
                 methods=sorted(route.methods),
+                name=f"ingestion_{route.name}",
+            )
+        elif isinstance(route, APIWebSocketRoute):
+            # Live batch progress (/ws/batch/{batch_id}) for the pipeline monitor page.
+            router.add_api_websocket_route(
+                route.path.removeprefix(ingestion_api.router.prefix),
+                route.endpoint,
                 name=f"ingestion_{route.name}",
             )
     return router
@@ -1261,6 +1269,12 @@ def create_app(
         page_path = Path(__file__).parent / "ui" / "star_results.html"
         return HTMLResponse(page_path.read_text(encoding="utf-8"))
 
+    @app.get("/ingestion", response_class=HTMLResponse)
+    def pipeline_monitor_page():
+        """Real-time pipeline progress monitor for RabbitMQ-driven ingestion batches."""
+        page_path = Path(__file__).parent / "services" / "integration" / "ui" / "redesign" / "pipeline-monitor.html"
+        return HTMLResponse(page_path.read_text(encoding="utf-8"))
+
     @app.get("/star-results", response_class=HTMLResponse)
     def star_results_page():
         page_path = Path(__file__).parent / "ui" / "star_results.html"
@@ -1625,6 +1639,8 @@ def create_app(
 
 app = create_app()
 app.include_router(_ingestion_routes(), prefix="/api/ingestion")
+# The integration endpoints (formerly the 8780 app): batches, work list, AI evidence, export, quality, stars, health.
+app.include_router(integration_routes.build_router(current_auth_user, admin_auth_user))
 # handler is the route template; paths no route matches (the UI's 404s) are all grouped as handler "none".
 Instrumentator(should_group_untemplated=True).instrument(app).expose(app, endpoint="/metrics", include_in_schema=False)
 
@@ -1659,10 +1675,12 @@ def get_calculation_patients(measure_id: str) -> dict:
 @app.post("/api/calculation/run", status_code=202)
 def run_calculation(body: CalculationRequest | None = None) -> dict:
     """Run selected measures for supplied patients, or every available persisted patient by default."""
-    return {
-        "batch_id": integration_pipeline.start_recalculation(
+    try:
+        batch_id = integration_pipeline.start_recalculation(
             body.measures if body else None,
             body.patient_ids if body else None,
-        ),
-        "status": "running",
-    }
+        )
+    except (LookupError, ValueError) as exc:
+        # No ready batch, a batch already running, or unknown patients: the user can act on these, so not a 500.
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    return {"batch_id": batch_id, "status": "running"}

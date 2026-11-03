@@ -80,12 +80,13 @@ files in `cohort_4_patients/`, on Data Ingestion. The stored evidence documents 
 powershell -ExecutionPolicy Bypass -File scripts/run_demo.ps1 -Integration -Observability
 ```
 
-The app serves Prometheus metrics at http://localhost:8780/metrics (or the port set in `INTEGRATION_PORT`). With
+The backend (root app.py, port 8000) serves Prometheus metrics at http://localhost:8000/metrics (or the port set in
+`UI_BACKEND_PORT`). With
 `-Observability` the script also starts Prometheus at http://localhost:9090: in Docker when Rancher Desktop or Docker
 Desktop is running, otherwise from `PROMETHEUS_EXE` or `prometheus.exe` on PATH. Nothing is downloaded. Prometheus
 scrapes every 15s and keeps 15 days. Stop the Docker one with
 `docker compose -f observability/docker-compose.yml down`. The metrics are defined in
-`services/integration/metrics.py`.
+`services/integration/metrics.py` (pipeline, engine, AI evidence) and `common/app_metrics.py` (UI routes).
 
 In Docker the script also starts Grafana at http://localhost:3000. It opens straight on the "HEDIS pipeline"
 dashboard and needs no login to view. Editing needs the admin login: user `admin`, with the password from
@@ -97,37 +98,37 @@ lists every batch, AI call, quality check, engine run and review with its status
 uses a read-only login: a superuser runs `observability/grafana/readonly_role.sql` once (after the lead's OK) and sets
 its password, and the same value goes in `.env` as `GRAFANA_DB_PASSWORD`. Until then its panels show a login error.
 
-Logs: the app writes its log to `logs/hedis-integration.log` (folder set by `LOG_DIR` in `.env`, rotated at 10 MB,
-5 files kept) as well as the console. In Docker, Alloy sends the lines to Loki, which keeps them for 15 days; document
+Logs: the backend writes its log to `logs/hedis-app.log` (folder set by `LOG_DIR` in `.env`, rotated at 10 MB,
+5 files kept). In Docker, Alloy sends the lines to Loki, which keeps them for 15 days; emails become `<email>`, document
 file names become `<file>` and OpenRouter user ids become `<user>` on the way (the file itself is not changed). Search
-them in Grafana > Explore > HEDIS logs, for example `{job="hedis-integration"} |= "error"` or
-`{job="hedis-integration", level="ERROR"}`. The overview has a Logs row, and run history shows the ERROR lines.
+them in Grafana > Explore > HEDIS logs, for example `{job="hedis-api"} |= "error"` or
+`{job="hedis-api", level="ERROR"}`. The overview has a Logs row, and run history shows the ERROR lines.
 
-#### Monitoring the new React UI (app.py on 8000, UI on 5173)
+#### One backend for the React UI (app.py on 8000, UI on 5173)
 
-Three terminals from the repo root:
+Two terminals from the repo root:
 
 ```powershell
-# 1. monitoring (Prometheus, Grafana, Loki, Alloy) plus the integration app on 8780
+# 1. the backend (root app.py on 8000), plus monitoring (Prometheus, Grafana, Loki, Alloy)
 powershell -ExecutionPolicy Bypass -File scripts/run_demo.ps1 -Integration -Observability
-# 2. the new UI's backend
-python -m uvicorn app:app --host 127.0.0.1 --port 8000 --reload
-# 3. the UI
+# 2. the UI
 cd ui; npm run dev
 ```
 
-Prometheus scrapes app.py at http://localhost:8000/metrics as job `hedis-ui-backend` (port from `UI_BACKEND_PORT`
-in `.env`, default 8000); both targets show on http://localhost:9090/targets. app.py writes `logs/hedis-app.log`
-(same format and rotation; tracebacks keep their frames but not the exception text, and access lines show route
-templates with ids as `{id}`), which Alloy sends to Loki as job `hedis-ui-backend`, with emails masked as `<email>`
-in both logs. The browser reports JavaScript errors, unhandled promise rejections and failed API calls to
+root app.py serves every endpoint, including the pipeline, work list, AI evidence, export, data quality and stars
+routes that used to run as a separate app on 8780 (`services/integration/routes.py`). Prometheus scrapes it at
+http://localhost:8000/metrics as job `hedis-api` (port from `UI_BACKEND_PORT` in `.env`, default 8000); the target
+shows on http://localhost:9090/targets. app.py writes `logs/hedis-app.log`
+(tracebacks keep their frames but not the exception text, and access lines show route
+templates with ids as `{id}`), which Alloy sends to Loki as job `hedis-api`, with emails masked as `<email>`. The
+browser reports JavaScript errors, unhandled promise rejections and failed API calls to
 `POST /api/client-errors` (route templates and a short masked message only, at most 30 a minute).
 
 Everything shows on the Grafana dashboard "HEDIS new UI" (link "New UI" on the overview): backend up, requests,
 4xx, 5xx and p95 time per route, requests to routes app.py does not serve (handler `none`), star calculations,
 evidence generations, gap automation runs, seed runs, sign-ins and admin changes, browser errors per minute, the
 backend log and its errors, and the ingestion jobs, validation issues, sign-in sessions and account changes from
-Postgres. Alerts `HedisUiBackendDown` and `HedisUiServerErrors` cover the backend. The metrics are defined in
+Postgres. Alerts `HedisAppDown` and `HedisUiServerErrors` cover the backend. The metrics are defined in
 `common/app_metrics.py`. For the run history tables, rerun `observability/grafana/readonly_role.sql` (it is safe to
 run again) so the read-only login can read them.
 
@@ -573,7 +574,8 @@ Notes:
 - The startup script now performs prelaunch cleanup by default:
   - stops existing project-scoped Python/Uvicorn processes
   - clears `__pycache__` directories under the repo
-- It always starts the latest HEDIS Ops Console UI at `http://localhost:8780`.
+- It no longer starts the HEDIS Ops Console on 8780: those endpoints are now in root app.py (port 8000), used by the
+  React UI in `ui/`.
 - To skip cleanup once, use:
 
 ```powershell

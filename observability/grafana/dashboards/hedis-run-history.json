@@ -444,7 +444,7 @@
         {
           "datasource": { "type": "loki", "uid": "hedis-loki" },
           "refId": "A", "editorMode": "code", "queryType": "range",
-          "expr": "{job=\"hedis-integration\", level=\"ERROR\"}"
+          "expr": "{job=\"hedis-api\", level=\"ERROR\"}"
         }
       ]
     }

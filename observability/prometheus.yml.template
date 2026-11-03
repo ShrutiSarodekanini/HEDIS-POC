@@ -1,6 +1,6 @@
 # Rendered by scripts/run_demo.ps1 -Observability into .observability/prometheus.yml.
-# __TARGET__ becomes host.docker.internal:<port> (Prometheus in Docker) or localhost:<port> (prometheus.exe).
-# __UI_TARGET__ is the same for the new UI's backend (root app.py, UI_BACKEND_PORT, default 8000).
+# __TARGET__ becomes host.docker.internal:<port> (Prometheus in Docker) or localhost:<port> (prometheus.exe), for the
+# one backend: root app.py (UI_BACKEND_PORT, default 8000).
 global:
   scrape_interval: 15s
   evaluation_interval: 15s
@@ -9,16 +9,10 @@ rule_files:
   - alerts.yml
 
 scrape_configs:
-  - job_name: hedis-integration
+  - job_name: hedis-api
     metrics_path: /metrics
     static_configs:
       - targets: ["__TARGET__"]
-
-  - job_name: hedis-ui-backend
-    metrics_path: /metrics
-    scrape_interval: 15s
-    static_configs:
-      - targets: ["__UI_TARGET__"]
 
   # For later: RabbitMQ with the rabbitmq_prometheus plugin enabled.
   # - job_name: rabbitmq

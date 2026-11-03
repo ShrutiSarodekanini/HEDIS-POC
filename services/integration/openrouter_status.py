@@ -1,7 +1,8 @@
 """OpenRouter status for GET /api/health: is the key valid and is the model in use listed. No completion is made.
 
-Results are cached for 5 minutes. Network failures show as reachable: false with the error type; the key itself is
-never returned or logged.
+Results are cached for 5 minutes and refreshed in the background, so /api/health never waits on OpenRouter (the
+UI gives it about a second). Network failures show as reachable: false with the error type; the key itself is never
+returned or logged.
 """
 
 import threading
@@ -15,14 +16,41 @@ from services.evidence_extraction.config import SETTINGS as EXTRACTION_SETTINGS
 CACHE_SECONDS = 300
 _lock = threading.Lock()
 _cached: tuple[float, dict] | None = None
+_refreshing = False
 
 
 def status() -> dict:
-    global _cached
+    """The last known status; a stale one starts a background refresh. Blocks only before the first check ends."""
     with _lock:
-        if _cached is None or time.monotonic() - _cached[0] > CACHE_SECONDS:
-            _cached = (time.monotonic(), _check())
+        cached = _cached
+        stale = cached is None or time.monotonic() - cached[0] > CACHE_SECONDS
+    if cached is None:
+        _refresh()
         return _cached[1]
+    if stale:
+        warm()
+    return cached[1]
+
+
+def warm() -> None:
+    """Refresh the cached status in a background thread, unless a refresh is already running."""
+    global _refreshing
+    with _lock:
+        if _refreshing:
+            return
+        _refreshing = True
+    threading.Thread(target=_refresh, name="openrouter-status", daemon=True).start()
+
+
+def _refresh() -> None:
+    global _cached, _refreshing
+    try:
+        result = _check()
+        with _lock:
+            _cached = (time.monotonic(), result)
+    finally:
+        with _lock:
+            _refreshing = False
 
 
 def _check() -> dict:

@@ -43,4 +43,6 @@ export interface CalculationPatientRow {
 export interface CalculationRunResult {
   success: boolean
   message: string
+  /** Set when the backend started the run in the background; wait on it with waitForCalculation. */
+  batchId?: string
 }

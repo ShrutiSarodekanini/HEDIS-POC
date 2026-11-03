@@ -382,7 +382,42 @@ def _prune_patient_bundle(path: Path, measure: MeasureBundle) -> None:
             for entry in patient_bundle.get("entry", [])
             if _required_cbp_resource(entry.get("resource", {}), required_types, observation_codes)
         ]
+        _tag_cbp_profiles(patient_bundle["entry"], definition, value_set_codes)
     path.write_text(json.dumps(patient_bundle), encoding="utf-8")
+
+
+def _tag_cbp_profiles(entries: list[dict], definition: dict,
+                      value_set_codes: dict[str, set[tuple[str | None, str]]]) -> None:
+    """Tag each kept resource with the profiles CBP declares for it, so CBP can run with meta profiles trusted.
+    Untrusted, [USCoreBloodPressureProfile] returns every Observation, and a non-BP one on the latest BP day
+    (housing status, kept for the frailty exclusion) has no systolic value, which crashes the engine's sort."""
+    type_profiles: dict[str, set[str]] = {}
+    observation_profiles: list[tuple[str, set[tuple[str | None, str]]]] = []
+    for entry in definition.get("entry", []):
+        for requirement in entry.get("resource", {}).get("dataRequirement", []):
+            resource_type, profiles = requirement.get("type"), requirement.get("profile", [])
+            if resource_type in (None, "Resource") or not profiles:
+                continue
+            if resource_type != "Observation":
+                type_profiles.setdefault(resource_type, set()).update(profiles)
+                continue
+            codes: set[tuple[str | None, str]] = set()
+            for code_filter in requirement.get("codeFilter", []):
+                codes.update((coding.get("system"), coding["code"])
+                             for coding in code_filter.get("code", []) if coding.get("code"))
+                codes.update(value_set_codes.get(code_filter.get("valueSet"), set()))
+            observation_profiles.extend((profile, codes) for profile in profiles if profile != US_CORE_BP)
+    for entry in entries:
+        resource = entry.get("resource", {})
+        if resource.get("resourceType") == "Observation":
+            codings = {(c.get("system"), c.get("code")) for c in (resource.get("code") or {}).get("coding") or []}
+            profiles = ({US_CORE_BP} if (LOINC, BP_PANEL) in codings
+                        else {profile for profile, codes in observation_profiles if codings & codes})
+        else:
+            profiles = type_profiles.get(resource.get("resourceType"), set())
+        if profiles:
+            meta = resource.setdefault("meta", {})
+            meta["profile"] = sorted(set(meta.get("profile", [])) | profiles)
 
 
 def _expanded_codes(items: list[dict]) -> set[tuple[str | None, str]]:
@@ -478,7 +513,8 @@ def _call_engine(bundle: MeasureBundle, root_ref: str | None, paths: list[str], 
     cmd = ["node", f"--max-old-space-size={settings.engine_node_heap_mb}", str(cli), "detailed",
            "--measure-bundle", str(bundle.path), "--patient-bundles", *paths,
            "--measurement-period-start", f"{year}-01-01", "--measurement-period-end", f"{year}-12-31",
-           "--trust-meta-profile", "false"]
+           # CBP bundles are profile-tagged in _tag_cbp_profiles; the other measures' bundles are not.
+           "--trust-meta-profile", "true" if bundle.measure_id in COMBINED_BP_MEASURES else "false"]
     if root_ref:
         cmd.extend(["--root-lib-ref", root_ref])
     with metrics.ENGINE_SECONDS.labels(bundle.measure_id).time():

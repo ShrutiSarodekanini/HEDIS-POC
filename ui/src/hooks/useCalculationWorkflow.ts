@@ -10,6 +10,7 @@ import {
   loadCalculationOverview,
   loadCalculationPatients,
   runCalculation,
+  waitForCalculation,
 } from "../services/calculation.service"
 import { toRequestErrorMessage } from "../services/http"
 
@@ -240,9 +241,11 @@ export function useCalculationWorkflow() {
     setStatus("Starting calculation...")
 
     try {
-      const result = await runCalculation(state.capabilities, state.selectedMeasureIdsForRun)
-      setStatus(result.message)
+      const started = await runCalculation(state.capabilities, state.selectedMeasureIdsForRun)
+      setStatus(started.message)
+      const result = started.batchId ? await waitForCalculation(started.batchId) : started
       await loadOverviewAndPatients(state.capabilities, state.selectedMeasureId)
+      setStatus(result.message, !result.success)
     } catch (error) {
       setStatus(toRequestErrorMessage(error), true)
     } finally {

@@ -24,25 +24,16 @@ groups:
           summary: The measure engine crashed and was retried in the last 30 minutes.
 
       - alert: HedisAppDown
-        expr: up{job="hedis-integration"} == 0
+        expr: up{job="hedis-api"} == 0
         for: 1m
         labels:
           severity: critical
         annotations:
-          summary: The HEDIS integration app is not answering /metrics
+          summary: The HEDIS backend (app.py) is not answering /metrics
           description: Prometheus could not scrape the app for over a minute. Check that it is running.
 
-      - alert: HedisUiBackendDown
-        expr: up{job="hedis-ui-backend"} == 0
-        for: 1m
-        labels:
-          severity: critical
-        annotations:
-          summary: The new UI's backend (app.py) is not answering /metrics
-          description: Prometheus could not scrape app.py for over a minute. Check that uvicorn app:app is running.
-
       - alert: HedisUiServerErrors
-        expr: sum(rate(http_requests_total{job="hedis-ui-backend", status="5xx"}[5m])) > 0
+        expr: sum(rate(http_requests_total{job="hedis-api", status="5xx"}[5m])) > 0
         for: 5m
         labels:
           severity: warning

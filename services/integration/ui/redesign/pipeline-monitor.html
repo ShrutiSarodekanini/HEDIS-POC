@@ -339,8 +339,8 @@
     </div>
 
     <script>
-        const API_BASE = 'http://localhost:8780/api/ingestion';
-        const WS_BASE = 'ws://localhost:8780/api/ingestion';
+        const API_BASE = `${location.origin}/api/ingestion`;
+        const WS_BASE = `${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/api/ingestion`;
 
         let ws = null;
         let currentBatchId = null;

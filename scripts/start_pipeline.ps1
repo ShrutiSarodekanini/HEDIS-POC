@@ -7,7 +7,7 @@ Start all 10 pipeline workers and the API server.
 This script starts the complete async ingestion pipeline:
     - PostgreSQL and RabbitMQ containers
     - OutboxDispatcher - Publishes committed messages to RabbitMQ
-  - API Server (port 8780) - Accepts file uploads
+  - API Server (root app.py, port 8000) - Accepts file uploads
   - ConversionWorker - Converts CSV/JSON/FHIR to FHIR format
   - LoadWorker - Loads FHIR resources into PostgreSQL
   - QualityWorker - Validates data quality
@@ -128,7 +128,7 @@ Write-Host "Monitor pipeline status:" -ForegroundColor Yellow
 Write-Host "   python check_queues.py`n" -ForegroundColor Cyan
 
 Write-Host "Test file upload:" -ForegroundColor Yellow
-Write-Host "   python -c 'import requests; requests.post(\"http://localhost:8780/api/ingestion/upload-async\", files={\"file\": open(\"data/seed/members/members.csv\", \"rb\")})'" -ForegroundColor Cyan
+Write-Host "   python -c 'import requests; requests.post(\"http://localhost:8000/api/ingestion/upload-async\", files={\"file\": open(\"data/seed/members/members.csv\", \"rb\")})'" -ForegroundColor Cyan
 
 Write-Host "`nRabbitMQ Management:" -ForegroundColor Yellow
 Write-Host "   http://localhost:15672 (guest/guest)`n" -ForegroundColor Cyan

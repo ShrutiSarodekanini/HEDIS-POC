@@ -1,15 +1,11 @@
-// Tails the integration app's log and the new UI backend's log (repo logs/, mounted read-only), masks emails, file
-// names and OpenRouter user ids, and pushes the lines to Loki. Traceback lines are joined to their log line.
+// Tails the backend's log (root app.py, logs/hedis-app*.log, mounted read-only), masks emails, file names and
+// OpenRouter user ids, and pushes the lines to Loki. Traceback lines are joined to their log line.
 
 local.file_match "hedis" {
   path_targets = [
     {
-      "__path__" = "/var/log/hedis/hedis-integration*.log",
-      "job"      = "hedis-integration",
-    },
-    {
       "__path__" = "/var/log/hedis/hedis-app*.log",
-      "job"      = "hedis-ui-backend",
+      "job"      = "hedis-api",
     },
   ]
 }
@@ -58,7 +54,7 @@ loki.process "hedis" {
     replace    = "<user>"
   }
 
-  // "2026-10-30 10:15:02,123 ERROR services.integration.app: ..." -> level label, logger as structured metadata.
+  // "2026-10-30 10:15:02,123 ERROR services.integration.routes: ..." -> level label, logger as structured metadata.
   stage.regex {
     expression = `^\S+ \S+ (?P<level>[A-Z]+) (?P<logger>[^\s:]+):`
   }

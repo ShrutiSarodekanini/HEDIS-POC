@@ -87,7 +87,7 @@ class MeasuresWorker(Worker):
                 patient_ids, attributed_org = team_schema_loader.job_patients(conn, job_id)
                 if not patient_ids:
                     raise LookupError("No loaded patients are available for measure calculation")
-                run = measures.run_measures(conn, list(patient_ids), attributed_org, batch_id.replace("-", "")[:8])
+                run = measures.run_measures(conn, list(patient_ids), attributed_org, batch_id.replace("-", "")[:8], job_id)
                 engine_counts = run.counts()
                 measure_count = len(run.measures)
                 gap_msg = GapIdentifyMessage(

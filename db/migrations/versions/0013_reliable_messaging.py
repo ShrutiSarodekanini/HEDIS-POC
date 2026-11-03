@@ -8,7 +8,7 @@ Create Date: 2026-11-02
 from alembic import op
 
 revision = "0013_reliable_messaging"
-down_revision = "0012_user_approval"
+down_revision = "0013_fill_star_values_all_10"
 branch_labels = None
 depends_on = None
 

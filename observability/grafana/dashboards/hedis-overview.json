@@ -143,7 +143,7 @@
             "uid": "hedis-prometheus"
           },
           "refId": "A",
-          "expr": "up{job=\"hedis-integration\"}",
+          "expr": "up{job=\"hedis-api\"}",
           "instant": true,
           "range": false
         }
@@ -1850,7 +1850,7 @@
           "refId": "A",
           "editorMode": "code",
           "queryType": "range",
-          "expr": "sum by (level) (count_over_time({job=\"hedis-integration\", level=~\"ERROR|WARNING\"}[1m]))",
+          "expr": "sum by (level) (count_over_time({job=\"hedis-api\", level=~\"ERROR|WARNING\"}[1m]))",
           "legendFormat": "{{level}}"
         }
       ]
@@ -1889,7 +1889,7 @@
           "refId": "A",
           "editorMode": "code",
           "queryType": "range",
-          "expr": "{job=\"hedis-integration\"}"
+          "expr": "{job=\"hedis-api\"}"
         }
       ]
     }

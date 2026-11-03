@@ -292,6 +292,10 @@ def start_recalculation(measure_ids: list[str] | None, selected_patient_ids: lis
                                ORDER BY started_at DESC LIMIT 1""").fetchone()
         if row is not None:
             available_ids, _ = team_schema_loader.job_patients(conn, row[1])
+        else:
+            running = conn.execute("SELECT step FROM batch_run WHERE status = 'running' LIMIT 1").fetchone()
+    if row is None and running is not None:
+        raise ValueError(f"A batch is still running ({running[0]}). Wait for it to finish, then run the calculation.")
     if row is None:
         raise LookupError("No calculation-ready batch yet. Ingest and persist a batch first.")
     batch_id, job_id = uuid.UUID(row[0]), row[1]
