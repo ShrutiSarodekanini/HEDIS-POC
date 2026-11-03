@@ -116,6 +116,13 @@ if ($Install -or -not (Test-Path "$EngineDir/build/cli.js")) {
 if ($Install -or -not (Test-Path "ui/node_modules")) {
     Invoke-Checked "UI packages (npm install)" { Invoke-Npm "ui" @("install") }
 }
+# npm sometimes skips a package's optional platform binary (npm/cli#4828); without it Vite exits on start.
+if (-not (Test-Path "ui/node_modules/@rolldown/binding-win32-x64-msvc")) {
+    $rolldown = (Get-Content "ui/node_modules/rolldown/package.json" -Raw | ConvertFrom-Json).version
+    Invoke-Checked "UI build tool binary (rolldown $rolldown for Windows)" {
+        Invoke-Npm "ui" @("install", "@rolldown/binding-win32-x64-msvc@$rolldown", "--no-save")
+    }
+}
 Write-Host "  Everything is installed" -ForegroundColor DarkGray
 
 & $Python -c "import os,psycopg;from dotenv import load_dotenv;load_dotenv('.env');psycopg.connect(os.environ['DATABASE_URL'].replace('+psycopg',''),connect_timeout=8).close()"
