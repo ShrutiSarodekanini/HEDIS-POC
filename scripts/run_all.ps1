@@ -141,8 +141,19 @@ if (-not $NoObservability) {
             [Environment]::SetEnvironmentVariable($key, $Matches[1].Trim('"', "'"), "Process")
         }
     }
-    & docker compose -f observability/docker-compose.yml up -d
-    if ($LASTEXITCODE -ne 0) { Write-Host "Observability did not start; the app runs without it." -ForegroundColor Yellow }
+    # docker compose sometimes starts every container and then never returns (seen on Rancher Desktop), so give it
+    # two minutes and judge by the containers instead of by the command.
+    $compose = Start-Process docker -ArgumentList "compose", "-f", "observability/docker-compose.yml", "up", "-d" `
+        -NoNewWindow -PassThru
+    if (-not $compose.WaitForExit(120000)) {
+        Get-CimInstance Win32_Process -Filter "ParentProcessId=$($compose.Id)" |
+            ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
+        $compose.Kill()
+    }
+    $running = & docker ps --filter "name=hedis-" --filter "status=running" --format "{{.Names}}"
+    $missing = @("hedis-prometheus", "hedis-grafana", "hedis-loki", "hedis-alloy") | Where-Object { $_ -notin $running }
+    if ($missing) { Write-Host "Not running: $($missing -join ', '). The app runs without them." -ForegroundColor Yellow }
+    else { Write-Host "  Observability is running" -ForegroundColor DarkGray }
 }
 
 Write-Host "`n== Application" -ForegroundColor Cyan
