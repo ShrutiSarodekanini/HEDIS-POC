@@ -1395,9 +1395,17 @@ table.compact td {
   gap: 8px;
 }
 
+.step-runtime-note {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  color: #3b576e;
+  font-size: 12px;
+}
+
 .step {
   display: grid;
-  grid-template-columns: 22px 1fr;
+  grid-template-columns: 22px 1fr auto;
   align-items: center;
   gap: 8px;
   border: 1px solid #d3e0ec;
@@ -1421,6 +1429,42 @@ table.compact td {
   color: #2a4459;
 }
 
+.step-state-badge {
+  border-radius: 999px;
+  border: 1px solid #c8d8e8;
+  background: #eef4fb;
+  color: #365067;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  padding: 4px 9px;
+  white-space: nowrap;
+}
+
+.step-state-badge.done {
+  border-color: #bddfce;
+  background: #eaf7f0;
+  color: #1c6b4f;
+}
+
+.step-state-badge.running {
+  border-color: #bfd8eb;
+  background: #e8f2fc;
+  color: #1f5b83;
+}
+
+.step-state-badge.failed {
+  border-color: #e4b9b9;
+  background: #fbecec;
+  color: #9b3535;
+}
+
+.step-state-badge.pending {
+  border-color: #d3e0ec;
+  background: #edf3f8;
+  color: #5f7992;
+}
+
 .step.done {
   border-color: #bddfce;
   background: #f1faf5;
@@ -1439,6 +1483,25 @@ table.compact td {
 .step.running .dot {
   background: #d7eafa;
   color: #1f5b83;
+}
+
+.running-glyph {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  border: 2px solid #1f5b83;
+  border-top-color: transparent;
+  display: inline-block;
+  animation: step-spin 900ms linear infinite;
+}
+
+@keyframes step-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .step.failed {

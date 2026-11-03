@@ -9,6 +9,8 @@ const OUR_STEPS = [
   { key: "prioritizing", label: "Run prioritization" },
 ]
 
+type StepState = "done" | "running" | "failed" | "pending"
+
 function CardMessage({ text, error }: { text: string; error: boolean }) {
   if (!text) {
     return null
@@ -47,14 +49,44 @@ const asKb = (value: number | undefined): string => {
   return `${(value / 1024).toFixed(1)} KB`
 }
 
+const normalizeStatusToken = (value: string | undefined): string =>
+  String(value ?? "").trim().toLowerCase().replace(/[-\s]/g, "_")
+
+const isPositiveCount = (value: unknown): boolean => Number(value) > 0
+
+const toStepState = (value: string | undefined): StepState => {
+  const normalized = normalizeStatusToken(value)
+  if (["failed", "error", "errored", "cancelled"].includes(normalized)) {
+    return "failed"
+  }
+  if (["completed", "done", "succeeded", "success", "prioritized"].includes(normalized)) {
+    return "done"
+  }
+  if (["running", "pending", "queued", "started", "in_progress", "processing"].includes(normalized)) {
+    return "running"
+  }
+  return "pending"
+}
+
+const stepStateLabel = (state: StepState): string => {
+  if (state === "done") {
+    return "Completed"
+  }
+  if (state === "running") {
+    return "Running"
+  }
+  if (state === "failed") {
+    return "Failed"
+  }
+  return "Pending"
+}
+
 export function RunIntegrationPage() {
   const {
     mode,
     setupLoading,
     setupError,
     retrySetup,
-    inputDir,
-    setInputDir,
     setSelectedFiles,
     datasetMeta,
     history,
@@ -69,7 +101,6 @@ export function RunIntegrationPage() {
     ourStepsTasks,
     messages,
     busy,
-    inspectDataset,
     uploadFiles,
     startJob,
     refreshJob,
@@ -79,7 +110,6 @@ export function RunIntegrationPage() {
     downloadSelectedBundle,
     downloadAllBundles,
     reloadHistoryList,
-    loadOurSteps,
   } = useIngestionWorkflow()
 
   const effectiveJobStatus = job?.runtime?.status ?? job?.status
@@ -119,7 +149,13 @@ export function RunIntegrationPage() {
   const overallProgress = asPercent(job?.resources_persisted, job?.resources_generated)
 
   const taskRows = useMemo(
-    () => Object.entries(ourStepsTasks).sort(([left], [right]) => left.localeCompare(right)),
+    () => Object.entries(ourStepsTasks)
+      .map(([task, status]) => ({
+        task,
+        status,
+        state: toStepState(status),
+      }))
+      .sort((left, right) => left.task.localeCompare(right.task)),
     [ourStepsTasks],
   )
 
@@ -129,40 +165,91 @@ export function RunIntegrationPage() {
   }, [ourStepsBatch?.counts])
 
   const selectedBatchMatchesJob = !jobId || !ourStepsBatch?.ingest_job_id || ourStepsBatch.ingest_job_id === jobId
-  const sourceDescription = inputDir ? `Dataset path: ${inputDir}` : "Choose files or set input folder path"
   const datasetRowCounts = useMemo(
     () => Object.entries(datasetMeta?.row_counts ?? {}).sort(([left], [right]) => left.localeCompare(right)),
     [datasetMeta?.row_counts],
   )
 
-  const activeOurStepIndex = useMemo(
-    () => OUR_STEPS.findIndex((step) => step.key === (ourStepsBatch?.step ?? "")),
-    [ourStepsBatch?.step],
-  )
+  const stepRows = useMemo(() => {
+    const statusToken = normalizeStatusToken(ourStepsBatch?.status)
+    const stepToken = normalizeStatusToken(ourStepsBatch?.step)
+    const counts = (ourStepsBatch?.counts ?? {}) as Record<string, unknown>
 
-  const ourStepClass = (index: number): "done" | "running" | "failed" | "pending" => {
-    if (!ourStepsBatch) {
-      return "pending"
+    const statusIsFailed = statusToken === "failed"
+    const statusIsDone = ["prioritized", "completed", "done", "success", "succeeded"].includes(statusToken)
+
+    const doneByCounts = {
+      loading: Boolean(counts.load) || isPositiveCount(counts.persisted),
+      calculating: Boolean(counts.measures),
+      prioritizing: Boolean(counts.prioritization),
     }
 
-    if (ourStepsBatch.status === "prioritized") {
-      return "done"
+    const activeIndexFromStep = (() => {
+      if (["loading", "checking", "waiting", "received", "persisting", "converting"].includes(stepToken)) {
+        return 0
+      }
+      if (["measuring", "calculating", "ready", "recalculating"].includes(stepToken)) {
+        return 1
+      }
+      if (["prioritizing", "done"].includes(stepToken)) {
+        return 2
+      }
+      return -1
+    })()
+
+    const countBasedStates: StepState[] = [
+      doneByCounts.loading ? "done" : "pending",
+      doneByCounts.calculating ? "done" : "pending",
+      doneByCounts.prioritizing || statusIsDone ? "done" : "pending",
+    ]
+
+    if (!statusIsDone) {
+      if (statusIsFailed && activeIndexFromStep >= 0) {
+        countBasedStates[activeIndexFromStep] = "failed"
+      } else {
+        const baseIndex = activeIndexFromStep >= 0
+          ? activeIndexFromStep
+          : countBasedStates.findIndex((state) => state === "pending")
+        if (baseIndex >= 0) {
+          const runIndex = countBasedStates[baseIndex] === "done"
+            ? countBasedStates.findIndex((state, idx) => idx > baseIndex && state === "pending")
+            : baseIndex
+          if (runIndex >= 0) {
+            countBasedStates[runIndex] = "running"
+          }
+          for (let idx = 0; idx < baseIndex; idx += 1) {
+            if (countBasedStates[idx] === "pending") {
+              countBasedStates[idx] = "done"
+            }
+          }
+        }
+      }
     }
 
-    if (activeOurStepIndex < 0) {
-      return "pending"
-    }
+    return OUR_STEPS.map((step, index) => ({ ...step, state: countBasedStates[index] }))
+  }, [ourStepsBatch])
 
-    if (index < activeOurStepIndex) {
-      return "done"
-    }
-
-    if (index > activeOurStepIndex) {
-      return "pending"
-    }
-
-    return ourStepsBatch.status === "failed" ? "failed" : "running"
-  }
+  const completedStepCount = stepRows.filter((step) => step.state === "done").length
+  const batchStatusState = toStepState(ourStepsBatch?.status)
+  const runningTaskCount = taskRows.length > 0
+    ? taskRows.filter((task) => task.state === "running").length
+    : (batchStatusState === "running" ? 1 : 0)
+  const failedTaskCount = taskRows.length > 0
+    ? taskRows.filter((task) => task.state === "failed").length
+    : (batchStatusState === "failed" ? 1 : 0)
+  const stepsProgress = stepRows.length > 0 ? (completedStepCount / stepRows.length) * 100 : null
+  const showCurrentBatchSteps = selectedBatchMatchesJob
+  const displayedExecutionModel = showCurrentBatchSteps
+    ? taskRows.length > 0
+      ? (runningTaskCount > 1 ? "Parallel subtasks" : "Sequential steps")
+      : "Sequential steps (batch-level telemetry)"
+    : "Waiting for matching batch"
+  const displayedProgress = showCurrentBatchSteps ? stepsProgress : 0
+  const displayedRunningTasks = showCurrentBatchSteps ? runningTaskCount : 0
+  const displayedFailedTasks = showCurrentBatchSteps ? failedTaskCount : 0
+  const displayedSteps = showCurrentBatchSteps
+    ? stepRows
+    : OUR_STEPS.map((step) => ({ ...step, state: "pending" as StepState }))
 
   if (setupLoading) {
     return (
@@ -246,31 +333,6 @@ export function RunIntegrationPage() {
             <option value="synthea">synthea</option>
           </select>
 
-          <label className="field-label" htmlFor="ingestion-source-description">
-            Source description
-          </label>
-          <input
-            id="ingestion-source-description"
-            className="text-input"
-            type="text"
-            value={sourceDescription}
-            readOnly
-          />
-
-          <label className="field-label" htmlFor="ingestion-input-dir">
-            Input folder path on backend
-          </label>
-          <input
-            id="ingestion-input-dir"
-            className="text-input"
-            type="text"
-            value={inputDir}
-            onChange={(event) => {
-              setInputDir(event.target.value)
-            }}
-            placeholder="Upload files or enter an existing folder path"
-          />
-
           <label className="dropzone" htmlFor="ingestion-files">
             Drop Synthea CSV/ZIP files here, or browse
             <small>.csv files or one .zip only</small>
@@ -296,16 +358,6 @@ export function RunIntegrationPage() {
               }}
             >
               {busy.upload ? "Uploading..." : "Upload files"}
-            </button>
-            <button
-              type="button"
-              className="btn outline"
-              disabled={!mode || busy.inspect}
-              onClick={() => {
-                void inspectDataset()
-              }}
-            >
-              {busy.inspect ? "Inspecting..." : "Inspect dataset"}
             </button>
             <button
               type="button"
@@ -526,17 +578,7 @@ export function RunIntegrationPage() {
 
       <article className="card">
         <div className="card-head row-split">
-          <h2>Our steps after ingestion</h2>
-          <button
-            type="button"
-            className="btn outline"
-            disabled={!mode?.flowPath || busy.ourSteps}
-            onClick={() => {
-              void loadOurSteps()
-            }}
-          >
-            {busy.ourSteps ? "Loading..." : "Refresh our steps"}
-          </button>
+          <h2>Post-Ingestion Workflow Status</h2>
         </div>
 
         <CardMessage text={messages.ourSteps.text} error={messages.ourSteps.error} />
@@ -558,15 +600,44 @@ export function RunIntegrationPage() {
               </p>
             ) : null}
 
+            {!showCurrentBatchSteps ? <p className="card-message">Waiting for workflow status for the selected ingestion job.</p> : null}
+
+            <div className="step-runtime-note">
+              <span>
+                Execution model: <strong>{displayedExecutionModel}</strong>
+              </span>
+              <span>
+                Active tasks: <strong>{formatInteger(displayedRunningTasks)}</strong>
+              </span>
+              <span>
+                Failed tasks: <strong>{formatInteger(displayedFailedTasks)}</strong>
+              </span>
+            </div>
+
+            <div className="metric-row">
+              <span>Workflow progress</span>
+              <b>{formatRate(displayedProgress)}</b>
+            </div>
+            <div className="meter">
+              <span style={{ width: `${toMeterWidth(displayedProgress)}%` }}></span>
+            </div>
+
             <ol className="steps">
-              {OUR_STEPS.map((step, index) => {
-                const state = ourStepClass(index)
+              {displayedSteps.map((step) => {
+                const state = step.state
                 return (
                   <li key={step.key} className={`step ${state}`}>
                     <span className="dot" aria-hidden="true">
-                      {state === "done" ? "✓" : state === "failed" ? "!" : state === "running" ? "●" : "○"}
+                      {state === "done"
+                        ? "✓"
+                        : state === "failed"
+                          ? "!"
+                          : state === "running"
+                            ? <span className="running-glyph"></span>
+                            : "○"}
                     </span>
                     <span className="step-name">{step.label}</span>
+                    <span className={`step-state-badge ${state}`}>{stepStateLabel(state)}</span>
                   </li>
                 )
               })}
@@ -594,10 +665,12 @@ export function RunIntegrationPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {taskRows.map(([task, status]) => (
-                      <tr key={task}>
-                        <td>{asStatusLabel(task)}</td>
-                        <td>{asStatusLabel(status)}</td>
+                    {taskRows.map((task) => (
+                      <tr key={task.task}>
+                        <td>{asStatusLabel(task.task)}</td>
+                        <td>
+                          <span className={`step-state-badge ${task.state}`}>{asStatusLabel(task.status)}</span>
+                        </td>
                       </tr>
                     ))}
                   </tbody>

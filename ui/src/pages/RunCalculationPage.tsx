@@ -65,6 +65,7 @@ export function RunCalculationPage() {
 
   const [filter, setFilter] = useState<OutcomeFilter>("")
   const [search, setSearch] = useState<string>("")
+  const isIntegrationMode = capabilities?.mode === "integration"
 
   const filteredPatients = useMemo(() => {
     const normalizedSearch = search.trim().toLowerCase()
@@ -168,18 +169,24 @@ export function RunCalculationPage() {
           <p className="note">This backend profile runs calculation across all available measures.</p>
         )}
 
-        <div className="actions">
-          <button
-            type="button"
-            className="btn primary"
-            disabled={runningCalculation || !capabilities}
-            onClick={() => {
-              void run()
-            }}
-          >
-            {runningCalculation ? "Running..." : "Run calculation"}
-          </button>
-        </div>
+        {isIntegrationMode ? (
+          <p className="note">
+            Calculation runs automatically after ingestion completes and persisted data is loaded.
+          </p>
+        ) : (
+          <div className="actions">
+            <button
+              type="button"
+              className="btn primary"
+              disabled={runningCalculation || !capabilities}
+              onClick={() => {
+                void run()
+              }}
+            >
+              {runningCalculation ? "Running..." : "Run calculation"}
+            </button>
+          </div>
+        )}
 
         {statusMessage ? <p className={`card-message ${statusError ? "error" : ""}`}>{statusMessage}</p> : null}
       </article>

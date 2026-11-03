@@ -25,6 +25,7 @@ import {
 import { toRequestErrorMessage } from "../services/http"
 
 const ACTIVE_JOB_STATUSES = new Set(["created", "starting", "running", "pending", "queued"])
+const ACTIVE_FLOW_STATUSES = new Set(["created", "running", "pending", "queued", "started", "in_progress", "processing"])
 
 type SectionKey = "setup" | "upload" | "job" | "validation" | "patients" | "history" | "ourSteps"
 
@@ -143,6 +144,7 @@ export function useIngestionWorkflow() {
   })
 
   const pollFailRef = useRef<number>(0)
+  const flowPollFailRef = useRef<number>(0)
   const lastPolledStatusRef = useRef<string>("")
 
   const setMessage = useCallback((section: SectionKey, text: string, error = false): void => {
@@ -358,10 +360,11 @@ export function useIngestionWorkflow() {
       setPatients([])
       setSelectedPatientId("")
       setPatientResources([])
+      setOurStepsBatch(null)
+      setOurStepsTasks({})
       await Promise.all([
         loadJobById(mode, started.job_id),
         reloadHistory(mode),
-        reloadOurSteps(mode),
       ])
 
       const clearedJobs = started.legacy_jobs_cleared ?? 0
@@ -370,8 +373,9 @@ export function useIngestionWorkflow() {
       } else {
         setMessage("job", "Ingestion started.")
       }
+      setMessage("ourSteps", "Waiting for post-ingestion workflow to start for this job.")
     }, "Starting ingestion…")
-  }, [inputDir, loadJobById, mode, reloadHistory, reloadOurSteps, setMessage, withGuard])
+  }, [inputDir, loadJobById, mode, reloadHistory, setMessage, withGuard])
 
   const persistJob = useCallback(async (): Promise<void> => {
     if (!mode) {
@@ -594,6 +598,31 @@ export function useIngestionWorkflow() {
       window.clearInterval(timer)
     }
   }, [job, jobId, loadJobById, mode, reloadHistory, reloadOurSteps, setMessage])
+
+  useEffect(() => {
+    const status = String(ourStepsBatch?.status ?? "").trim().toLowerCase()
+    if (!mode || !mode.flowPath || !jobId || !ACTIVE_FLOW_STATUSES.has(status)) {
+      return
+    }
+
+    const timer = window.setInterval(() => {
+      void (async () => {
+        try {
+          await reloadOurSteps(mode)
+          flowPollFailRef.current = 0
+        } catch (error) {
+          flowPollFailRef.current += 1
+          if (flowPollFailRef.current <= 2) {
+            setMessage("ourSteps", `Auto-refresh issue: ${toRequestErrorMessage(error)}`, true)
+          }
+        }
+      })()
+    }, 3000)
+
+    return () => {
+      window.clearInterval(timer)
+    }
+  }, [jobId, mode, ourStepsBatch, reloadOurSteps, setMessage])
 
   const canPersist = useMemo(() => {
     const status = effectiveStatus(job).toLowerCase()
