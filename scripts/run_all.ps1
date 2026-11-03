@@ -101,14 +101,20 @@ if ($Install -or -not (Test-PythonPackages)) {
     Invoke-Checked "Python packages (pip install -r requirements.txt)" { & $Python -m pip install -r requirements.txt }
 }
 $EngineDir = "services/measure_calc/engine"
+# npm runs inside each folder: "npm --prefix <dir> install" from the repo root links the root package into the
+# folder's package.json as a dependency.
+function Invoke-Npm([string]$Dir, [string[]]$NpmArgs) {
+    Push-Location $Dir
+    try { & npm @NpmArgs } finally { Pop-Location }
+}
 if ($Install -or -not (Test-Path "$EngineDir/node_modules")) {
-    Invoke-Checked "Measure engine packages (npm install)" { & npm --prefix $EngineDir install }
+    Invoke-Checked "Measure engine packages (npm install)" { Invoke-Npm $EngineDir @("install") }
 }
 if ($Install -or -not (Test-Path "$EngineDir/build/cli.js")) {
-    Invoke-Checked "Measure engine build (npm run build)" { & npm --prefix $EngineDir run build }
+    Invoke-Checked "Measure engine build (npm run build)" { Invoke-Npm $EngineDir @("run", "build") }
 }
 if ($Install -or -not (Test-Path "ui/node_modules")) {
-    Invoke-Checked "UI packages (npm install)" { & npm --prefix ui install }
+    Invoke-Checked "UI packages (npm install)" { Invoke-Npm "ui" @("install") }
 }
 Write-Host "  Everything is installed" -ForegroundColor DarkGray
 
