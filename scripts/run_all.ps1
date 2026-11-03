@@ -5,14 +5,17 @@
 #   powershell -ExecutionPolicy Bypass -File scripts/run_all.ps1 -Setup     first time on an empty schema: also load
 #                                                                           the reference data (measures, cut points...)
 #   powershell -ExecutionPolicy Bypass -File scripts/run_all.ps1 -NoObservability   skip Prometheus, Grafana, Loki
+#   powershell -ExecutionPolicy Bypass -File scripts/run_all.ps1 -Install   reinstall Python and npm packages and
+#                                                                           rebuild the measure engine (after a pull)
 #   powershell -ExecutionPolicy Bypass -File scripts/run_all.ps1 -Stop      stop everything this script started
 #
-# Needs: Rancher Desktop (or Docker Desktop) running, the local Postgres from .env's DATABASE_URL, Python with the
-# requirements installed, and npm install done in ui/. Migrations always run first; they are a no-op when up to date.
-# For AI evidence, .env also needs INTEGRATION_EVIDENCE_DIR (data/evidence_store) and an EXTRACTION_MODEL that is
-# serving on OpenRouter. Key values are never printed.
+# Needs: Rancher Desktop (or Docker Desktop) running, the local Postgres from .env's DATABASE_URL, Python 3.11+,
+# Node 20+, and a repo-root .env (copy .env.example). On a fresh clone the Python packages, the measure engine build
+# and the UI packages are installed automatically when missing. Migrations always run; they are a no-op when up to
+# date. For AI evidence, .env also needs INTEGRATION_EVIDENCE_DIR (data/evidence_store) and an EXTRACTION_MODEL that
+# is serving on OpenRouter. Key values are never printed.
 
-param([switch]$Setup, [switch]$NoObservability, [switch]$Stop)
+param([switch]$Setup, [switch]$NoObservability, [switch]$Install, [switch]$Stop)
 
 $ErrorActionPreference = "Stop"
 $RepoRoot = Split-Path -Parent $PSScriptRoot
@@ -32,6 +35,35 @@ function Start-Window([string]$Title, [string]$Command) {
     Write-Host "Starting: $Title" -ForegroundColor Green
     $full = "`$Host.UI.RawUI.WindowTitle = 'HEDIS $Title'; Set-Location '$RepoRoot'; $Command"
     Start-Process $Shell -ArgumentList @("-NoExit", "-Command", $full) | Out-Null
+}
+
+function Invoke-Checked([string]$Title, [scriptblock]$Command) {
+    Write-Host "  $Title" -ForegroundColor DarkGray
+    & $Command
+    if ($LASTEXITCODE -ne 0) { throw "Failed: $Title" }
+}
+
+function Test-PythonPackages {
+    $previous = $ErrorActionPreference; $ErrorActionPreference = "Continue"
+    try { & $Python -c "import fastapi, uvicorn, pika, psycopg, dotenv, alembic" *> $null; return $LASTEXITCODE -eq 0 }
+    finally { $ErrorActionPreference = $previous }
+}
+
+# Containers keep fixed names, so ones created from another clone of this repo block compose here. Removing a
+# container keeps its volume data.
+function Remove-OtherCloneContainers {
+    foreach ($name in "hedis-rabbitmq", "hedis-prometheus", "hedis-grafana", "hedis-loki", "hedis-alloy") {
+        $previous = $ErrorActionPreference; $ErrorActionPreference = "Continue"
+        # The \" escapes are for Windows PowerShell 5.1, which drops bare inner quotes when calling native programs.
+        $dir = & docker inspect -f '{{ index .Config.Labels \"com.docker.compose.project.working_dir\" }}' $name 2>$null
+        $ErrorActionPreference = $previous
+        if ($LASTEXITCODE -ne 0 -or -not $dir) { continue }
+        # Exact match: D:\HEDISPOC is a prefix of D:\HEDISPOC_single, so a "starts with" test would misfire.
+        if ($dir -notin @($RepoRoot, (Join-Path $RepoRoot "observability"))) {
+            Write-Host "  Removing container $name created from $dir" -ForegroundColor DarkGray
+            & docker rm -f $name | Out-Null
+        }
+    }
 }
 
 function Wait-Until([string]$What, [scriptblock]$Check, [int]$Seconds = 180) {
@@ -61,10 +93,27 @@ if ($Stop) {
 }
 
 Write-Host "== Checking prerequisites" -ForegroundColor Cyan
+if (-not (Test-Path ".env")) { throw "No .env in $RepoRoot. Copy .env.example to .env (or your existing .env) and fill it in." }
 if (-not (Test-Docker)) { throw "Docker is not reachable. Start Rancher Desktop (or Docker Desktop) and run this again." }
+
+Write-Host "`n== Packages and builds" -ForegroundColor Cyan
+if ($Install -or -not (Test-PythonPackages)) {
+    Invoke-Checked "Python packages (pip install -r requirements.txt)" { & $Python -m pip install -r requirements.txt }
+}
+$EngineDir = "services/measure_calc/engine"
+if ($Install -or -not (Test-Path "$EngineDir/node_modules")) {
+    Invoke-Checked "Measure engine packages (npm install)" { & npm --prefix $EngineDir install }
+}
+if ($Install -or -not (Test-Path "$EngineDir/build/cli.js")) {
+    Invoke-Checked "Measure engine build (npm run build)" { & npm --prefix $EngineDir run build }
+}
+if ($Install -or -not (Test-Path "ui/node_modules")) {
+    Invoke-Checked "UI packages (npm install)" { & npm --prefix ui install }
+}
+Write-Host "  Everything is installed" -ForegroundColor DarkGray
+
 & $Python -c "import os,psycopg;from dotenv import load_dotenv;load_dotenv('.env');psycopg.connect(os.environ['DATABASE_URL'].replace('+psycopg',''),connect_timeout=8).close()"
 if ($LASTEXITCODE -ne 0) { throw "Postgres from .env's DATABASE_URL is not answering. Start or restart it and run this again." }
-if (-not (Test-Path "ui\node_modules")) { throw "ui\node_modules is missing. Run: cd ui; npm install" }
 
 Write-Host "`n== Database" -ForegroundColor Cyan
 & $Python -m alembic -c db/alembic.ini upgrade head
@@ -75,6 +124,7 @@ if ($Setup) {
 }
 
 Write-Host "`n== RabbitMQ" -ForegroundColor Cyan
+Remove-OtherCloneContainers
 & docker compose up -d rabbitmq
 if ($LASTEXITCODE -ne 0) { throw "RabbitMQ did not start." }
 Wait-Until "RabbitMQ" { (& docker inspect -f "{{.State.Health.Status}}" hedis-rabbitmq) -eq "healthy" }
