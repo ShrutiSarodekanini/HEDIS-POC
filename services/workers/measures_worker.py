@@ -30,6 +30,10 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+# Temporary mitigation: CBP currently fails inside the external engine for some datasets.
+# Keep the pipeline moving for other measures until the CBP-specific engine issue is resolved.
+_SKIPPED_MEASURES = {"CBP"}
+
 
 class MeasuresWorker(Worker):
     """
@@ -87,8 +91,23 @@ class MeasuresWorker(Worker):
                 patient_ids, attributed_org = team_schema_loader.job_patients(conn, job_id)
                 if not patient_ids:
                     raise LookupError("No loaded patients are available for measure calculation")
-                run = measures.run_measures(conn, list(patient_ids), attributed_org, batch_id.replace("-", "")[:8])
+                measure_ids = [
+                    bundle.measure_id
+                    for bundle in measures.measure_bundles()
+                    if bundle.measure_id not in _SKIPPED_MEASURES
+                ]
+                if _SKIPPED_MEASURES:
+                    logger.warning("Skipping measures due to temporary mitigation: %s", sorted(_SKIPPED_MEASURES))
+                run = measures.run_measures(
+                    conn,
+                    list(patient_ids),
+                    attributed_org,
+                    batch_id.replace("-", "")[:8],
+                    job_id,
+                    measure_ids=measure_ids,
+                )
                 engine_counts = run.counts()
+                engine_counts["skipped_measures"] = sorted(_SKIPPED_MEASURES)
                 measure_count = len(run.measures)
                 gap_msg = GapIdentifyMessage(
                     batch_id=batch_id,
