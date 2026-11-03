@@ -1,4 +1,19 @@
 import { getAuthToken } from "./authSession"
+import { reportApiFailure } from "./clientErrors"
+
+// fetch, plus a fire-and-forget report of HTTP >= 400 and network failures; the result is unchanged.
+async function trackedFetch(url: string, init: RequestInit): Promise<Response> {
+  try {
+    const response = await fetch(url, init)
+    if (response.status >= 400) {
+      reportApiFailure(url, response.status)
+    }
+    return response
+  } catch (error) {
+    reportApiFailure(url, 0, error)
+    throw error
+  }
+}
 
 export class HttpError extends Error {
   readonly status: number
@@ -75,7 +90,7 @@ export async function fetchJson<T>(url: string, timeoutMs: number): Promise<T> {
   const timer = window.setTimeout(() => controller.abort(), timeoutMs)
 
   try {
-    const response = await fetch(url, {
+    const response = await trackedFetch(url, {
       method: "GET",
       headers: withAuthHeaders({
         Accept: "application/json",
@@ -104,7 +119,7 @@ export async function postJson<T>(
   const timer = window.setTimeout(() => controller.abort(), timeoutMs)
 
   try {
-    const response = await fetch(url, {
+    const response = await trackedFetch(url, {
       method: "POST",
       headers: withAuthHeaders({
         Accept: "application/json",
@@ -135,7 +150,7 @@ export async function postForm<T>(
   const timer = window.setTimeout(() => controller.abort(), timeoutMs)
 
   try {
-    const response = await fetch(url, {
+    const response = await trackedFetch(url, {
       method: "POST",
       headers: withAuthHeaders({
         Accept: "application/json",
@@ -165,7 +180,7 @@ export async function putJson<T>(
   const timer = window.setTimeout(() => controller.abort(), timeoutMs)
 
   try {
-    const response = await fetch(url, {
+    const response = await trackedFetch(url, {
       method: "PUT",
       headers: withAuthHeaders({
         Accept: "application/json",

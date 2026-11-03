@@ -200,6 +200,25 @@ class LoadResult:
     resource_types: dict[str, int]               # resource type -> approved resources in the job
 
 
+# Ingestion now writes patient rows during conversion without a member ID or birth sex, so _PATIENTS (new patients
+# only) skips them. Document intake files every document under the MRN and the evidence prompt states the member's sex,
+# so fill both the way _PATIENTS would have.
+_MISSING_MRNS = """
+WITH base AS (
+    SELECT coalesce(max(substring(mrn FROM '^S-([0-9]+)$')::int), 0) AS n FROM patient
+), missing AS (
+    SELECT patient_id, row_number() OVER (ORDER BY patient_id) AS k FROM patient WHERE coalesce(mrn, '') = ''
+)
+UPDATE patient p SET mrn = 'S-' || lpad((base.n + missing.k)::text, 6, '0')
+  FROM base, missing
+ WHERE p.patient_id = missing.patient_id
+"""
+_MISSING_BIRTH_SEX = """
+UPDATE patient SET birth_sex = CASE gender WHEN 'male' THEN 'M' WHEN 'female' THEN 'F' END
+ WHERE birth_sex IS NULL AND gender IN ('male', 'female')
+"""
+
+
 def load_job(conn: psycopg.Connection, job_id: str, batch_id: UUID) -> LoadResult:
     """Copy one ingestion job's approved resources into the clinical tables, in the caller's transaction."""
     params = {"job": job_id, "batch": batch_id, "system": SOURCE_SYSTEM}
@@ -212,6 +231,8 @@ def load_job(conn: psycopg.Connection, job_id: str, batch_id: UUID) -> LoadResul
     inserted: dict[str, int] = {}
     for table, sql in _STEPS:
         inserted[table] = conn.execute(sql, params).rowcount
+    inserted["patient_mrn_assigned"] = conn.execute(_MISSING_MRNS).rowcount
+    inserted["patient_birth_sex_filled"] = conn.execute(_MISSING_BIRTH_SEX).rowcount
     patient_ids, attributed = job_patients(conn, job_id)
     conn.execute(
         """UPDATE source_batch SET resource_count = (SELECT count(*) FROM fhir_resource_raw WHERE batch_id = %(batch)s)

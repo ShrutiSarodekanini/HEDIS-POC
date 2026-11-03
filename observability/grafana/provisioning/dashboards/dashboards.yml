@@ -1,0 +1,10 @@
+# Loads the dashboards in observability/grafana/dashboards into the HEDIS folder; edit the JSON files, not the UI.
+apiVersion: 1
+
+providers:
+  - name: hedis
+    folder: HEDIS
+    type: file
+    allowUiUpdates: false
+    options:
+      path: /var/lib/grafana/dashboards

@@ -223,12 +223,13 @@ export async function runCalculation(
 ): Promise<CalculationRunResult> {
   if (capabilities.mode === "integration") {
     const body = selectedMeasureIds.length > 0 ? { measures: selectedMeasureIds } : {}
-    await postJson<Record<string, unknown>>(withApiBase("/calculation/run"), timeoutMs, body)
+    const response = await postJson<Record<string, unknown>>(withApiBase("/calculation/run"), timeoutMs, body)
     return {
       success: true,
       message: selectedMeasureIds.length > 0
-        ? `Calculation started for ${selectedMeasureIds.length} measure(s).`
-        : "Calculation started for all measures.",
+        ? `Calculation running for ${selectedMeasureIds.length} measure(s)...`
+        : "Calculation running for all measures...",
+      batchId: typeof response.batch_id === "string" ? response.batch_id : undefined,
     }
   }
 
@@ -248,4 +249,38 @@ export async function runCalculation(
     success: true,
     message: `Gap processing completed using star/automation backend profile (${processed.toLocaleString()} rows).`,
   }
+}
+
+interface IntegrationBatchStatus {
+  status?: string
+  step?: string
+  error?: string | null
+}
+
+const CALCULATION_POLL_MS = 2000
+const CALCULATION_WAIT_MS = 15 * 60 * 1000
+
+const delay = (ms: number): Promise<void> => new Promise((resolve) => window.setTimeout(resolve, ms))
+
+/** The run endpoint answers 202 and calculates in the background; poll the batch until it leaves "running". */
+export async function waitForCalculation(batchId: string): Promise<CalculationRunResult> {
+  const deadline = Date.now() + CALCULATION_WAIT_MS
+  while (Date.now() < deadline) {
+    await delay(CALCULATION_POLL_MS)
+    const batch = await fetchJson<IntegrationBatchStatus>(
+      withApiBase(`/batches/${encodeURIComponent(batchId)}`),
+      timeoutMs,
+    )
+    if (batch.status === "running") {
+      continue
+    }
+    if (batch.status === "failed") {
+      return {
+        success: false,
+        message: `Calculation failed while ${batch.step ?? "running"}: ${batch.error ?? "see the server log."}`,
+      }
+    }
+    return { success: true, message: "Calculation finished." }
+  }
+  return { success: false, message: "Calculation is still running. Press Refresh to check again." }
 }

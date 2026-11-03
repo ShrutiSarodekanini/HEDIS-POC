@@ -91,7 +91,6 @@ $integrationCommand = "Set-Location '$ProjectRoot'; `$env:INTEGRATION_PORT = '$I
 Start-Process powershell -ArgumentList @("-NoExit", "-Command", $apiCommand)
 Start-Sleep -Seconds 1
 Start-Process powershell -ArgumentList @("-NoExit", "-Command", $workerCommand)
-Start-Process powershell -ArgumentList @("-NoExit", "-Command", $integrationCommand)
 
 Write-Host "Started backend API, DQ worker, and HEDIS Ops Console in separate PowerShell windows."
 Write-Host "API URL: http://localhost:$ApiPort"

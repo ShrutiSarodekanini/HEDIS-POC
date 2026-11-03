@@ -7,44 +7,22 @@ from dataclasses import dataclass, field
 from itertools import groupby
 from typing import Any
 
-from sqlalchemy import select, tuple_, update
+from pydantic import ValidationError
+from sqlalchemy import func, select, tuple_
 
 from .adapters import registry
 from .config import settings
 from .db import session_scope
-from pydantic import ValidationError
-
 from .mapping import bundles_by_patient, map_dataset, map_source_record, normalize_resource, validation_issue
 from .models import (
     ConversionJob,
     FhirResource,
-    SourceBatch,
-    ValidationIssue,
-    # Team schema models for denormalized extraction
-    Patient,
-    Encounter,
-    Condition,
-    Observation,
-    Procedure,
-    Medication,
-    MedicationRequest,
-    Immunization,
-    Coverage,
-    AllergyIntolerance,
-    Claim,
-    Device,
-    ImagingStudy,
-    Organization,
-    Practitioner,
-    Location,
-    SupplyDelivery,
-    BasicResource,
 )
 from .repository import (
     batch_extract_denormalized,
     batch_fetch_fhir_resources,
-    complete_job,
     bulk_upsert_resources,
+    complete_job,
     create_job,
     extract_additional_resource,
     extract_condition_from_fhir,
@@ -63,7 +41,6 @@ from .repository import (
     upsert_resource,
 )
 from .validator import validate_resources
-
 
 STAGES = ["csv_input", "mapping", "fhir_generation", "validation", "postgresql_storage"]
 RESOURCE_BATCH_SIZE = 1000
@@ -184,16 +161,19 @@ class JobManager:
         with self._lock:
             return self._states.get(job_id)
 
-    def ensure_state(self, job_id: str) -> RuntimeState:
+    def ensure_state(self, job_id: str, batch_id: str | None = None) -> RuntimeState:
         with self._lock:
             state = self._states.get(job_id)
             if state is None:
                 state = RuntimeState(
                     job_id=job_id,
+                    batch_id=batch_id,
                     status="pending",
                     stages={stage: StageState(name=stage) for stage in STAGES},
                 )
                 self._states[job_id] = state
+            elif batch_id is not None and state.batch_id is None:
+                state.batch_id = batch_id
             return state
 
     def set_stage(self, job_id: str, stage: str, status: str, details: str = "") -> None:
@@ -514,10 +494,12 @@ def _run_streaming_conversion(job_id: str, input_dir: str, adapter: Any) -> None
         job_manager.set_job_status(job_id, final_status)
         _emit(f"[pipeline] job={job_id} streaming_conversion_finished status={final_status} resources={mapped_count}")
     except Exception as exc:
-        logger.exception("[pipeline] job=%s streaming_conversion_failed error=%s", job_id, exc)
+        error_type = type(exc).__name__
+        logger.error("[pipeline] job=%s streaming_conversion_failed error_type=%s", job_id, error_type)
         with session_scope() as session:
             summary["error_count"] = error_count + 1
-            summary["error"] = str(exc)
+            summary["error"] = "Streaming conversion failed"
+            summary["error_type"] = error_type
             complete_job(session, job_id, "failed", summary)
         job_manager.set_job_status(job_id, "failed")
 
@@ -526,7 +508,7 @@ def run_conversion(job_id: str, input_dir: str, adapter_name: str = "synthea_csv
     stage = job_manager.set_stage
     job_manager.set_job_status(job_id, "running")
     conversion_started_at = time.time()
-    _emit(f"[pipeline] job={job_id} conversion_started input_dir={input_dir} adapter={adapter_name}")
+    _emit(f"[pipeline] job={job_id} conversion_started adapter={adapter_name}")
 
     summary: dict[str, Any] = {
         "total_source_records": 0,
@@ -811,10 +793,13 @@ def run_conversion(job_id: str, input_dir: str, adapter_name: str = "synthea_csv
             f"elapsed_seconds={round(time.time() - conversion_started_at, 3)}"
         )
     except Exception as exc:  # pragma: no cover - defensive error path
-        stage(job_id, "csv_input", "failed", str(exc))
-        logger.error("[pipeline] job=%s conversion_failed error=%s", job_id, type(exc).__name__)
+        error_type = type(exc).__name__
+        stage(job_id, "csv_input", "failed", "Conversion failed")
+        logger.error("[pipeline] job=%s conversion_failed error_type=%s", job_id, error_type)
         with session_scope() as session:
             summary["error_count"] = summary.get("error_count", 0) + 1
+            summary["error"] = "Conversion failed"
+            summary["error_type"] = error_type
             summary["timelogs"] = {
                 "conversion_started_at": conversion_started_at,
                 "conversion_completed_at": time.time(),
@@ -832,9 +817,6 @@ def run_persist_stage(job_id: str) -> int:
     with session_scope() as session:
         persisted = mark_validated_resources_persisted(session, job_id)
 
-        from sqlalchemy import func, select
-        from .models import FhirResource
-
         total_persisted = (
             session.execute(
                 select(func.count())
@@ -843,8 +825,6 @@ def run_persist_stage(job_id: str) -> int:
             ).scalar()
             or 0
         )
-
-        from .models import ConversionJob
 
         job = session.get(ConversionJob, job_id)
         if job:
@@ -869,9 +849,6 @@ def run_persist_stage(job_id: str) -> int:
 
 
 def launch_job(job_id: str, input_dir: str, adapter_name: str = "synthea_csv") -> None:
-    def _run_full_pipeline():
-        """Run conversion and leave persistence for an explicit user action."""
-        run_conversion(job_id, input_dir, adapter_name)
-    
-    thread = threading.Thread(target=_run_full_pipeline, daemon=True)
-    thread.start()
+    raise RuntimeError(
+        "launch_job is retired. Start ingestion by enqueueing RabbitMQ messages via /jobs/start queued mode."
+    )

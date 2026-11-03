@@ -1,0 +1,1014 @@
+{
+  "uid": "hedis-new-ui",
+  "title": "HEDIS new UI",
+  "description": "The React UI's backend (root app.py) and the browser: requests, features, browser errors, logs and run history.",
+  "tags": ["hedis"],
+  "editable": false,
+  "schemaVersion": 41,
+  "version": 1,
+  "refresh": "30s",
+  "time": { "from": "now-6h", "to": "now" },
+  "timezone": "browser",
+  "templating": { "list": [] },
+  "annotations": { "list": [] },
+  "links": [
+    {
+      "title": "Pipeline",
+      "type": "link",
+      "url": "/d/hedis-overview",
+      "icon": "dashboard",
+      "keepTime": true,
+      "includeVars": false,
+      "targetBlank": false,
+      "asDropdown": false,
+      "tags": [],
+      "tooltip": "HEDIS pipeline metrics"
+    },
+    {
+      "title": "Run history",
+      "type": "link",
+      "url": "/d/hedis-run-history",
+      "icon": "dashboard",
+      "keepTime": true,
+      "includeVars": false,
+      "targetBlank": false,
+      "asDropdown": false,
+      "tags": [],
+      "tooltip": "Integration app run history"
+    }
+  ],
+  "panels": [
+    {
+      "id": 1,
+      "type": "row",
+      "title": "Backend",
+      "collapsed": false,
+      "panels": [],
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 }
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "Backend up",
+      "description": "Whether Prometheus can scrape the new UI's backend (root app.py).",
+      "datasource": { "type": "prometheus", "uid": "hedis-prometheus" },
+      "gridPos": { "h": 4, "w": 5, "x": 0, "y": 1 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "noValue": "No data",
+          "mappings": [
+            { "type": "value", "options": { "1": { "text": "UP", "color": "green", "index": 0 }, "0": { "text": "DOWN", "color": "red", "index": 1 } } },
+            { "type": "special", "options": { "match": "null+nan", "result": { "text": "No data", "color": "text", "index": 2 } } }
+          ],
+          "thresholds": { "mode": "absolute", "steps": [ { "color": "red", "value": null }, { "color": "green", "value": 1 } ] }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "colorMode": "background", "graphMode": "none", "textMode": "value", "justifyMode": "auto", "orientation": "auto"
+      },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "hedis-prometheus" },
+          "refId": "A",
+          "expr": "up{job=\"hedis-api\"}",
+          "instant": true,
+          "range": false
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "Requests (range)",
+      "description": "HTTP requests app.py answered in the selected time range, not counting Prometheus scrapes of /metrics.",
+      "datasource": { "type": "prometheus", "uid": "hedis-prometheus" },
+      "gridPos": { "h": 4, "w": 5, "x": 5, "y": 1 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0,
+          "noValue": "No data",
+          "mappings": [ { "type": "special", "options": { "match": "null+nan", "result": { "text": "No data", "color": "text", "index": 0 } } } ],
+          "thresholds": { "mode": "absolute", "steps": [ { "color": "blue", "value": null } ] }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "colorMode": "background", "graphMode": "none", "textMode": "value", "justifyMode": "auto", "orientation": "auto"
+      },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "hedis-prometheus" },
+          "refId": "A",
+          "expr": "sum(increase(http_requests_total{job=\"hedis-api\", handler!=\"/metrics\"}[$__range])) or vector(0)",
+          "instant": true,
+          "range": false
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "Server errors 5xx (range)",
+      "description": "Requests app.py answered with a 5xx status in the selected time range.",
+      "datasource": { "type": "prometheus", "uid": "hedis-prometheus" },
+      "gridPos": { "h": 4, "w": 5, "x": 10, "y": 1 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0,
+          "noValue": "No data",
+          "mappings": [ { "type": "special", "options": { "match": "null+nan", "result": { "text": "No data", "color": "text", "index": 0 } } } ],
+          "thresholds": { "mode": "absolute", "steps": [ { "color": "green", "value": null }, { "color": "red", "value": 0.5 } ] }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "colorMode": "background", "graphMode": "none", "textMode": "value", "justifyMode": "auto", "orientation": "auto"
+      },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "hedis-prometheus" },
+          "refId": "A",
+          "expr": "sum(increase(http_requests_total{job=\"hedis-api\", status=\"5xx\"}[$__range])) or vector(0)",
+          "instant": true,
+          "range": false
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "type": "stat",
+      "title": "Unserved routes 404 (range)",
+      "description": "Requests to paths app.py has no route for (for example /api/gaps), grouped as handler \"none\"; the log panel shows which path.",
+      "datasource": { "type": "prometheus", "uid": "hedis-prometheus" },
+      "gridPos": { "h": 4, "w": 5, "x": 15, "y": 1 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0,
+          "noValue": "No data",
+          "mappings": [ { "type": "special", "options": { "match": "null+nan", "result": { "text": "No data", "color": "text", "index": 0 } } } ],
+          "thresholds": { "mode": "absolute", "steps": [ { "color": "green", "value": null }, { "color": "orange", "value": 0.5 } ] }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "colorMode": "background", "graphMode": "none", "textMode": "value", "justifyMode": "auto", "orientation": "auto"
+      },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "hedis-prometheus" },
+          "refId": "A",
+          "expr": "sum(increase(http_requests_total{job=\"hedis-api\", handler=\"none\"}[$__range])) or vector(0)",
+          "instant": true,
+          "range": false
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "type": "stat",
+      "title": "Browser errors (range)",
+      "description": "Errors the browser reported to app.py in the selected time range.",
+      "datasource": { "type": "prometheus", "uid": "hedis-prometheus" },
+      "gridPos": { "h": 4, "w": 4, "x": 20, "y": 1 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0,
+          "noValue": "No data",
+          "mappings": [ { "type": "special", "options": { "match": "null+nan", "result": { "text": "No data", "color": "text", "index": 0 } } } ],
+          "thresholds": { "mode": "absolute", "steps": [ { "color": "green", "value": null }, { "color": "orange", "value": 0.5 } ] }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "colorMode": "background", "graphMode": "none", "textMode": "value", "justifyMode": "auto", "orientation": "auto"
+      },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "hedis-prometheus" },
+          "refId": "A",
+          "expr": "sum(increase(hedis_ui_client_errors_total[$__range])) or vector(0)",
+          "instant": true,
+          "range": false
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "type": "row",
+      "title": "Requests",
+      "collapsed": false,
+      "panels": [],
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 5 }
+    },
+    {
+      "id": 8,
+      "type": "timeseries",
+      "title": "Requests per second by route",
+      "description": "Requests per second app.py answered, by route, not counting /metrics.",
+      "datasource": { "type": "prometheus", "uid": "hedis-prometheus" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 6 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "color": { "mode": "palette-classic" },
+          "custom": { "drawStyle": "line", "lineWidth": 1, "fillOpacity": 10, "showPoints": "never", "spanNulls": false }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "hedis-prometheus" },
+          "refId": "A",
+          "expr": "sum by (handler) (rate(http_requests_total{job=\"hedis-api\", handler!=\"/metrics\"}[$__rate_interval]))",
+          "legendFormat": "{{handler}}",
+          "instant": false,
+          "range": true
+        }
+      ]
+    },
+    {
+      "id": 9,
+      "type": "timeseries",
+      "title": "Request time p95 by route",
+      "description": "95th percentile time app.py took to answer, by route.",
+      "datasource": { "type": "prometheus", "uid": "hedis-prometheus" },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 6 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "color": { "mode": "palette-classic" },
+          "custom": { "drawStyle": "line", "lineWidth": 1, "fillOpacity": 10, "showPoints": "never", "spanNulls": false }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "hedis-prometheus" },
+          "refId": "A",
+          "expr": "histogram_quantile(0.95, sum by (le, handler) (rate(http_request_duration_seconds_bucket{job=\"hedis-api\", handler!=\"/metrics\"}[$__rate_interval])))",
+          "legendFormat": "{{handler}}",
+          "instant": false,
+          "range": true
+        }
+      ]
+    },
+    {
+      "id": 10,
+      "type": "timeseries",
+      "title": "4xx per route",
+      "description": "Requests per second answered with a 4xx status, by route.",
+      "datasource": { "type": "prometheus", "uid": "hedis-prometheus" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 14 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "color": { "mode": "palette-classic" },
+          "custom": { "drawStyle": "line", "lineWidth": 1, "fillOpacity": 10, "showPoints": "never", "spanNulls": false }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "hedis-prometheus" },
+          "refId": "A",
+          "expr": "sum by (handler) (rate(http_requests_total{job=\"hedis-api\", status=\"4xx\"}[$__rate_interval]))",
+          "legendFormat": "{{handler}}",
+          "instant": false,
+          "range": true
+        }
+      ]
+    },
+    {
+      "id": 11,
+      "type": "timeseries",
+      "title": "5xx per route",
+      "description": "Requests per second answered with a 5xx status, by route.",
+      "datasource": { "type": "prometheus", "uid": "hedis-prometheus" },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 14 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "color": { "mode": "palette-classic" },
+          "custom": { "drawStyle": "line", "lineWidth": 1, "fillOpacity": 10, "showPoints": "never", "spanNulls": false }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "hedis-prometheus" },
+          "refId": "A",
+          "expr": "sum by (handler) (rate(http_requests_total{job=\"hedis-api\", status=\"5xx\"}[$__rate_interval]))",
+          "legendFormat": "{{handler}}",
+          "instant": false,
+          "range": true
+        }
+      ]
+    },
+    {
+      "id": 12,
+      "type": "bargauge",
+      "title": "Requests to routes app.py does not serve (range)",
+      "description": "Requests to paths app.py has no route for, by method and status, in the selected time range.",
+      "datasource": { "type": "prometheus", "uid": "hedis-prometheus" },
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 22 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0,
+          "thresholds": { "mode": "absolute", "steps": [ { "color": "orange", "value": null } ] }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "orientation": "horizontal",
+        "displayMode": "gradient",
+        "showUnfilled": true
+      },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "hedis-prometheus" },
+          "refId": "A",
+          "expr": "sum by (method, status) (increase(http_requests_total{job=\"hedis-api\", handler=\"none\"}[$__range]))",
+          "legendFormat": "{{method}} {{status}}",
+          "instant": true,
+          "range": false
+        }
+      ]
+    },
+    {
+      "id": 13,
+      "type": "row",
+      "title": "Features",
+      "collapsed": false,
+      "panels": [],
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 30 }
+    },
+    {
+      "id": 14,
+      "type": "timeseries",
+      "title": "Star calculations by endpoint and outcome",
+      "description": "Star rating calculations per interval, by endpoint and outcome.",
+      "datasource": { "type": "prometheus", "uid": "hedis-prometheus" },
+      "interval": "5m",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 31 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": { "mode": "palette-classic" },
+          "custom": { "drawStyle": "bars", "fillOpacity": 80, "lineWidth": 1, "showPoints": "never", "stacking": { "mode": "normal", "group": "A" } }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "hedis-prometheus" },
+          "refId": "A",
+          "expr": "sum by (endpoint, outcome) (increase(hedis_ui_star_calculations_total[$__interval]))",
+          "legendFormat": "{{endpoint}} {{outcome}}",
+          "instant": false,
+          "range": true
+        }
+      ]
+    },
+    {
+      "id": 15,
+      "type": "timeseries",
+      "title": "Star calculation time p95",
+      "description": "95th percentile time of a star rating calculation, by endpoint.",
+      "datasource": { "type": "prometheus", "uid": "hedis-prometheus" },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 31 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "color": { "mode": "palette-classic" },
+          "custom": { "drawStyle": "line", "lineWidth": 1, "fillOpacity": 10, "showPoints": "never", "spanNulls": false }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "hedis-prometheus" },
+          "refId": "A",
+          "expr": "histogram_quantile(0.95, sum by (le, endpoint) (rate(hedis_ui_star_calculation_seconds_bucket[$__rate_interval])))",
+          "legendFormat": "{{endpoint}}",
+          "instant": false,
+          "range": true
+        }
+      ]
+    },
+    {
+      "id": 16,
+      "type": "bargauge",
+      "title": "Star calculations by measure (range)",
+      "description": "Star rating calculations in the selected time range, by measure.",
+      "datasource": { "type": "prometheus", "uid": "hedis-prometheus" },
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 39 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0,
+          "thresholds": { "mode": "absolute", "steps": [ { "color": "blue", "value": null } ] }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "orientation": "horizontal",
+        "displayMode": "gradient",
+        "showUnfilled": true
+      },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "hedis-prometheus" },
+          "refId": "A",
+          "expr": "sum by (measure_id) (increase(hedis_ui_star_calculations_total[$__range]))",
+          "legendFormat": "{{measure_id}}",
+          "instant": true,
+          "range": false
+        }
+      ]
+    },
+    {
+      "id": 17,
+      "type": "timeseries",
+      "title": "Evidence generations by outcome",
+      "description": "Evidence documents app.py generated per interval, by outcome.",
+      "datasource": { "type": "prometheus", "uid": "hedis-prometheus" },
+      "interval": "5m",
+      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 39 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": { "mode": "palette-classic" },
+          "custom": { "drawStyle": "bars", "fillOpacity": 80, "lineWidth": 1, "showPoints": "never", "stacking": { "mode": "normal", "group": "A" } }
+        },
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "ok" }, "properties": [ { "id": "color", "value": { "mode": "fixed", "fixedColor": "green" } } ] },
+          { "matcher": { "id": "byName", "options": "error" }, "properties": [ { "id": "color", "value": { "mode": "fixed", "fixedColor": "red" } } ] },
+          { "matcher": { "id": "byName", "options": "not_found" }, "properties": [ { "id": "color", "value": { "mode": "fixed", "fixedColor": "orange" } } ] },
+          { "matcher": { "id": "byName", "options": "bad_request" }, "properties": [ { "id": "color", "value": { "mode": "fixed", "fixedColor": "orange" } } ] },
+          { "matcher": { "id": "byName", "options": "unprocessable" }, "properties": [ { "id": "color", "value": { "mode": "fixed", "fixedColor": "orange" } } ] }
+        ]
+      },
+      "options": {
+        "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "hedis-prometheus" },
+          "refId": "A",
+          "expr": "sum by (outcome) (increase(hedis_ui_evidence_generations_total[$__interval]))",
+          "legendFormat": "{{outcome}}",
+          "instant": false,
+          "range": true
+        }
+      ]
+    },
+    {
+      "id": 18,
+      "type": "timeseries",
+      "title": "Evidence generation time p95",
+      "description": "95th percentile time to generate an evidence document.",
+      "datasource": { "type": "prometheus", "uid": "hedis-prometheus" },
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 39 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "color": { "mode": "palette-classic" },
+          "custom": { "drawStyle": "line", "lineWidth": 1, "fillOpacity": 10, "showPoints": "never", "spanNulls": false }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "hedis-prometheus" },
+          "refId": "A",
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(hedis_ui_evidence_generation_seconds_bucket[$__rate_interval])))",
+          "legendFormat": "p95",
+          "instant": false,
+          "range": true
+        }
+      ]
+    },
+    {
+      "id": 19,
+      "type": "timeseries",
+      "title": "Gap automation runs by trigger and outcome",
+      "description": "Gap automation runs per interval: trigger api is the Process gaps button, background is app.py's automatic worker every 30 s.",
+      "datasource": { "type": "prometheus", "uid": "hedis-prometheus" },
+      "interval": "5m",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 47 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": { "mode": "palette-classic" },
+          "custom": { "drawStyle": "bars", "fillOpacity": 80, "lineWidth": 1, "showPoints": "never", "stacking": { "mode": "normal", "group": "A" } }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "hedis-prometheus" },
+          "refId": "A",
+          "expr": "sum by (trigger, outcome) (increase(hedis_ui_process_gaps_runs_total[$__interval]))",
+          "legendFormat": "{{trigger}} {{outcome}}",
+          "instant": false,
+          "range": true
+        }
+      ]
+    },
+    {
+      "id": 20,
+      "type": "stat",
+      "title": "Gaps processed (range)",
+      "description": "Gaps the gap automation processed in the selected time range.",
+      "datasource": { "type": "prometheus", "uid": "hedis-prometheus" },
+      "gridPos": { "h": 8, "w": 4, "x": 12, "y": 47 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0,
+          "noValue": "No data",
+          "mappings": [ { "type": "special", "options": { "match": "null+nan", "result": { "text": "No data", "color": "text", "index": 0 } } } ],
+          "thresholds": { "mode": "absolute", "steps": [ { "color": "blue", "value": null } ] }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "colorMode": "background", "graphMode": "none", "textMode": "value", "justifyMode": "auto", "orientation": "auto"
+      },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "hedis-prometheus" },
+          "refId": "A",
+          "expr": "sum(increase(hedis_ui_process_gaps_gaps_total[$__range])) or vector(0)",
+          "instant": true,
+          "range": false
+        }
+      ]
+    },
+    {
+      "id": 21,
+      "type": "text",
+      "title": "AI calls",
+      "description": "Why the new UI has no AI call or token metrics.",
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 47 },
+      "options": {
+        "mode": "markdown",
+        "content": "app.py's evidence generation builds the document from the database and does not call a model, so there are no AI call or token metrics for the new UI. The integration app's AI calls are on the **HEDIS pipeline** dashboard."
+      }
+    },
+    {
+      "id": 22,
+      "type": "bargauge",
+      "title": "Seed runs by outcome (range)",
+      "description": "Seed data runs in the selected time range, by outcome.",
+      "datasource": { "type": "prometheus", "uid": "hedis-prometheus" },
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 55 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0,
+          "thresholds": { "mode": "absolute", "steps": [ { "color": "blue", "value": null } ] }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "orientation": "horizontal",
+        "displayMode": "gradient",
+        "showUnfilled": true
+      },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "hedis-prometheus" },
+          "refId": "A",
+          "expr": "sum by (outcome) (increase(hedis_ui_seed_runs_total[$__range]))",
+          "legendFormat": "{{outcome}}",
+          "instant": true,
+          "range": false
+        }
+      ]
+    },
+    {
+      "id": 23,
+      "type": "bargauge",
+      "title": "Sign-ins by outcome (range)",
+      "description": "Sign-in attempts in the selected time range, by outcome.",
+      "datasource": { "type": "prometheus", "uid": "hedis-prometheus" },
+      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 55 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0,
+          "thresholds": { "mode": "absolute", "steps": [ { "color": "blue", "value": null } ] }
+        },
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "ok" }, "properties": [ { "id": "color", "value": { "mode": "fixed", "fixedColor": "green" } } ] },
+          { "matcher": { "id": "byName", "options": "bad_credentials" }, "properties": [ { "id": "color", "value": { "mode": "fixed", "fixedColor": "orange" } } ] },
+          { "matcher": { "id": "byName", "options": "not_approved" }, "properties": [ { "id": "color", "value": { "mode": "fixed", "fixedColor": "orange" } } ] },
+          { "matcher": { "id": "byName", "options": "error" }, "properties": [ { "id": "color", "value": { "mode": "fixed", "fixedColor": "red" } } ] }
+        ]
+      },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "orientation": "horizontal",
+        "displayMode": "gradient",
+        "showUnfilled": true
+      },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "hedis-prometheus" },
+          "refId": "A",
+          "expr": "sum by (outcome) (increase(hedis_ui_signins_total[$__range]))",
+          "legendFormat": "{{outcome}}",
+          "instant": true,
+          "range": false
+        }
+      ]
+    },
+    {
+      "id": 24,
+      "type": "bargauge",
+      "title": "Admin access and role changes (range)",
+      "description": "Admin changes to user access and roles in the selected time range, by change and outcome.",
+      "datasource": { "type": "prometheus", "uid": "hedis-prometheus" },
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 55 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0,
+          "thresholds": { "mode": "absolute", "steps": [ { "color": "blue", "value": null } ] }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "orientation": "horizontal",
+        "displayMode": "gradient",
+        "showUnfilled": true
+      },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "hedis-prometheus" },
+          "refId": "A",
+          "expr": "sum by (change, outcome) (increase(hedis_ui_admin_changes_total[$__range]))",
+          "legendFormat": "{{change}} {{outcome}}",
+          "instant": true,
+          "range": false
+        }
+      ]
+    },
+    {
+      "id": 25,
+      "type": "row",
+      "title": "Browser",
+      "collapsed": false,
+      "panels": [],
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 63 }
+    },
+    {
+      "id": 26,
+      "type": "timeseries",
+      "title": "Browser errors per minute by kind",
+      "description": "Errors the browser reported per minute, by kind.",
+      "datasource": { "type": "prometheus", "uid": "hedis-prometheus" },
+      "interval": "1m",
+      "gridPos": { "h": 8, "w": 18, "x": 0, "y": 64 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": { "mode": "palette-classic" },
+          "custom": { "drawStyle": "bars", "fillOpacity": 80, "lineWidth": 1, "showPoints": "never", "stacking": { "mode": "normal", "group": "A" } }
+        },
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "js_error" }, "properties": [ { "id": "color", "value": { "mode": "fixed", "fixedColor": "red" } } ] },
+          { "matcher": { "id": "byName", "options": "unhandled_rejection" }, "properties": [ { "id": "color", "value": { "mode": "fixed", "fixedColor": "orange" } } ] },
+          { "matcher": { "id": "byName", "options": "api_error" }, "properties": [ { "id": "color", "value": { "mode": "fixed", "fixedColor": "yellow" } } ] }
+        ]
+      },
+      "options": {
+        "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "hedis-prometheus" },
+          "refId": "A",
+          "expr": "sum by (kind) (increase(hedis_ui_client_errors_total[1m]))",
+          "legendFormat": "{{kind}}",
+          "instant": false,
+          "range": true
+        }
+      ]
+    },
+    {
+      "id": 27,
+      "type": "stat",
+      "title": "Browser reports dropped (range)",
+      "description": "Browser error reports over the 30 per minute limit are counted here and not logged.",
+      "datasource": { "type": "prometheus", "uid": "hedis-prometheus" },
+      "gridPos": { "h": 8, "w": 6, "x": 18, "y": 64 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0,
+          "noValue": "No data",
+          "mappings": [ { "type": "special", "options": { "match": "null+nan", "result": { "text": "No data", "color": "text", "index": 0 } } } ],
+          "thresholds": { "mode": "absolute", "steps": [ { "color": "green", "value": null }, { "color": "orange", "value": 0.5 } ] }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "colorMode": "background", "graphMode": "none", "textMode": "value", "justifyMode": "auto", "orientation": "auto"
+      },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "hedis-prometheus" },
+          "refId": "A",
+          "expr": "sum(increase(hedis_ui_client_errors_dropped_total[$__range])) or vector(0)",
+          "instant": true,
+          "range": false
+        }
+      ]
+    },
+    {
+      "id": 28,
+      "type": "row",
+      "title": "Logs",
+      "collapsed": false,
+      "panels": [],
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 72 }
+    },
+    {
+      "id": 29,
+      "type": "logs",
+      "title": "Backend log",
+      "description": "app.py's log (logs/hedis-app.log) with emails, file names and user ids masked; GET /metrics lines are not sent.",
+      "datasource": { "type": "loki", "uid": "hedis-loki" },
+      "gridPos": { "h": 12, "w": 24, "x": 0, "y": 73 },
+      "options": {
+        "showTime": true,
+        "showLabels": false,
+        "showCommonLabels": false,
+        "wrapLogMessage": true,
+        "prettifyLogMessage": false,
+        "enableLogDetails": true,
+        "dedupStrategy": "none",
+        "sortOrder": "Descending"
+      },
+      "targets": [
+        {
+          "datasource": { "type": "loki", "uid": "hedis-loki" },
+          "refId": "A",
+          "editorMode": "code",
+          "queryType": "range",
+          "expr": "{job=\"hedis-api\"}"
+        }
+      ]
+    },
+    {
+      "id": 30,
+      "type": "logs",
+      "title": "Backend errors and warnings",
+      "description": "ERROR and WARNING lines from app.py's log, newest first; browser errors are WARNING lines from logger app.browser.",
+      "datasource": { "type": "loki", "uid": "hedis-loki" },
+      "gridPos": { "h": 10, "w": 24, "x": 0, "y": 85 },
+      "options": {
+        "showTime": true,
+        "showLabels": false,
+        "showCommonLabels": false,
+        "wrapLogMessage": true,
+        "prettifyLogMessage": false,
+        "enableLogDetails": true,
+        "dedupStrategy": "none",
+        "sortOrder": "Descending"
+      },
+      "targets": [
+        {
+          "datasource": { "type": "loki", "uid": "hedis-loki" },
+          "refId": "A",
+          "editorMode": "code",
+          "queryType": "range",
+          "expr": "{job=\"hedis-api\", level=~\"ERROR|WARNING\"}"
+        }
+      ]
+    },
+    {
+      "id": 31,
+      "type": "row",
+      "title": "Run history (Postgres)",
+      "collapsed": false,
+      "panels": [],
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 95 }
+    },
+    {
+      "id": 32,
+      "type": "table",
+      "title": "Ingestion jobs",
+      "description": "Every ingestion job started in the selected time range: status, duration, record counts and issue counts.",
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "hedis-postgres" },
+      "gridPos": { "h": 9, "w": 24, "x": 0, "y": 96 },
+      "fieldConfig": {
+        "defaults": { "noValue": "No ingestion jobs" },
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "Duration" }, "properties": [ { "id": "unit", "value": "s" } ] },
+          {
+            "matcher": { "id": "byName", "options": "Status" },
+            "properties": [
+              { "id": "custom.cellOptions", "value": { "type": "color-background" } },
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "completed": { "color": "green", "index": 0 },
+                      "partially_completed": { "color": "orange", "index": 1 },
+                      "failed": { "color": "red", "index": 2 },
+                      "running": { "color": "blue", "index": 3 },
+                      "pending": { "color": "blue", "index": 4 }
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "Errors" },
+            "properties": [
+              { "id": "custom.cellOptions", "value": { "type": "color-text" } },
+              { "id": "thresholds", "value": { "mode": "absolute", "steps": [ { "color": "green", "value": null }, { "color": "red", "value": 0.5 } ] } }
+            ]
+          }
+        ]
+      },
+      "options": { "showHeader": true, "cellHeight": "sm", "footer": { "show": false } },
+      "targets": [
+        {
+          "datasource": { "type": "grafana-postgresql-datasource", "uid": "hedis-postgres" },
+          "refId": "A", "format": "table", "rawQuery": true, "editorMode": "code",
+          "rawSql": "SELECT started_at AS \"Started\", completed_at AS \"Completed\", extract(epoch FROM completed_at - started_at) AS \"Duration\", status AS \"Status\", total_source_records AS \"Source records\", resources_generated AS \"Generated\", resources_validated AS \"Validated\", resources_persisted AS \"Persisted\", warning_count AS \"Warnings\", error_count AS \"Errors\", id AS \"Job id\", batch_id AS \"Batch id\"\n  FROM hedis.conversion_jobs WHERE $__timeFilter(started_at) ORDER BY started_at DESC LIMIT 500"
+        }
+      ]
+    },
+    {
+      "id": 33,
+      "type": "table",
+      "title": "Validation issues by job",
+      "description": "Validation issues in the selected time range, grouped by job, severity, category, code, resource type and field.",
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "hedis-postgres" },
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 105 },
+      "fieldConfig": {
+        "defaults": { "noValue": "No validation issues" },
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "Severity" },
+            "properties": [
+              { "id": "custom.cellOptions", "value": { "type": "color-background" } },
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "error": { "color": "red", "index": 0 },
+                      "warning": { "color": "orange", "index": 1 },
+                      "information": { "color": "blue", "index": 2 }
+                    }
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "options": { "showHeader": true, "cellHeight": "sm", "footer": { "show": false } },
+      "targets": [
+        {
+          "datasource": { "type": "grafana-postgresql-datasource", "uid": "hedis-postgres" },
+          "refId": "A", "format": "table", "rawQuery": true, "editorMode": "code",
+          "rawSql": "SELECT max(created_at) AS \"Last seen\", job_id AS \"Job id\", severity AS \"Severity\", issue_category AS \"Category\", error_code AS \"Error code\", resource_type AS \"Resource type\", field_path AS \"Field\", count(*) AS \"Issues\"\n  FROM hedis.validation_issues WHERE $__timeFilter(created_at)\n GROUP BY job_id, severity, issue_category, error_code, resource_type, field_path ORDER BY max(created_at) DESC LIMIT 500"
+        }
+      ]
+    },
+    {
+      "id": 34,
+      "type": "table",
+      "title": "Sign-in sessions",
+      "description": "Sign-in sessions started in the selected time range, by user id and role.",
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "hedis-postgres" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 113 },
+      "fieldConfig": {
+        "defaults": { "noValue": "No sessions" },
+        "overrides": []
+      },
+      "options": { "showHeader": true, "cellHeight": "sm", "footer": { "show": false } },
+      "targets": [
+        {
+          "datasource": { "type": "grafana-postgresql-datasource", "uid": "hedis-postgres" },
+          "refId": "A", "format": "table", "rawQuery": true, "editorMode": "code",
+          "rawSql": "SELECT s.created_at AS \"Signed in\", s.user_id AS \"User id\", u.role AS \"Role\", s.expires_at AS \"Expires\", s.revoked_at AS \"Signed out or revoked\"\n  FROM hedis.auth_session s JOIN hedis.app_user u ON u.user_id = s.user_id WHERE $__timeFilter(s.created_at) ORDER BY s.created_at DESC LIMIT 500"
+        }
+      ]
+    },
+    {
+      "id": 35,
+      "type": "table",
+      "title": "User accounts changed",
+      "description": "User accounts changed in the selected time range: role, access status and whether active.",
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "hedis-postgres" },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 113 },
+      "fieldConfig": {
+        "defaults": { "noValue": "No account changes" },
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "Access" },
+            "properties": [
+              { "id": "custom.cellOptions", "value": { "type": "color-background" } },
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "approved": { "color": "green", "index": 0 },
+                      "pending": { "color": "blue", "index": 1 },
+                      "rejected": { "color": "red", "index": 2 }
+                    }
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "options": { "showHeader": true, "cellHeight": "sm", "footer": { "show": false } },
+      "targets": [
+        {
+          "datasource": { "type": "grafana-postgresql-datasource", "uid": "hedis-postgres" },
+          "refId": "A", "format": "table", "rawQuery": true, "editorMode": "code",
+          "rawSql": "SELECT updated_at AS \"Changed\", user_id AS \"User id\", role AS \"Role\", access_status AS \"Access\", is_active AS \"Active\", created_at AS \"Created\"\n  FROM hedis.app_user WHERE $__timeFilter(updated_at) ORDER BY updated_at DESC LIMIT 500"
+        }
+      ]
+    },
+    {
+      "id": 36,
+      "type": "text",
+      "title": "Not in run history",
+      "description": "Why app.py's evidence, star results and gap automation have no run history here.",
+      "gridPos": { "h": 3, "w": 24, "x": 0, "y": 121 },
+      "options": {
+        "mode": "markdown",
+        "content": "Evidence documents, star results and gap automation from app.py are written to the synthea_records table, which this database does not have, so they have no run history here. They show in the metrics and the logs above."
+      }
+    }
+  ]
+}
