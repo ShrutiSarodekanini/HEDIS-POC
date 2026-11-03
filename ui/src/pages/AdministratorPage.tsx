@@ -70,18 +70,6 @@ export function AdministratorPage({ actorEmail, actorRole }: AdministratorPagePr
           <h1>Administrator</h1>
           <p>Approve pending accounts and manage user roles for the integration backend.</p>
         </div>
-        <div className="actions">
-          <button
-            type="button"
-            className="btn outline"
-            disabled={loading}
-            onClick={() => {
-              void refresh()
-            }}
-          >
-            {loading ? "Refreshing..." : "Refresh users"}
-          </button>
-        </div>
       </div>
 
       <article className="card">

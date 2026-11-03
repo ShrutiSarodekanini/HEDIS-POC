@@ -197,9 +197,6 @@ export function DashboardPage({ snapshot, loading, onRetry }: DashboardPageProps
             star endpoints.
           </p>
         </div>
-        <button type="button" className="btn outline" onClick={onRetry}>
-          Refresh
-        </button>
       </div>
 
       <div className="kpi-grid five">
