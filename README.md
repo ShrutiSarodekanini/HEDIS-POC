@@ -22,18 +22,18 @@ Do not create a separate `ui/.env`; Vite is configured to read environment varia
 # backend deps
 python -m pip install -r requirements.txt
 
+### Run database migrations
+
+```powershell
+ python scripts/db/load_seed.py --reference-only
+python -m alembic -c alembic.ini upgrade head
+```
+
 # frontend deps
 cd ui
 npm install
 cd ..
 ```
-
-### Run database migrations
-
-```powershell
-python -m alembic -c alembic.ini upgrade head
-```
-
 ### Start backend
 
 ```powershell
