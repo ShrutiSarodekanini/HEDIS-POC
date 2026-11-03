@@ -72,12 +72,14 @@ export function RunIntegrationPage() {
     inspectDataset,
     uploadFiles,
     startJob,
+    refreshJob,
     loadValidation,
     loadPatients,
     selectPatient,
     downloadSelectedBundle,
     downloadAllBundles,
     reloadHistoryList,
+    loadOurSteps,
   } = useIngestionWorkflow()
 
   const effectiveJobStatus = job?.runtime?.status ?? job?.status
@@ -181,6 +183,21 @@ export function RunIntegrationPage() {
           <p>
             Upload, inspect, run, and export ingestion output using the backend ingestion workflow.
           </p>
+        </div>
+        <div className="actions">
+          <button
+            type="button"
+            className="btn outline"
+            disabled={busy.history || busy.refresh}
+            onClick={() => {
+              void reloadHistoryList()
+              if (jobId) {
+                void refreshJob()
+              }
+            }}
+          >
+            {busy.history || busy.refresh ? "Refreshing..." : "Refresh status"}
+          </button>
         </div>
       </div>
 
@@ -382,6 +399,19 @@ export function RunIntegrationPage() {
             <span className="chip info">{asStatusLabel(effectiveJobStatus)}</span>
           </div>
 
+          <div className="actions">
+            <button
+              type="button"
+              className="btn outline"
+              disabled={!mode || !jobId || busy.refresh}
+              onClick={() => {
+                void refreshJob()
+              }}
+            >
+              {busy.refresh ? "Refreshing..." : "Refresh job"}
+            </button>
+          </div>
+
           <div className="kpi-grid three">
             <article className="kpi-card">
               <span>Generated</span>
@@ -497,6 +527,16 @@ export function RunIntegrationPage() {
       <article className="card">
         <div className="card-head row-split">
           <h2>Our steps after ingestion</h2>
+          <button
+            type="button"
+            className="btn outline"
+            disabled={!mode?.flowPath || busy.ourSteps}
+            onClick={() => {
+              void loadOurSteps()
+            }}
+          >
+            {busy.ourSteps ? "Loading..." : "Refresh our steps"}
+          </button>
         </div>
 
         <CardMessage text={messages.ourSteps.text} error={messages.ourSteps.error} />

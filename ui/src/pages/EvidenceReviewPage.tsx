@@ -347,6 +347,7 @@ export function EvidenceReviewPage() {
     reviewerId,
     decisionReason,
     loadingSetup,
+    loadingOverview,
     loadingGapDetail,
     runningExtraction,
     runningDecision,
@@ -355,6 +356,7 @@ export function EvidenceReviewPage() {
     errorMessage,
     statusMessage,
     retrySetup,
+    refreshAll,
     setSelectedScopeGapId,
     setSelectedProposalId,
     setReviewerId,
@@ -386,6 +388,18 @@ export function EvidenceReviewPage() {
         <div>
           <h1>Evidence Review</h1>
           <p>AI-proposed findings from chart text, confirmed or rejected by a named reviewer.</p>
+        </div>
+        <div className="actions">
+          <button
+            type="button"
+            className="btn outline"
+            disabled={loadingOverview}
+            onClick={() => {
+              void refreshAll()
+            }}
+          >
+            {loadingOverview ? "Refreshing..." : "Refresh"}
+          </button>
         </div>
       </div>
 

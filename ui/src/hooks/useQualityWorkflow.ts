@@ -32,6 +32,9 @@ const DEFAULT_COVERAGE_FILTERS: CoverageFilters = {
   endDate: "",
 }
 
+const RUN_POLL_MS = 3000
+const OVERVIEW_REFRESH_MS = 15000
+
 export function useQualityWorkflow() {
   const [capabilities, setCapabilities] = useState<QualityCapabilities | null>(null)
   const [overview, setOverview] = useState<QualityOverview | null>(null)
@@ -203,6 +206,39 @@ export function useQualityWorkflow() {
   useEffect(() => {
     void reloadRunDetail()
   }, [reloadRunDetail])
+
+  useEffect(() => {
+    if (!capabilities || capabilities.mode !== "integration" || !selectedRunId) {
+      return
+    }
+
+    const selected = runs.find((run) => String(run.run_id) === selectedRunId)
+    if (!selected || String(selected.status).toLowerCase() !== "running") {
+      return
+    }
+
+    const timer = window.setInterval(() => {
+      void reloadRuns({ silent: true })
+    }, RUN_POLL_MS)
+
+    return () => {
+      window.clearInterval(timer)
+    }
+  }, [capabilities, reloadRuns, runs, selectedRunId])
+
+  useEffect(() => {
+    if (!capabilities || runningChecks) {
+      return
+    }
+
+    const timer = window.setInterval(() => {
+      void refreshOverview()
+    }, OVERVIEW_REFRESH_MS)
+
+    return () => {
+      window.clearInterval(timer)
+    }
+  }, [capabilities, refreshOverview, runningChecks])
 
   const runChecksNow = useCallback(async (): Promise<void> => {
     if (!capabilities) {

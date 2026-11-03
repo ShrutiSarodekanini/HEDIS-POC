@@ -214,6 +214,7 @@ export function DataQualityPage() {
     coverage,
     coverageFilters,
     loadingSetup,
+    loadingOverview,
     loadingRunDetail,
     loadingCoverage,
     runningChecks,
@@ -230,6 +231,7 @@ export function DataQualityPage() {
     setSelectedSeverity,
     setCoverageFilter,
     retrySetup,
+    refreshOverview,
     runChecksNow,
     refreshCoverage,
   } = useQualityWorkflow()
@@ -414,6 +416,18 @@ export function DataQualityPage() {
           <h1>Data Quality</h1>
           <p>Review checks, anomalies, and enrollment coverage after each ingestion run.</p>
         </div>
+        <div className="actions">
+          <button
+            type="button"
+            className="btn outline"
+            disabled={loadingOverview}
+            onClick={() => {
+              void refreshOverview()
+            }}
+          >
+            {loadingOverview ? "Refreshing..." : "Refresh"}
+          </button>
+        </div>
       </div>
 
       {setupError ? (
@@ -576,7 +590,7 @@ export function DataQualityPage() {
               <p className="card-message error">{selectedRun.error ?? "The selected checks run failed."}</p>
             ) : (
               <>
-                {runIsRunning ? <p className="note small">Checks are running. Use Run checks now to update results after completion.</p> : null}
+                {runIsRunning ? <p className="note small">Checks are running. This page auto-refreshes until the run completes.</p> : null}
                 <p className="note small">{runContext}</p>
                 <p className="note small">{runStatusNote}</p>
 
