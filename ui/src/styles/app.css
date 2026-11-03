@@ -308,6 +308,10 @@ p {
   grid-template-columns: repeat(5, minmax(0, 1fr));
 }
 
+.six {
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+}
+
 .card,
 .kpi-card,
 .subcard {
@@ -841,6 +845,39 @@ tbody td {
   width: 100%;
 }
 
+.dqx-view {
+  gap: 14px;
+}
+
+.dqx-hero {
+  justify-content: space-between;
+  align-items: center;
+  border: 1px solid #c9dff0;
+  border-radius: 14px;
+  padding: 16px;
+  background:
+    radial-gradient(circle at 100% 0%, #e9f4ff 0%, #f6fbff 38%, rgba(255, 255, 255, 0.95) 100%),
+    linear-gradient(120deg, #f4fbf8 0%, #fdfefe 100%);
+}
+
+.dqx-hero-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.dqx-frame {
+  border-color: #bfd8ea;
+}
+
+.dqx-filters {
+  background: linear-gradient(180deg, #fbfdff 0%, #f3f9ff 100%);
+  border: 1px solid #d6e7f4;
+  border-radius: 12px;
+  padding: 10px;
+}
+
 .status.status-bad {
   background: #fdf0f0;
   border-color: #e4b9b9;
@@ -1032,6 +1069,10 @@ details.card.dq-coverage {
   margin: 0;
   color: #2e475d;
   font-size: 12px;
+}
+
+.dq-card .facts dd {
+  overflow-wrap: anywhere;
 }
 
 .gap-panel {
@@ -1557,6 +1598,10 @@ table.compact td {
 }
 
 @media (max-width: 1200px) {
+  .six {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
   .five,
   .four {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1589,13 +1634,19 @@ table.compact td {
   .two,
   .three,
   .four,
-  .five {
+  .five,
+  .six {
     grid-template-columns: repeat(1, minmax(0, 1fr));
   }
 
   .page-head {
     flex-direction: column;
     align-items: flex-start;
+  }
+
+  .dqx-hero-actions {
+    width: 100%;
+    justify-content: flex-start;
   }
 
   .queue-item {

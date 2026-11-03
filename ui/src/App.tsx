@@ -77,14 +77,12 @@ function App() {
     }
   }, [])
 
-  const { snapshot, loading, reload } = useDashboardData(activeView === "dashboard")
+  const { snapshot, loading, reload } = useDashboardData(true)
 
   const dashboard = snapshot?.dashboard.data
   const runMeta = dashboard
     ? `${formatDateTime(snapshot?.fetchedAt)} | ${formatInteger(dashboard.patient_rows.length)} patients | ${formatInteger(dashboard.measure_cards.length)} measures`
-    : activeView === "dashboard"
-      ? (loading ? "Loading dashboard summary..." : "No dashboard snapshot loaded yet")
-      : "Open Dashboard for live backend summary"
+    : (loading ? "Loading dashboard summary..." : "No dashboard snapshot loaded yet")
 
   const navItems = useMemo(() => navigationItems, [])
 

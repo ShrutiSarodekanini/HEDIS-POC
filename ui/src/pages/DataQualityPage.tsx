@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react"
+import { useCallback, useMemo, useState } from "react"
 
 import { useQualityWorkflow } from "../hooks/useQualityWorkflow"
 import { formatDateTime, formatInteger, formatRate } from "../utils/format"
@@ -260,15 +260,6 @@ export function DataQualityPage() {
     return ""
   }, [runScopeMeasure, selectedMeasureId])
 
-  const runFeedReport = useMemo(() => {
-    const summary = selectedRun?.summary
-    if (!summary || typeof summary !== "object") {
-      return null
-    }
-    const record = summary as Record<string, unknown>
-    return typeof record.feed_report === "string" ? record.feed_report : null
-  }, [selectedRun?.summary])
-
   const runIsRunning = selectedRun ? selectedRun.status.trim().toLowerCase() === "running" : false
   const runIsFailed = selectedRun ? selectedRun.status.trim().toLowerCase() === "failed" : false
 
@@ -351,50 +342,31 @@ export function DataQualityPage() {
     [filteredChecks],
   )
 
-  const runContext = useMemo(() => {
-    if (!selectedRun) {
-      return ""
+  const runSummary = useMemo(() => {
+    if (!selectedRun?.summary || typeof selectedRun.summary !== "object") {
+      return null
     }
-    return `Batch ${String(selectedRun.batch_id ?? selectedBatchId).slice(0, 8)} | run #${selectedRun.run_id} | ${humanize(selectedRun.status)} | scope ${runScopeMeasure ?? "all measures"}${runFeedReport ? ` | Feed report: ${runFeedReport}` : ""}`
-  }, [runFeedReport, runScopeMeasure, selectedBatchId, selectedRun])
+    return selectedRun.summary as Record<string, unknown>
+  }, [selectedRun?.summary])
 
-  const runStatusNote = useMemo(() => {
-    if (!selectedRun) {
-      return ""
+  const summaryValue = useCallback((key: string): string => {
+    if (!runSummary) {
+      return "-"
     }
-    return `Started ${formatDateTime(selectedRun.started_at)} | Completed ${formatDateTime(selectedRun.completed_at)}`
-  }, [selectedRun])
+    const raw = runSummary[key]
+    if (typeof raw === "number" && Number.isFinite(raw)) {
+      return formatInteger(raw)
+    }
+    if (typeof raw === "string" && raw.trim()) {
+      return raw
+    }
+    return "-"
+  }, [runSummary])
 
+  const runChecksTotal = summaryValue("checks_total")
+  const runChecksFailed = summaryValue("checks_failed")
+  const runAnomaliesCreated = summaryValue("anomalies_created")
   const hasBatches = (overview?.batches ?? []).length > 0
-  const automationMeasures = overview?.measures ?? []
-  const automationSummaryReason = overview?.not_available?.[0]?.reason ?? ""
-  const automationOpenGaps = useMemo(
-    () => automationMeasures.reduce((sum, item) => sum + (item.open_gaps ?? 0), 0),
-    [automationMeasures],
-  )
-  const automationProjectedDelta = useMemo(
-    () => automationMeasures.reduce((sum, item) => {
-      const baseline = item.baseline_closed ?? 0
-      const projected = item.projected_closed ?? baseline
-      return sum + (projected - baseline)
-    }, 0),
-    [automationMeasures],
-  )
-
-  useEffect(() => {
-    if (!coverageOpen || capabilities?.mode !== "integration") {
-      return
-    }
-    void refreshCoverage()
-  }, [
-    capabilities?.mode,
-    coverageFilters.compliance,
-    coverageFilters.endDate,
-    coverageFilters.payer,
-    coverageFilters.startDate,
-    coverageOpen,
-    refreshCoverage,
-  ])
 
   if (loadingSetup) {
     return (
@@ -408,11 +380,23 @@ export function DataQualityPage() {
   }
 
   return (
-    <section id="view-quality" className="view">
-      <div className="page-head">
+    <section id="view-quality" className="view dqx-view">
+      <div className="page-head dqx-hero">
         <div>
-          <h1>Data Quality</h1>
-          <p>Review checks, anomalies, and enrollment coverage after each ingestion run.</p>
+          <h1>Data Anomaly Control Room</h1>
+          <p>Trace anomaly signals from completed quality runs, then inspect checks and coverage evidence.</p>
+        </div>
+        <div className="dqx-hero-actions">
+          <button
+            type="button"
+            className="btn primary"
+            disabled={runningChecks || !selectedBatchId}
+            onClick={() => {
+              void runChecksNow()
+            }}
+          >
+            {runningChecks ? "Running checks..." : "Run checks now"}
+          </button>
         </div>
       </div>
 
@@ -435,30 +419,15 @@ export function DataQualityPage() {
         </article>
       ) : null}
 
-      {overview?.not_available?.length && capabilities?.mode !== "automation" ? (
-        <article className="card">
-          <div className="card-head">
-            <h2>Not available on the one schema</h2>
-          </div>
-          <div className="integration-capabilities">
-            {overview.not_available.map((item, index) => (
-              <p key={`${item.name ?? "na"}-${index}`} className="note">
-                <strong>{item.name ?? "Not available"}:</strong> {item.reason ?? "No details"}
-              </p>
-            ))}
-          </div>
-        </article>
-      ) : null}
-
       {capabilities?.mode === "integration" ? (
         <>
-          <article className="card">
+          <article className="card dqx-frame">
             <div className="card-head row-split">
-              <h2>Data quality and anomaly detection</h2>
+              <h2>Run scope</h2>
               {selectedRun ? <span className={toRunStatusClass(selectedRun.status)}>{humanize(selectedRun.status)}</span> : null}
             </div>
 
-            <div className="calc-toolbar quality-filters">
+            <div className="calc-toolbar quality-filters dqx-filters">
               <label className="calc-check">
                 <span>Batch</span>
                 <select
@@ -540,27 +509,6 @@ export function DataQualityPage() {
 
             {runScopeWarning ? <p className="note small">{runScopeWarning}</p> : null}
 
-            <details className="dq-advanced">
-              <summary>Advanced rerun</summary>
-              <div className="dq-adv-body">
-                <p className="note small">
-                  Checks run automatically after batch loading. Run checks now is mainly for rule updates or manual reruns.
-                </p>
-                <div className="actions">
-                  <button
-                    type="button"
-                    className="btn primary"
-                    disabled={runningChecks || !selectedBatchId}
-                    onClick={() => {
-                      void runChecksNow()
-                    }}
-                  >
-                    {runningChecks ? "Running..." : "Run checks now"}
-                  </button>
-                </div>
-              </div>
-            </details>
-
             {statusMessage ? <p className="card-message">{statusMessage}</p> : null}
             {errorMessage ? <p className="card-message error">{errorMessage}</p> : null}
 
@@ -577,10 +525,7 @@ export function DataQualityPage() {
             ) : (
               <>
                 {runIsRunning ? <p className="note small">Checks are running. Use Run checks now to update results after completion.</p> : null}
-                <p className="note small">{runContext}</p>
-                <p className="note small">{runStatusNote}</p>
-
-                <div className={`kpi-grid ${checksNotAvailable > 0 ? "five" : "four"}`}>
+                <div className={`kpi-grid ${checksNotAvailable > 0 ? "six" : "five"}`}>
                   <article className="kpi-card">
                     <span>Checks run</span>
                     <strong>{formatInteger(filteredChecks.length)}</strong>
@@ -596,6 +541,18 @@ export function DataQualityPage() {
                   <article className="kpi-card">
                     <span>Anomalies raised</span>
                     <strong>{formatInteger(filteredAnomalies.length)}</strong>
+                  </article>
+                  <article className="kpi-card">
+                    <span>Run summary (checks)</span>
+                    <strong>{runChecksTotal}</strong>
+                  </article>
+                  <article className="kpi-card">
+                    <span>Run summary (failed)</span>
+                    <strong>{runChecksFailed}</strong>
+                  </article>
+                  <article className="kpi-card">
+                    <span>Run summary (anomalies)</span>
+                    <strong>{runAnomaliesCreated}</strong>
                   </article>
                   {checksNotAvailable > 0 ? (
                     <article className="kpi-card">
@@ -708,6 +665,7 @@ export function DataQualityPage() {
                               <th className="r">Value</th>
                               <th className="r">Threshold</th>
                               <th>Resource type</th>
+                              <th>Detail</th>
                             </tr>
                           </thead>
                           <tbody>
@@ -719,6 +677,7 @@ export function DataQualityPage() {
                                 <td className="r">{formatMetricValue(item.metric_value)}</td>
                                 <td className="r">{formatMetricValue(item.threshold_value)}</td>
                                 <td>{item.resource_type ?? "-"}</td>
+                                <td className="small">{typeof item.details?.note === "string" ? item.details.note : "-"}</td>
                               </tr>
                             ))}
                           </tbody>
@@ -803,6 +762,19 @@ export function DataQualityPage() {
                 </label>
               </div>
 
+              <div className="actions">
+                <button
+                  type="button"
+                  className="btn outline"
+                  disabled={loadingCoverage}
+                  onClick={() => {
+                    void refreshCoverage({ forceFresh: true })
+                  }}
+                >
+                  {loadingCoverage ? "Loading..." : "Load coverage"}
+                </button>
+              </div>
+
               {loadingCoverage ? <p className="card-message">Loading coverage report...</p> : null}
 
               {coverage ? (
@@ -875,136 +847,10 @@ export function DataQualityPage() {
         </>
       ) : null}
 
-      {capabilities?.mode === "automation" ? (
-        <article className="card">
-          <div className="card-head row-split">
-            <h2>Data quality and anomaly detection</h2>
-            <span className="chip warn">Compatibility</span>
-          </div>
-          <p className="note">
-            This backend profile does not expose detailed /api/quality checks. The section below uses available
-            automation and dashboard endpoints so quality snapshot data is still visible.
-          </p>
-          {automationSummaryReason ? <p className="note small">{automationSummaryReason}</p> : null}
-          <div className="actions">
-            <button
-              type="button"
-              className="btn primary"
-              disabled={runningChecks}
-              onClick={() => {
-                void runChecksNow()
-              }}
-            >
-              {runningChecks ? "Running..." : "Run checks now"}
-            </button>
-          </div>
-
-          {statusMessage ? <p className="card-message">{statusMessage}</p> : null}
-          {errorMessage ? <p className="card-message error">{errorMessage}</p> : null}
-
-          <div className="kpi-grid four">
-            <article className="kpi-card">
-              <span>Measures in snapshot</span>
-              <strong>{formatInteger(automationMeasures.length)}</strong>
-            </article>
-            <article className="kpi-card">
-              <span>Open gaps</span>
-              <strong>{formatInteger(automationOpenGaps)}</strong>
-            </article>
-            <article className="kpi-card">
-              <span>Projected closures</span>
-              <strong>{formatInteger(automationProjectedDelta)}</strong>
-            </article>
-            <article className="kpi-card">
-              <span>Batches tracked</span>
-              <strong>{formatInteger((overview?.batches ?? []).length)}</strong>
-            </article>
-          </div>
-
-          <div className="card-head row-split">
-            <h2>Quality snapshot by measure</h2>
-            <span className="note">Derived from star dashboard endpoint</span>
-          </div>
-
-          <div className="table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>Measure</th>
-                  <th className="r">Open gaps</th>
-                  <th className="r">Baseline closed</th>
-                  <th className="r">Projected closed</th>
-                  <th className="r">Baseline rate</th>
-                  <th className="r">Projected rate</th>
-                  <th className="r">Stars</th>
-                </tr>
-              </thead>
-              <tbody>
-                {automationMeasures.length > 0 ? (
-                  automationMeasures.map((measure) => (
-                    <tr key={measure.measure_id}>
-                      <td>
-                        <div>{measure.measure_id}</div>
-                        <div className="note">{measure.description ?? "-"}</div>
-                      </td>
-                      <td className="r">{formatInteger(measure.open_gaps)}</td>
-                      <td className="r">{formatInteger(measure.baseline_closed)}</td>
-                      <td className="r">{formatInteger(measure.projected_closed)}</td>
-                      <td className="r">{formatRate(measure.baseline_rate)}</td>
-                      <td className="r">{formatRate(measure.projected_rate)}</td>
-                      <td className="r">{measure.baseline_star ?? "-"}{" to "}{measure.projected_star ?? "-"}</td>
-                    </tr>
-                  ))
-                ) : (
-                  <tr>
-                    <td colSpan={7} className="empty">No snapshot data available yet. Run checks now to refresh automation quality summary.</td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-
-          <div className="card-head row-split">
-            <h2>Automation batch status</h2>
-            <span className="note">From flow and ingestion jobs</span>
-          </div>
-
-          <div className="table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>Batch</th>
-                  <th>Status</th>
-                  <th>Step</th>
-                  <th>Updated</th>
-                </tr>
-              </thead>
-              <tbody>
-                {(overview?.batches ?? []).length > 0 ? (
-                  (overview?.batches ?? []).map((batch) => (
-                    <tr key={batch.batch_id}>
-                      <td>{batch.batch_id}</td>
-                      <td>{batch.status ?? "unknown"}</td>
-                      <td>{batch.step ?? "-"}</td>
-                      <td>{formatDateTime(batch.started_at)}</td>
-                    </tr>
-                  ))
-                ) : (
-                  <tr>
-                    <td colSpan={4} className="empty">No batch status is available yet.</td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-        </article>
-      ) : null}
-
       {capabilities?.mode === "unavailable" ? (
         <article className="card danger-box">
           <p>
-            Data quality endpoints are not available in the current backend profile. Switch to the integration API
-            profile to use full quality checks.
+            Data quality endpoints are not available in the current backend profile.
           </p>
         </article>
       ) : null}

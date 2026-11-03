@@ -36,7 +36,9 @@ from services.data_ingestion.app import api as ingestion_api
 from services.document_intake import db as intake_db
 from services.integration import auth as integration_auth
 from services.integration import calculation as integration_calculation
+from services.integration import dq_checks as integration_dq_checks
 from services.integration import pipeline as integration_pipeline
+from services.integration import quality as integration_quality
 from services.star_modeler.main import (
     CMS_MEASURE_SET_URL,
     CMS_RATING_YEAR,
@@ -105,6 +107,11 @@ class UserRoleIn(BaseModel):
 class CalculationRequest(BaseModel):
     measures: list[str] | None = None
     patient_ids: list[str] | None = None
+
+
+class QualityRunIn(BaseModel):
+    batch_id: uuid.UUID
+    measure_id: str | None = None
 
 
 def get_auth_conn() -> Iterator[psycopg.Connection]:
@@ -1331,6 +1338,49 @@ def create_app(
             raise HTTPException(status_code=400, detail=str(exc)) from exc
         conn.commit()
         return updated
+
+    @app.get("/api/quality")
+    def quality_overview(
+        conn: psycopg.Connection = Depends(get_auth_conn),
+    ) -> dict:
+        return integration_quality.overview(conn)
+
+    @app.get("/api/quality/runs")
+    def quality_runs(
+        batch_id: uuid.UUID,
+        conn: psycopg.Connection = Depends(get_auth_conn),
+    ) -> dict:
+        return integration_quality.runs(conn, batch_id)
+
+    @app.get("/api/quality/runs/{run_id}")
+    def quality_run_detail(
+        run_id: int,
+        severity: Literal["critical", "high", "medium", "low"] | None = None,
+        conn: psycopg.Connection = Depends(get_auth_conn),
+    ) -> dict:
+        found = integration_quality.run_detail(conn, run_id, severity)
+        if found is None:
+            raise HTTPException(status_code=404, detail=f"data quality run {run_id} not found")
+        return found
+
+    @app.post("/api/quality/runs")
+    def quality_run_now(
+        body: QualityRunIn,
+    ) -> dict:
+        actor = os.environ.get("INTEGRATION_ACTOR", "integration")
+        return integration_dq_checks.run_checks(body.batch_id, body.measure_id, actor)
+
+    @app.get("/api/quality/coverage")
+    def quality_coverage_report(
+        payer: str | None = None,
+        compliance: Literal["Compliant", "Violation"] | None = None,
+        start_date: dt.date | None = None,
+        end_date: dt.date | None = None,
+        limit: int = 1000,
+        conn: psycopg.Connection = Depends(get_auth_conn),
+    ) -> dict:
+        compliant = None if compliance is None else compliance == "Compliant"
+        return integration_quality.coverage_report(conn, payer, compliant, start_date, end_date, min(max(limit, 1), 5000))
 
     @app.post("/api/star-rating/calculate")
     def star_rating_calculate(
