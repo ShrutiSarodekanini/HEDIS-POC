@@ -383,7 +383,7 @@ export function DataQualityPage() {
     <section id="view-quality" className="view dqx-view">
       <div className="page-head dqx-hero">
         <div>
-          <h1>Data Anomaly Control Room</h1>
+          <h1>Data Anomaly</h1>
           <p>Trace anomaly signals from completed quality runs, then inspect checks and coverage evidence.</p>
         </div>
         <div className="dqx-hero-actions">
