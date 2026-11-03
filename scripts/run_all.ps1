@@ -10,10 +10,10 @@
 #   powershell -ExecutionPolicy Bypass -File scripts/run_all.ps1 -Stop      stop everything this script started
 #
 # Needs: Rancher Desktop (or Docker Desktop) running, the local Postgres from .env's DATABASE_URL, Python 3.11+,
-# Node 20+, and a repo-root .env (copy .env.example). On a fresh clone the Python packages, the measure engine build
-# and the UI packages are installed automatically when missing. Migrations always run; they are a no-op when up to
-# date. For AI evidence, .env also needs INTEGRATION_EVIDENCE_DIR (data/evidence_store) and an EXTRACTION_MODEL that
-# is serving on OpenRouter. Key values are never printed.
+# Node 20+, and a repo-root .env (copy .env.example). The Python packages install on a fresh clone and again whenever
+# requirements.txt changes; the measure engine build and the UI packages install when missing. Migrations always
+# run; they are a no-op when up to date. For AI evidence, .env also needs INTEGRATION_EVIDENCE_DIR
+# (data/evidence_store) and an EXTRACTION_MODEL that is serving on OpenRouter. Key values are never printed.
 
 param([switch]$Setup, [switch]$NoObservability, [switch]$Install, [switch]$Stop)
 
@@ -43,7 +43,20 @@ function Invoke-Checked([string]$Title, [scriptblock]$Command) {
     if ($LASTEXITCODE -ne 0) { throw "Failed: $Title" }
 }
 
+# The Python packages are reinstalled whenever requirements.txt (or the Python in use) changes since the last
+# install, so a pull that adds a package installs it. The marker holds a hash of both and lives in logs/ (ignored).
+$RequirementsMarker = Join-Path $RepoRoot "logs\python-requirements.sha256"
+
+function Get-RequirementsHash {
+    $text = (Get-Content "requirements.txt" -Raw) + "|" + $Python
+    $bytes = [System.Text.Encoding]::UTF8.GetBytes($text)
+    $sha = [System.Security.Cryptography.SHA256]::Create()
+    try { return ([BitConverter]::ToString($sha.ComputeHash($bytes))).Replace("-", "") } finally { $sha.Dispose() }
+}
+
 function Test-PythonPackages {
+    if (-not (Test-Path $RequirementsMarker)) { return $false }
+    if ((Get-Content $RequirementsMarker -Raw).Trim() -ne (Get-RequirementsHash)) { return $false }
     $previous = $ErrorActionPreference; $ErrorActionPreference = "Continue"
     try { & $Python -c "import fastapi, uvicorn, pika, psycopg, dotenv, alembic" *> $null; return $LASTEXITCODE -eq 0 }
     finally { $ErrorActionPreference = $previous }
@@ -99,6 +112,8 @@ if (-not (Test-Docker)) { throw "Docker is not reachable. Start Rancher Desktop 
 Write-Host "`n== Packages and builds" -ForegroundColor Cyan
 if ($Install -or -not (Test-PythonPackages)) {
     Invoke-Checked "Python packages (pip install -r requirements.txt)" { & $Python -m pip install -r requirements.txt }
+    New-Item -ItemType Directory -Force (Split-Path $RequirementsMarker) | Out-Null
+    [System.IO.File]::WriteAllText($RequirementsMarker, (Get-RequirementsHash))
 }
 $EngineDir = "services/measure_calc/engine"
 # npm runs inside each folder: "npm --prefix <dir> install" from the repo root links the root package into the
