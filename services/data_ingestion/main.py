@@ -9,7 +9,6 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from .app.api import router as api_router
-from .app import db
 
 NPM_BIN = "npm.cmd" if sys.platform.startswith("win") else "npm"
 

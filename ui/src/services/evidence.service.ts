@@ -282,6 +282,8 @@ const timeoutMs = envConfig.apiTimeoutMs
 
 const MAX_QUEUE_GAPS = 60
 const HEALTH_TIMEOUT_MS = Math.min(timeoutMs, 1200)
+// One extraction is a model call of up to EXTRACTION_TIMEOUT_S (300 s) plus up to three retries on provider errors.
+const EXTRACTION_TIMEOUT_MS = Math.max(timeoutMs, 6 * 60 * 1000)
 const HEALTH_CACHE_MS = 30_000
 const GAP_DETAIL_CACHE_MS = 20_000
 
@@ -950,7 +952,7 @@ export async function runEvidenceExtraction(
 
   const result = await postJson<RawExtractionResponse>(
     withApiBase(`/gaps/${encodeURIComponent(gapId)}/evidence`),
-    timeoutMs,
+    EXTRACTION_TIMEOUT_MS,
     {},
   )
 

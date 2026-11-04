@@ -30,6 +30,7 @@ from services.data_ingestion.app.api import (
 )
 from services.document_intake.db import audit
 
+from . import metrics
 from .config import SETTINGS, Settings
 
 log = logging.getLogger(__name__)
@@ -227,6 +228,7 @@ def run_measures(conn: psycopg.Connection, patient_ids: list[str], attributed_or
             populations = evaluations[bundle.measure_id]
             run.measures[bundle.measure_id] = _write_results(conn, bundle, populations, attributed_org, run.run_id,
                                                              names.get(bundle.measure_id, bundle.measure_id), year)
+            metrics.GAPS_OPEN.labels(bundle.measure_id).set(run.measures[bundle.measure_id].gaps_open)
             log.info("measure %s: %s", bundle.measure_id, vars(run.measures[bundle.measure_id]))
         return run
     finally:
@@ -310,7 +312,7 @@ def _evaluate(bundle: MeasureBundle, files: dict[str, Path], work: Path, setting
             copy.parent.mkdir(parents=True, exist_ok=True)
             shutil.copyfile(files[patient_id], copy)
             added = _add_combined_bp(copy) if bundle.measure_id in COMBINED_BP_MEASURES else 0
-            _maybe_prune_run_request_bundle(copy, bundle.measure_id, bundle.path)
+            _prune_patient_bundle(copy, bundle)
             if added and _count_code(copy, BP_PANEL) < added:
                 raise RuntimeError(f"blood pressure pruning removed combined readings for {bundle.measure_id}")
             paths.append(str(copy))
@@ -340,6 +342,103 @@ def _code(resource: dict) -> str | None:
 def _count_code(path: Path, code: str) -> int:
     entries = json.loads(path.read_text(encoding="utf-8")).get("entry", [])
     return sum(1 for e in entries if e["resource"].get("resourceType") == "Observation" and _code(e["resource"]) == code)
+
+
+def _prune_patient_bundle(path: Path, measure: MeasureBundle) -> None:
+    """Apply generic pruning and, for CBP, retain the resource types its measure artifact declares."""
+    patient_bundle = json.loads(path.read_text(encoding="utf-8"))
+    _maybe_prune_run_request_bundle(patient_bundle, measure.measure_id, measure.path)
+    if measure.measure_id == "CBP":
+        definition = json.loads(measure.path.read_text(encoding="utf-8"))
+        value_set_codes: dict[str, set[tuple[str | None, str]]] = {}
+        for entry in definition.get("entry", []):
+            resource = entry.get("resource", {})
+            if resource.get("resourceType") != "ValueSet":
+                continue
+            codes = _expanded_codes(resource.get("expansion", {}).get("contains", []))
+            for key in (resource.get("id"), resource.get("url")):
+                if key:
+                    value_set_codes[key] = codes
+        required_types = {
+            requirement["type"]
+            for entry in definition.get("entry", [])
+            for requirement in entry.get("resource", {}).get("dataRequirement", [])
+            if requirement.get("type") not in (None, "Resource")
+        }
+        observation_codes = {(LOINC, code) for code in (SYSTOLIC, DIASTOLIC, BP_PANEL)}
+        for entry in definition.get("entry", []):
+            for requirement in entry.get("resource", {}).get("dataRequirement", []):
+                if requirement.get("type") != "Observation":
+                    continue
+                for code_filter in requirement.get("codeFilter", []):
+                    observation_codes.update(
+                        (coding.get("system"), coding["code"])
+                        for coding in code_filter.get("code", [])
+                        if coding.get("code")
+                    )
+                    observation_codes.update(value_set_codes.get(code_filter.get("valueSet"), set()))
+        patient_bundle["entry"] = [
+            entry
+            for entry in patient_bundle.get("entry", [])
+            if _required_cbp_resource(entry.get("resource", {}), required_types, observation_codes)
+        ]
+        _tag_cbp_profiles(patient_bundle["entry"], definition, value_set_codes)
+    path.write_text(json.dumps(patient_bundle), encoding="utf-8")
+
+
+def _tag_cbp_profiles(entries: list[dict], definition: dict,
+                      value_set_codes: dict[str, set[tuple[str | None, str]]]) -> None:
+    """Tag each kept resource with the profiles CBP declares for it, so CBP can run with meta profiles trusted.
+    Untrusted, [USCoreBloodPressureProfile] returns every Observation, and a non-BP one on the latest BP day
+    (housing status, kept for the frailty exclusion) has no systolic value, which crashes the engine's sort."""
+    type_profiles: dict[str, set[str]] = {}
+    observation_profiles: list[tuple[str, set[tuple[str | None, str]]]] = []
+    for entry in definition.get("entry", []):
+        for requirement in entry.get("resource", {}).get("dataRequirement", []):
+            resource_type, profiles = requirement.get("type"), requirement.get("profile", [])
+            if resource_type in (None, "Resource") or not profiles:
+                continue
+            if resource_type != "Observation":
+                type_profiles.setdefault(resource_type, set()).update(profiles)
+                continue
+            codes: set[tuple[str | None, str]] = set()
+            for code_filter in requirement.get("codeFilter", []):
+                codes.update((coding.get("system"), coding["code"])
+                             for coding in code_filter.get("code", []) if coding.get("code"))
+                codes.update(value_set_codes.get(code_filter.get("valueSet"), set()))
+            observation_profiles.extend((profile, codes) for profile in profiles if profile != US_CORE_BP)
+    for entry in entries:
+        resource = entry.get("resource", {})
+        if resource.get("resourceType") == "Observation":
+            codings = {(c.get("system"), c.get("code")) for c in (resource.get("code") or {}).get("coding") or []}
+            profiles = ({US_CORE_BP} if (LOINC, BP_PANEL) in codings
+                        else {profile for profile, codes in observation_profiles if codings & codes})
+        else:
+            profiles = type_profiles.get(resource.get("resourceType"), set())
+        if profiles:
+            meta = resource.setdefault("meta", {})
+            meta["profile"] = sorted(set(meta.get("profile", [])) | profiles)
+
+
+def _expanded_codes(items: list[dict]) -> set[tuple[str | None, str]]:
+    codes = {(item.get("system"), item["code"]) for item in items if item.get("code")}
+    for item in items:
+        codes.update(_expanded_codes(item.get("contains", [])))
+    return codes
+
+
+def _required_cbp_resource(
+    resource: dict,
+    required_types: set[str],
+    observation_codes: set[tuple[str | None, str]],
+) -> bool:
+    resource_type = resource.get("resourceType")
+    if resource_type not in required_types:
+        return False
+    if resource_type != "Observation":
+        return True
+    codings = (resource.get("code") or {}).get("coding") or []
+    return any((coding.get("system"), coding.get("code")) in observation_codes for coding in codings)
 
 
 def _bp_component(code: str, display: str, source: dict) -> dict:
@@ -400,6 +499,7 @@ def _run_engine(cmd: list[str], settings: Settings, measure_id: str, patients: i
         log.warning("engine call for %s (%d patients) crashed with exit %s and %s; retrying once in %ds",
                     measure_id, patients, completed.returncode,
                     "no output" if not completed.stderr.strip() else "an error", RETRY_WAIT_SECONDS)
+        metrics.ENGINE_RETRIES.labels(measure_id).inc()
         time.sleep(RETRY_WAIT_SECONDS)
     return completed
 
@@ -410,12 +510,15 @@ def _call_engine(bundle: MeasureBundle, root_ref: str | None, paths: list[str], 
     if not cli.exists():
         raise RuntimeError("Measure engine CLI is not built. Run `npm run backend:build`.")
     year = settings.measurement_year
-    cmd = ["node", str(cli), "detailed", "--measure-bundle", str(bundle.path), "--patient-bundles", *paths,
+    cmd = ["node", f"--max-old-space-size={settings.engine_node_heap_mb}", str(cli), "detailed",
+           "--measure-bundle", str(bundle.path), "--patient-bundles", *paths,
            "--measurement-period-start", f"{year}-01-01", "--measurement-period-end", f"{year}-12-31",
-           "--trust-meta-profile", "false"]
+           # CBP bundles are profile-tagged in _tag_cbp_profiles; the other measures' bundles are not.
+           "--trust-meta-profile", "true" if bundle.measure_id in COMBINED_BP_MEASURES else "false"]
     if root_ref:
         cmd.extend(["--root-lib-ref", root_ref])
-    completed = _run_engine(cmd, settings, bundle.measure_id, len(paths))
+    with metrics.ENGINE_SECONDS.labels(bundle.measure_id).time():
+        completed = _run_engine(cmd, settings, bundle.measure_id, len(paths))
     if completed.returncode != 0:
         first = (completed.stderr.strip() or completed.stdout.strip() or "no output").splitlines()[0][:300]
         raise RuntimeError(f"engine failed for {bundle.measure_id} (exit {completed.returncode}): {first}")

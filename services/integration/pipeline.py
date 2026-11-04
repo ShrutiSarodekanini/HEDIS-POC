@@ -36,8 +36,10 @@ from services.document_intake import db
 from services.document_intake.db import audit
 from services.gap_priority.config import load_rules
 from services.gap_priority.runner import score_all
+from services.rabbitmq_messages import ConversionMessage
+from services.reliable_messaging import enqueue_outbox
 
-from . import dq_checks, measures
+from . import dq_checks, measures, metrics
 from .config import SETTINGS
 
 log = logging.getLogger(__name__)
@@ -105,12 +107,18 @@ def record_missing_upload_sizes() -> None:
 
 
 def start_batch(upload: Path) -> str:
-    """Record the batch, then run it in a background thread. upload is one .zip file or a folder of .csv files.
-    Returns the batch_id to poll."""
+    """Record the batch and publish to RabbitMQ. upload is one .zip file or a folder of .csv files.
+    Returns the batch_id to poll. Uses RabbitMQ for async processing."""
     batch_id = uuid.uuid4()
     files = sorted(upload.glob("*.csv")) if upload.is_dir() else [upload]
     received = {"upload": "csv" if upload.is_dir() else "zip", "files": len(files),
                 "bytes": sum(f.stat().st_size for f in files)}
+    msg = ConversionMessage(
+        batch_id=str(batch_id),
+        source_system=team_schema_loader.SOURCE_SYSTEM,
+        file_path=str(upload),
+        file_type="zip" if upload.suffix.lower() == ".zip" else "csv",
+    )
     with db.connect() as conn:
         conn.execute("""INSERT INTO source_batch (batch_id, source_system, status, resource_count, started_at)
                         VALUES (%s, %s, 'running', 0, now())""", (batch_id, team_schema_loader.SOURCE_SYSTEM))
@@ -118,7 +126,9 @@ def start_batch(upload: Path) -> str:
                      (str(batch_id),))
         _event(conn, batch_id, "batch.received", received)
         audit(conn, "batch", str(batch_id), "batch.received", received, actor=SETTINGS.actor)
-    threading.Thread(target=run_batch, args=(upload, batch_id), name=f"batch-{batch_id}", daemon=True).start()
+        enqueue_outbox(conn, "ingestion.convert", msg)
+    log.info("Queued conversion message in outbox for batch_id=%s", batch_id)
+
     return str(batch_id)
 
 
@@ -127,6 +137,7 @@ def run_batch(upload: Path, batch_id: uuid.UUID) -> None:
     step = "waiting"
     with _ONE_AT_A_TIME:
         try:
+            metrics.BATCH_RUNNING.set(1)
             step = "converting"
             _progress(batch_id, step)
             job_id, conversion = _convert(upload)
@@ -140,6 +151,7 @@ def run_batch(upload: Path, batch_id: uuid.UUID) -> None:
         except Exception as exc:  # noqa: BLE001 - every failure is recorded on the batch with its step and reason
             _fail(batch_id, _current_step(batch_id) if step == "loading" else step, exc)
         finally:
+            metrics.BATCH_RUNNING.set(0)
             if upload.is_dir():
                 shutil.rmtree(upload, ignore_errors=True)
             else:
@@ -184,10 +196,13 @@ def start_from_job(job_id: str) -> str:
 def _run_from_job(batch_id: uuid.UUID, job_id: str, persisted: int) -> None:
     with _ONE_AT_A_TIME:
         try:
+            metrics.BATCH_RUNNING.set(1)
             _progress(batch_id, "loading")
             _after_persist(batch_id, job_id, persisted)
         except Exception as exc:  # noqa: BLE001 - every failure is recorded on the batch with its step and reason
             _fail(batch_id, _current_step(batch_id), exc)
+        finally:
+            metrics.BATCH_RUNNING.set(0)
 
 
 def _current_step(batch_id: uuid.UUID) -> str:
@@ -229,6 +244,7 @@ def _after_persist(batch_id: uuid.UUID, job_id: str, persisted: int) -> None:
                   status="prioritized", conn=conn)
         audit(conn, "batch", str(batch_id), "batch.prioritized",
               {"gaps_scored": summary.gaps_scored}, actor=SETTINGS.actor)
+    metrics.PATIENTS_PROCESSED.inc(len(loaded.patient_ids))
 
 
 def _scored(summary) -> dict:
@@ -268,6 +284,10 @@ def watch_ingestion(stop: threading.Event, every_seconds: float = 3.0) -> None:
             log.error("ingestion watcher round failed: %s", type(exc).__name__)
 
 
+class CalculationNotReadyError(LookupError):
+    """No batch is ready for a calculation yet."""
+
+
 def start_recalculation(measure_ids: list[str] | None, selected_patient_ids: list[str] | None = None) -> str:
     """Run selected persisted patients, or every available patient when none are specified."""
     with db.connect() as conn:
@@ -276,8 +296,12 @@ def start_recalculation(measure_ids: list[str] | None, selected_patient_ids: lis
                                ORDER BY started_at DESC LIMIT 1""").fetchone()
         if row is not None:
             available_ids, _ = team_schema_loader.job_patients(conn, row[1])
+        else:
+            running = conn.execute("SELECT step FROM batch_run WHERE status = 'running' LIMIT 1").fetchone()
+    if row is None and running is not None:
+        raise ValueError(f"A batch is still running ({running[0]}). Wait for it to finish, then run the calculation.")
     if row is None:
-        raise LookupError("No calculation-ready batch yet. Ingest and persist a batch first.")
+        raise CalculationNotReadyError("No calculation-ready batch yet. Ingest and persist a batch first.")
     batch_id, job_id = uuid.UUID(row[0]), row[1]
     available = set(available_ids)
     selected = list(dict.fromkeys(selected_patient_ids or available_ids))
@@ -302,6 +326,7 @@ def _recalculate(batch_id: uuid.UUID, job_id: str, measure_ids: list[str] | None
                  selected_patient_ids: list[str]) -> None:
     step = "measuring"
     try:
+        metrics.BATCH_RUNNING.set(1)
         with db.connect() as conn:
             patient_ids, attributed = team_schema_loader.job_patients(conn, job_id)
             selected_set = set(selected_patient_ids)
@@ -328,6 +353,7 @@ def _recalculate(batch_id: uuid.UUID, job_id: str, measure_ids: list[str] | None
     except Exception as exc:  # noqa: BLE001 - every failure is recorded on the batch with its step and reason
         _fail(batch_id, step, exc)
     finally:
+        metrics.BATCH_RUNNING.set(0)
         _ONE_AT_A_TIME.release()
 
 
@@ -405,11 +431,20 @@ def _progress(batch_id: uuid.UUID, next_step: str, event: str | None = None, cou
     if event:
         _event(conn, batch_id, event, counts or {})
     log.info("batch %s: %s", batch_id, event or next_step)
+    if next_step == "done":
+        metrics.batch_ended(batch_id)
+    else:
+        metrics.step_started(batch_id, next_step)
+    if status == "prioritized":
+        metrics.BATCHES.labels("prioritized").inc()
 
 
 def _fail(batch_id: uuid.UUID, step: str, exc: Exception) -> None:
     reason = f"{type(exc).__name__}: {(str(exc).splitlines() or [''])[0][:300]}"
     log.error("batch %s failed while %s: %s", batch_id, step, type(exc).__name__)
+    metrics.batch_ended(batch_id)
+    metrics.BATCHES.labels("failed").inc()
+    metrics.BATCH_FAILURES.labels(step).inc()
     with db.connect() as conn:
         conn.execute("""UPDATE batch_run SET status = 'failed', step = %s, error = %s, updated_at = now()
                          WHERE batch_id = %s""", (step, reason, str(batch_id)))

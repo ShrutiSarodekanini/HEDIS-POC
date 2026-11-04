@@ -1,0 +1,13 @@
+# Connects Grafana to the hedis-prometheus container; the dashboard panels refer to it by uid.
+apiVersion: 1
+
+datasources:
+  - name: Prometheus
+    type: prometheus
+    uid: hedis-prometheus
+    access: proxy
+    url: http://prometheus:9090
+    isDefault: true
+    editable: false
+    jsonData:
+      timeInterval: 15s

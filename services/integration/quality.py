@@ -10,8 +10,6 @@ from datetime import date
 
 import psycopg
 
-from services.data_ingestion import team_schema_loader
-
 from . import dq_checks
 
 _BATCHES = """
@@ -19,7 +17,6 @@ SELECT s.batch_id::text, s.started_at, b.status, b.step, coalesce(b.counts ? 'lo
        (SELECT count(*) FROM quality_run q WHERE q.batch_id = s.batch_id),
        (SELECT max(q.run_id) FROM quality_run q WHERE q.batch_id = s.batch_id)
   FROM source_batch s JOIN batch_run b ON b.batch_id = s.batch_id::text
- WHERE s.source_system = %s
  ORDER BY s.started_at DESC LIMIT 100
 """
 
@@ -63,7 +60,8 @@ def overview(conn: psycopg.Connection) -> dict:
     measures = [{"measure_id": m, "phase": dq_checks.phase(r), "description": r.get("description")}
                 for m, r in sorted(rules.items(), key=lambda kv: (dq_checks.phase(kv[1]), kv[0]))]
     keys = ("batch_id", "started_at", "status", "step", "loaded", "runs", "latest_run_id")
-    rows = conn.execute(_BATCHES, (team_schema_loader.SOURCE_SYSTEM,)).fetchall()
+    # Every uploaded batch has a batch_run row; the source_system label differs between the queued and direct paths.
+    rows = conn.execute(_BATCHES).fetchall()
     return {"measures": measures, "batches": [dict(zip(keys, r)) for r in rows],
             "not_available": dq_checks.NOT_AVAILABLE}
 

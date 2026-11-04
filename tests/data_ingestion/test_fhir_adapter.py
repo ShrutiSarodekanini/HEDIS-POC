@@ -1,6 +1,10 @@
 import json
 
+from fastapi.testclient import TestClient
+
 from services.data_ingestion.app.adapters import FhirR4Adapter, registry
+from services.data_ingestion.main import create_app
+
 
 def test_fhir_adapter_is_registered_under_detected_name():
     assert registry.get_adapter("ehr_fhir_r4") is not None
@@ -37,3 +41,14 @@ def test_invalid_fhir_json_reports_controlled_issue(tmp_path):
     assert [(issue.code, issue.message) for issue in issues] == [
         ("JSON_PARSE_ERROR", "FHIR JSON could not be parsed."),
     ]
+
+
+def test_fhir_upload_rejects_generic_json(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    response = TestClient(create_app()).post(
+        "/api/datasets/upload-fhir",
+        files={"file": ("patient-summary.json", json.dumps({"kind": "summary"}), "application/json")},
+    )
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == "Uploaded JSON does not contain a FHIR resource."

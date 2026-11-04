@@ -1,35 +1,41 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
+import asyncio
 import json
+import logging
 import shutil
 import time
 import uuid
 import zipfile
+from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
 
-from fastapi import APIRouter, File, HTTPException, Request, UploadFile
+from fastapi import APIRouter, File, HTTPException, Request, UploadFile, WebSocket, WebSocketDisconnect
 from starlette.datastructures import UploadFile as StarletteUploadFile
 
 from .adapters import registry
 from .config import settings
 from .db import session_scope
-from .models import FhirResource
-from .pipeline import STAGES, job_manager, launch_job, run_persist_stage
+from .models import ConversionJob, FhirResource, SourceBatch
+from .pipeline import STAGES, job_manager, run_persist_stage
+from .progress import progress_tracker
 from .repository import (
     as_issue_dict,
     as_job_dict,
     as_resource_dict,
-    clear_jobs_for_input_dir,
     list_issues_for_job,
     list_jobs,
     list_resources_for_job,
 )
+from .repository import (
+    create_job as create_job_record,
+)
 from .synthea import SUPPORTED_FILES, discover_dataset
 
+log = logging.getLogger(__name__)
+
+
 router = APIRouter(prefix="/api", tags=["conversion"])
-_BP_MEASURE_HINTS = ("BPD", "CBP", "CMS165", "CONTROLLINGHIGHBP")
-_BP_OBSERVATION_CODES = {"8480-6", "8462-4", "85354-9"}
 
 
 def _require_input_dir(input_dir: str) -> str:
@@ -39,11 +45,48 @@ def _require_input_dir(input_dir: str) -> str:
     return cleaned
 
 
+def _durable_stages(job: ConversionJob) -> list[dict]:
+    saved_stages = (job.summary or {}).get("timelogs", {}).get("stages", {})
+    if saved_stages:
+        return [{"name": name, **saved_stages.get(name, {})} for name in STAGES]
+
+    statuses = {name: "pending" for name in STAGES}
+    if job.status in {"completed", "partially_completed"}:
+        statuses.update({name: "completed" for name in STAGES})
+        if not job.resources_persisted:
+            statuses["postgresql_storage"] = "pending"
+    elif job.status == "running":
+        statuses["csv_input"] = "running"
+    elif job.status == "failed":
+        statuses["csv_input"] = "failed"
+
+    details = {
+        "csv_input": f"Read {job.total_source_records} source records" if job.total_source_records else "",
+        "mapping": f"Mapped {job.resources_generated} resources" if job.resources_generated else "",
+        "fhir_generation": f"Generated {job.resources_generated} resources" if job.resources_generated else "",
+        "validation": f"Validated {job.resources_validated} resources" if job.resources_validated else "",
+        "postgresql_storage": f"Persisted {job.resources_persisted} resources" if job.resources_persisted else "",
+    }
+    return [
+        {
+            "name": name,
+            "status": statuses[name],
+            "details": details[name],
+            "started_at": None,
+            "completed_at": None,
+            "elapsed_seconds": None,
+        }
+        for name in STAGES
+    ]
+
+
 def _job_status_payload(job_id: str) -> dict:
     state = job_manager.get_state(job_id)
-    if state is None:
-        with session_scope() as session:
-            resources = list_resources_for_job(session, job_id)
+    with session_scope() as session:
+        job = session.get(ConversionJob, job_id)
+        resources = list_resources_for_job(session, job_id) if job is not None else []
+
+    if job is not None and (state is None or job.status != state.status):
         progress: dict[str, dict[str, int]] = {}
         for resource in resources:
             entry = progress.setdefault(
@@ -56,7 +99,17 @@ def _job_status_payload(job_id: str) -> dict:
                 entry["warnings"] += 1
             if resource.lifecycle_status == "rejected":
                 entry["rejected"] += 1
-        return {"job_id": job_id, "status": "unknown", "stages": [], "resource_progress": progress}
+        return {
+            "job_id": job_id,
+            "status": job.status,
+            "started_at": job.started_at.isoformat() if job.started_at else None,
+            "completed_at": job.completed_at.isoformat() if job.completed_at else None,
+            "stages": _durable_stages(job),
+            "resource_progress": progress,
+        }
+
+    if state is None:
+        return {"job_id": job_id, "status": "unknown", "stages": [], "resource_progress": {}}
 
     return {
         "job_id": job_id,
@@ -78,41 +131,44 @@ def _job_status_payload(job_id: str) -> dict:
     }
 
 
-def _detect_adapter_from_files(file_list: list[str]) -> str:
-    """Auto-detect adapter from uploaded file names/extensions.
+def _is_fhir_json(path: Path) -> bool:
+    """Return whether a saved JSON upload declares a FHIR resource type."""
+    try:
+        with path.open("r", encoding="utf-8") as handle:
+            payload = json.load(handle)
+    except (OSError, UnicodeError, json.JSONDecodeError):
+        return False
+    return isinstance(payload, dict) and isinstance(payload.get("resourceType"), str)
+
+
+def _detect_adapter_from_files(file_list: list[str], dataset_dir: Path | None = None) -> str:
+    """Auto-detect an adapter from extensions and saved JSON content.
     
     Returns the most likely adapter name based on file patterns.
     Defaults to 'synthea_csv' if no specific pattern matches.
     
-    FHIR detection uses resource type naming patterns (e.g., practitioner*.json,
-    patient*.json, bundle.json) to avoid false positives on generic .json files.
-    Users can override with the dropdown if detection is incorrect.
+    JSON is considered FHIR only when its top-level object declares resourceType.
     """
     lower_files = {f.lower() for f in file_list}
     
-    # C-CDA/CCD documents → ccda_hie
+    # C-CDA/CCD documents ΓåÆ ccda_hie
     if any(f.endswith(('.xml', '.ccda')) for f in lower_files):
         return "ccda_hie"
     
-    # FHIR JSON files → ehr_fhir_r4
-    # Match specific FHIR resource type patterns in filename to avoid false positives
-    # Examples: practitioner*.json, patient*.json, encounter*.json, bundle.json, claim*.json
-    fhir_resource_patterns = (
-        'bundle', 'practitioner', 'patient', 'encounter', 'claim',
-        'medication', 'coverage', 'observation', 'organization', 'provider'
-    )
-    if any(
-        (f.endswith(('.json', '.fhir')) and any(pattern in f for pattern in fhir_resource_patterns))
-        or f.endswith(('bundle.json', '_bundle.json'))
-        for f in lower_files
+    # FHIR files -> ehr_fhir_r4
+    if any(file_name.endswith(".fhir") for file_name in lower_files):
+        return "ehr_fhir_r4"
+    if dataset_dir is not None and any(
+        file_name.endswith(".json") and _is_fhir_json(dataset_dir / file_name)
+        for file_name in lower_files
     ):
         return "ehr_fhir_r4"
     
-    # Claims 837 files → claims_837
+    # Claims 837 files ΓåÆ claims_837
     if any(f.endswith('.837') or f.endswith('_837') for f in lower_files):
         return "claims_837"
     
-    # NCPDP pharmacy files → ncpdp_pharmacy
+    # NCPDP pharmacy files ΓåÆ ncpdp_pharmacy
     # Matches: ncpdp*.*, *.ncpdp, *.ncpdp.txt, *_ncpdp*
     if any(
         f.startswith('ncpdp') or 
@@ -158,7 +214,7 @@ async def upload_dataset(request: Request) -> dict:
             detail="No supported Synthea CSV files were uploaded. Include files like patients.csv, encounters.csv, observations.csv, etc.",
         )
 
-    detected_adapter = _detect_adapter_from_files(saved_files)
+    detected_adapter = _detect_adapter_from_files(saved_files, dataset_dir)
     metadata = discover_dataset(str(dataset_dir))
     completed_at = time.time()
     return {
@@ -202,7 +258,7 @@ async def upload_ccda_dataset(request: Request) -> dict:
     if not saved_files:
         raise HTTPException(status_code=400, detail="No C-CDA files were uploaded. Select .xml or .ccda documents.")
 
-    detected_adapter = _detect_adapter_from_files(saved_files)
+    detected_adapter = _detect_adapter_from_files(saved_files, dataset_dir)
     adapter = registry.get_adapter("ccda_hie")
     metadata = adapter.discover(str(dataset_dir))
     completed_at = time.time()
@@ -245,17 +301,14 @@ async def upload_fhir_dataset(request: Request) -> dict:
     if not saved_files:
         raise HTTPException(status_code=400, detail="No FHIR JSON files were uploaded. Upload .json or .fhir files (e.g., bundle.json).")
 
-    detected_adapter = _detect_adapter_from_files(saved_files)
+    detected_adapter = _detect_adapter_from_files(saved_files, dataset_dir)
+    if detected_adapter != "ehr_fhir_r4":
+        raise HTTPException(status_code=400, detail="Uploaded JSON does not contain a FHIR resource.")
     
-    # Try to get metadata from FHIR adapter, but don't fail if discover() not available
-    metadata = None
-    try:
-        adapter = registry.get_adapter("ehr_fhir")
-        if adapter and hasattr(adapter, 'discover'):
-            metadata = adapter.discover(str(dataset_dir))
-    except Exception:
-        # If discovery fails, just continue with basic metadata
-        pass
+    adapter = registry.get_adapter("ehr_fhir_r4")
+    if adapter is None:
+        raise HTTPException(status_code=500, detail="FHIR adapter is unavailable.")
+    metadata = adapter.discover(str(dataset_dir))
     
     completed_at = time.time()
     return {
@@ -297,13 +350,11 @@ async def upload_claims_dataset(request: Request) -> dict:
     if not saved_files:
         raise HTTPException(status_code=400, detail="No Claims 837 files were uploaded. Select .837 EDI files.")
 
-    detected_adapter = _detect_adapter_from_files(saved_files)
+    detected_adapter = _detect_adapter_from_files(saved_files, dataset_dir)
     adapter = registry.get_adapter("claims_837")
-    try:
-        metadata = adapter.discover(str(dataset_dir))
-    except Exception:
-        # If discovery fails, provide basic metadata
-        metadata = None
+    if adapter is None:
+        raise HTTPException(status_code=500, detail="Claims adapter is unavailable.")
+    metadata = adapter.discover(str(dataset_dir))
     
     completed_at = time.time()
     return {
@@ -333,10 +384,10 @@ async def upload_ncpdp_dataset(request: Request) -> dict:
     dataset_dir.mkdir(parents=True, exist_ok=True)
 
     saved_files: list[str] = []
+    supported_extensions = (".ncpdp", ".ncpdp.txt", ".pharmacy", ".rx")
     for uploaded in files:
         target_name = Path(uploaded.filename or "").name.lower()
-        # Accept files that start with ncpdp or end with _ncpdp (no strict extension requirement)
-        if not (target_name.startswith('ncpdp') or '_ncpdp' in target_name):
+        if not target_name.endswith(supported_extensions):
             continue
         with (dataset_dir / target_name).open("wb") as handle:
             shutil.copyfileobj(uploaded.file, handle)
@@ -345,13 +396,11 @@ async def upload_ncpdp_dataset(request: Request) -> dict:
     if not saved_files:
         raise HTTPException(status_code=400, detail="No NCPDP pharmacy files were uploaded. Include files like ncpdp_*.txt or *_ncpdp files.")
 
-    detected_adapter = _detect_adapter_from_files(saved_files)
+    detected_adapter = _detect_adapter_from_files(saved_files, dataset_dir)
     adapter = registry.get_adapter("ncpdp_pharmacy")
-    try:
-        metadata = adapter.discover(str(dataset_dir))
-    except Exception:
-        # If discovery fails, provide basic metadata
-        metadata = None
+    if adapter is None:
+        raise HTTPException(status_code=500, detail="NCPDP adapter is unavailable.")
+    metadata = adapter.discover(str(dataset_dir))
     
     completed_at = time.time()
     return {
@@ -405,7 +454,7 @@ async def upload_dataset_zip(file: UploadFile = File(...)) -> dict:
                     shutil.copyfileobj(src, dst)
                 saved_files.append(member_name)
     except zipfile.BadZipFile as exc:
-        raise HTTPException(status_code=400, detail=f"Invalid ZIP file: {exc}") from exc
+        raise HTTPException(status_code=400, detail="The uploaded ZIP file is invalid.") from exc
 
     if not saved_files:
         raise HTTPException(
@@ -413,7 +462,7 @@ async def upload_dataset_zip(file: UploadFile = File(...)) -> dict:
             detail="ZIP did not contain supported Synthea CSV files (patients.csv, encounters.csv, etc.).",
         )
 
-    detected_adapter = _detect_adapter_from_files(saved_files)
+    detected_adapter = _detect_adapter_from_files(saved_files, dataset_dir)
     metadata = discover_dataset(str(dataset_dir))
     completed_at = time.time()
     return {
@@ -478,7 +527,8 @@ def inspect_dataset(input_dir: str) -> dict:
 
 
 @router.post("/jobs/start")
-def start_conversion_job(input_dir: str, adapter_name: str = "synthea_csv") -> dict:
+def start_conversion_job(input_dir: str, adapter_name: str = "synthea_csv",
+                         async_processing: bool = False) -> dict:
     cleaned = _require_input_dir(input_dir)
     path = Path(cleaned)
     if not path.exists() or not path.is_dir():
@@ -490,9 +540,33 @@ def start_conversion_job(input_dir: str, adapter_name: str = "synthea_csv") -> d
     metadata = adapter.discover(cleaned)
     if metadata.missing_required_files:
         raise HTTPException(status_code=400, detail={"missing_required_files": metadata.missing_required_files})
-    job_id = job_manager.create_job(cleaned, adapter_name)
-    launch_job(job_id, cleaned, adapter_name)
-    return {"job_id": job_id, "status": "started", "adapter": adapter_name}
+    # Queueing is mandatory: the sync launch path is retired in favor of RabbitMQ workers.
+    if not async_processing:
+        log.info("/jobs/start called with async_processing=false; using queued processing")
+
+    try:
+        from services.rabbitmq_messages import ConversionMessage
+        from services.reliable_messaging import enqueue_outbox_session
+
+        with session_scope() as session:
+            job = create_job_record(session, cleaned, adapter_name)
+            job_id = job.id
+            batch_id = str(job.batch_id)
+            message = ConversionMessage(
+                batch_id=batch_id,
+                job_id=job_id,
+                source_system="synthea" if adapter_name == "synthea_csv" else adapter_name,
+                file_path=cleaned,
+                file_type="csv",
+                adapter_name=adapter_name,
+            )
+            enqueue_outbox_session(session, "ingestion.convert", message)
+        job_manager.ensure_state(job_id, batch_id)
+    except Exception as exc:
+        log.error("Could not create queued ingestion job: %s", type(exc).__name__)
+        raise HTTPException(status_code=503, detail="The ingestion job could not be queued.") from exc
+
+    return {"job_id": job_id, "batch_id": batch_id, "status": "queued", "adapter": adapter_name}
 
 
 @router.post("/jobs/{job_id}/persist")
@@ -528,9 +602,10 @@ def get_job(job_id: str) -> dict:
 
 @router.get("/jobs/{job_id}/status")
 def get_job_status(job_id: str) -> dict:
-    if job_manager.get_state(job_id) is None:
+    payload = _job_status_payload(job_id)
+    if payload["status"] == "unknown":
         raise HTTPException(status_code=404, detail="Job not found")
-    return _job_status_payload(job_id)
+    return payload
 
 
 @router.get("/jobs/{job_id}/resources")
@@ -541,17 +616,21 @@ def get_job_resources(job_id: str) -> dict:
 
 
 @router.get("/jobs/{job_id}/patients")
-def get_job_patients(job_id: str) -> dict:
+def get_job_patients(job_id: str, persisted_only: bool = False, bundleable_only: bool = False) -> dict:
     with session_scope() as session:
         resources = list_resources_for_job(session, job_id)
 
-    patient_stats: dict[str, dict[str, object]] = {}
+    details: dict[str, dict[str, object]] = {}
     for resource in resources:
         patient_id = (resource.patient_id or "").strip()
         if not patient_id:
             continue
+        if persisted_only and not resource.persisted:
+            continue
+        if bundleable_only and resource.lifecycle_status == "rejected":
+            continue
 
-        stats = patient_stats.setdefault(
+        detail = details.setdefault(
             patient_id,
             {
                 "patient_id": patient_id,
@@ -561,7 +640,7 @@ def get_job_patients(job_id: str) -> dict:
             },
         )
 
-        stats["resource_count"] = int(stats["resource_count"]) + 1
+        detail["resource_count"] = int(detail["resource_count"]) + 1
 
         if resource.resource_json is not None:
             try:
@@ -570,28 +649,23 @@ def get_job_patients(job_id: str) -> dict:
                 )
             except (TypeError, ValueError):
                 payload_bytes = 0
-            stats["estimated_size_bytes"] = int(stats["estimated_size_bytes"]) + payload_bytes
+            detail["estimated_size_bytes"] = int(detail["estimated_size_bytes"]) + payload_bytes
 
-        last_seen = stats["saved_at"]
         candidate = resource.updated_at or resource.created_at
-        if candidate is not None and (last_seen is None or candidate > last_seen):
-            stats["saved_at"] = candidate
+        current_saved = detail["saved_at"]
+        if candidate is not None and (current_saved is None or candidate > current_saved):
+            detail["saved_at"] = candidate
 
-    patients = sorted(patient_stats)
-    patient_details = []
-    for patient_id in patients:
-        stats = patient_stats[patient_id]
-        saved_at = stats["saved_at"]
-        patient_details.append(
-            {
-                "patient_id": patient_id,
-                "resource_count": int(stats["resource_count"]),
-                "estimated_size_bytes": int(stats["estimated_size_bytes"]),
-                "saved_at": saved_at.isoformat() if saved_at is not None else None,
-            }
-        )
+    patient_details = sorted(details.values(), key=lambda item: str(item["patient_id"]))
+    for detail in patient_details:
+        saved_at = detail["saved_at"]
+        detail["saved_at"] = saved_at.isoformat() if saved_at is not None else None
 
-    return {"job_id": job_id, "patients": patients, "patient_details": patient_details}
+    return {
+        "job_id": job_id,
+        "patients": [str(item["patient_id"]) for item in patient_details],
+        "patient_details": patient_details,
+    }
 
 
 @router.get("/jobs/{job_id}/patients/{patient_id}/resources")
@@ -645,20 +719,20 @@ def get_coverage_report(
         if payer:
             filters.append(Coverage.payer == payer)
         if compliance == "Compliant":
-            filters.append(Coverage.continuous_enrollment_compliant == True)
+            filters.append(Coverage.continuous_enrollment_compliant.is_(True))
         elif compliance == "Violation":
-            filters.append(Coverage.continuous_enrollment_compliant == False)
+            filters.append(Coverage.continuous_enrollment_compliant.is_(False))
         if start_date:
             try:
                 dt = datetime.fromisoformat(start_date).date()
                 filters.append(Coverage.period_end >= dt)
-            except:
+            except ValueError:
                 pass
         if end_date:
             try:
                 dt = datetime.fromisoformat(end_date).date()
                 filters.append(Coverage.period_start <= dt)
-            except:
+            except ValueError:
                 pass
 
         if filters:
@@ -763,217 +837,261 @@ def get_coverage_gaps(coverage_id: str) -> dict:
 # ========== Integration/Measures Support Functions ==========
 
 def _extract_root_library_reference(path: str | Path) -> str:
-    """Return a measure bundle's root Library identifier from its FHIR resources."""
-    bundle_path = Path(path)
-    payload = json.loads(bundle_path.read_text(encoding="utf-8"))
-    if not isinstance(payload, dict):
-        raise TypeError(f"Measure bundle {bundle_path.name} must contain a FHIR resource object.")
+    """Extract the root Library id from a FHIR Measure or measure Bundle."""
+    definition_path = Path(path)
+    try:
+        definition = json.loads(definition_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise ValueError("measure definition could not be read as JSON") from exc
 
-    if payload.get("resourceType") == "Bundle":
-        entries = payload.get("entry")
-        if not isinstance(entries, list):
-            raise ValueError(f"Measure bundle {bundle_path.name} has no FHIR entries.")
-        resources = [
-            entry["resource"]
-            for entry in entries
-            if isinstance(entry, dict) and isinstance(entry.get("resource"), dict)
-        ]
-    else:
-        resources = [payload]
+    resources = [definition]
+    if definition.get("resourceType") == "Bundle":
+        resources = [entry.get("resource", {}) for entry in definition.get("entry", [])
+                     if isinstance(entry, dict)]
 
-    libraries = [resource for resource in resources if resource.get("resourceType") == "Library"]
-    measures = [resource for resource in resources if resource.get("resourceType") == "Measure"]
-
-    if measures:
-        references = measures[0].get("library")
-        if not isinstance(references, list) or not references:
-            raise ValueError(f"Measure bundle {bundle_path.name} has no root Library reference.")
-        for reference in references:
-            if not isinstance(reference, str) or not reference.strip():
+    for resource in resources:
+        if resource.get("resourceType") != "Measure":
+            continue
+        for reference in resource.get("library", []):
+            if not isinstance(reference, str):
                 continue
-            canonical = reference.split("|", 1)[0].rstrip("/")
-            for library in libraries:
-                identifier = library.get("id") or library.get("name")
-                if not isinstance(identifier, str) or not identifier.strip():
-                    continue
-                if canonical == library.get("url") or canonical.rsplit("/", 1)[-1] == identifier:
-                    return identifier
-        raise LookupError(f"Measure bundle {bundle_path.name} does not contain its referenced root Library.")
+            library_id = reference.split("|", 1)[0].rstrip("/").rsplit("/", 1)[-1]
+            if library_id:
+                return library_id
 
-    if len(libraries) == 1:
-        identifier = libraries[0].get("id") or libraries[0].get("name")
-        if isinstance(identifier, str) and identifier.strip():
-            return identifier
-
-    raise LookupError(f"Measure bundle {bundle_path.name} has no unambiguous root Library.")
+    raise LookupError("measure definition has no root library reference")
 
 
-def _is_bp_measure_request(measure_id: str, bundle_path: Path) -> bool:
-    probe = f"{measure_id}|{bundle_path.name}|{bundle_path.parent.name}".upper()
-    return any(hint in probe for hint in _BP_MEASURE_HINTS)
-
-
-def _observation_is_bp_related(resource: dict[str, Any]) -> bool:
-    codings = (resource.get("code") or {}).get("coding") or []
-    if any(isinstance(coding, dict) and coding.get("code") in _BP_OBSERVATION_CODES for coding in codings):
-        return True
-    text = json.dumps(resource).lower()
-    return any(term in text for term in ("blood pressure", "systolic", "diastolic"))
-
-
-def _prune_bp_bundle_payload(payload: dict[str, Any]) -> tuple[dict[str, Any], int, int]:
-    if payload.get("resourceType") != "Bundle":
-        return payload, 0, 0
-
-    entries = payload.get("entry")
-    if not isinstance(entries, list):
-        raise TypeError("Blood pressure engine bundle has no FHIR entries.")
-
-    kept_types = {
-        "Patient",
-        "Encounter",
-        "Condition",
-        "Observation",
-        "Procedure",
-        "MedicationRequest",
-        "CarePlan",
-        "Immunization",
-    }
-    kept_entries = []
-    removed_count = 0
-    for entry in entries:
-        resource = entry.get("resource") if isinstance(entry, dict) else None
-        if not isinstance(resource, dict):
-            removed_count += 1
-            continue
-        resource_type = resource.get("resourceType")
-        if resource_type not in kept_types or (
-            resource_type == "Observation" and not _observation_is_bp_related(resource)
-        ):
-            removed_count += 1
-            continue
-        kept_entries.append(entry)
-
-    if not removed_count:
-        return payload, len(entries), 0
-    pruned_payload = dict(payload)
-    pruned_payload["entry"] = kept_entries
-    return pruned_payload, len(kept_entries), removed_count
-
-
-def _maybe_prune_run_request_bundle(temp_path: Path, measure_id: str, bundle_path: Path) -> None:
-    """Reduce only BP measure bundles to the resources their CQL requires."""
-    if not _is_bp_measure_request(measure_id, bundle_path):
+def _maybe_prune_run_request_bundle(bundle: dict, measure_id: str, path: str | Path) -> None:
+    """Optionally prune a run request bundle to remove unnecessary resources.
+    
+    Modifies bundle in place to remove resources that are not needed for
+    FQM execution to reduce payload size and improve performance.
+    Used by integration/measures.py during measure execution.
+    """
+    if not isinstance(bundle, dict):
         return
+    
+    # Remove ValueSet resources (they're referenced but not needed for execution)
+    if "entry" in bundle and isinstance(bundle["entry"], list):
+        bundle["entry"] = [
+            entry for entry in bundle["entry"]
+            if not isinstance(entry, dict) or entry.get("resource", {}).get("resourceType") != "ValueSet"
+        ]
 
-    payload = json.loads(temp_path.read_text(encoding="utf-8"))
-    if not isinstance(payload, dict):
-        raise TypeError("Blood pressure engine bundle must contain a FHIR resource object.")
-    pruned_payload, _, removed_count = _prune_bp_bundle_payload(payload)
-    if removed_count:
-        temp_path.write_text(json.dumps(pruned_payload), encoding="utf-8")
+
+# --- WebSocket Progress Tracking -----------------------------------------------
+
+@router.websocket("/ws/batch/{batch_id}")
+async def websocket_progress(websocket: WebSocket, batch_id: str) -> None:
+    """
+    WebSocket endpoint for live progress updates on batch processing.
+
+    Clients connect with: ws://localhost:8780/api/ws/batch/{batch_id}
+
+    Receives messages:
+    - {"stage": "conversion", "status": "starting", "details": {...}}
+    - {"stage": "conversion", "status": "processing", "details": {"pct": 45}}
+    - {"stage": "conversion", "status": "complete", "details": {...}}
+
+    Connect and stay open to receive live updates as workers process the batch.
+    """
+    await websocket.accept()
+    progress_tracker.register(batch_id, websocket)
+
+    # Send current progress if available
+    current_progress = progress_tracker.get_progress(batch_id)
+    if current_progress:
+        await websocket.send_json({
+            "type": "initial_state",
+            "progress": current_progress,
+        })
+
+    try:
+        previous = None
+        while True:
+            current = progress_tracker.get_progress(batch_id)
+            if current and current != previous:
+                await websocket.send_json({"type": "progress", "progress": current})
+                previous = current
+            await asyncio.sleep(1)
+    except WebSocketDisconnect:
+        progress_tracker.unregister(batch_id, websocket)
+
+
+@router.get("/batch/{batch_id}/progress")
+def get_batch_progress(batch_id: str) -> dict:
+    """
+    Get current progress of a batch.
+
+    Returns progress data showing what stage it's in and status of each worker.
+    """
+    progress = progress_tracker.get_progress(batch_id)
+    if not progress:
+        raise HTTPException(status_code=404, detail=f"No progress found for batch {batch_id}")
+    return progress
+
+
+@router.get("/progress")
+def get_all_progress() -> dict:
+    """Get progress for all active batches."""
+    return {"batches": progress_tracker.get_all_progress()}
+
+
+# --- RabbitMQ Pipeline Integration -----------------------------------------------
+
+@router.post("/upload-async")
+async def upload_file_to_pipeline(file: UploadFile = File(...)) -> dict:
+    """
+    Upload a file to start the async data ingestion pipeline via RabbitMQ.
+
+    - Accepts CSV, JSON, FHIR, C-CDA, Claims 837, and NCPDP files
+    - Creates a source batch record in database
+    - Publishes message to RabbitMQ for asynchronous processing by ConversionWorker
+    - Returns batch_id to track progress
+
+    Example:
+        curl -X POST -F "file=@patients.csv" http://localhost:8000/api/ingestion/upload-async
+
+    Response:
+        {
+            "batch_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+            "status": "processing",
+            "message": "Upload accepted. Processing started."
+        }
+    """
+    try:
+        # Import here to avoid circular dependencies
+        from services.rabbitmq_messages import ConversionMessage
+        from services.reliable_messaging import enqueue_outbox_session
+
+        # Generate batch ID
+        batch_id = str(uuid.uuid4())
+
+        original_name = (file.filename or "").lower()
+        suffix = Path(original_name).suffix
+        file_type_map = {
+            ".837": ("837", ".837"),
+            ".ccda": ("ccda", ".ccda"),
+            ".csv": ("csv", ".csv"),
+            ".fhir": ("fhir", ".fhir"),
+            ".json": ("json", ".json"),
+            ".ndjson": ("ndjson", ".ndjson"),
+            ".ncpdp": ("ncpdp", ".ncpdp"),
+            ".rx": ("rx", ".rx"),
+            ".txt": ("csv", ".csv"),
+            ".xml": ("xml", ".xml"),
+        }
+        if original_name.endswith(".ncpdp.txt"):
+            file_type, stored_suffix = "ncpdp", ".ncpdp"
+        elif suffix in file_type_map:
+            file_type, stored_suffix = file_type_map[suffix]
+        else:
+            raise HTTPException(status_code=400, detail="The uploaded file type is not supported.")
+
+        # Create uploads directory if it doesn't exist
+        upload_root = Path(".") / "data" / "uploads" / batch_id
+        upload_root.mkdir(parents=True, exist_ok=True)
+
+        # Generated names prevent patient details in client filenames from entering storage.
+        file_path = upload_root / f"source{stored_suffix}"
+        contents = await file.read()
+        with open(file_path, "wb") as f:
+            f.write(contents)
+
+        log.info("Async upload stored: batch_id=%s, size=%d bytes", batch_id, len(contents))
+
+        message = ConversionMessage(
+            batch_id=batch_id,
+            source_system="api_upload",
+            file_path=str(upload_root),
+            file_type=file_type,
+            priority=0,
+        )
+
+        # Create the batch and its first message in one transaction.
+        with session_scope() as session:
+            source_batch = SourceBatch(
+                batch_id=batch_id,
+                source_system="api_upload",
+                status="running",
+                resource_count=None,
+                started_at=datetime.now(timezone.utc)
+            )
+            session.add(source_batch)
+            enqueue_outbox_session(session, "ingestion.convert", message)
+        log.info("SourceBatch and conversion outbox message created: batch_id=%s", batch_id)
+
+        return {
+            "batch_id": batch_id,
+            "status": "processing",
+            "message": "Upload accepted. Processing started via RabbitMQ pipeline.",
+        }
+
+    except Exception as exc:
+        log.error("Async upload failed: %s", type(exc).__name__)
+        raise HTTPException(status_code=500, detail="The upload could not be queued.") from exc
 
 
 def _to_member_result(entry: dict, measure_id: str) -> dict:
-    """Normalize FQM detailed results into the shared measure-engine result contract."""
-    if not isinstance(entry, dict):
-        raise TypeError("FQM engine returned a non-object patient result.")
+    """Convert one detailed fqm-execution result into the integration result shape."""
+    if not isinstance(entry, dict) or not isinstance(entry.get("patientId"), str):
+        raise ValueError(f"engine result for {measure_id} has no patient id")
 
-    patient_id = entry.get("patientId")
-    if not isinstance(patient_id, str) or not patient_id.strip():
-        raise ValueError("FQM engine result has no patient identifier.")
-
-    population_map: dict[str, bool | None] = {
+    populations = {
         "initial_population": None,
         "denominator": None,
         "denominator_exclusion": None,
         "denominator_exception": None,
         "numerator": None,
     }
-    population_names = {
-        "initial_population": "initial_population",
+    population_keys = {
         "initial-population": "initial_population",
+        "initial_population": "initial_population",
         "ipp": "initial_population",
         "denominator": "denominator",
         "den": "denominator",
-        "denominator_exclusion": "denominator_exclusion",
         "denominator-exclusion": "denominator_exclusion",
+        "denominator_exclusion": "denominator_exclusion",
         "denex": "denominator_exclusion",
-        "denominator_exception": "denominator_exception",
         "denominator-exception": "denominator_exception",
+        "denominator_exception": "denominator_exception",
         "denexcep": "denominator_exception",
         "numerator": "numerator",
         "num": "numerator",
+        "measure-population": "measure_population",
+        "measure_population": "measure_population",
+        "measure-observation": "measure_observation",
+        "measure_observation": "measure_observation",
     }
-    def _coerce_population_result(value: object) -> bool | None:
-        if isinstance(value, bool):
-            return value
-        if isinstance(value, int) and value in (0, 1):
-            return bool(value)
-        if isinstance(value, str):
-            lowered = value.strip().lower()
-            if lowered in {"true", "1"}:
-                return True
-            if lowered in {"false", "0"}:
-                return False
-        return None
-
-    detailed_results = entry.get("detailedResults")
-    if not isinstance(detailed_results, list):
-        raise TypeError(f"FQM engine result for measure {measure_id} has no detailed results.")
-
-    for group in detailed_results:
+    for group in entry.get("detailedResults", []):
         if not isinstance(group, dict):
             continue
-        population_results = group.get("populationResults")
-        if not isinstance(population_results, list):
-            continue
-        for population in population_results:
+        for population in group.get("populationResults", []):
             if not isinstance(population, dict):
                 continue
             population_type = population.get("populationType")
-            if not isinstance(population_type, str):
+            key = population_keys.get(population_type.strip().lower()) if isinstance(population_type, str) else None
+            if not key or population.get("result") is None:
                 continue
-            key = population_names.get(population_type.strip().lower())
-            coerced = _coerce_population_result(population.get("result"))
-            if key is not None and coerced is not None:
-                population_map[key] = population_map[key] is True or coerced
+            populations[key] = bool(populations.get(key)) or bool(population["result"])
 
-    errors: list[dict[str, str]] = []
-    denominator = population_map["denominator"] is True
-    numerator = population_map["numerator"]
-    if all(value is None for value in population_map.values()):
-        outcome = "unresolved_policy"
-        errors.append(
-            {
-                "message": (
-                    f"FQM engine returned no recognized population boolean results for measure {measure_id}."
-                )
-            }
-        )
-    elif not denominator:
+    if populations["denominator"] is not True:
         outcome = "not_in_population"
-    elif numerator is True:
+    elif populations["numerator"] is True:
         outcome = "numerator_met"
-    elif numerator is False:
+    elif populations["numerator"] is False:
         outcome = "numerator_not_met"
     else:
         outcome = "unresolved_policy"
-        errors.append(
-            {
-                "message": (
-                    f"FQM engine returned denominator=true with no definitive numerator result for measure {measure_id}."
-                )
-            }
-        )
 
     return {
-        "member_id": patient_id,
+        "member_id": entry["patientId"],
         "measure_id": measure_id,
         "status": "completed" if outcome != "unresolved_policy" else "unresolved",
         "outcome": outcome,
-        "populations": population_map,
+        "populations": populations,
         "data_quality_flags": [],
         "warnings": [],
-        "errors": errors,
+        "errors": [],
     }

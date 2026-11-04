@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import datetime as dt
 import json
+import logging
 import os
 import threading
 import uuid
@@ -16,13 +17,16 @@ import psycopg
 from fastapi import APIRouter, Depends, FastAPI, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
-from fastapi.routing import APIRoute
+from fastapi.routing import APIRoute, APIWebSocketRoute
 from pydantic import BaseModel, Field
+from prometheus_fastapi_instrumentator import Instrumentator
 from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from common.config import AppConfig
+from common import app_metrics
+from common.app_logging import path_template, safe_text, setup_file_logging
 from common.database import Database
 from common.evidence import (
     ensure_supported_formats,
@@ -39,6 +43,7 @@ from services.integration import calculation as integration_calculation
 from services.integration import dq_checks as integration_dq_checks
 from services.integration import pipeline as integration_pipeline
 from services.integration import quality as integration_quality
+from services.integration import routes as integration_routes
 from services.star_modeler.main import (
     CMS_MEASURE_SET_URL,
     CMS_RATING_YEAR,
@@ -47,6 +52,19 @@ from services.star_modeler.main import (
     has_cutpoints_sqlalchemy,
     load_cutpoints_sqlalchemy,
 )
+
+# uvicorn --reload imports this module without a __main__, so the log file is set up here (once per process).
+setup_file_logging("hedis-app.log")
+log = logging.getLogger("app")
+_client_error_limit = app_metrics.RateLimit(30, 60)
+
+
+class ClientErrorIn(BaseModel):
+    kind: Literal["js_error", "unhandled_rejection", "api_error"]
+    page: str = Field(default="", max_length=200)
+    api_path: str | None = Field(default=None, max_length=300)
+    status: int | None = Field(default=None, ge=0, le=999)
+    message: str = Field(default="", max_length=300)
 
 
 class GenerateEvidenceRequest(BaseModel):
@@ -140,6 +158,13 @@ def _ingestion_routes() -> APIRouter:
                 route.path.removeprefix(ingestion_api.router.prefix),
                 route.endpoint,
                 methods=sorted(route.methods),
+                name=f"ingestion_{route.name}",
+            )
+        elif isinstance(route, APIWebSocketRoute):
+            # Live batch progress (/ws/batch/{batch_id}) for the pipeline monitor page.
+            router.add_api_websocket_route(
+                route.path.removeprefix(ingestion_api.router.prefix),
+                route.endpoint,
                 name=f"ingestion_{route.name}",
             )
     return router
@@ -1173,10 +1198,11 @@ def create_app(
             try:
                 with database.session_factory.begin() as session:
                     repo = Repository(session)
-                    _process_gap_automation(repo, cfg)
-            except Exception:
+                    summary = _process_gap_automation(repo, cfg)
+                app_metrics.record_process_gaps("background", summary)
+            except Exception as exc:
                 # Keep the worker alive and retry on the next interval.
-                pass
+                app_metrics.record_process_gaps("background", None, exc)
             try:
                 await asyncio.wait_for(
                     stop_event.wait(),
@@ -1250,12 +1276,19 @@ def create_app(
         page_path = Path(__file__).parent / "ui" / "star_results.html"
         return HTMLResponse(page_path.read_text(encoding="utf-8"))
 
+    @app.get("/ingestion", response_class=HTMLResponse)
+    def pipeline_monitor_page():
+        """Real-time pipeline progress monitor for RabbitMQ-driven ingestion batches."""
+        page_path = Path(__file__).parent / "services" / "integration" / "ui" / "redesign" / "pipeline-monitor.html"
+        return HTMLResponse(page_path.read_text(encoding="utf-8"))
+
     @app.get("/star-results", response_class=HTMLResponse)
     def star_results_page():
         page_path = Path(__file__).parent / "ui" / "star_results.html"
         return HTMLResponse(page_path.read_text(encoding="utf-8"))
 
     @app.post("/api/auth/signin")
+    @app_metrics.track_signin
     def auth_signin(body: SignInIn, conn: psycopg.Connection = Depends(get_auth_conn)) -> dict:
         try:
             user, token, expires_at = integration_auth.signin(conn, body.email, body.password)
@@ -1275,6 +1308,7 @@ def create_app(
         }
 
     @app.post("/api/auth/signup")
+    @app_metrics.track_route("sign-up")
     def auth_signup(body: SignUpIn, conn: psycopg.Connection = Depends(get_auth_conn)) -> dict:
         try:
             integration_auth.signup(conn, body.email, body.password)
@@ -1291,6 +1325,7 @@ def create_app(
         return {"email": user.email, "role": user.role}
 
     @app.post("/api/auth/signout")
+    @app_metrics.track_route("sign-out")
     def auth_signout(
         conn: psycopg.Connection = Depends(get_auth_conn),
         authorization: str | None = Header(default=None),
@@ -1301,6 +1336,7 @@ def create_app(
         return {"status": "ok"}
 
     @app.get("/api/admin/users")
+    @app_metrics.track_route("admin user list")
     def auth_admin_users(
         conn: psycopg.Connection = Depends(get_auth_conn),
         _: integration_auth.AuthUser = Depends(admin_auth_user),
@@ -1308,6 +1344,7 @@ def create_app(
         return {"users": integration_auth.list_users(conn)}
 
     @app.put("/api/admin/users/{user_id}/access")
+    @app_metrics.track_admin("access")
     def auth_admin_update_access(
         user_id: int,
         body: UserAccessIn,
@@ -1324,6 +1361,7 @@ def create_app(
         return updated
 
     @app.put("/api/admin/users/{user_id}/role")
+    @app_metrics.track_admin("role")
     def auth_admin_update_role(
         user_id: int,
         body: UserRoleIn,
@@ -1383,6 +1421,7 @@ def create_app(
         return integration_quality.coverage_report(conn, payer, compliant, start_date, end_date, min(max(limit, 1), 5000))
 
     @app.post("/api/star-rating/calculate")
+    @app_metrics.track_star("calculate", lambda kw: kw["request"].result.measure_code)
     def star_rating_calculate(
         request: StarRatingRequest,
         session: Session = Depends(database.get_session),
@@ -1430,6 +1469,7 @@ def create_app(
         return response_payload
 
     @app.post("/api/star-rating/compare")
+    @app_metrics.track_star("compare", lambda kw: kw["request"].before.measure_code)
     def star_rating_compare(
         request: StarRatingComparisonRequest,
         session: Session = Depends(database.get_session),
@@ -1459,6 +1499,7 @@ def create_app(
         }
 
     @app.get("/api/star-rating/catalog")
+    @app_metrics.track_route("star catalog")
     def star_rating_catalog(session: Session = Depends(database.get_session)):
         rows = session.execute(
             text(
@@ -1516,6 +1557,7 @@ def create_app(
         }
 
     @app.post("/api/evidence/generate")
+    @app_metrics.track_evidence
     def generate_evidence(
         request: GenerateEvidenceRequest,
         session: Session = Depends(database.get_session),
@@ -1591,11 +1633,13 @@ def create_app(
         }
 
     @app.post("/api/automation/process-gaps")
+    @app_metrics.track_process_gaps
     def process_gaps(session: Session = Depends(database.get_session)):
         repo = Repository(session)
         return _process_gap_automation(repo, cfg)
 
     @app.post("/api/star-dashboard/calculate")
+    @app_metrics.track_star("dashboard", lambda kw: kw["request"].measure_id)
     def star_dashboard_calculate(
         request: StarDashboardRequest,
         session: Session = Depends(database.get_session),
@@ -1607,6 +1651,7 @@ def create_app(
         )
 
     @app.post("/api/star-dashboard/seed-sample-data")
+    @app_metrics.track_seed
     def star_dashboard_seed_sample_data(session: Session = Depends(database.get_session)):
         with _seed_lock:
             try:
@@ -1625,14 +1670,33 @@ def create_app(
             **inserted,
         }
 
+    @app.post("/api/client-errors", status_code=202)
+    def report_client_error(body: ClientErrorIn) -> dict:
+        """A browser error from the React UI: counted and logged with route templates and a masked message only."""
+        if not _client_error_limit.allow():
+            app_metrics.CLIENT_ERRORS_DROPPED.inc()
+            return {"status": "dropped"}
+        app_metrics.CLIENT_ERRORS.labels(body.kind).inc()
+        logging.getLogger("app.browser").warning(
+            "browser %s: page=%s api=%s status=%s message=%s", body.kind,
+            safe_text(path_template(body.page.lstrip("#")), 120),
+            safe_text(path_template(body.api_path), 160) if body.api_path else "-", body.status or "-",
+            safe_text(body.message, 300) or "-")
+        return {"status": "accepted"}
+
     return app
 
 
 app = create_app()
 app.include_router(_ingestion_routes(), prefix="/api/ingestion")
+# The integration endpoints (formerly the 8780 app): batches, work list, AI evidence, export, quality, stars, health.
+app.include_router(integration_routes.build_router(current_auth_user, admin_auth_user))
+# handler is the route template; paths no route matches (the UI's 404s) are all grouped as handler "none".
+Instrumentator(should_group_untemplated=True).instrument(app).expose(app, endpoint="/metrics", include_in_schema=False)
 
 
 @app.get("/api/flow")
+@app_metrics.track_route("ingestion flow")
 def ingestion_flow_snapshot() -> dict[str, object]:
     """Return the persisted integration workflow state for the ingestion UI."""
     with intake_db.connect() as conn:
@@ -1661,10 +1725,18 @@ def get_calculation_patients(measure_id: str) -> dict:
 @app.post("/api/calculation/run", status_code=202)
 def run_calculation(body: CalculationRequest | None = None) -> dict:
     """Run selected measures for supplied patients, or every available persisted patient by default."""
-    return {
-        "batch_id": integration_pipeline.start_recalculation(
+    try:
+        batch_id = integration_pipeline.start_recalculation(
             body.measures if body else None,
             body.patient_ids if body else None,
-        ),
+        )
+        print(f"Started recalculation with batch_id: {batch_id}")
+    except integration_pipeline.CalculationNotReadyError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except (LookupError, ValueError) as exc:
+        # A batch already running, or unknown patients: the user can act on these, so not a 500.
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    return {
+        "batch_id": batch_id,
         "status": "running",
     }
