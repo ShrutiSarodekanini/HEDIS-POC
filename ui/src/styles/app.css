@@ -422,6 +422,15 @@ p {
   padding: 14px;
 }
 
+.view#view-dashboard .card,
+.view#view-dashboard .card *,
+.view#view-dashboard .kpi-card,
+.view#view-dashboard .kpi-card *,
+.view#view-dashboard .subcard,
+.view#view-dashboard .subcard * {
+  font-family: "Archivo", "Segoe UI", sans-serif;
+}
+
 .dashboard-measure-card .card-head,
 .dashboard-priority-card .card-head {
   padding-bottom: 8px;
