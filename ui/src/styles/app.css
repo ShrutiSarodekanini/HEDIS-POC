@@ -422,12 +422,16 @@ p {
   padding: 14px;
 }
 
-.view#view-dashboard .card,
-.view#view-dashboard .card *,
-.view#view-dashboard .kpi-card,
-.view#view-dashboard .kpi-card *,
-.view#view-dashboard .subcard,
-.view#view-dashboard .subcard * {
+.view .card,
+.view .card *,
+.view .kpi-card,
+.view .kpi-card *,
+.view .subcard,
+.view .subcard *,
+.view .queue-item,
+.view .queue-item *,
+.view .review-row,
+.view .review-row * {
   font-family: "Archivo", "Segoe UI", sans-serif;
 }
 
@@ -917,6 +921,11 @@ tbody td {
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
 }
 
+.view .pt,
+.view .mono {
+  font-family: inherit;
+}
+
 .r {
   text-align: right;
 }
@@ -1359,6 +1368,84 @@ table.compact td {
   gap: 8px 12px;
   color: #47627a;
   font-size: 12px;
+}
+
+.prio-breakdown-card .kpi-card {
+  padding: 12px;
+}
+
+.prio-breakdown-card .kpi-card span {
+  font-size: 10px;
+}
+
+.prio-breakdown-card .kpi-card strong {
+  font-size: clamp(18px, 2vw, 24px);
+}
+
+.prio-breakdown-card .prio-channel-kpi strong {
+  font-size: 13px;
+  line-height: 1.25;
+  font-weight: 700;
+}
+
+.prio-breakdown-card .table-wrap thead th {
+  font-size: 11px;
+}
+
+.prio-breakdown-card .table-wrap tbody td {
+  font-size: 12px;
+}
+
+.prio-breakdown-card .title {
+  font-size: 13px;
+}
+
+.admin-view {
+  gap: 14px;
+}
+
+.admin-summary-card {
+  background: linear-gradient(180deg, #fbfdff 0%, #f5faff 100%);
+  border-color: #c8ddef;
+}
+
+.admin-kpis .kpi-card {
+  padding: 12px;
+}
+
+.admin-kpis .kpi-card strong {
+  font-size: clamp(18px, 2vw, 24px);
+}
+
+.admin-users-card .card-head {
+  padding-bottom: 8px;
+  border-bottom: 1px dashed #d8e5f0;
+}
+
+.admin-table-wrap tbody td {
+  vertical-align: top;
+}
+
+.admin-user-cell {
+  display: grid;
+  gap: 4px;
+}
+
+.admin-row-pending {
+  background: #fffdf6;
+}
+
+.admin-row-approved {
+  background: #fcfffd;
+}
+
+.admin-row-rejected {
+  background: #fffafb;
+}
+
+.admin-users-card .actions .btn,
+.admin-users-card td > .btn {
+  min-height: 30px;
 }
 
 .integration-action-card,

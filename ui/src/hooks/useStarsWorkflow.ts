@@ -16,6 +16,13 @@ import {
 } from "../services/stars.service"
 import { toRequestErrorMessage } from "../services/http"
 
+const NO_GAPS_STAR_MESSAGE = "No gaps to calculate the star."
+
+const isZeroDenominatorMessage = (message: string): boolean => {
+  const normalized = message.trim().toLowerCase()
+  return normalized.includes("denominator") && (normalized.includes("zero") || normalized.includes("greater than"))
+}
+
 const firstMeasureId = (overview: StarOverview | null): string =>
   overview?.measureCards[0]?.measureId ?? overview?.measures[0]?.measureId ?? ""
 
@@ -220,7 +227,7 @@ export function useStarsWorkflow() {
     }
 
     if (denominator <= 0) {
-      setErrorMessage("Cannot calculate star: denominator is zero.")
+      setErrorMessage(NO_GAPS_STAR_MESSAGE)
       return
     }
 
@@ -239,7 +246,8 @@ export function useStarsWorkflow() {
       setCalculationResult(result)
       setStatusMessage("Current star calculation completed.")
     } catch (error) {
-      setErrorMessage(toRequestErrorMessage(error))
+      const message = toRequestErrorMessage(error)
+      setErrorMessage(isZeroDenominatorMessage(message) ? NO_GAPS_STAR_MESSAGE : message)
     } finally {
       setRunningCalculation(false)
     }
@@ -279,7 +287,7 @@ export function useStarsWorkflow() {
       }
 
       if (projection.baselineDenominator <= 0) {
-        setErrorMessage("Cannot compare stars: denominator is zero.")
+        setErrorMessage(NO_GAPS_STAR_MESSAGE)
         return
       }
 
@@ -294,7 +302,8 @@ export function useStarsWorkflow() {
       setComparisonResult(comparison)
       setStatusMessage("Before and after star comparison completed.")
     } catch (error) {
-      setErrorMessage(toRequestErrorMessage(error))
+      const message = toRequestErrorMessage(error)
+      setErrorMessage(isZeroDenominatorMessage(message) ? NO_GAPS_STAR_MESSAGE : message)
     } finally {
       setRunningComparison(false)
     }

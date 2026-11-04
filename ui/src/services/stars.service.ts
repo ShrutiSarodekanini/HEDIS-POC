@@ -130,6 +130,31 @@ const asRate = (numerator: number, denominator: number): number | null => {
   return (numerator / denominator) * 100
 }
 
+const assignStarFromCutPoints = (
+  scoringValue: number | null,
+  denominator: number,
+  cutPoints: StarCutPoint[],
+): number | null => {
+  if (denominator <= 0 || scoringValue == null || cutPoints.length === 0) {
+    return null
+  }
+
+  if (!Number.isFinite(scoringValue) || scoringValue < 0 || scoringValue > 100) {
+    return null
+  }
+
+  const ordered = [...cutPoints].sort((left, right) => left.stars - right.stars)
+  let assigned: number | null = null
+
+  for (const point of ordered) {
+    if (scoringValue >= point.low) {
+      assigned = point.stars
+    }
+  }
+
+  return assigned ?? 1
+}
+
 const mapCatalogCutPoints = (points: Array<{ stars: number; low: number; high?: number | null }> | undefined): StarCutPoint[] =>
   (points ?? []).map((point) => ({
     stars: point.stars,
@@ -261,6 +286,7 @@ const mapIntegrationMeasureCards = (
       measureId: measure.measureId,
       measureName: measure.measureName,
       measurementYear: measure.measurementYear,
+      weight: measure.weight,
       starEligible: measure.cutPoints.length > 0,
       total: 0,
       baselineNumerator: 0,
@@ -278,20 +304,22 @@ const mapIntegrationMeasureCards = (
     const denominator = Math.max(0, (row.denominator ?? 0) - (row.excluded ?? 0))
     const numerator = Math.max(0, row.met ?? 0)
     const rate = asRate(numerator, denominator)
+    const baselineStar = assignStarFromCutPoints(rate, denominator, catalog?.cutPoints ?? [])
 
     return {
       measureId: row.measure,
       measureName: row.name ?? catalog?.measureName ?? row.measure,
       measurementYear: catalog?.measurementYear ?? calculation?.measurement_year ?? new Date().getFullYear(),
+      weight: catalog?.weight ?? null,
       starEligible: Boolean(row.star_measure) || (catalog?.cutPoints.length ?? 0) > 0,
       total: denominator,
       baselineNumerator: numerator,
       projectedNumerator: numerator,
       baselineRate: rate,
       projectedRate: rate,
-      baselineStar: null,
-      projectedStar: null,
-      starDelta: null,
+      baselineStar,
+      projectedStar: baselineStar,
+      starDelta: 0,
     }
   })
 }
@@ -340,6 +368,7 @@ export async function loadStarOverview(
         .catch(() => null)
 
       const measureCards = mapIntegrationMeasureCards(calculation, measures)
+      const calculatedOverall = calculateOverallFromMeasureCards(measureCards)
 
       return {
         mode: "integration",
@@ -349,15 +378,7 @@ export async function loadStarOverview(
         notesUrl: null,
         measures,
         measureCards,
-        overall: {
-          ratedMeasures: measureCards.filter((row) => row.starEligible).length,
-          ratedMeasuresWithData: measureCards.filter((row) => row.starEligible && row.total > 0).length,
-          totalMeasures: measureCards.length,
-          unratedMeasures: measureCards.filter((row) => !row.starEligible).length,
-          baselineStar: null,
-          projectedStar: null,
-          delta: null,
-        },
+        overall: calculatedOverall,
       } satisfies StarOverview
     }
 
