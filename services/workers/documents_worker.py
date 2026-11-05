@@ -100,9 +100,13 @@ class DocumentsWorker(Worker):
                       {key: (len(value) if isinstance(value, list) else value) for key, value in attached.items()},
                       actor=SETTINGS.actor)
                 gap_ids = [row[0] for row in conn.execute(
-                    """SELECT gap_id::text FROM care_gap
-                        WHERE patient_id = ANY(%s) AND status = 'open' ORDER BY gap_id""",
-                    (list(patient_ids),),
+                    """SELECT g.gap_id::text FROM care_gap g
+                         LEFT JOIN v_gap_priority_latest p ON p.gap_id = g.gap_id
+                        WHERE g.patient_id = ANY(%s) AND g.status = 'open'
+                          AND EXISTS (SELECT 1 FROM document_reference d WHERE d.patient_id = g.patient_id)
+                        ORDER BY p.composite_score DESC NULLS LAST, g.gap_id
+                        LIMIT %s""",
+                    (list(patient_ids), SETTINGS.evidence_auto_limit),
                 ).fetchall()]
                 conn.execute(
                     """UPDATE batch_run SET status = 'running', step = 'extracting_evidence', updated_at = now()
@@ -116,6 +120,7 @@ class DocumentsWorker(Worker):
                         job_id=job_id,
                         gap_id=gap_ids[0],
                         remaining_gap_ids=gap_ids[1:],
+                        total_gaps=len(gap_ids),
                     )
                 else:
                     next_queue = "stars.calculate"
@@ -129,6 +134,13 @@ class DocumentsWorker(Worker):
                 batch_id, "documents", "complete",
                 {"pct": 100, "message": "Document attachment complete for batch"}
             ))
+
+            # After "documents complete" on purpose: that notify marks the batch prioritized, this one sets it running.
+            if gap_ids:
+                asyncio.run(progress_tracker.notify(
+                    batch_id, "evidence", "starting",
+                    {"pct": 0, "message": f"AI evidence for the top {len(gap_ids)} gaps (others run on request)"}
+                ))
 
             return True
 

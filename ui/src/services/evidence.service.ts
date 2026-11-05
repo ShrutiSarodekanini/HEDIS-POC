@@ -6,6 +6,7 @@ import type {
   EvidenceCapabilities,
   EvidenceContextQuote,
   EvidenceDecisionResult,
+  EvidenceDocumentPage,
   EvidenceExportResult,
   EvidenceExportRun,
   EvidenceExtractionResult,
@@ -19,9 +20,11 @@ import type {
   EvidenceRuleCheckPart,
   EvidenceQueueItem,
   EvidenceScopeGap,
+  GapCloseResult,
 } from "../models/evidence"
-import { fetchJson, postJson } from "./http"
+import { fetchBlob, fetchJson, postJson } from "./http"
 import { getOpenApiPaths, hasOpenApiPath } from "./openapi"
+import { toNumber } from "../utils/number"
 
 interface RawMeasuresResponse {
   evidence?: {
@@ -175,7 +178,7 @@ interface RawGapDetail {
     status?: string
     excerpt?: string | null
     proposed_finding?: string | null
-    confidence?: number | null
+    confidence?: number | string | null
     model?: string | null
     decision_reason?: string | null
     reason?: string | null
@@ -453,6 +456,9 @@ const toAcceptanceByModel = (
   acceptanceRate: row.acceptance_rate ?? null,
 }))
 
+// The API serializes the numeric confidence_score column as a string such as "0.80".
+const toConfidence = (value: number | string | null | undefined): number | null => toNumber(value)
+
 const toScopeGap = (row: RawGapRow): EvidenceScopeGap => ({
   gapId: row.gap_id ?? "",
   key: row.key ?? row.gap_id ?? "",
@@ -502,7 +508,7 @@ const toQueueRows = (detail: RawGapDetail): EvidenceQueueItem[] => {
       value: row.value ?? null,
       excerpt: row.excerpt?.trim() || "No excerpt available from backend.",
       proposedFinding: row.proposed_finding?.trim() || "No proposed finding text available.",
-      confidence: row.confidence ?? null,
+      confidence: toConfidence(row.confidence),
       model: row.model ?? null,
       reason: row.reason ?? null,
       status: row.status ?? "proposed",
@@ -958,6 +964,12 @@ export async function runEvidenceExtraction(
 
   invalidateGapDetailCache(gapId)
 
+  const callErrors = (result.calls ?? []).map((call) => call.error?.trim() ?? "").filter((text) => text.length > 0)
+  const callCount = (result.calls ?? []).length
+  if (callCount > 0 && callErrors.length === callCount) {
+    throw new Error(`AI run ${result.run_id ?? "?"} failed: ${callErrors[0]}`)
+  }
+
   const run = toLatestRun(gapId, result)
 
   const note = result.note?.trim()
@@ -965,8 +977,11 @@ export async function runEvidenceExtraction(
     return { message: note, run }
   }
 
+  const partial = callErrors.length > 0
+    ? ` ${callErrors.length} of ${callCount} model calls failed: ${callErrors[0]}`
+    : ""
   return {
-    message: `Extraction run ${result.run_id ?? "?"} completed. Saved ${result.saved ?? 0} findings and skipped ${result.skipped_already_saved ?? 0}.`,
+    message: `Extraction run ${result.run_id ?? "?"} completed. Saved ${result.saved ?? 0} findings and skipped ${result.skipped_already_saved ?? 0}.${partial}`,
     run,
   }
 }
@@ -1021,5 +1036,53 @@ export async function exportSupplementalEvidence(
 
   return {
     message: `Export run ${result.export_run_id ?? "?"} completed with ${result.rows ?? 0} rows.${result.file_path ? ` File: ${result.file_path}.` : ""}`,
+  }
+}
+
+interface RawDocumentPage {
+  document_id?: string
+  page_no?: number
+  text?: string | null
+  method?: string | null
+  handwritten?: boolean
+  has_image?: boolean
+}
+
+const pagePath = (documentId: string, pageNo: number): string =>
+  `/documents/${encodeURIComponent(documentId)}/pages/${encodeURIComponent(String(pageNo))}`
+
+export async function loadDocumentPage(documentId: string, pageNo: number): Promise<EvidenceDocumentPage> {
+  const row = await fetchJson<RawDocumentPage>(withApiBase(pagePath(documentId, pageNo)), timeoutMs)
+  return {
+    documentId: row.document_id ?? documentId,
+    pageNo: row.page_no ?? pageNo,
+    text: row.text ?? "",
+    method: row.method ?? "",
+    handwritten: Boolean(row.handwritten),
+    hasImage: Boolean(row.has_image),
+  }
+}
+
+export async function loadDocumentPageImage(documentId: string, pageNo: number): Promise<Blob> {
+  return fetchBlob(withApiBase(`${pagePath(documentId, pageNo)}/image`), timeoutMs)
+}
+
+interface RawGapCloseResponse {
+  gap_id?: string
+  status?: string
+  review_status?: string
+}
+
+export async function closeCareGap(gapId: string): Promise<GapCloseResult> {
+  const result = await postJson<RawGapCloseResponse>(
+    withApiBase(`/gaps/${encodeURIComponent(gapId)}/close`),
+    timeoutMs,
+    {},
+  )
+  invalidateGapDetailCache(gapId)
+  return {
+    gapId: result.gap_id ?? gapId,
+    status: result.status ?? "closed",
+    reviewStatus: result.review_status ?? "closed",
   }
 }

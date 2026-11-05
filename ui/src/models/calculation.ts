@@ -46,3 +46,13 @@ export interface CalculationRunResult {
   /** Set when the backend started the run in the background; wait on it with waitForCalculation. */
   batchId?: string
 }
+
+export interface LatestBatch {
+  batchId: string
+  status: string
+  step: string | null
+  error: string | null
+  startedAt: string | null
+  updatedAt: string | null
+  progressMessage: string | null
+}

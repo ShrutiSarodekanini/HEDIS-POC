@@ -263,8 +263,10 @@ export function useEvidenceWorkflow() {
     }
   }, [capabilities, refreshOverview, selectedScopeGap?.gapId])
 
-  const submitDecision = useCallback(async (decision: "confirm" | "reject"): Promise<void> => {
-    if (!capabilities || !selectedQueueItem?.proposalId) {
+  const submitDecision = useCallback(async (decision: "confirm" | "reject", proposalId?: string): Promise<void> => {
+    // State set in the same click is not visible yet, so callers may pass the proposal explicitly.
+    const targetProposalId = proposalId ?? selectedQueueItem?.proposalId
+    if (!capabilities || !targetProposalId) {
       return
     }
 
@@ -284,7 +286,7 @@ export function useEvidenceWorkflow() {
     setStatusMessage("")
 
     try {
-      const result = await submitEvidenceDecision(capabilities, selectedQueueItem.proposalId, {
+      const result = await submitEvidenceDecision(capabilities, targetProposalId, {
         decision,
         reviewer,
         reason: decision === "reject" ? decisionReason.trim() : undefined,

@@ -1,11 +1,13 @@
 """Calculate and persist a batch-level star-rating summary."""
 
+import asyncio
 import logging
 import sys
 
 from psycopg.types.json import Jsonb
 from sqlalchemy import text
 
+from services.data_ingestion.app.progress import progress_tracker
 from services.document_intake import db
 from services.integration import stars
 from services.integration.config import SETTINGS
@@ -26,6 +28,16 @@ class StarsWorker(Worker):
             logger.error("Star message is missing required identifiers")
             return False
         try:
+            asyncio.run(progress_tracker.notify(
+                batch_id, "stars", "processing", {"message": "Calculating star ratings"}
+            ))
+            with db.connect() as conn:
+                # notify sets step to the stage name, so the step label is written after it.
+                conn.execute(
+                    """UPDATE batch_run SET status = 'running', step = 'calculating_stars', updated_at = now()
+                        WHERE batch_id = %s""",
+                    (batch_id,),
+                )
             with stars.session() as session:
                 measures = session.execute(
                     text("SELECT DISTINCT measure_id FROM v_measure_result_latest WHERE measurement_year = :year"),

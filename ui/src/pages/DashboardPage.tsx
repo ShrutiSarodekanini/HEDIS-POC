@@ -1,3 +1,10 @@
+import { useCallback, useState } from "react"
+
+import { DashboardPrioritizedGaps } from "../components/dashboard/DashboardPrioritizedGaps"
+import { DashboardStarRating } from "../components/dashboard/DashboardStarRating"
+import { LatestBatchTile } from "../components/dashboard/LatestBatchTile"
+import { QualitySummaryCard } from "../components/dashboard/QualitySummaryCard"
+import { useLatestBatch, type UseLatestBatchResult } from "../hooks/useLatestBatch"
 import type { DashboardSnapshot, StarDashboardMeasureCard } from "../models/dashboard"
 import {
   formatDateTime,
@@ -6,10 +13,13 @@ import {
   toMeterWidth,
 } from "../utils/format"
 
+const EMPTY_TEXT = "Results appear here after an ingestion run finishes."
+
 interface DashboardPageProps {
   snapshot: DashboardSnapshot | null
   loading: boolean
-  onRetry: () => void
+  isAdmin: boolean
+  onReload: () => Promise<void>
 }
 
 interface KpiItem {
@@ -79,52 +89,73 @@ function buildPriorityMix(cards: StarDashboardMeasureCard[]) {
   ] as const
 }
 
-export function DashboardPage({ snapshot, loading, onRetry }: DashboardPageProps) {
-  if (loading && !snapshot) {
-    return (
-      <section id="view-dashboard" className="view">
-        <div className="page-head">
-          <div>
-            <h1>Dashboard</h1>
-            <p>Loading live workflow metrics from backend services.</p>
-          </div>
-        </div>
-        <article className="card state-card">
-          <p>Loading dashboard data...</p>
-        </article>
-      </section>
-    )
-  }
+export function DashboardPage({ snapshot, loading, isAdmin, onReload }: DashboardPageProps) {
+  // Bumped on every step change and when the batch ends; cards reload in place when it changes.
+  const [dataVersion, setDataVersion] = useState<number>(0)
 
-  if (!snapshot) {
-    return (
-      <section id="view-dashboard" className="view">
-        <div className="page-head">
-          <div>
-            <h1>Dashboard</h1>
-            <p>The dashboard did not receive a data snapshot from the backend.</p>
-          </div>
-        </div>
-        <article className="card state-card error">
-          <p>No data is available yet.</p>
-          <button type="button" className="btn primary" onClick={onRetry}>
-            Retry
-          </button>
-        </article>
-      </section>
-    )
-  }
+  const handleBatchChanged = useCallback(() => {
+    setDataVersion((previous) => previous + 1)
+    void onReload()
+  }, [onReload])
 
+  const latest = useLatestBatch(handleBatchChanged, handleBatchChanged)
+
+  return (
+    <section id="view-dashboard" className="view">
+      <div className="page-head">
+        <div>
+          <h1>Dashboard</h1>
+          <p>
+            Results of the latest ingestion run. Every step after ingestion runs in the background and
+            shows up here when it finishes.
+          </p>
+        </div>
+      </div>
+
+      {!snapshot ? (
+        <>
+          <div className="kpi-grid five">
+            <LatestBatchTile latest={latest} syncedAt={null} />
+          </div>
+          <article className="card state-card">
+            <p>{loading ? "Loading dashboard data..." : EMPTY_TEXT}</p>
+          </article>
+        </>
+      ) : (
+        <DashboardResults
+          snapshot={snapshot}
+          isAdmin={isAdmin}
+          dataVersion={dataVersion}
+          latest={latest}
+          onGapChanged={handleBatchChanged}
+        />
+      )}
+    </section>
+  )
+}
+
+function DashboardResults({
+  snapshot,
+  isAdmin,
+  dataVersion,
+  latest,
+  onGapChanged,
+}: {
+  snapshot: DashboardSnapshot
+  isAdmin: boolean
+  dataVersion: number
+  latest: UseLatestBatchResult
+  onGapChanged: () => void
+}) {
   const catalog = snapshot.catalog
   const dashboard = snapshot.dashboard
 
   const measureCards = dashboard.data?.measure_cards ?? []
   const selectedMeasure = dashboard.data?.selected_measure
   const selectedMeasureGaps = dashboard.data?.selected_measure_gaps ?? []
-  const patientRows = dashboard.data?.patient_rows ?? []
   const overall = dashboard.data?.overall
 
-  const openCareGaps = measureCards.reduce((sum, card) => sum + card.total_gaps, 0)
+  const openCareGaps = snapshot.openGapCount
   const digitalReadiness =
     overall?.projected_star !== null && overall?.projected_star !== undefined
       ? (overall.projected_star / 5) * 100
@@ -160,12 +191,6 @@ export function DashboardPage({ snapshot, loading, onRetry }: DashboardPageProps
         : "Selected measure gaps pending closure",
       accent: "good",
     },
-    {
-      label: "Latest batch",
-      value: dashboard.error ? "UNAVAILABLE" : "AVAILABLE",
-      note: dashboard.error ? "Dashboard API failed" : `Synced ${formatDateTime(snapshot.fetchedAt)}`,
-      accent: dashboard.error ? "danger" : "good",
-    },
   ]
 
   const measureRows = [...measureCards]
@@ -175,30 +200,8 @@ export function DashboardPage({ snapshot, loading, onRetry }: DashboardPageProps
 
   const tierRows = buildPriorityMix(measureCards)
 
-  const selectedGap = selectedMeasureGaps[0] ?? null
-  const evidenceQueue = selectedMeasureGaps.slice(0, 2)
-  const memberRows = patientRows.slice(0, 8)
-
-  const currentOverallStar = overall?.baseline_star ?? null
-  const projectedOverallStar = overall?.projected_star ?? null
-  const expectedChange = overall?.star_delta ?? null
-  const progressToFiveStar =
-    projectedOverallStar !== null && projectedOverallStar !== undefined
-      ? (projectedOverallStar / 5) * 100
-      : null
-
   return (
-    <section id="view-dashboard" className="view">
-      <div className="page-head">
-        <div>
-          <h1>Dashboard</h1>
-          <p>
-            Action-first operational view mapped to the currently available backend
-            star endpoints.
-          </p>
-        </div>
-      </div>
-
+    <>
       <div className="kpi-grid five">
         {kpis.map((kpi) => (
           <article key={kpi.label} className={`kpi-card ${kpi.accent ?? "neutral"}`}>
@@ -207,6 +210,7 @@ export function DashboardPage({ snapshot, loading, onRetry }: DashboardPageProps
             <small className="kpi-time">{kpi.note}</small>
           </article>
         ))}
+        <LatestBatchTile latest={latest} syncedAt={snapshot.fetchedAt} />
       </div>
 
       <h2 className="zone-title">How performance is trending</h2>
@@ -221,7 +225,7 @@ export function DashboardPage({ snapshot, loading, onRetry }: DashboardPageProps
           <div className="measure-alerts">
             <CardState
               error={dashboard.error}
-              emptyText="No measure performance data is available."
+              emptyText={EMPTY_TEXT}
               hasData={measureRows.length > 0}
             />
 
@@ -248,7 +252,7 @@ export function DashboardPage({ snapshot, loading, onRetry }: DashboardPageProps
           <div className="table-wrap priority-mix-table">
             <CardState
               error={dashboard.error}
-              emptyText="Priority mix data is not available."
+              emptyText={EMPTY_TEXT}
               hasData={measureCards.length > 0}
             />
             <table>
@@ -281,211 +285,27 @@ export function DashboardPage({ snapshot, loading, onRetry }: DashboardPageProps
             </table>
           </div>
 
-          <a className="text-link" href="#view-prioritization">
-            View prioritized worklist
-          </a>
+          {isAdmin ? (
+            <a className="text-link" href="#view-prioritization">
+              View prioritized worklist
+            </a>
+          ) : null}
         </article>
       </div>
 
-      <article className="card workbench">
-        <div className="card-head row-split">
-          <div>
-            <h2>Gap workbench - human-in-the-loop closure</h2>
-            <small>
-              One selected measure gap, closure state, and projection selection in one
-              decision surface.
-            </small>
-          </div>
-        </div>
-        <p className="freshness">
-          Last updated {formatDateTime(snapshot.fetchedAt)} | Source: star dashboard
-          gaps
-        </p>
+      <QualitySummaryCard dataVersion={dataVersion} latestBatch={latest.batch} />
 
-        <CardState
-          error={dashboard.error}
-          emptyText="Gap workbench data is not available."
-          hasData={selectedGap !== null && selectedMeasure !== null}
-        />
+      <h2 className="zone-title">Prioritized gaps</h2>
 
-        {selectedGap && selectedMeasure ? (
-          <div className="grid three">
-            <article className="subcard">
-              <h3>Gap</h3>
-              <p className="title">
-                {selectedGap.member_id} - {selectedMeasure.measure_name}
-              </p>
-              <p>Care gap id: {selectedGap.care_gap_id}</p>
-              <div className="chips">
-                <span className="chip warn">{selectedGap.status}</span>
-                <span className="chip">Measure {selectedMeasure.measure_id}</span>
-              </div>
-            </article>
+      <DashboardPrioritizedGaps
+        dataVersion={dataVersion}
+        batchRunning={latest.batch?.status === "running"}
+        onGapChanged={onGapChanged}
+      />
 
-            <article className="subcard">
-              <h3>Priority</h3>
-              <p className="title">
-                <span className="chip good">
-                  {selectedGap.is_closed ? "Closed" : "Open"}
-                </span>{" "}
-                {selectedMeasure.total_gaps} measure gaps
-              </p>
-              <p>Selected for projection: {selectedGap.selected_for_projection ? "Yes" : "No"}</p>
-              <p>Member: {selectedGap.member_name}</p>
-            </article>
+      <h2 className="zone-title">Star rating</h2>
 
-            <article className="subcard">
-              <h3>Evidence</h3>
-              <p>
-                Evidence detail is not present in this endpoint. Use evidence API for
-                passage-level review.
-              </p>
-              <p className="title">
-                <span className="chip info">{selectedGap.is_closed ? "Closed" : "Proposed"}</span> backend state
-              </p>
-            </article>
-          </div>
-        ) : null}
-
-        <p className="note">
-          Confirming evidence and closing a gap require reviewer-backed decisions in
-          backend workflow.
-        </p>
-
-        <div className="actions">
-          <button
-            type="button"
-            className="btn outline"
-            onClick={() => {
-              window.location.hash = "#view-evidence"
-            }}
-          >
-            Open full review
-          </button>
-          <button type="button" className="btn primary">
-            Confirm evidence
-          </button>
-          <button type="button" className="btn success">
-            Close gap
-          </button>
-        </div>
-      </article>
-
-      <article className="card star-overall-card">
-        <div className="card-head row-split">
-          <h2>Overall star calculation</h2>
-          <a className="text-link" href="#view-stars">
-            Open Star Rating
-          </a>
-        </div>
-        <p className="freshness">
-          Last updated {formatDateTime(snapshot.fetchedAt)} | Source: star dashboard
-          overall
-        </p>
-
-        <CardState
-          error={dashboard.error}
-          emptyText="Star metrics are not available."
-          hasData={overall !== null && overall !== undefined}
-        />
-
-        <div className="kpi-grid four star-kpis">
-          <article className="kpi-card">
-            <span>Rated measures</span>
-            <strong>{formatInteger(overall?.rated_measure_count)}</strong>
-          </article>
-          <article className="kpi-card">
-            <span>Current overall star</span>
-            <strong>{currentOverallStar === null ? "-" : currentOverallStar.toFixed(2)}</strong>
-          </article>
-          <article className="kpi-card">
-            <span>Projected overall star</span>
-            <strong>{projectedOverallStar === null ? "-" : projectedOverallStar.toFixed(2)}</strong>
-          </article>
-          <article className="kpi-card">
-            <span>Expected change</span>
-            <strong className="good-text">
-              {expectedChange === null ? "-" : `${expectedChange >= 0 ? "+" : ""}${expectedChange.toFixed(2)}`}
-            </strong>
-          </article>
-        </div>
-
-        <div className="metric-row">
-          <span>Progress toward 5-star target</span>
-          <b>{formatRate(progressToFiveStar)}</b>
-        </div>
-        <div className="meter">
-          <span style={{ width: `${toMeterWidth(progressToFiveStar)}%` }}></span>
-        </div>
-        <p className="note">
-          Projected score reflects currently selected gaps from star dashboard
-          endpoint.
-        </p>
-      </article>
-
-      <article className="card">
-        <div className="card-head row-split">
-          <h2>Recent member scoring rows</h2>
-          <small>Source: star dashboard patient rows</small>
-        </div>
-        <p className="freshness">Last updated {formatDateTime(snapshot.fetchedAt)}</p>
-
-        <CardState
-          error={dashboard.error}
-          emptyText="Member scoring rows are not available."
-          hasData={memberRows.length > 0}
-        />
-
-        <div className="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>Member</th>
-                <th>Measure</th>
-                <th>Total gaps</th>
-                <th>Projected rate</th>
-                <th>Projected star</th>
-              </tr>
-            </thead>
-            <tbody>
-              {memberRows.map((row) => (
-                <tr key={`${row.member_id}-${row.measure_id}`}>
-                  <td>{row.member_id}</td>
-                  <td>{row.measure_name}</td>
-                  <td>{formatInteger(row.total_gaps)}</td>
-                  <td>{formatRate(row.projected_rate)}</td>
-                  <td>{row.projected_star ?? "-"}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </article>
-
-      <article className="card">
-        <div className="card-head row-split">
-          <h2>Evidence review queue</h2>
-          <a className="text-link" href="#view-evidence">
-            View all
-          </a>
-        </div>
-        <p className="freshness">Last updated {formatDateTime(snapshot.fetchedAt)}</p>
-
-        <CardState
-          error={dashboard.error}
-          emptyText="No selected measure gaps are available."
-          hasData={evidenceQueue.length > 0}
-        />
-
-        {evidenceQueue.map((gap) => (
-          <div key={gap.care_gap_id} className="queue-item">
-            <p>
-              {gap.member_id} - Care gap {gap.care_gap_id}
-            </p>
-            <span>{gap.is_closed ? "Closed" : "Open"}</span>
-          </div>
-        ))}
-      </article>
+      <DashboardStarRating dataVersion={dataVersion} fetchedAt={snapshot.fetchedAt} isAdmin={isAdmin} />
 
       <p className="footnote">
         Live dashboard values are read from /api/star-rating/catalog and
@@ -493,6 +313,6 @@ export function DashboardPage({ snapshot, loading, onRetry }: DashboardPageProps
       </p>
 
       {catalog.error ? <p className="card-message error">Catalog: {catalog.error}</p> : null}
-    </section>
+    </>
   )
 }

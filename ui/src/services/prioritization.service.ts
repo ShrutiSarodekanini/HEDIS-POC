@@ -12,6 +12,9 @@ import type {
 } from "../models/prioritization"
 import { fetchJson, postJson } from "./http"
 import { getOpenApiPaths, hasOpenApiPath } from "./openapi"
+import { toNumber } from "../utils/number"
+
+type RawNumber = number | string | null
 
 interface RawMeasuresResponse {
   measures?: Array<{
@@ -20,12 +23,12 @@ interface RawMeasuresResponse {
     open_gaps?: number
     numerator?: number
     denominator?: number
-    rate?: number | null
-    rounded?: number | null
-    stars?: number | null
-    projected_rate?: number | null
-    projected_stars?: number | null
-    value?: number | null
+    rate?: RawNumber
+    rounded?: RawNumber
+    stars?: RawNumber
+    projected_rate?: RawNumber
+    projected_stars?: RawNumber
+    value?: RawNumber
     value_reason?: string | null
     confirmed_pending_engine?: number
     excluded_pending_engine?: number
@@ -49,10 +52,10 @@ interface RawWorklistItem {
   measure?: string
   measure_name?: string
   tier?: string
-  composite?: number
-  likelihood?: number
-  value?: number
-  engagement?: number
+  composite?: RawNumber
+  likelihood?: RawNumber
+  value?: RawNumber
+  engagement?: RawNumber
   channel?: string
   reasons?: string[] | string | null
   action?: string | null
@@ -80,7 +83,7 @@ interface RawGapDetailResponse {
     last_relevant_event_date?: string | null
     last_relevant_event_description?: string | null
     tier?: string | null
-    composite_score?: number | null
+    composite_score?: RawNumber
     recommended_channel?: string | null
     reasons?: string[] | string | null
     action_reason?: string | null
@@ -89,46 +92,46 @@ interface RawGapDetailResponse {
     measure?: string
     as_of?: string
     likelihood?: {
-      result?: number
-      raw?: number
-      min?: number
-      max?: number
-      steps?: Array<{ label?: string; change?: number }>
+      result?: RawNumber
+      raw?: RawNumber
+      min?: RawNumber
+      max?: RawNumber
+      steps?: Array<{ label?: string; change?: RawNumber }>
     }
     value?: {
-      result?: number
+      result?: RawNumber
       reason?: string
-      weight?: number | null
-      numerator?: number
-      denominator?: number
-      rate?: number | null
-      rounded?: number | null
-      stars?: number | null
-      next_cut?: number | null
-      target?: number | null
-      needed?: number | null
+      weight?: RawNumber
+      numerator?: RawNumber
+      denominator?: RawNumber
+      rate?: RawNumber
+      rounded?: RawNumber
+      stars?: RawNumber
+      next_cut?: RawNumber
+      target?: RawNumber
+      needed?: RawNumber
     }
     engagement?: {
-      result?: number
-      cap?: number
-      steps?: Array<{ label?: string; change?: number }>
+      result?: RawNumber
+      cap?: RawNumber
+      steps?: Array<{ label?: string; change?: RawNumber }>
     }
-    composite?: number
+    composite?: RawNumber
     channel?: string
   } | null
   impact?: {
     available?: boolean
     note?: string | null
-    rate_now?: number | null
-    rate_after?: number | null
-    change_points?: number | null
-    stars_now?: number | null
-    stars_after?: number | null
-    closures_for_next_star?: number | null
+    rate_now?: RawNumber
+    rate_after?: RawNumber
+    change_points?: RawNumber
+    stars_now?: RawNumber
+    stars_after?: RawNumber
+    closures_for_next_star?: RawNumber
     exclusion?: {
-      rate_after?: number | null
-      stars_after?: number | null
-      change_points?: number | null
+      rate_after?: RawNumber
+      stars_after?: RawNumber
+      change_points?: RawNumber
     } | null
   } | null
   documents?: unknown[]
@@ -359,12 +362,12 @@ const toMeasureSummary = (row: NonNullable<RawMeasuresResponse["measures"]>[numb
   openGaps: row?.open_gaps ?? 0,
   numerator: row?.numerator ?? 0,
   denominator: row?.denominator ?? 0,
-  rate: row?.rate ?? null,
-  roundedRate: row?.rounded ?? null,
-  stars: row?.stars ?? null,
-  projectedRate: row?.projected_rate ?? null,
-  projectedStars: row?.projected_stars ?? null,
-  valueScore: row?.value ?? null,
+  rate: toNumber(row?.rate),
+  roundedRate: toNumber(row?.rounded),
+  stars: toNumber(row?.stars),
+  projectedRate: toNumber(row?.projected_rate),
+  projectedStars: toNumber(row?.projected_stars),
+  valueScore: toNumber(row?.value),
   valueReason: row?.value_reason ?? null,
   confirmedPendingEngine: row?.confirmed_pending_engine ?? 0,
   excludedPendingEngine: row?.excluded_pending_engine ?? 0,
@@ -379,37 +382,37 @@ const toBreakdown = (value: RawGapDetailResponse["breakdown"]): PrioritizationBr
     measureId: value.measure ?? "",
     asOf: value.as_of ?? "",
     likelihood: {
-      result: value.likelihood?.result ?? 0,
-      raw: value.likelihood?.raw ?? 0,
-      min: value.likelihood?.min ?? 0,
-      max: value.likelihood?.max ?? 0,
+      result: toNumber(value.likelihood?.result) ?? 0,
+      raw: toNumber(value.likelihood?.raw) ?? 0,
+      min: toNumber(value.likelihood?.min) ?? 0,
+      max: toNumber(value.likelihood?.max) ?? 0,
       steps: (value.likelihood?.steps ?? []).map((step) => ({
         label: step.label ?? "",
-        change: step.change ?? 0,
+        change: toNumber(step.change) ?? 0,
       })),
     },
     value: {
-      result: value.value?.result ?? 0,
+      result: toNumber(value.value?.result) ?? 0,
       reason: value.value?.reason ?? "",
-      weight: value.value?.weight ?? null,
-      numerator: value.value?.numerator ?? 0,
-      denominator: value.value?.denominator ?? 0,
-      rate: value.value?.rate ?? null,
-      rounded: value.value?.rounded ?? null,
-      stars: value.value?.stars ?? null,
-      nextCut: value.value?.next_cut ?? null,
-      target: value.value?.target ?? null,
-      needed: value.value?.needed ?? null,
+      weight: toNumber(value.value?.weight),
+      numerator: toNumber(value.value?.numerator) ?? 0,
+      denominator: toNumber(value.value?.denominator) ?? 0,
+      rate: toNumber(value.value?.rate),
+      rounded: toNumber(value.value?.rounded),
+      stars: toNumber(value.value?.stars),
+      nextCut: toNumber(value.value?.next_cut),
+      target: toNumber(value.value?.target),
+      needed: toNumber(value.value?.needed),
     },
     engagement: {
-      result: value.engagement?.result ?? 0,
-      cap: value.engagement?.cap ?? 0,
+      result: toNumber(value.engagement?.result) ?? 0,
+      cap: toNumber(value.engagement?.cap) ?? 0,
       steps: (value.engagement?.steps ?? []).map((step) => ({
         label: step.label ?? "",
-        change: step.change ?? 0,
+        change: toNumber(step.change) ?? 0,
       })),
     },
-    composite: value.composite ?? 0,
+    composite: toNumber(value.composite) ?? 0,
     channel: value.channel ?? "",
   }
 }
@@ -422,20 +425,27 @@ const toImpact = (value: RawGapDetailResponse["impact"]): PrioritizationImpact |
   return {
     available: Boolean(value.available),
     note: value.note ?? null,
-    rateNow: value.rate_now ?? null,
-    rateAfter: value.rate_after ?? null,
-    changePoints: value.change_points ?? null,
-    starsNow: value.stars_now ?? null,
-    starsAfter: value.stars_after ?? null,
-    closuresForNextStar: value.closures_for_next_star ?? null,
+    rateNow: toNumber(value.rate_now),
+    rateAfter: toNumber(value.rate_after),
+    changePoints: toNumber(value.change_points),
+    starsNow: toNumber(value.stars_now),
+    starsAfter: toNumber(value.stars_after),
+    closuresForNextStar: toNumber(value.closures_for_next_star),
     exclusion: value.exclusion
       ? {
-        rateAfter: value.exclusion.rate_after ?? null,
-        starsAfter: value.exclusion.stars_after ?? null,
-        changePoints: value.exclusion.change_points ?? null,
+        rateAfter: toNumber(value.exclusion.rate_after),
+        starsAfter: toNumber(value.exclusion.stars_after),
+        changePoints: toNumber(value.exclusion.change_points),
       }
       : null,
   }
+}
+
+export function clearPrioritizationServiceCaches(): void {
+  dashboardSnapshotCache.clear()
+  gapDetailCache.clear()
+  overviewCache = null
+  worklistCache.clear()
 }
 
 export async function discoverPrioritizationCapabilities(): Promise<PrioritizationCapabilities> {
@@ -541,10 +551,10 @@ export async function loadPrioritizationWorklist(
       measureId: row.measure ?? "",
       measureName: row.measure_name ?? row.measure ?? "",
       tier: row.tier ?? "",
-      composite: row.composite ?? 0,
-      likelihood: row.likelihood ?? 0,
-      value: row.value ?? 0,
-      engagement: row.engagement ?? 0,
+      composite: toNumber(row.composite) ?? 0,
+      likelihood: toNumber(row.likelihood) ?? 0,
+      value: toNumber(row.value) ?? 0,
+      engagement: toNumber(row.engagement) ?? 0,
       channel: row.channel ?? null,
       reasons: toReasons(row.reasons),
       actionReason: row.action ?? null,
@@ -655,7 +665,7 @@ export async function loadPrioritizationGapDetail(
         lastRelevantEventDate: response.gap?.last_relevant_event_date ?? null,
         lastRelevantEventDescription: response.gap?.last_relevant_event_description ?? null,
         tier: response.gap?.tier ?? null,
-        compositeScore: response.gap?.composite_score ?? null,
+        compositeScore: toNumber(response.gap?.composite_score),
         recommendedChannel: response.gap?.recommended_channel ?? null,
         reasons: toReasons(response.gap?.reasons),
         actionReason: response.gap?.action_reason ?? null,
