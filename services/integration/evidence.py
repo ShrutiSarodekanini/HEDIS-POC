@@ -282,6 +282,42 @@ def decide(conn: psycopg.Connection, evidence_id: str, decision: str, reason: st
             "star_scenario_id": scenario_id}
 
 
+# Review states that mean every required part is confirmed, and the final state each one closes as.
+_CLOSE_AS = {"closed_pending_engine": "closed", "excluded_pending_engine": "excluded"}
+
+
+def close_gap(conn: psycopg.Connection, gap_id: str, actor: str) -> dict:
+    """Close a gap whose required evidence is confirmed, without waiting for the next engine run, then re-score.
+
+    actor is the signed-in user. Raises LookupError for an unknown gap and Conflict when the gap is already closed or
+    its evidence is not complete. A later engine run leaves the closed gap alone (it only closes open gaps)."""
+    try:
+        gap_uuid = uuid.UUID(gap_id)
+    except ValueError as exc:
+        raise LookupError(f"gap {gap_id} not found") from exc
+    gap = conn.execute("SELECT status FROM care_gap WHERE gap_id = %s FOR UPDATE", (gap_uuid,)).fetchone()
+    if gap is None:
+        raise LookupError(f"gap {gap_id} not found")
+    if gap[0] == "closed":
+        raise Conflict("This gap is already closed")
+    detail = conn.execute("SELECT review_status FROM care_gap_detail WHERE gap_id = %s FOR UPDATE",
+                          (gap_uuid,)).fetchone()
+    before = detail[0] if detail else None
+    closed_as = _CLOSE_AS.get(before or "")
+    if closed_as is None:
+        raise Conflict("Confirm the evidence for every required part before closing this gap")
+    conn.execute("UPDATE care_gap SET status = 'closed', closed_at = now() WHERE gap_id = %s", (gap_uuid,))
+    conn.execute("UPDATE care_gap_detail SET review_status = %s, updated_at = now() WHERE gap_id = %s",
+                 (closed_as, gap_uuid))
+    audit(conn, "care_gap", str(gap_uuid), "gap.closed", {"review_status_before": before, "closed_as": closed_as},
+          actor=actor)
+    conn.commit()
+    score_all(conn, date.today(), load_rules())
+    conn.commit()
+    _star_scenario(conn, gap_uuid, actor)
+    return {"gap_id": str(gap_uuid), "status": "closed", "review_status": closed_as}
+
+
 def clean_reviewer(reviewer: str | None) -> str:
     """The reviewer ID typed on the screen, or the configured one; raises ValueError for an unusable ID."""
     reviewer = (reviewer or "").strip() or SETTINGS.reviewer

@@ -194,13 +194,19 @@ def build_router(current_user_dep: Callable[..., auth.AuthUser],
     @router.post("/api/gaps/{gap_id}/evidence")
     @app_metrics.track_evidence
     def find_evidence(gap_id: str, conn: psycopg.Connection = Depends(get_conn),
-                      _: auth.AuthUser = Depends(admin_dep)) -> dict:
+                      _: auth.AuthUser = Depends(current_user_dep)) -> dict:
         return evidence.find_evidence(conn, gap_id)
+
+    @router.post("/api/gaps/{gap_id}/close")
+    @track("close gap")
+    def close_gap(gap_id: str, conn: psycopg.Connection = Depends(get_conn),
+                  user: auth.AuthUser = Depends(current_user_dep)) -> dict:
+        return evidence.close_gap(conn, gap_id, user.email)
 
     @router.post("/api/evidence/{proposal_id}/decision")
     @app_metrics.track_evidence
     def decide(proposal_id: str, body: DecisionIn, conn: psycopg.Connection = Depends(get_conn),
-               _: auth.AuthUser = Depends(admin_dep)) -> dict:
+               _: auth.AuthUser = Depends(current_user_dep)) -> dict:
         return evidence.decide(conn, proposal_id, body.decision, body.reason, body.reviewer)
 
     @router.post("/api/supplemental/export")
@@ -232,20 +238,20 @@ def build_router(current_user_dep: Callable[..., auth.AuthUser],
     @router.get("/api/quality")
     @track("quality overview")
     def get_quality(conn: psycopg.Connection = Depends(get_conn),
-                    _: auth.AuthUser = Depends(admin_dep)) -> dict:
+                    _: auth.AuthUser = Depends(current_user_dep)) -> dict:
         return quality.overview(conn)
 
     @router.get("/api/quality/runs")
     @track("quality runs")
     def get_quality_runs(batch_id: uuid.UUID, conn: psycopg.Connection = Depends(get_conn),
-                         _: auth.AuthUser = Depends(admin_dep)) -> dict:
+                         _: auth.AuthUser = Depends(current_user_dep)) -> dict:
         return quality.runs(conn, batch_id)
 
     @router.get("/api/quality/runs/{run_id}")
     @track("quality run detail")
     def get_quality_run(run_id: int, severity: Literal["critical", "high", "medium", "low"] | None = None,
                         conn: psycopg.Connection = Depends(get_conn),
-                        _: auth.AuthUser = Depends(admin_dep)) -> dict:
+                        _: auth.AuthUser = Depends(current_user_dep)) -> dict:
         found = quality.run_detail(conn, run_id, severity)
         if found is None:
             raise HTTPException(404, f"data quality run {run_id} not found")
@@ -268,7 +274,7 @@ def build_router(current_user_dep: Callable[..., auth.AuthUser],
 
     @router.get("/api/stars/catalog")
     @track("stars catalog")
-    def get_star_catalog(_: auth.AuthUser = Depends(admin_dep)) -> dict:
+    def get_star_catalog(_: auth.AuthUser = Depends(current_user_dep)) -> dict:
         rules = load_rules()
         with stars.session() as s:
             return {"measurement_year": SETTINGS.measurement_year, "star_year": rules.star_year,
@@ -276,17 +282,30 @@ def build_router(current_user_dep: Callable[..., auth.AuthUser],
 
     @router.post("/api/stars/calculate")
     @track("stars calculate")
-    def calculate_star(body: StarCalculationIn, _: auth.AuthUser = Depends(admin_dep)) -> dict:
+    def calculate_star(body: StarCalculationIn, _: auth.AuthUser = Depends(current_user_dep)) -> dict:
         with stars.session() as s:
             return stars.calculate(s, body.measure_id, SETTINGS.measurement_year, body.rate, body.denominator)
 
     @router.post("/api/stars/what-if")
     @track("stars what-if")
-    def star_what_if(body: WhatIfIn, _: auth.AuthUser = Depends(admin_dep)) -> dict:
+    def star_what_if(body: WhatIfIn, _: auth.AuthUser = Depends(current_user_dep)) -> dict:
         with stars.session() as s:
             return stars.what_if(s, body.measure_id, body.gap_ids)
 
+    @router.get("/api/documents/{document_id}/pages/{page_no}")
+    @track("page text")
+    def get_page(document_id: str, page_no: int, conn: psycopg.Connection = Depends(get_conn),
+                 _: auth.AuthUser = Depends(current_user_dep)) -> dict:
+        row = conn.execute(
+            """SELECT text, method, handwritten, image_path IS NOT NULL
+                 FROM document_pages WHERE document_reference_id = %s AND page_no = %s""",
+            (document_id, page_no)).fetchone()
+        if row is None:
+            raise HTTPException(404, f"page {page_no} of document {document_id} not found")
+        return {"document_id": document_id, "page_no": page_no, "text": row[0], "method": row[1],
+                "handwritten": row[2], "has_image": row[3]}
+
     router.add_api_route("/api/documents/{document_id}/pages/{page_no}/image",
                          track("page image")(intake_api.get_page_image), methods=["GET"],
-                         dependencies=[Depends(admin_dep)])
+                         dependencies=[Depends(current_user_dep)])
     return router
