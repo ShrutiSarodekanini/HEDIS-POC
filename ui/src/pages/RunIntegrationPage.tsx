@@ -1,4 +1,4 @@
-import { useMemo } from "react"
+import { useMemo, useState } from "react"
 
 import { useIngestionWorkflow } from "../hooks/useIngestionWorkflow"
 import { formatDateTime, formatInteger, formatRate, toMeterWidth } from "../utils/format"
@@ -47,7 +47,7 @@ const asKb = (value: number | undefined): string => {
   return `${(value / 1024).toFixed(1)} KB`
 }
 
-export function RunIntegrationPage() {
+export function RunIntegrationPage({ isAdmin }: { isAdmin: boolean }) {
   const {
     mode,
     setupLoading,
@@ -79,6 +79,9 @@ export function RunIntegrationPage() {
     downloadAllBundles,
     reloadHistoryList,
   } = useIngestionWorkflow()
+
+  const [startRequested, setStartRequested] = useState<boolean>(false)
+  const startSucceeded = startRequested && !busy.start && !messages.job.error
 
   const effectiveJobStatus = job?.runtime?.status ?? job?.status
 
@@ -127,7 +130,9 @@ export function RunIntegrationPage() {
   }, [ourStepsBatch?.counts])
 
   const selectedBatchMatchesJob = !jobId || !ourStepsBatch?.ingest_job_id || ourStepsBatch.ingest_job_id === jobId
-  const sourceDescription = inputDir ? `Dataset path: ${inputDir}` : "Choose files or set input folder path"
+  const sourceDescription = !inputDir
+    ? (isAdmin ? "Choose files or set input folder path" : "Choose files to upload")
+    : isAdmin ? `Dataset path: ${inputDir}` : "Uploaded files are ready"
   const datasetRowCounts = useMemo(
     () => Object.entries(datasetMeta?.row_counts ?? {}).sort(([left], [right]) => left.localeCompare(right)),
     [datasetMeta?.row_counts],
@@ -240,19 +245,23 @@ export function RunIntegrationPage() {
             readOnly
           />
 
-          <label className="field-label" htmlFor="ingestion-input-dir">
-            Input folder path on backend
-          </label>
-          <input
-            id="ingestion-input-dir"
-            className="text-input"
-            type="text"
-            value={inputDir}
-            onChange={(event) => {
-              setInputDir(event.target.value)
-            }}
-            placeholder="Upload files or enter an existing folder path"
-          />
+          {isAdmin ? (
+            <>
+              <label className="field-label" htmlFor="ingestion-input-dir">
+                Input folder path on backend
+              </label>
+              <input
+                id="ingestion-input-dir"
+                className="text-input"
+                type="text"
+                value={inputDir}
+                onChange={(event) => {
+                  setInputDir(event.target.value)
+                }}
+                placeholder="Upload files or enter an existing folder path"
+              />
+            </>
+          ) : null}
 
           <label className="dropzone" htmlFor="ingestion-files">
             Drop Synthea CSV/ZIP files here, or browse
@@ -295,6 +304,7 @@ export function RunIntegrationPage() {
               className="btn success"
               disabled={!mode || busy.start}
               onClick={() => {
+                setStartRequested(true)
                 void startJob()
               }}
             >
@@ -305,6 +315,15 @@ export function RunIntegrationPage() {
           <CardMessage text={messages.upload.text} error={messages.upload.error} />
           <CardMessage text={messages.job.text} error={messages.job.error} />
 
+          {startSucceeded ? (
+            <p className="card-message">
+              Ingestion started. The rest runs in the background; results will appear on the Dashboard.{" "}
+              <a className="text-link" href="#view-dashboard">
+                Open the Dashboard
+              </a>
+            </p>
+          ) : null}
+
           {datasetMeta ? (
             <div className="ingestion-meta">
               <p className="note">
@@ -312,7 +331,7 @@ export function RunIntegrationPage() {
                 {" "}
                 rows.
               </p>
-              <p className="note">Inspected input: {datasetMeta.input_dir || "-"}</p>
+              {isAdmin ? <p className="note">Inspected input: {datasetMeta.input_dir || "-"}</p> : null}
 
               {datasetMeta.found_files.length > 0 ? (
                 <div className="table-wrap">

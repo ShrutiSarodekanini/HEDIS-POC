@@ -96,5 +96,7 @@ export interface DataSection<T> {
 export interface DashboardSnapshot {
   catalog: DataSection<StarCatalogResponse>
   dashboard: DataSection<StarDashboardResponse>
+  /** Rows in care_gap with status 'open'; null when the count could not be read. */
+  openGapCount: number | null
   fetchedAt: string
 }

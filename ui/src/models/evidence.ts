@@ -273,3 +273,25 @@ export interface EvidenceDecisionResult {
 export interface EvidenceExportResult {
   message: string
 }
+
+export interface EvidenceDocumentPage {
+  documentId: string
+  pageNo: number
+  text: string
+  method: string
+  handwritten: boolean
+  hasImage: boolean
+}
+
+export interface GapCloseResult {
+  gapId: string
+  status: string
+  reviewStatus: string
+}
+
+/** What the document viewer opens: a page, plus the quote to highlight when it came from a finding. */
+export interface DocumentPageRef {
+  documentId: string
+  pageNo: number
+  quote: string | null
+}

@@ -6,6 +6,7 @@ import type {
   StarDashboardResponse,
 } from "../models/dashboard"
 import { fetchJson, postJson, toRequestErrorMessage } from "./http"
+import { toNumber } from "../utils/number"
 
 const withBase = (path: string): string => `${envConfig.apiBaseUrl}${path}`
 
@@ -42,6 +43,20 @@ async function loadSectionPost<T>(
   }
 }
 
+/** Rows in care_gap with status 'open' (the measure cards' total_gaps also count closed gaps). */
+async function loadOpenGapCount(): Promise<number | null> {
+  try {
+    const flow = await fetchJson<{ tables?: { care_gap_open?: number | string | null } }>(
+      withBase("/flow"),
+      envConfig.apiTimeoutMs,
+    )
+    return toNumber(flow.tables?.care_gap_open)
+  } catch {
+    // The KPI then shows "-"; the rest of the snapshot does not depend on this count.
+    return null
+  }
+}
+
 export async function fetchDashboardSnapshot(): Promise<DashboardSnapshot> {
   const catalog = await loadSectionGet<StarCatalogResponse>(
     envConfig.dashboardCatalogPath,
@@ -64,6 +79,7 @@ export async function fetchDashboardSnapshot(): Promise<DashboardSnapshot> {
   return {
     catalog,
     dashboard,
+    openGapCount: await loadOpenGapCount(),
     fetchedAt: new Date().toISOString(),
   }
 }

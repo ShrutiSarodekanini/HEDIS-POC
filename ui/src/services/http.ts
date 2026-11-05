@@ -110,6 +110,29 @@ export async function fetchJson<T>(url: string, timeoutMs: number): Promise<T> {
   }
 }
 
+/** A binary GET with the auth header, for files an <img src> cannot fetch because it sends no Authorization. */
+export async function fetchBlob(url: string, timeoutMs: number): Promise<Blob> {
+  const controller = new AbortController()
+  const timer = window.setTimeout(() => controller.abort(), timeoutMs)
+
+  try {
+    const response = await trackedFetch(url, {
+      method: "GET",
+      headers: withAuthHeaders({}),
+      signal: controller.signal,
+    })
+
+    if (!response.ok) {
+      const payload = (await response.json().catch(() => null)) as unknown
+      throw new HttpError(response.status, payload)
+    }
+
+    return await response.blob()
+  } finally {
+    window.clearTimeout(timer)
+  }
+}
+
 export async function postJson<T>(
   url: string,
   timeoutMs: number,
