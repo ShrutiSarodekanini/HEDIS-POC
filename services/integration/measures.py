@@ -123,13 +123,25 @@ WITH result AS (
              AS r(patient_id, met, excluded)
      WHERE r.met OR r.excluded
 ), closing AS (
-    SELECT g.gap_id, r.excluded, d.review_status AS before
+        SELECT g.gap_id, r.excluded, d.review_status AS before, reviewer_user.user_id AS reviewer_user_id
       FROM care_gap g
       JOIN result r ON r.patient_id = g.patient_id
       LEFT JOIN care_gap_detail d ON d.gap_id = g.gap_id
+            LEFT JOIN LATERAL (
+                    SELECT u.user_id
+                        FROM evidence_proposal p
+                        JOIN review_decisions rd ON rd.evidence_id = p.evidence_id AND rd.decision = 'confirmed'
+                        JOIN app_user u ON u.email = lower(rd.reviewer)
+                     WHERE p.gap_id = g.gap_id
+                     ORDER BY rd.decided_at DESC, rd.id DESC
+                     LIMIT 1
+            ) reviewer_user ON true
      WHERE g.measure_id = %(measure)s AND g.measurement_year = %(year)s AND g.status = 'open'
 ), closed AS (
-    UPDATE care_gap g SET status = 'closed', closed_at = now()
+        UPDATE care_gap g
+             SET status = 'closed',
+                     closed_at = now(),
+                                         closed_by = coalesce(g.closed_by, %(closed_by_user_id)s, c.reviewer_user_id)
       FROM closing c WHERE g.gap_id = c.gap_id
     RETURNING g.gap_id
 ), detail AS (
@@ -201,7 +213,7 @@ def measure_bundles() -> list[MeasureBundle]:
 
 def run_measures(conn: psycopg.Connection, patient_ids: list[str], attributed_org: dict[str, str | None],
                  batch_label: str, ingest_job_id: str, settings: Settings = SETTINGS,
-                 measure_ids: list[str] | None = None) -> EngineRun:
+                 measure_ids: list[str] | None = None, actor_user_id: int | None = None) -> EngineRun:
     """Run the engine for these patients (all measures, or the chosen ones) and write results and gaps in the
     caller's transaction."""
     bundles = measure_bundles()
@@ -227,7 +239,8 @@ def run_measures(conn: psycopg.Connection, patient_ids: list[str], attributed_or
         for bundle in bundles:
             populations = evaluations[bundle.measure_id]
             run.measures[bundle.measure_id] = _write_results(conn, bundle, populations, attributed_org, run.run_id,
-                                                             names.get(bundle.measure_id, bundle.measure_id), year)
+                                                             names.get(bundle.measure_id, bundle.measure_id), year,
+                                                             actor_user_id)
             metrics.GAPS_OPEN.labels(bundle.measure_id).set(run.measures[bundle.measure_id].gaps_open)
             log.info("measure %s: %s", bundle.measure_id, vars(run.measures[bundle.measure_id]))
         return run
@@ -533,7 +546,8 @@ def _call_engine(bundle: MeasureBundle, root_ref: str | None, paths: list[str], 
 
 
 def _write_results(conn: psycopg.Connection, bundle: MeasureBundle, populations: dict[str, dict],
-                   attributed_org: dict[str, str | None], run_id: str, measure_name: str, year: int) -> MeasureOutcome:
+                   attributed_org: dict[str, str | None], run_id: str, measure_name: str, year: int,
+                   actor_user_id: int | None) -> MeasureOutcome:
     """measure_result for every patient, a gap for every result in the denominator but not met or excluded, and
     open gaps closed where this run shows the measure met or the patient excluded."""
     patients = sorted(populations)
@@ -552,16 +566,26 @@ def _write_results(conn: psycopg.Connection, bundle: MeasureBundle, populations:
     new = conn.execute(_GAPS, (bundle.measure_id, year, missing.format(name=measure_name, year=year),
                                date(year, 12, 31), gap_ids, gap_patients, [result_pk[p] for p in gap_patients])).rowcount
     conn.execute(_GAP_DETAILS, (run_id, gap_ids, [attributed_org.get(p) for p in gap_patients]))
-    closed = _close_met_gaps(conn, bundle.measure_id, year, run_id, patients, [d and n for d, n in zip(den, num)], exc)
+    closed = _close_met_gaps(conn, bundle.measure_id, year, run_id, patients, [d and n for d, n in zip(den, num)],
+                             exc, actor_user_id)
     return MeasureOutcome(denominator=sum(den), numerator=sum(d and n for d, n in zip(den, num)), excluded=sum(exc),
                           gaps_new=new, gaps_open=len(gap_patients), gaps_closed=closed)
 
 
 def _close_met_gaps(conn: psycopg.Connection, measure_id: str, year: int, run_id: str, patients: list[str],
-                    met: list[bool], excluded: list[bool]) -> int:
+                    met: list[bool], excluded: list[bool], actor_user_id: int | None) -> int:
     """Close this measure's open gaps whose patient this run shows met or excluded; one audit event each."""
-    rows = conn.execute(_CLOSE_GAPS, {"measure": measure_id, "year": year, "patients": patients, "met": met,
-                                      "excluded": excluded}).fetchall()
+    rows = conn.execute(
+        _CLOSE_GAPS,
+        {
+            "measure": measure_id,
+            "year": year,
+            "patients": patients,
+            "met": met,
+            "excluded": excluded,
+            "closed_by_user_id": actor_user_id,
+        },
+    ).fetchall()
     for gap_id, review_before, review_after in rows:
         audit(conn, "care_gap", str(gap_id), "gap.closed_by_engine",
               {"measure_id": measure_id, "engine_run_id": run_id, "review_status_before": review_before,
