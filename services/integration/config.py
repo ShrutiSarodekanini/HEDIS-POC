@@ -21,6 +21,7 @@ class Settings:
     engine_workers: int            # concurrent measure processes; kept low for stable Node memory use
     work_dir: Path                 # temporary bundles and uploads, removed after each step
     evidence_dir: Path | None      # stored documents with manifest.json; None skips the attach step
+    evidence_auto_limit: int       # top-priority gaps a batch sends to the AI step; 0 runs none, others run on request
 
 
 def load_settings() -> Settings:
@@ -34,6 +35,7 @@ def load_settings() -> Settings:
         engine_workers=max(1, int(os.environ.get("INTEGRATION_ENGINE_WORKERS", "2"))),
         work_dir=Path(os.environ.get("INTEGRATION_WORK_DIR", REPO_ROOT / ".integration_work")),
         evidence_dir=Path(evidence) if (evidence := os.environ.get("INTEGRATION_EVIDENCE_DIR", "").strip()) else None,
+        evidence_auto_limit=max(0, int(os.environ.get("AI_EVIDENCE_AUTO_LIMIT", "5"))),
     )
 
 
