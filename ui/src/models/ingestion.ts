@@ -79,6 +79,7 @@ export interface IngestionValidationResponse {
 
 export interface IngestionPatientDetail {
   patient_id: string
+  id_type?: string
   resource_count?: number
   estimated_size_bytes?: number
   saved_at?: string | null
@@ -86,6 +87,7 @@ export interface IngestionPatientDetail {
 
 export interface IngestionPatientsResponse {
   job_id: string
+  patient_id_type?: string
   patients: string[]
   patient_details?: IngestionPatientDetail[]
 }

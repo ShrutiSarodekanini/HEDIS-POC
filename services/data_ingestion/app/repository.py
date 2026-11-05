@@ -540,9 +540,8 @@ def bulk_upsert_resources(
             "batch_id": batch_id,
             "resource_type": resource.resource_type,
             "resource_id": resource.resource_id,
-            # For Patient resources, use the patient's own ID as patient_id
-            # For other resources, use the extracted patient_id from subject reference
-            "patient_id": resource.resource_id if resource.resource_type == "Patient" else resource.patient_id,
+            # Keep the mapped patient_id for every resource type, including Patient.
+            "patient_id": resource.patient_id,
             "source_file": resource.source_file,
             "source_record_id": resource.source_record_id,
             "source_fingerprint": resource.source_fingerprint,
@@ -582,16 +581,13 @@ def bulk_upsert_resources(
     # Note: This does NOT preserve downgrade protection; prefer PostgreSQL bulk for safety
 
     for resource in resources_dedup:
-        # For Patient resources, use the patient's own ID as patient_id
-        patient_id = resource.resource_id if resource.resource_type == "Patient" else resource.patient_id
-        
         upsert_resource(
             session,
             job_id=job_id,
             batch_id=batch_id,
             resource_type=resource.resource_type,
             resource_id=resource.resource_id,
-            patient_id=patient_id,
+            patient_id=resource.patient_id,
             source_file=resource.source_file,
             source_record_id=resource.source_record_id,
             source_fingerprint=resource.source_fingerprint,

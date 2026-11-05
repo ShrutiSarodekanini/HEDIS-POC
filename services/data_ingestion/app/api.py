@@ -38,6 +38,53 @@ log = logging.getLogger(__name__)
 router = APIRouter(prefix="/api", tags=["conversion"])
 
 
+def _reference_id(value: object, expected_resource_type: str | None = None) -> str | None:
+    node = value
+    if isinstance(node, list):
+        node = next((item for item in node if isinstance(item, dict)), None)
+    if not isinstance(node, dict):
+        return None
+
+    reference = node.get("reference")
+    if not isinstance(reference, str):
+        return None
+    ref = reference.strip()
+    if not ref or ref.startswith("#"):
+        return None
+
+    parts = [part for part in ref.split("/") if part]
+    if not parts:
+        return None
+
+    if "_history" in parts:
+        idx = parts.index("_history")
+        if idx > 0:
+            return parts[idx - 1]
+
+    if expected_resource_type:
+        expected = expected_resource_type.lower()
+        for index in range(len(parts) - 1):
+            if parts[index].lower() == expected:
+                return parts[index + 1]
+
+    return parts[-1]
+
+
+def _canonical_patient_id(resource: FhirResource) -> str | None:
+    if resource.resource_type == "Patient":
+        pid = (resource.resource_id or "").strip()
+        return pid or None
+
+    payload = resource.resource_json if isinstance(resource.resource_json, dict) else {}
+    for field in ("subject", "beneficiary", "patient"):
+        pid = _reference_id(payload.get(field), expected_resource_type="Patient")
+        if pid:
+            return pid
+
+    pid = (resource.patient_id or "").strip()
+    return pid or None
+
+
 def _require_input_dir(input_dir: str) -> str:
     cleaned = (input_dir or "").strip()
     if not cleaned:
@@ -622,7 +669,7 @@ def get_job_patients(job_id: str, persisted_only: bool = False, bundleable_only:
 
     details: dict[str, dict[str, object]] = {}
     for resource in resources:
-        patient_id = (resource.patient_id or "").strip()
+        patient_id = _canonical_patient_id(resource)
         if not patient_id:
             continue
         if persisted_only and not resource.persisted:
@@ -634,6 +681,7 @@ def get_job_patients(job_id: str, persisted_only: bool = False, bundleable_only:
             patient_id,
             {
                 "patient_id": patient_id,
+                "id_type": "canonical_fhir_patient_id",
                 "resource_count": 0,
                 "estimated_size_bytes": 0,
                 "saved_at": None,
@@ -663,6 +711,7 @@ def get_job_patients(job_id: str, persisted_only: bool = False, bundleable_only:
 
     return {
         "job_id": job_id,
+        "patient_id_type": "canonical_fhir_patient_id",
         "patients": [str(item["patient_id"]) for item in patient_details],
         "patient_details": patient_details,
     }
@@ -674,7 +723,7 @@ def get_patient_resources(job_id: str, patient_id: str) -> dict:
         resources = [
             as_resource_dict(item)
             for item in list_resources_for_job(session, job_id)
-            if item.patient_id == patient_id
+            if _canonical_patient_id(item) == patient_id
         ]
     return {"job_id": job_id, "patient_id": patient_id, "resources": resources}
 
