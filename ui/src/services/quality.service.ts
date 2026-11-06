@@ -1,4 +1,5 @@
 import { envConfig } from "../config/env"
+import type { StarDashboardResponse } from "../models/dashboard"
 import type {
   QualityCapabilities,
   QualityCoverageResponse,
@@ -29,8 +30,52 @@ interface QualityRunsResponse {
   runs?: QualityRunSummary[]
 }
 
+interface FlowBatch {
+  batch_id?: string
+  status?: string
+  step?: string
+  updated_at?: string
+}
+
+interface FlowResponse {
+  batch?: FlowBatch | null
+}
+
+interface IngestionJobsResponse {
+  jobs?: Array<{
+    id: string
+    started_at?: string | null
+    status?: string
+  }>
+}
+
+interface StarDashboardMeasureCard {
+  measure_id: string
+  measure_name: string
+  total_gaps: number
+  baseline_closed: number
+  projected_closed: number
+  baseline_rate: number | null
+  projected_rate: number | null
+  baseline_star: number | null
+  projected_star: number | null
+}
+
+const loadAutomationJobs = async (): Promise<IngestionJobsResponse> => {
+  const adapter = await fetchJson<IngestionJobsResponse>(withApiBase("/ingestion/jobs"), timeoutMs).catch(() => null)
+  if (adapter?.jobs && adapter.jobs.length >= 0) {
+    return adapter
+  }
+
+  const direct = await fetchJson<IngestionJobsResponse>(withApiBase("/jobs"), timeoutMs).catch(() => null)
+  if (direct?.jobs && direct.jobs.length >= 0) {
+    return direct
+  }
+
+  return { jobs: [] }
+}
+
 const timeoutMs = envConfig.apiTimeoutMs
-const CACHE_TTL_MS = 15_000
 
 const withApiBase = (path: string): string => `${envConfig.apiBaseUrl}${path}`
 
@@ -41,58 +86,41 @@ const toOverviewMode = (mode: QualityMode): QualityOverview => ({
   not_available: [],
 })
 
-interface RequestOptions {
-  forceFresh?: boolean
-}
+const toPercent = (value: number | null | undefined): string => (
+  typeof value === "number" && Number.isFinite(value) ? `${value.toFixed(2)}%` : "-"
+)
 
-interface CacheEntry<T> {
-  value: T
-  expiresAt: number
-}
+const loadDashboardQualitySnapshot = async (): Promise<StarDashboardResponse | null> => postJson<StarDashboardResponse>(
+  withApiBase(envConfig.dashboardSummaryPath),
+  timeoutMs,
+  {
+    measure_id: envConfig.dashboardDefaultMeasureId ?? null,
+    selected_gap_ids: [],
+  },
+).catch(() => null)
 
-const now = (): number => Date.now()
+const toAutomationMeasures = (cards: StarDashboardMeasureCard[] | undefined): QualityOverview["measures"] => (cards ?? []).map((card) => {
+  const openGaps = Math.max(0, card.total_gaps - card.baseline_closed)
+  const description = [
+    `${openGaps} open gap${openGaps === 1 ? "" : "s"}`,
+    `baseline ${card.baseline_closed}/${card.total_gaps} (${toPercent(card.baseline_rate)})`,
+    `projected ${card.projected_closed}/${card.total_gaps} (${toPercent(card.projected_rate)})`,
+  ].join(" | ")
 
-let overviewCache: CacheEntry<QualityOverview> | null = null
-let overviewInFlight: Promise<QualityOverview> | null = null
-
-const runsCache = new Map<string, CacheEntry<QualityRunSummary[]>>()
-const runsInFlight = new Map<string, Promise<QualityRunSummary[]>>()
-
-const runDetailCache = new Map<string, CacheEntry<QualityRunDetail>>()
-const runDetailInFlight = new Map<string, Promise<QualityRunDetail>>()
-
-const coverageCache = new Map<string, CacheEntry<QualityCoverageResponse>>()
-const coverageInFlight = new Map<string, Promise<QualityCoverageResponse>>()
-
-const fromCache = <T>(entry: CacheEntry<T> | undefined | null): T | null => {
-  if (!entry || entry.expiresAt <= now()) {
-    return null
+  return {
+    measure_id: card.measure_id,
+    phase: "dashboard_snapshot",
+    description,
+    open_gaps: openGaps,
+    total_gaps: card.total_gaps,
+    baseline_closed: card.baseline_closed,
+    projected_closed: card.projected_closed,
+    baseline_rate: card.baseline_rate,
+    projected_rate: card.projected_rate,
+    baseline_star: card.baseline_star,
+    projected_star: card.projected_star,
   }
-  return entry.value
-}
-
-const normalizeSeverity = (severity: string): string => {
-  const normalized = severity.trim().toLowerCase()
-  return normalized === "all" ? "" : normalized
-}
-
-export function clearQualityDataCaches(batchId?: string): void {
-  overviewCache = null
-  overviewInFlight = null
-
-  if (batchId) {
-    runsCache.delete(batchId)
-    runsInFlight.delete(batchId)
-  } else {
-    runsCache.clear()
-    runsInFlight.clear()
-  }
-
-  runDetailCache.clear()
-  runDetailInFlight.clear()
-  coverageCache.clear()
-  coverageInFlight.clear()
-}
+})
 
 export async function discoverQualityCapabilities(): Promise<QualityCapabilities> {
   const paths = await getOpenApiPaths(timeoutMs).catch(() => ({} as Record<string, unknown>))
@@ -101,129 +129,76 @@ export async function discoverQualityCapabilities(): Promise<QualityCapabilities
     hasOpenApiPath(paths, "/api/quality")
     && hasOpenApiPath(paths, "/api/quality/runs")
     && hasOpenApiPath(paths, "/api/quality/runs/{run_id}")
-    && hasOpenApiPath(paths, "/api/quality/coverage")
   ) {
     return { mode: "integration" }
+  }
+
+  if (hasOpenApiPath(paths, "/api/automation/process-gaps")) {
+    return { mode: "automation" }
   }
 
   return { mode: "unavailable" }
 }
 
-export async function loadQualityOverview(
-  capabilities: QualityCapabilities,
-  options?: RequestOptions,
-): Promise<QualityOverview> {
-  if (capabilities.mode !== "integration") {
+export async function loadQualityOverview(capabilities: QualityCapabilities): Promise<QualityOverview> {
+  if (capabilities.mode === "integration") {
+    const response = await fetchJson<QualityOverviewResponse>(withApiBase("/quality"), timeoutMs)
     return {
-      ...toOverviewMode("unavailable"),
+      mode: "integration",
+      measures: response.measures ?? [],
+      batches: response.batches ?? [],
+      not_available: response.not_available ?? [],
+    }
+  }
+
+  if (capabilities.mode === "automation") {
+    const [flow, jobs, dashboard] = await Promise.all([
+      fetchJson<FlowResponse>(withApiBase("/flow"), timeoutMs).catch(() => ({ batch: null })),
+      loadAutomationJobs(),
+      loadDashboardQualitySnapshot(),
+    ])
+
+    const batchId = flow.batch?.batch_id ?? jobs.jobs?.[0]?.id ?? "latest"
+    const measures = toAutomationMeasures(dashboard?.measure_cards as StarDashboardMeasureCard[] | undefined)
+
+    return {
+      mode: "automation",
+      measures,
+      batches: [
+        {
+          batch_id: batchId,
+          status: flow.batch?.status ?? jobs.jobs?.[0]?.status ?? "unknown",
+          step: flow.batch?.step,
+          started_at: flow.batch?.updated_at ?? jobs.jobs?.[0]?.started_at ?? null,
+          loaded: true,
+          runs: 0,
+          latest_run_id: null,
+        },
+      ],
       not_available: [
         {
-          name: "Data quality endpoint",
-          reason: "The backend does not expose /api/quality routes in this profile.",
+          name: "Detailed checks",
+          reason:
+            "Detailed quality endpoints are unavailable in this backend profile. Showing automation and dashboard snapshot data from available endpoints.",
         },
       ],
     }
   }
 
-  const forceFresh = Boolean(options?.forceFresh)
-  if (!forceFresh) {
-    const cached = fromCache(overviewCache)
-    if (cached) {
-      return cached
-    }
-    if (overviewInFlight) {
-      return overviewInFlight
-    }
-  }
-
-  const request = fetchJson<QualityOverviewResponse>(withApiBase("/quality"), timeoutMs)
-    .then((response) => {
-      const value: QualityOverview = {
-        mode: "integration",
-        measures: response.measures ?? [],
-        batches: response.batches ?? [],
-        not_available: response.not_available ?? [],
-      }
-      overviewCache = {
-        value,
-        expiresAt: now() + CACHE_TTL_MS,
-      }
-      return value
-    })
-    .finally(() => {
-      overviewInFlight = null
-    })
-
-  overviewInFlight = request
-  return request
+  return toOverviewMode("unavailable")
 }
 
-export async function loadQualityRuns(batchId: string, options?: RequestOptions): Promise<QualityRunSummary[]> {
-  const key = batchId
-  const forceFresh = Boolean(options?.forceFresh)
-
-  if (!forceFresh) {
-    const cached = fromCache(runsCache.get(key))
-    if (cached) {
-      return cached
-    }
-
-    const inFlight = runsInFlight.get(key)
-    if (inFlight) {
-      return inFlight
-    }
-  }
-
-  const request = fetchJson<QualityRunsResponse>(
+export async function loadQualityRuns(batchId: string): Promise<QualityRunSummary[]> {
+  const response = await fetchJson<QualityRunsResponse>(
     withApiBase(`/quality/runs?batch_id=${encodeURIComponent(batchId)}`),
     timeoutMs,
   )
-    .then((response) => {
-      const value = response.runs ?? []
-      runsCache.set(key, { value, expiresAt: now() + CACHE_TTL_MS })
-      return value
-    })
-    .finally(() => {
-      runsInFlight.delete(key)
-    })
-
-  runsInFlight.set(key, request)
-  return request
+  return response.runs ?? []
 }
 
-export async function loadQualityRunDetail(
-  runId: number,
-  severity: string,
-  options?: RequestOptions,
-): Promise<QualityRunDetail> {
-  const normalizedSeverity = normalizeSeverity(severity)
-  const key = `${runId}|${normalizedSeverity || "all"}`
-  const forceFresh = Boolean(options?.forceFresh)
-
-  if (!forceFresh) {
-    const cached = fromCache(runDetailCache.get(key))
-    if (cached) {
-      return cached
-    }
-
-    const inFlight = runDetailInFlight.get(key)
-    if (inFlight) {
-      return inFlight
-    }
-  }
-
-  const query = normalizedSeverity ? `?severity=${encodeURIComponent(normalizedSeverity)}` : ""
-  const request = fetchJson<QualityRunDetail>(withApiBase(`/quality/runs/${encodeURIComponent(String(runId))}${query}`), timeoutMs)
-    .then((response) => {
-      runDetailCache.set(key, { value: response, expiresAt: now() + CACHE_TTL_MS })
-      return response
-    })
-    .finally(() => {
-      runDetailInFlight.delete(key)
-    })
-
-  runDetailInFlight.set(key, request)
-  return request
+export async function loadQualityRunDetail(runId: number, severity: string): Promise<QualityRunDetail> {
+  const query = severity && severity !== "All" ? `?severity=${encodeURIComponent(severity.toLowerCase())}` : ""
+  return fetchJson<QualityRunDetail>(withApiBase(`/quality/runs/${encodeURIComponent(String(runId))}${query}`), timeoutMs)
 }
 
 export async function triggerQualityRun(batchId: string, measureId: string): Promise<QualityRunActionResult> {
@@ -236,8 +211,6 @@ export async function triggerQualityRun(batchId: string, measureId: string): Pro
     },
   )
 
-  clearQualityDataCaches(batchId)
-
   return {
     success: true,
     message: "Data quality checks finished.",
@@ -249,7 +222,7 @@ export async function loadCoverageReport(filters: {
   compliance: string
   startDate: string
   endDate: string
-}, options?: RequestOptions): Promise<QualityCoverageResponse> {
+}): Promise<QualityCoverageResponse> {
   const query = new URLSearchParams()
   if (filters.payer !== "All") {
     query.set("payer", filters.payer)
@@ -264,30 +237,29 @@ export async function loadCoverageReport(filters: {
     query.set("end_date", filters.endDate)
   }
 
-  const key = query.toString() || "all"
-  const forceFresh = Boolean(options?.forceFresh)
+  return fetchJson<QualityCoverageResponse>(withApiBase(`/quality/coverage?${query}`), timeoutMs)
+}
 
-  if (!forceFresh) {
-    const cached = fromCache(coverageCache.get(key))
-    if (cached) {
-      return cached
-    }
+export async function runAutomationQualitySummary(): Promise<QualityRunActionResult> {
+  const response = await postJson<Record<string, unknown>>(
+    withApiBase(envConfig.integrationProcessPath),
+    timeoutMs,
+    {},
+  )
 
-    const inFlight = coverageInFlight.get(key)
-    if (inFlight) {
-      return inFlight
+  const processed = Number(response.processed ?? 0)
+  const skipped = Boolean(response.skipped)
+  const skipReason = typeof response.skip_reason === "string" ? response.skip_reason : ""
+
+  if (skipped) {
+    return {
+      success: true,
+      message: `Processed ${processed.toLocaleString()} gaps and skipped writeback: ${skipReason}`,
     }
   }
 
-  const request = fetchJson<QualityCoverageResponse>(withApiBase(`/quality/coverage?${query}`), timeoutMs)
-    .then((response) => {
-      coverageCache.set(key, { value: response, expiresAt: now() + CACHE_TTL_MS })
-      return response
-    })
-    .finally(() => {
-      coverageInFlight.delete(key)
-    })
-
-  coverageInFlight.set(key, request)
-  return request
+  return {
+    success: true,
+    message: `Processed ${processed.toLocaleString()} gaps in automation mode.`,
+  }
 }

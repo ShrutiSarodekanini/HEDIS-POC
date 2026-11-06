@@ -379,10 +379,6 @@ p {
   grid-template-columns: repeat(5, minmax(0, 1fr));
 }
 
-.six {
-  grid-template-columns: repeat(6, minmax(0, 1fr));
-}
-
 .card,
 .kpi-card,
 .subcard {
@@ -844,19 +840,6 @@ p {
   padding: 14px;
 }
 
-.view .card,
-.view .card *,
-.view .kpi-card,
-.view .kpi-card *,
-.view .subcard,
-.view .subcard *,
-.view .queue-item,
-.view .queue-item *,
-.view .review-row,
-.view .review-row * {
-  font-family: "Archivo", "Segoe UI", sans-serif;
-}
-
 .dashboard-measure-card .card-head,
 .dashboard-priority-card .card-head {
   padding-bottom: 8px;
@@ -1297,39 +1280,6 @@ tbody td {
   width: 100%;
 }
 
-.dqx-view {
-  gap: 14px;
-}
-
-.dqx-hero {
-  justify-content: space-between;
-  align-items: center;
-  border: 1px solid #c9dff0;
-  border-radius: 14px;
-  padding: 16px;
-  background:
-    radial-gradient(circle at 100% 0%, #e9f4ff 0%, #f6fbff 38%, rgba(255, 255, 255, 0.95) 100%),
-    linear-gradient(120deg, #f4fbf8 0%, #fdfefe 100%);
-}
-
-.dqx-hero-actions {
-  display: flex;
-  gap: 10px;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-}
-
-.dqx-frame {
-  border-color: #bfd8ea;
-}
-
-.dqx-filters {
-  background: linear-gradient(180deg, #fbfdff 0%, #f3f9ff 100%);
-  border: 1px solid #d6e7f4;
-  border-radius: 12px;
-  padding: 10px;
-}
-
 .status.status-bad {
   background: #fdf0f0;
   border-color: #e4b9b9;
@@ -1358,11 +1308,6 @@ tbody td {
 .pt,
 .mono {
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-}
-
-.view .pt,
-.view .mono {
-  font-family: inherit;
 }
 
 .r {
@@ -1613,10 +1558,6 @@ details.card.dq-coverage {
   margin: 0;
   color: #2e475d;
   font-size: 12px;
-}
-
-.dq-card .facts dd {
-  overflow-wrap: anywhere;
 }
 
 .gap-panel {
@@ -1896,84 +1837,6 @@ table.compact td {
   font-size: 12px;
 }
 
-.prio-breakdown-card .kpi-card {
-  padding: 12px;
-}
-
-.prio-breakdown-card .kpi-card span {
-  font-size: 10px;
-}
-
-.prio-breakdown-card .kpi-card strong {
-  font-size: clamp(18px, 2vw, 24px);
-}
-
-.prio-breakdown-card .prio-channel-kpi strong {
-  font-size: 13px;
-  line-height: 1.25;
-  font-weight: 700;
-}
-
-.prio-breakdown-card .table-wrap thead th {
-  font-size: 11px;
-}
-
-.prio-breakdown-card .table-wrap tbody td {
-  font-size: 12px;
-}
-
-.prio-breakdown-card .title {
-  font-size: 13px;
-}
-
-.admin-view {
-  gap: 14px;
-}
-
-.admin-summary-card {
-  background: linear-gradient(180deg, #fbfdff 0%, #f5faff 100%);
-  border-color: #c8ddef;
-}
-
-.admin-kpis .kpi-card {
-  padding: 12px;
-}
-
-.admin-kpis .kpi-card strong {
-  font-size: clamp(18px, 2vw, 24px);
-}
-
-.admin-users-card .card-head {
-  padding-bottom: 8px;
-  border-bottom: 1px dashed #d8e5f0;
-}
-
-.admin-table-wrap tbody td {
-  vertical-align: top;
-}
-
-.admin-user-cell {
-  display: grid;
-  gap: 4px;
-}
-
-.admin-row-pending {
-  background: #fffdf6;
-}
-
-.admin-row-approved {
-  background: #fcfffd;
-}
-
-.admin-row-rejected {
-  background: #fffafb;
-}
-
-.admin-users-card .actions .btn,
-.admin-users-card td > .btn {
-  min-height: 30px;
-}
-
 .integration-action-card,
 .integration-status-card {
   align-content: start;
@@ -2220,10 +2083,6 @@ table.compact td {
 }
 
 @media (max-width: 1200px) {
-  .six {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
-
   .five,
   .four {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -2238,19 +2097,13 @@ table.compact td {
   .two,
   .three,
   .four,
-  .five,
-  .six {
+  .five {
     grid-template-columns: repeat(1, minmax(0, 1fr));
   }
 
   .page-head {
     flex-direction: column;
     align-items: flex-start;
-  }
-
-  .dqx-hero-actions {
-    width: 100%;
-    justify-content: flex-start;
   }
 
   .queue-item {

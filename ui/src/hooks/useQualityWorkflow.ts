@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 
 import type {
   QualityCapabilities,
@@ -8,12 +8,12 @@ import type {
   QualityRunSummary,
 } from "../models/quality"
 import {
-  clearQualityDataCaches,
   discoverQualityCapabilities,
   loadCoverageReport,
   loadQualityOverview,
   loadQualityRunDetail,
   loadQualityRuns,
+  runAutomationQualitySummary,
   triggerQualityRun,
 } from "../services/quality.service"
 import { toRequestErrorMessage } from "../services/http"
@@ -33,10 +33,6 @@ const DEFAULT_COVERAGE_FILTERS: CoverageFilters = {
 }
 
 export function useQualityWorkflow() {
-  const initializedRef = useRef(false)
-  const runsRequestRef = useRef(0)
-  const detailRequestRef = useRef(0)
-
   const [capabilities, setCapabilities] = useState<QualityCapabilities | null>(null)
   const [overview, setOverview] = useState<QualityOverview | null>(null)
   const [runs, setRuns] = useState<QualityRunSummary[]>([])
@@ -60,71 +56,46 @@ export function useQualityWorkflow() {
   const [coverageFilters, setCoverageFilters] = useState<CoverageFilters>(DEFAULT_COVERAGE_FILTERS)
   const [coverage, setCoverage] = useState<QualityCoverageResponse | null>(null)
 
-  const [runsRefreshToken, setRunsRefreshToken] = useState(0)
-  const [detailRefreshToken, setDetailRefreshToken] = useState(0)
-
-  const syncOverview = useCallback((nextOverview: QualityOverview): string => {
-    setOverview(nextOverview)
-
-    const nextBatchId = nextOverview.batches[0]?.batch_id ?? ""
-    const batchStillExists = nextOverview.batches.some((batch) => batch.batch_id === selectedBatchId)
-    const resolvedBatchId = batchStillExists ? selectedBatchId : nextBatchId
-    setSelectedBatchId(resolvedBatchId)
-
-    const measureStillExists = selectedMeasureId === "All"
-      || nextOverview.measures.some((measure) => measure.measure_id === selectedMeasureId)
-    if (!measureStillExists) {
-      setSelectedMeasureId("All")
-    }
-
-    if (!resolvedBatchId) {
-      setRuns([])
-      setSelectedRunId("")
-      setRunDetail(null)
-    }
-
-    return resolvedBatchId
-  }, [selectedBatchId, selectedMeasureId])
-
   const initialize = useCallback(async (): Promise<void> => {
     setLoadingSetup(true)
     setSetupError(null)
     setErrorMessage("")
-    setStatusMessage("")
-    setCoverage(null)
 
     try {
       const discovered = await discoverQualityCapabilities()
       setCapabilities(discovered)
+      setLoadingSetup(false)
 
-      setLoadingOverview(true)
-      const nextOverview = await loadQualityOverview(discovered, { forceFresh: true })
-      const nextBatchId = syncOverview(nextOverview)
+      await (async () => {
+        setLoadingOverview(true)
+        try {
+          const nextOverview = await loadQualityOverview(discovered)
+          setOverview(nextOverview)
 
-      if (nextBatchId) {
-        setRunsRefreshToken((value) => value + 1)
-      }
+          const nextBatchId = nextOverview.batches[0]?.batch_id ?? ""
+          setSelectedBatchId(nextBatchId)
+          setSelectedMeasureId("All")
+          setSelectedRunId("")
+          setRuns([])
+          setRunDetail(null)
+        } catch (error) {
+          setErrorMessage(toRequestErrorMessage(error))
+        } finally {
+          setLoadingOverview(false)
+        }
+      })()
     } catch (error) {
+      setLoadingSetup(false)
       setSetupError(toRequestErrorMessage(error))
       setCapabilities(null)
-      setOverview(null)
-      setRuns([])
-      setRunDetail(null)
-    } finally {
-      setLoadingOverview(false)
-      setLoadingSetup(false)
     }
-  }, [syncOverview])
+  }, [])
 
   useEffect(() => {
-    if (initializedRef.current) {
-      return
-    }
-    initializedRef.current = true
     void initialize()
   }, [initialize])
 
-  const refreshOverview = useCallback(async (options?: { forceFresh?: boolean }): Promise<void> => {
+  const refreshOverview = useCallback(async (): Promise<void> => {
     if (!capabilities) {
       await initialize()
       return
@@ -133,44 +104,55 @@ export function useQualityWorkflow() {
     setLoadingOverview(true)
     setErrorMessage("")
     try {
-      const forceFresh = options?.forceFresh ?? true
-      const nextOverview = await loadQualityOverview(capabilities, { forceFresh })
-      const resolvedBatchId = syncOverview(nextOverview)
+      const nextOverview = await loadQualityOverview(capabilities)
+      setOverview(nextOverview)
 
-      if (resolvedBatchId) {
-        setRunsRefreshToken((value) => value + 1)
-        setDetailRefreshToken((value) => value + 1)
+      const keepBatch = nextOverview.batches.some((batch) => batch.batch_id === selectedBatchId)
+      const nextBatchId = keepBatch ? selectedBatchId : (nextOverview.batches[0]?.batch_id ?? "")
+      setSelectedBatchId(nextBatchId)
+
+      if (capabilities.mode === "integration" && nextBatchId) {
+        const nextRuns = await loadQualityRuns(nextBatchId)
+        setRuns(nextRuns)
+        const keepRun = nextRuns.some((run) => String(run.run_id) === selectedRunId)
+        const nextRunId = keepRun ? selectedRunId : (nextRuns[0] ? String(nextRuns[0].run_id) : "")
+        setSelectedRunId(nextRunId)
+
+        if (!nextRunId) {
+          setRunDetail(null)
+        } else if (nextRunId === selectedRunId) {
+          setLoadingRunDetail(true)
+          try {
+            const detail = await loadQualityRunDetail(Number(nextRunId), selectedSeverity)
+            setRunDetail(detail)
+          } finally {
+            setLoadingRunDetail(false)
+          }
+        }
+      } else {
+        setRuns([])
+        setRunDetail(null)
       }
     } catch (error) {
       setErrorMessage(toRequestErrorMessage(error))
     } finally {
       setLoadingOverview(false)
     }
-  }, [capabilities, initialize, syncOverview])
+  }, [capabilities, initialize, selectedBatchId, selectedRunId, selectedSeverity])
 
-  const reloadRuns = useCallback(async (options?: { silent?: boolean; forceFresh?: boolean }): Promise<void> => {
+  const reloadRuns = useCallback(async (options?: { silent?: boolean }): Promise<void> => {
     if (!capabilities || capabilities.mode !== "integration" || !selectedBatchId) {
-      setRuns([])
-      setSelectedRunId("")
-      setRunDetail(null)
       return
     }
 
     const silent = Boolean(options?.silent)
-    const forceFresh = Boolean(options?.forceFresh)
-    const requestId = runsRequestRef.current + 1
-    runsRequestRef.current = requestId
 
     if (!silent) {
       setLoadingOverview(true)
     }
     setErrorMessage("")
     try {
-      const nextRuns = await loadQualityRuns(selectedBatchId, { forceFresh })
-      if (requestId !== runsRequestRef.current) {
-        return
-      }
-
+      const nextRuns = await loadQualityRuns(selectedBatchId)
       setRuns(nextRuns)
       const keepRun = nextRuns.some((run) => String(run.run_id) === selectedRunId)
       const nextRunId = keepRun ? selectedRunId : (nextRuns[0] ? String(nextRuns[0].run_id) : "")
@@ -178,41 +160,36 @@ export function useQualityWorkflow() {
 
       if (!nextRunId) {
         setRunDetail(null)
+      } else if (nextRunId === selectedRunId) {
+        setLoadingRunDetail(true)
+        try {
+          const detail = await loadQualityRunDetail(Number(nextRunId), selectedSeverity)
+          setRunDetail(detail)
+        } finally {
+          setLoadingRunDetail(false)
+        }
       }
     } catch (error) {
-      if (requestId !== runsRequestRef.current) {
-        return
-      }
       setErrorMessage(toRequestErrorMessage(error))
     } finally {
       if (!silent) {
         setLoadingOverview(false)
       }
     }
-  }, [capabilities, selectedBatchId, selectedRunId])
+  }, [capabilities, selectedBatchId, selectedRunId, selectedSeverity])
 
-  const reloadRunDetail = useCallback(async (options?: { forceFresh?: boolean }): Promise<void> => {
+  const reloadRunDetail = useCallback(async (): Promise<void> => {
     if (!capabilities || capabilities.mode !== "integration" || !selectedRunId) {
       setRunDetail(null)
       return
     }
 
-    const forceFresh = Boolean(options?.forceFresh)
-    const requestId = detailRequestRef.current + 1
-    detailRequestRef.current = requestId
-
     setLoadingRunDetail(true)
     setErrorMessage("")
     try {
-      const detail = await loadQualityRunDetail(Number(selectedRunId), selectedSeverity, { forceFresh })
-      if (requestId !== detailRequestRef.current) {
-        return
-      }
+      const detail = await loadQualityRunDetail(Number(selectedRunId), selectedSeverity)
       setRunDetail(detail)
     } catch (error) {
-      if (requestId !== detailRequestRef.current) {
-        return
-      }
       setErrorMessage(toRequestErrorMessage(error))
     } finally {
       setLoadingRunDetail(false)
@@ -221,11 +198,11 @@ export function useQualityWorkflow() {
 
   useEffect(() => {
     void reloadRuns()
-  }, [reloadRuns, runsRefreshToken])
+  }, [reloadRuns])
 
   useEffect(() => {
     void reloadRunDetail()
-  }, [reloadRunDetail, detailRefreshToken])
+  }, [reloadRunDetail])
 
   const runChecksNow = useCallback(async (): Promise<void> => {
     if (!capabilities) {
@@ -237,18 +214,18 @@ export function useQualityWorkflow() {
     setStatusMessage("")
 
     try {
-      if (capabilities.mode !== "integration") {
-        throw new Error("Data quality endpoints are unavailable in this backend profile.")
+      if (capabilities.mode === "integration") {
+        if (!selectedBatchId) {
+          throw new Error("No batch has been loaded yet.")
+        }
+        const result = await triggerQualityRun(selectedBatchId, selectedMeasureId)
+        setStatusMessage(result.message)
+        await refreshOverview()
+      } else if (capabilities.mode === "automation") {
+        const result = await runAutomationQualitySummary()
+        setStatusMessage(result.message)
+        await refreshOverview()
       }
-      if (!selectedBatchId) {
-        throw new Error("No batch has been loaded yet.")
-      }
-
-      const result = await triggerQualityRun(selectedBatchId, selectedMeasureId)
-      setStatusMessage(result.message)
-      await refreshOverview({ forceFresh: true })
-      setRunsRefreshToken((value) => value + 1)
-      setDetailRefreshToken((value) => value + 1)
     } catch (error) {
       setErrorMessage(toRequestErrorMessage(error))
     } finally {
@@ -256,7 +233,7 @@ export function useQualityWorkflow() {
     }
   }, [capabilities, refreshOverview, selectedBatchId, selectedMeasureId])
 
-  const refreshCoverage = useCallback(async (options?: { forceFresh?: boolean }): Promise<void> => {
+  const refreshCoverage = useCallback(async (): Promise<void> => {
     if (!capabilities || capabilities.mode !== "integration") {
       return
     }
@@ -264,7 +241,7 @@ export function useQualityWorkflow() {
     setLoadingCoverage(true)
     setErrorMessage("")
     try {
-      const report = await loadCoverageReport(coverageFilters, options)
+      const report = await loadCoverageReport(coverageFilters)
       setCoverage(report)
     } catch (error) {
       setErrorMessage(toRequestErrorMessage(error))
@@ -279,30 +256,6 @@ export function useQualityWorkflow() {
       [key]: value,
     }))
   }, [])
-
-  const selectBatch = useCallback((batchId: string): void => {
-    setSelectedBatchId(batchId)
-    setSelectedRunId("")
-    setRunDetail(null)
-    setStatusMessage("")
-  }, [])
-
-  const selectRun = useCallback((runId: string): void => {
-    setSelectedRunId(runId)
-    setStatusMessage("")
-  }, [])
-
-  const selectSeverity = useCallback((severity: string): void => {
-    setSelectedSeverity(severity)
-  }, [])
-
-  const forceRunDetailRefresh = useCallback((): void => {
-    setDetailRefreshToken((value) => value + 1)
-  }, [])
-
-  const clearViewCaches = useCallback((): void => {
-    clearQualityDataCaches(selectedBatchId || undefined)
-  }, [selectedBatchId])
 
   const severityBreakdown = useMemo(() => {
     const counts: Record<string, number> = {}
@@ -333,16 +286,14 @@ export function useQualityWorkflow() {
     selectedMeasureId,
     selectedSeverity,
     severityBreakdown,
-    setSelectedBatchId: selectBatch,
-    setSelectedRunId: selectRun,
+    setSelectedBatchId,
+    setSelectedRunId,
     setSelectedMeasureId,
-    setSelectedSeverity: selectSeverity,
+    setSelectedSeverity,
     setCoverageFilter,
     retrySetup: initialize,
     refreshOverview,
     runChecksNow,
     refreshCoverage,
-    forceRunDetailRefresh,
-    clearViewCaches,
   }
 }

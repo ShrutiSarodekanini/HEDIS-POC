@@ -4,6 +4,7 @@ import type {
   StarCalculationResult,
   StarCapabilities,
   StarComparisonResult,
+  StarMeasureCard,
   StarOverview,
   StarWhatIfResult,
 } from "../models/stars"
@@ -27,6 +28,81 @@ const firstMeasureId = (overview: StarOverview | null): string =>
   overview?.measureCards[0]?.measureId ?? overview?.measures[0]?.measureId ?? ""
 
 const toUniqueIds = (ids: string[]): string[] => Array.from(new Set(ids))
+
+const recalculateOverall = (measureCards: StarMeasureCard[]): NonNullable<StarOverview["overall"]> => {
+  const ratedMeasures = measureCards.filter((row) => row.starEligible).length
+  const ratedWithData = measureCards.filter((row) => row.starEligible && row.baselineStar != null && row.projectedStar != null)
+
+  const weightedAverage = (rows: StarMeasureCard[], key: "baselineStar" | "projectedStar"): number | null => {
+    let totalWeight = 0
+    let weightedSum = 0
+
+    for (const row of rows) {
+      const star = row[key]
+      if (star == null) {
+        continue
+      }
+      const weight = row.weight != null && row.weight > 0 ? row.weight : 1
+      totalWeight += weight
+      weightedSum += star * weight
+    }
+
+    if (totalWeight <= 0) {
+      return null
+    }
+    return Number((weightedSum / totalWeight).toFixed(2))
+  }
+
+  const baselineStar = weightedAverage(ratedWithData, "baselineStar")
+  const projectedStar = weightedAverage(ratedWithData, "projectedStar")
+
+  return {
+    ratedMeasures,
+    ratedMeasuresWithData: ratedWithData.length,
+    totalMeasures: measureCards.length,
+    unratedMeasures: Math.max(measureCards.length - ratedMeasures, 0),
+    baselineStar,
+    projectedStar,
+    delta: baselineStar == null || projectedStar == null ? null : Number((projectedStar - baselineStar).toFixed(2)),
+  }
+}
+
+const applyProjectionToOverview = (
+  current: StarOverview | null,
+  projection: StarWhatIfResult,
+): StarOverview | null => {
+  if (!current) {
+    return current
+  }
+
+  let found = false
+  const measureCards = current.measureCards.map((row) => {
+    if (row.measureId !== projection.measureId) {
+      return row
+    }
+
+    found = true
+    return {
+      ...row,
+      projectedNumerator: projection.projectedNumerator,
+      projectedRate: projection.projectedRate,
+      projectedStar: projection.projectedStar,
+      starDelta: projection.baselineStar == null || projection.projectedStar == null
+        ? null
+        : Number((projection.projectedStar - projection.baselineStar).toFixed(2)),
+    }
+  })
+
+  if (!found) {
+    return current
+  }
+
+  return {
+    ...current,
+    measureCards,
+    overall: recalculateOverall(measureCards),
+  }
+}
 
 export function useStarsWorkflow() {
   const [capabilities, setCapabilities] = useState<StarCapabilities | null>(null)
@@ -201,6 +277,8 @@ export function useStarsWorkflow() {
         selectedGapIds: projection?.selectedGapIds ?? selectedGapIds,
       })
       setOverview(overviewWithSelection)
+    } else if (projection) {
+      setOverview((current) => applyProjectionToOverview(current, projection))
     }
     setComparisonResult(null)
     setStatusMessage("Projection refreshed.")
@@ -284,6 +362,8 @@ export function useStarsWorkflow() {
           selectedGapIds: projection.selectedGapIds,
         })
         setOverview(overviewWithSelection)
+      } else {
+        setOverview((current) => applyProjectionToOverview(current, projection))
       }
 
       if (projection.baselineDenominator <= 0) {

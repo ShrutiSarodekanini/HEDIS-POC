@@ -33,16 +33,6 @@ export function AdministratorPage({ actorEmail, actorRole }: AdministratorPagePr
     [users],
   )
 
-  const approvedCount = useMemo(
-    () => users.filter((user) => user.access_status === "approved").length,
-    [users],
-  )
-
-  const rejectedCount = useMemo(
-    () => users.filter((user) => user.access_status === "rejected").length,
-    [users],
-  )
-
   const refresh = useCallback(async (): Promise<void> => {
     setLoading(true)
     setErrorMessage("")
@@ -74,7 +64,7 @@ export function AdministratorPage({ actorEmail, actorRole }: AdministratorPagePr
   }
 
   return (
-    <section id="view-admin" className="view admin-view">
+    <section id="view-admin" className="view">
       <div className="page-head">
         <div>
           <h1>Administrator</h1>
@@ -82,35 +72,7 @@ export function AdministratorPage({ actorEmail, actorRole }: AdministratorPagePr
         </div>
       </div>
 
-      <article className="card admin-summary-card">
-        <div className="card-head row-split">
-          <h2>Access summary</h2>
-          <span className="status status-ok">Signed in as {actorEmail}</span>
-        </div>
-
-        <div className="kpi-grid four admin-kpis">
-          <article className="kpi-card">
-            <span>Total users</span>
-            <strong>{users.length}</strong>
-          </article>
-          <article className="kpi-card">
-            <span>Pending approval</span>
-            <strong>{pendingCount}</strong>
-          </article>
-          <article className="kpi-card">
-            <span>Approved</span>
-            <strong>{approvedCount}</strong>
-          </article>
-          <article className="kpi-card">
-            <span>Rejected</span>
-            <strong>{rejectedCount}</strong>
-          </article>
-        </div>
-
-        <p className="note">New sign-ups remain pending until approved by an administrator.</p>
-      </article>
-
-      <article className="card admin-users-card">
+      <article className="card">
         <div className="card-head row-split">
           <h2>Registered users</h2>
           <span className={pendingCount > 0 ? "status status-warn" : "status status-ok"}>
@@ -118,11 +80,13 @@ export function AdministratorPage({ actorEmail, actorRole }: AdministratorPagePr
           </span>
         </div>
 
-        <p className="note">Manage account access first, then assign role for approved users.</p>
+        <p className="note">
+          Signed in as {actorEmail}. New sign-ups remain pending until approved by an administrator.
+        </p>
 
         {errorMessage ? <p className="card-message error">{errorMessage}</p> : null}
 
-        <div className="table-wrap admin-table-wrap">
+        <div className="table-wrap">
           <table>
             <thead>
               <tr>
@@ -141,19 +105,10 @@ export function AdministratorPage({ actorEmail, actorRole }: AdministratorPagePr
                 const nextRole: AuthRole = user.role === "admin" ? "user" : "admin"
 
                 return (
-                  <tr key={user.user_id} className={`admin-row-${user.access_status}`}>
-                    <td>
-                      <div className="admin-user-cell">
-                        <strong>{user.email}</strong>
-                        {isActor ? <span className="note">Current account</span> : null}
-                      </div>
-                    </td>
+                  <tr key={user.user_id}>
+                    <td>{user.email}</td>
                     <td><span className={statusClass(user.access_status)}>{labelCase(user.access_status)}</span></td>
-                    <td>
-                      <span className={`chip ${user.role === "admin" ? "info" : "good"}`}>
-                        {labelCase(user.role)}
-                      </span>
-                    </td>
+                    <td>{labelCase(user.role)}</td>
                     <td>{formatDateTime(user.created_at)}</td>
                     <td>
                       {isActor ? (
@@ -161,7 +116,7 @@ export function AdministratorPage({ actorEmail, actorRole }: AdministratorPagePr
                       ) : user.access_status === "approved" ? (
                         <button
                           type="button"
-                          className="btn outline calc-small"
+                          className="btn outline"
                           disabled={actionBusy}
                           onClick={() => {
                             void (async () => {
@@ -184,7 +139,7 @@ export function AdministratorPage({ actorEmail, actorRole }: AdministratorPagePr
                         <div className="actions">
                           <button
                             type="button"
-                            className="btn primary calc-small"
+                            className="btn primary"
                             disabled={actionBusy}
                             onClick={() => {
                               void (async () => {
@@ -205,7 +160,7 @@ export function AdministratorPage({ actorEmail, actorRole }: AdministratorPagePr
                           </button>
                           <button
                             type="button"
-                            className="btn outline calc-small"
+                            className="btn outline"
                             disabled={actionBusy}
                             onClick={() => {
                               void (async () => {
@@ -233,7 +188,7 @@ export function AdministratorPage({ actorEmail, actorRole }: AdministratorPagePr
                       ) : (
                         <button
                           type="button"
-                          className="btn outline calc-small"
+                          className="btn outline"
                           disabled={actionBusy || user.access_status !== "approved"}
                           onClick={() => {
                             void (async () => {

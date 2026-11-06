@@ -515,7 +515,7 @@ export function RunIntegrationPage({ isAdmin }: { isAdmin: boolean }) {
 
       <article className="card">
         <div className="card-head row-split">
-          <h2>Ingestion Results</h2>
+          <h2>Our steps after ingestion</h2>
         </div>
 
         <CardMessage text={messages.ourSteps.text} error={messages.ourSteps.error} />

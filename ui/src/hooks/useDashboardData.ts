@@ -20,7 +20,7 @@ export function useDashboardData(enabled = true): UseDashboardDataResult {
 
     setLoading(true)
     try {
-      const nextSnapshot = await fetchDashboardSnapshot({ forceFresh: true })
+      const nextSnapshot = await fetchDashboardSnapshot()
       setSnapshot(nextSnapshot)
     } finally {
       setLoading(false)
@@ -33,14 +33,7 @@ export function useDashboardData(enabled = true): UseDashboardDataResult {
       return
     }
 
-    setLoading(true)
-    void fetchDashboardSnapshot()
-      .then((nextSnapshot) => {
-        setSnapshot(nextSnapshot)
-      })
-      .finally(() => {
-        setLoading(false)
-      })
+    void reload()
   }, [enabled, reload])
 
   return { snapshot, loading, reload }

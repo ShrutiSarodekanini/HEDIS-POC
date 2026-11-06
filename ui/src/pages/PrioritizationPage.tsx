@@ -212,7 +212,7 @@ export function PrioritizationPage() {
                 <span>Pending findings</span>
                 <strong>{formatInteger(gapDetail.gap.pendingCount)}</strong>
               </article>
-              <article className="kpi-card prio-channel-kpi">
+              <article className="kpi-card">
                 <span>Recommended channel</span>
                 <strong>{CHANNEL_LABELS[gapDetail.gap.recommendedChannel ?? ""] ?? gapDetail.gap.recommendedChannel ?? "-"}</strong>
               </article>
