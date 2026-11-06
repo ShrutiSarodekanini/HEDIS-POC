@@ -201,7 +201,7 @@ def build_router(current_user_dep: Callable[..., auth.AuthUser],
     @track("close gap")
     def close_gap(gap_id: str, conn: psycopg.Connection = Depends(get_conn),
                   user: auth.AuthUser = Depends(current_user_dep)) -> dict:
-        return evidence.close_gap(conn, gap_id, user.email)
+        return evidence.close_gap(conn, gap_id, user.user_id, user.email)
 
     @router.post("/api/evidence/{proposal_id}/decision")
     @app_metrics.track_evidence
