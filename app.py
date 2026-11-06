@@ -436,15 +436,10 @@ def _build_star_dashboard(
         fallback_total = int(stat["total"])
         fallback_baseline_closed = int(stat["baseline_closed"])
         selected_open = int(stat.get("selected_open") or 0)
-        engine_denominator = stat.get("engine_denominator")
-        engine_numerator = stat.get("engine_numerator")
 
-        if isinstance(engine_denominator, int) and isinstance(engine_numerator, int) and engine_denominator > 0:
-            total = engine_denominator
-            baseline_closed = min(max(engine_numerator, 0), total)
-        else:
-            total = fallback_total
-            baseline_closed = fallback_baseline_closed
+        # Use live care-gap statuses as baseline so manual close/open updates are reflected immediately.
+        total = fallback_total
+        baseline_closed = fallback_baseline_closed
 
         projected_closed = min(total, baseline_closed + max(selected_open, 0))
         baseline_rate = _gap_rate(baseline_closed, total)
