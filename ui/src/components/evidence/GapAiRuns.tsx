@@ -23,42 +23,17 @@ const prettyJson = (value: string | null | undefined): string => {
   }
 }
 
-function PagesSent({ pages, onViewPage }: { pages: PageSent[]; onViewPage?: (documentId: string, pageNo: number) => void }) {
-  if (!pages.length) {
-    return <p className="note small">Pages sent: none</p>
-  }
-  if (!onViewPage) {
-    return <p className="note small">Pages sent: {pages.map(pageLabel).join(" | ")}</p>
-  }
-  return (
-    <div className="note small pages-sent">
-      <span>Pages sent:</span>
-      {pages.map((page) => (
-        <span key={`${page.documentId}-${page.pageNo}`} className="page-sent">
-          {pageLabel(page)}
-          <button
-            type="button"
-            className="btn link"
-            onClick={() => {
-              onViewPage(page.documentId, page.pageNo)
-            }}
-          >
-            View document
-          </button>
-        </span>
-      ))}
-    </div>
-  )
+function PagesSent({ pages }: { pages: PageSent[] }) {
+  return <p className="note small">Pages sent: {pages.length ? pages.map(pageLabel).join(" | ") : "none"}</p>
 }
 
 interface GapAiRunsProps {
   detail: EvidenceGapDetail
   latestRun: EvidenceLatestRun | null
-  onViewPage?: (documentId: string, pageNo: number) => void
 }
 
 /** Section 6 of the gap panel: the run just made and every earlier AI run on this gap. */
-export function GapAiRuns({ detail, latestRun, onViewPage }: GapAiRunsProps) {
+export function GapAiRuns({ detail, latestRun }: GapAiRunsProps) {
   return (
     <section className="psec">
       <h3>6 · AI details</h3>
@@ -66,7 +41,7 @@ export function GapAiRuns({ detail, latestRun, onViewPage }: GapAiRunsProps) {
       {latestRun ? (
         <div className="ai-run ai-succeeded">
           <p className="label-strong">The run just made (run {latestRun.runId ?? "?"})</p>
-          <PagesSent pages={latestRun.pages} onViewPage={onViewPage} />
+          <PagesSent pages={latestRun.pages} />
           {latestRun.calls.map((call, index) => (
             <details key={`latest-call-${index}`}>
               <summary>Call {index + 1} ({call.status ?? "?"}, {call.seconds ?? "?"}s)</summary>
@@ -91,7 +66,7 @@ export function GapAiRuns({ detail, latestRun, onViewPage }: GapAiRunsProps) {
               Run {run.runId} · {formatDateTime(run.startedAt)} · {run.modelName ?? "-"} · {titleCase(run.status)} ·
               {" "}{formatInteger(run.kept)} kept, {formatInteger(run.droppedCount)} dropped · prompt {run.promptVersion ?? "?"}
             </div>
-            <PagesSent pages={run.pagesSent} onViewPage={onViewPage} />
+            <PagesSent pages={run.pagesSent} />
             {run.error ? <p className="note small error">{run.error}</p> : null}
             <details>
               <summary>Raw answer</summary>

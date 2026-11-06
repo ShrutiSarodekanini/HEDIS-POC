@@ -1,5 +1,6 @@
 import type { StarWhatIfResult } from "../../models/stars"
 import { formatInteger } from "../../utils/format"
+import { StarSection } from "./StarSection"
 
 interface StarGapSelectionProps {
   whatIfResult: StarWhatIfResult | null
@@ -7,6 +8,7 @@ interface StarGapSelectionProps {
   toggleGap: (gapId: string) => void
   selectAllOpenGaps: () => void
   clearGapSelection: () => void
+  bare?: boolean
 }
 
 export function StarGapSelection({
@@ -15,13 +17,14 @@ export function StarGapSelection({
   toggleGap,
   selectAllOpenGaps,
   clearGapSelection,
+  bare,
 }: StarGapSelectionProps) {
   return (
-    <article className="card">
-      <div className="card-head row-split">
-        <h2>Gap selection</h2>
-        <span className="note">{formatInteger(whatIfResult?.gaps.length ?? 0)} gaps</span>
-      </div>
+    <StarSection
+      title="Gap selection"
+      bare={bare}
+      aside={<span className="note">{formatInteger(whatIfResult?.gaps.length ?? 0)} gaps</span>}
+    >
 
       <div className="actions">
         <button type="button" className="btn outline" onClick={selectAllOpenGaps} disabled={!whatIfResult?.gaps.length}>
@@ -55,6 +58,6 @@ export function StarGapSelection({
           <p className="empty">No gaps are available for this measure.</p>
         )}
       </div>
-    </article>
+    </StarSection>
   )
 }

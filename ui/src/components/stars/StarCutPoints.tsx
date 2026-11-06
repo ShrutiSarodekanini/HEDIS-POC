@@ -1,17 +1,27 @@
 import type { StarCatalogMeasure } from "../../models/stars"
 import { sortByMeasureId } from "./starFormat"
+import { StarSection } from "./StarSection"
 
 interface StarCutPointsProps {
   measures: StarCatalogMeasure[] | undefined
+  measureFilter?: string
+  bare?: boolean
 }
 
-export function StarCutPoints({ measures }: StarCutPointsProps) {
+export function StarCutPoints({ measures, measureFilter, bare }: StarCutPointsProps) {
+  const rows = measureFilter
+    ? (measures ?? []).filter((measure) => measure.measureId === measureFilter)
+    : measures ?? []
+  const emptyText = (measures ?? []).length > 0
+    ? "No cut points for this measure."
+    : "Catalog is unavailable for this profile."
+
   return (
-    <article className="card">
-      <div className="card-head row-split">
-        <h2>Catalog cut points</h2>
-        <span className="note">All measures and star bands</span>
-      </div>
+    <StarSection
+      title="Catalog cut points"
+      bare={bare}
+      aside={<span className="note">All measures and star bands</span>}
+    >
 
       <div className="table-wrap">
         <table>
@@ -28,8 +38,8 @@ export function StarCutPoints({ measures }: StarCutPointsProps) {
             </tr>
           </thead>
           <tbody>
-            {(measures ?? []).length > 0 ? (
-              sortByMeasureId(measures ?? []).map((measure) => {
+            {rows.length > 0 ? (
+              sortByMeasureId(rows).map((measure) => {
                 const byStars = new Map<number, { low: number; high: number | null }>()
                 for (const cutPoint of measure.cutPoints) {
                   byStars.set(cutPoint.stars, { low: cutPoint.low, high: cutPoint.high })
@@ -56,12 +66,12 @@ export function StarCutPoints({ measures }: StarCutPointsProps) {
               })
             ) : (
               <tr>
-                <td colSpan={8} className="empty">Catalog is unavailable for this profile.</td>
+                <td colSpan={8} className="empty">{emptyText}</td>
               </tr>
             )}
           </tbody>
         </table>
       </div>
-    </article>
+    </StarSection>
   )
 }
