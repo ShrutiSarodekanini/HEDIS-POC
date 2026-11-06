@@ -299,12 +299,12 @@ const mapIntegrationMeasureCards = (
 export async function discoverStarCapabilities(): Promise<StarCapabilities> {
   const paths = await getOpenApiPaths(timeoutMs)
 
-  if (hasOpenApiPath(paths, "/api/stars/catalog") && hasOpenApiPath(paths, "/api/stars/calculate") && hasOpenApiPath(paths, "/api/stars/what-if")) {
-    return { mode: "integration" }
-  }
-
   if (hasOpenApiPath(paths, "/api/star-rating/catalog") && hasOpenApiPath(paths, "/api/star-rating/calculate") && hasOpenApiPath(paths, "/api/star-dashboard/calculate")) {
     return { mode: "dashboard" }
+  }
+
+  if (hasOpenApiPath(paths, "/api/stars/catalog") && hasOpenApiPath(paths, "/api/stars/calculate") && hasOpenApiPath(paths, "/api/stars/what-if")) {
+    return { mode: "integration" }
   }
 
   throw new Error("Star rating endpoints are not available in this backend profile.")
