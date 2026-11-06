@@ -1,8 +1,10 @@
 import type { NavigationItem } from "../../constants/navigation"
 
 interface SidebarProps {
+  id: string
   items: NavigationItem[]
   activeId: string
+  onNavigate?: () => void
 }
 
 const hrefById: Record<string, string> = {
@@ -16,9 +18,9 @@ const hrefById: Record<string, string> = {
   admin: "#view-admin",
 }
 
-export function Sidebar({ items, activeId }: SidebarProps) {
+export function Sidebar({ id, items, activeId, onNavigate }: SidebarProps) {
   return (
-    <aside className="sidebar" aria-label="Main navigation">
+    <aside id={id} className="sidebar" aria-label="Main navigation">
       <nav className="menu">
         {items.map((item) => (
           <a
@@ -29,7 +31,9 @@ export function Sidebar({ items, activeId }: SidebarProps) {
             onClick={(event) => {
               if (item.status === "coming-soon") {
                 event.preventDefault()
+                return
               }
+              onNavigate?.()
             }}
           >
             <span>{item.label}</span>

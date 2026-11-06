@@ -1,15 +1,17 @@
-import { useMemo, useState } from "react"
+import { useId, useMemo, useState } from "react"
 
+import { usePersistedFlag } from "../../hooks/usePersistedFlag"
 import { useQualitySummary } from "../../hooks/useQualitySummary"
 import type { LatestBatch } from "../../models/calculation"
-import { formatDateTime } from "../../utils/format"
 import { QualityRunResults } from "../quality/QualityRunResults"
 import { SEVERITY_ORDER, humanize, toSeverityKey } from "../quality/qualityDisplay"
-import { qualityTitleCase as asLabel } from "./qualityFormat"
+import { QualitySummaryRow } from "./QualitySummaryRow"
 
 const ALL = "All"
 
 const EMPTY_TEXT = "Results appear here after an ingestion run finishes."
+
+const OPEN_KEY = "hedis.dashboard.qualityOpen"
 
 const staleNote = (latestBatch: LatestBatch | null, runBatchId: string): string | null => {
   if (!latestBatch || latestBatch.batchId === runBatchId) {
@@ -32,8 +34,10 @@ interface QualitySummaryCardProps {
 
 export function QualitySummaryCard({ dataVersion, latestBatch }: QualitySummaryCardProps) {
   const { summary, loading, error, forbidden, unavailable } = useQualitySummary(dataVersion)
+  const [open, setOpen] = usePersistedFlag(OPEN_KEY, false)
   const [measureFilter, setMeasureFilter] = useState<string>(ALL)
   const [severityFilter, setSeverityFilter] = useState<string>(ALL)
+  const detailsId = useId()
   const note = summary ? staleNote(latestBatch, summary.run.batch_id) : null
 
   const measureOptions = useMemo(() => {
@@ -65,47 +69,8 @@ export function QualitySummaryCard({ dataVersion, latestBatch }: QualitySummaryC
 
   return (
     <article className="card">
-      <div className="card-head row-split">
+      <div className="card-head">
         <h2>Data quality summary</h2>
-        {summary ? (
-          <div className="calc-actions">
-            <label className="calc-check">
-              <span>Measure</span>
-              <select
-                className="text-input"
-                value={activeMeasure}
-                onChange={(event) => {
-                  setMeasureFilter(event.target.value)
-                }}
-              >
-                <option value={ALL}>All</option>
-                {measureOptions.map((measureId) => (
-                  <option key={measureId} value={measureId}>
-                    {measureId}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="calc-check">
-              <span>Severity</span>
-              <select
-                className="text-input"
-                value={severityFilter}
-                onChange={(event) => {
-                  setSeverityFilter(event.target.value)
-                }}
-              >
-                <option value={ALL}>All</option>
-                {SEVERITY_ORDER.map((key) => (
-                  <option key={key} value={key}>
-                    {humanize(key)}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <span className="chip info">{asLabel(summary.run.status)}</span>
-          </div>
-        ) : null}
       </div>
 
       {loading ? (
@@ -120,15 +85,64 @@ export function QualitySummaryCard({ dataVersion, latestBatch }: QualitySummaryC
         <p className="card-message">{EMPTY_TEXT}</p>
       ) : (
         <>
-          <p className="freshness">
-            Batch {summary.run.batch_id.slice(0, 8)} | Run {summary.run.run_id} | Completed{" "}
-            {formatDateTime(summary.run.completed_at)}
-          </p>
+          <QualitySummaryRow
+            run={summary.run}
+            checks={summary.checks}
+            anomalies={summary.anomalies}
+            open={open}
+            detailsId={detailsId}
+            onToggle={() => {
+              setOpen(!open)
+            }}
+          />
 
           {note ? <p className="card-message">{note}</p> : null}
           {error ? <p className="card-message error">{error}</p> : null}
 
-          <QualityRunResults compact checks={filteredChecks} anomalies={filteredAnomalies} loading={loading} />
+          <div id={detailsId} className="dq-details" hidden={!open}>
+            {open ? (
+              <>
+                <div className="calc-actions">
+                  <label className="calc-check">
+                    <span>Measure</span>
+                    <select
+                      className="text-input"
+                      value={activeMeasure}
+                      onChange={(event) => {
+                        setMeasureFilter(event.target.value)
+                      }}
+                    >
+                      <option value={ALL}>All</option>
+                      {measureOptions.map((measureId) => (
+                        <option key={measureId} value={measureId}>
+                          {measureId}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="calc-check">
+                    <span>Severity</span>
+                    <select
+                      className="text-input"
+                      value={severityFilter}
+                      onChange={(event) => {
+                        setSeverityFilter(event.target.value)
+                      }}
+                    >
+                      <option value={ALL}>All</option>
+                      {SEVERITY_ORDER.map((key) => (
+                        <option key={key} value={key}>
+                          {humanize(key)}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                </div>
+
+                <QualityRunResults compact checks={filteredChecks} anomalies={filteredAnomalies} loading={loading} />
+              </>
+            ) : null}
+          </div>
         </>
       )}
     </article>

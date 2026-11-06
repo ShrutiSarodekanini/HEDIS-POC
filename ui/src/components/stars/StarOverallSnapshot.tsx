@@ -1,20 +1,24 @@
 import type { StarOverview } from "../../models/stars"
 import { formatInteger } from "../../utils/format"
+import { StarSection } from "./StarSection"
 
 interface StarOverallSnapshotProps {
   overview: StarOverview | null
+  bare?: boolean
 }
 
-export function StarOverallSnapshot({ overview }: StarOverallSnapshotProps) {
+export function StarOverallSnapshot({ overview, bare }: StarOverallSnapshotProps) {
   return (
-    <article className="card">
-      <div className="card-head row-split">
-        <h2>Overall snapshot</h2>
+    <StarSection
+      title="Overall snapshot"
+      bare={bare}
+      aside={
         <span className="note">
           Measurement year {overview?.measurementYear ?? "-"}
           {overview?.cmsRatingYear ? ` | CMS rating year ${overview.cmsRatingYear}` : ""}
         </span>
-      </div>
+      }
+    >
 
       <div className="kpi-grid four">
         <article className="kpi-card">
@@ -59,6 +63,6 @@ export function StarOverallSnapshot({ overview }: StarOverallSnapshotProps) {
           </>
         ) : null}
       </p>
-    </article>
+    </StarSection>
   )
 }

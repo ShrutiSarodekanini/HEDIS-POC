@@ -1,19 +1,26 @@
 import type { StarMeasureCard, StarWhatIfResult } from "../../models/stars"
 import { formatInteger, formatRate } from "../../utils/format"
+import { StarSection } from "./StarSection"
 
 interface StarMeasureProjectionProps {
   whatIfResult: StarWhatIfResult | null
   selectedMeasureCard: StarMeasureCard | null
   selectedGapIds: string[]
+  bare?: boolean
 }
 
-export function StarMeasureProjection({ whatIfResult, selectedMeasureCard, selectedGapIds }: StarMeasureProjectionProps) {
+export function StarMeasureProjection({
+  whatIfResult,
+  selectedMeasureCard,
+  selectedGapIds,
+  bare,
+}: StarMeasureProjectionProps) {
   return (
-    <article className="card">
-      <div className="card-head row-split">
-        <h2>Selected measure projection</h2>
-        <span className="note">{whatIfResult?.measureName ?? selectedMeasureCard?.measureName ?? "-"}</span>
-      </div>
+    <StarSection
+      title="Selected measure projection"
+      bare={bare}
+      aside={<span className="note">{whatIfResult?.measureName ?? selectedMeasureCard?.measureName ?? "-"}</span>}
+    >
 
       {whatIfResult ? (
         <>
@@ -52,6 +59,6 @@ export function StarMeasureProjection({ whatIfResult, selectedMeasureCard, selec
       ) : (
         <p className="card-message">No projection available yet.</p>
       )}
-    </article>
+    </StarSection>
   )
 }

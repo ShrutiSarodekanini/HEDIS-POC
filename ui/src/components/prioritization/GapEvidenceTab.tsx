@@ -1,13 +1,8 @@
-import { useState } from "react"
-
-import type { DocumentPageRef, EvidenceGapDetail, EvidenceLatestRun, EvidenceQueueItem } from "../../models/evidence"
-import { GapAiRuns } from "../evidence/GapAiRuns"
+import type { DocumentPageRef, EvidenceQueueItem } from "../../models/evidence"
 import { GapEvidenceList } from "./GapEvidenceList"
 
 interface GapEvidenceTabProps {
   rows: EvidenceQueueItem[]
-  detail: EvidenceGapDetail | null
-  latestRun: EvidenceLatestRun | null
   canDecide: boolean
   canRun: boolean
   noDocuments: boolean
@@ -25,8 +20,6 @@ interface GapEvidenceTabProps {
 
 export function GapEvidenceTab({
   rows,
-  detail,
-  latestRun,
   canDecide,
   canRun,
   noDocuments,
@@ -41,8 +34,6 @@ export function GapEvidenceTab({
   onDecide,
   onViewDocument,
 }: GapEvidenceTabProps) {
-  const [detailsOpen, setDetailsOpen] = useState<boolean>(false)
-
   return (
     <>
       <div className="evidence-toolbar">
@@ -99,30 +90,6 @@ export function GapEvidenceTab({
         onDecide={onDecide}
         onViewDocument={onViewDocument}
       />
-
-      {detail ? (
-        <>
-          <button
-            type="button"
-            className="btn link"
-            aria-expanded={detailsOpen}
-            onClick={() => {
-              setDetailsOpen((current) => !current)
-            }}
-          >
-            {detailsOpen ? "Hide AI run details" : "Show AI run details"}
-          </button>
-          {detailsOpen ? (
-            <GapAiRuns
-              detail={detail}
-              latestRun={latestRun}
-              onViewPage={(documentId, pageNo) => {
-                onViewDocument({ documentId, pageNo, quote: null })
-              }}
-            />
-          ) : null}
-        </>
-      ) : null}
     </>
   )
 }

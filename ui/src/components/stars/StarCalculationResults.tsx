@@ -1,19 +1,21 @@
 import type { StarCalculationResult, StarComparisonResult } from "../../models/stars"
 import { formatRate } from "../../utils/format"
 import { toStatusClass } from "./starFormat"
+import { StarSection } from "./StarSection"
 
 interface StarCalculationResultsProps {
   calculationResult: StarCalculationResult | null
   comparisonResult: StarComparisonResult | null
+  bare?: boolean
 }
 
-export function StarCalculationResults({ calculationResult, comparisonResult }: StarCalculationResultsProps) {
+export function StarCalculationResults({ calculationResult, comparisonResult, bare }: StarCalculationResultsProps) {
   return (
-    <article className="card">
-      <div className="card-head row-split">
-        <h2>Direct calculation results</h2>
-        <span className="note">Selected measure star assignment</span>
-      </div>
+    <StarSection
+      title="Direct calculation results"
+      bare={bare}
+      aside={<span className="note">Selected measure star assignment</span>}
+    >
 
       {calculationResult ? (
         <div className="table-wrap">
@@ -73,6 +75,6 @@ export function StarCalculationResults({ calculationResult, comparisonResult }: 
           <p className="note">Star changed: {comparisonResult.starChanged ? "Yes" : "No"}</p>
         </div>
       ) : null}
-    </article>
+    </StarSection>
   )
 }

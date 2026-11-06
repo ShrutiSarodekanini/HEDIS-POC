@@ -5,6 +5,9 @@ interface TopBarProps {
   userName: string
   userRole: string
   onLogout?: () => void
+  menuOpen: boolean
+  menuId: string
+  onToggleMenu: () => void
 }
 
 export function TopBar({
@@ -14,14 +17,31 @@ export function TopBar({
   userName,
   userRole,
   onLogout,
+  menuOpen,
+  menuId,
+  onToggleMenu,
 }: TopBarProps) {
   const initial = userName.charAt(0).toUpperCase()
 
   return (
     <header className="topbar">
-      <div className="brand" aria-label={appName}>
-        <span className="brand-dot">H</span>
-        <p>{appName}</p>
+      <div className="topbar-left">
+        <button
+          type="button"
+          className="menu-toggle"
+          aria-label={menuOpen ? "Hide menu" : "Show menu"}
+          aria-expanded={menuOpen}
+          aria-controls={menuId}
+          onClick={onToggleMenu}
+        >
+          <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true" focusable="false">
+            <path d="M2 4h14M2 9h14M2 14h14" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+          </svg>
+        </button>
+        <div className="brand" aria-label={appName}>
+          <span className="brand-dot">H</span>
+          <p>{appName}</p>
+        </div>
       </div>
 
       <div className="topbar-right">
