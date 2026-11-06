@@ -8,6 +8,7 @@ import type {
   PrioritizationWorklistItem,
 } from "../models/prioritization"
 import {
+  clearPrioritizationServiceCaches,
   discoverPrioritizationCapabilities,
   loadPrioritizationGapDetail,
   loadPrioritizationOverview,
@@ -170,6 +171,7 @@ export function usePrioritizationWorkflow() {
       return
     }
 
+    clearPrioritizationServiceCaches()
     await Promise.all([
       refreshOverview(capabilities),
       refreshWorklist(capabilities),

@@ -6,23 +6,9 @@ import type {
   StarDashboardResponse,
 } from "../models/dashboard"
 import { fetchJson, postJson, toRequestErrorMessage } from "./http"
+import { toNumber } from "../utils/number"
 
 const withBase = (path: string): string => `${envConfig.apiBaseUrl}${path}`
-const SNAPSHOT_CACHE_TTL_MS = 30_000
-
-interface DashboardSnapshotCacheEntry {
-  value: DashboardSnapshot
-  expiresAt: number
-}
-
-interface DashboardSnapshotRequestOptions {
-  forceFresh?: boolean
-}
-
-const now = (): number => Date.now()
-
-let dashboardSnapshotCache: DashboardSnapshotCacheEntry | null = null
-let dashboardSnapshotInFlight: Promise<DashboardSnapshot> | null = null
 
 async function loadSectionGet<T>(path: string): Promise<DataSection<T>> {
   try {
@@ -57,52 +43,43 @@ async function loadSectionPost<T>(
   }
 }
 
-export async function fetchDashboardSnapshot(options?: DashboardSnapshotRequestOptions): Promise<DashboardSnapshot> {
-  const forceFresh = Boolean(options?.forceFresh)
-
-  if (!forceFresh && dashboardSnapshotCache && dashboardSnapshotCache.expiresAt > now()) {
-    return dashboardSnapshotCache.value
-  }
-
-  if (!forceFresh && dashboardSnapshotInFlight) {
-    return dashboardSnapshotInFlight
-  }
-
-  const request = (async () => {
-    const catalog = await loadSectionGet<StarCatalogResponse>(
-      envConfig.dashboardCatalogPath,
+/** Rows in care_gap with status 'open' (the measure cards' total_gaps also count closed gaps). */
+async function loadOpenGapCount(): Promise<number | null> {
+  try {
+    const flow = await fetchJson<{ tables?: { care_gap_open?: number | string | null } }>(
+      withBase("/flow"),
+      envConfig.apiTimeoutMs,
     )
+    return toNumber(flow.tables?.care_gap_open)
+  } catch {
+    // The KPI then shows "-"; the rest of the snapshot does not depend on this count.
+    return null
+  }
+}
 
-    const selectedMeasure =
-      envConfig.dashboardDefaultMeasureId ??
-      catalog.data?.measures.find((measure) => measure.measure_code.trim().length > 0)
-        ?.measure_code ??
-      null
+export async function fetchDashboardSnapshot(): Promise<DashboardSnapshot> {
+  const catalog = await loadSectionGet<StarCatalogResponse>(
+    envConfig.dashboardCatalogPath,
+  )
 
-    const dashboard = await loadSectionPost<StarDashboardResponse>(
-      envConfig.dashboardSummaryPath,
-      {
-        measure_id: selectedMeasure,
-        selected_gap_ids: [],
-      },
-    )
+  const selectedMeasure =
+    envConfig.dashboardDefaultMeasureId ??
+    catalog.data?.measures.find((measure) => measure.measure_code.trim().length > 0)
+      ?.measure_code ??
+    null
 
-    const value = {
-      catalog,
-      dashboard,
-      fetchedAt: new Date().toISOString(),
-    }
+  const dashboard = await loadSectionPost<StarDashboardResponse>(
+    envConfig.dashboardSummaryPath,
+    {
+      measure_id: selectedMeasure,
+      selected_gap_ids: [],
+    },
+  )
 
-    dashboardSnapshotCache = {
-      value,
-      expiresAt: now() + SNAPSHOT_CACHE_TTL_MS,
-    }
-
-    return value
-  })().finally(() => {
-    dashboardSnapshotInFlight = null
-  })
-
-  dashboardSnapshotInFlight = request
-  return request
+  return {
+    catalog,
+    dashboard,
+    openGapCount: await loadOpenGapCount(),
+    fetchedAt: new Date().toISOString(),
+  }
 }

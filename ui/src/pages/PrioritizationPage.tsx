@@ -1,40 +1,11 @@
-import { useEffect, useMemo, useState } from "react"
+import { useMemo, useState } from "react"
 
+import { GapDetailsModal } from "../components/prioritization/GapDetailsModal"
+import { PrioritizedWorklist } from "../components/prioritization/PrioritizedWorklist"
+import { CHANNEL_LABELS, formatNumber } from "../components/prioritization/prioritizationFormat"
 import { usePrioritizationWorkflow } from "../hooks/usePrioritizationWorkflow"
 import type { PrioritizationWorklistItem } from "../models/prioritization"
 import { formatDateTime, formatInteger, toMeterWidth } from "../utils/format"
-
-const CHANNEL_LABELS: Record<string, string> = {
-  abstractor_review: "Abstractor review",
-  member_outreach_call: "Member outreach call",
-  mailed_fit_kit: "Mailed FIT kit",
-  point_of_care_alert: "Point-of-care alert",
-  provider_gap_list: "Provider gap list",
-  chart_review: "Chart review",
-}
-
-const ROWS_PER_PAGE = 10
-
-const toTierClass = (tier: string): string => {
-  const normalized = tier.trim().toLowerCase()
-  if (normalized === "high") {
-    return "chip warn"
-  }
-  if (normalized === "medium") {
-    return "chip info"
-  }
-  if (normalized === "low") {
-    return "chip good"
-  }
-  return "chip"
-}
-
-const formatNumber = (value: number | null | undefined, digits = 3): string => {
-  if (typeof value !== "number" || Number.isNaN(value)) {
-    return "-"
-  }
-  return value.toFixed(digits)
-}
 
 const avg = (rows: PrioritizationWorklistItem[], key: "likelihood" | "value" | "engagement"): number | null => {
   const values = rows
@@ -64,16 +35,12 @@ export function PrioritizationPage() {
     errorMessage,
     statusMessage,
     retrySetup,
+    refreshAll,
     setFilter,
     selectGap,
   } = usePrioritizationWorkflow()
 
-  const [currentPage, setCurrentPage] = useState<number>(1)
-
-  const measureOptions = useMemo(
-    () => [...(overview?.measures ?? [])].sort((left, right) => left.measureId.localeCompare(right.measureId)),
-    [overview?.measures],
-  )
+  const [detailsItem, setDetailsItem] = useState<PrioritizationWorklistItem | null>(null)
 
   const channelRows = useMemo(() => {
     const entries = Object.entries(channelMix)
@@ -94,25 +61,6 @@ export function PrioritizationPage() {
       engagement: avg(worklist, "engagement"),
     }),
     [worklist],
-  )
-
-  const totalPages = Math.max(1, Math.ceil(worklist.length / ROWS_PER_PAGE))
-
-  useEffect(() => {
-    if (currentPage > totalPages) {
-      setCurrentPage(totalPages)
-    }
-  }, [currentPage, totalPages])
-
-  useEffect(() => {
-    setCurrentPage(1)
-  }, [filters.role, filters.tier, filters.measure, filters.limit])
-
-  const pageStart = (currentPage - 1) * ROWS_PER_PAGE
-  const pageEnd = pageStart + ROWS_PER_PAGE
-  const visibleRows = useMemo(
-    () => worklist.slice(pageStart, pageEnd),
-    [worklist, pageStart, pageEnd],
   )
 
   if (loadingSetup) {
@@ -227,163 +175,19 @@ export function PrioritizationPage() {
         </div>
       </article>
 
-      <article className="card">
-        <div className="card-head row-split">
-          <h2>Filters</h2>
-          <span className="note">Use backend-supported filters only</span>
-        </div>
-
-        <div className="calc-toolbar quality-filters">
-          <label className="calc-check">
-            <span>Role</span>
-            <select
-              className="text-input"
-              value={filters.role}
-              onChange={(event) => {
-                setFilter("role", event.target.value as "" | "reviewer" | "outreach" | "doctor")
-              }}
-            >
-              <option value="">All roles</option>
-              <option value="reviewer">Reviewer</option>
-              <option value="outreach">Outreach</option>
-              <option value="doctor">Doctor</option>
-            </select>
-          </label>
-
-          <label className="calc-check">
-            <span>Tier</span>
-            <select
-              className="text-input"
-              value={filters.tier}
-              onChange={(event) => {
-                setFilter("tier", event.target.value as "" | "high" | "medium" | "low")
-              }}
-            >
-              <option value="">All tiers</option>
-              <option value="high">High</option>
-              <option value="medium">Medium</option>
-              <option value="low">Low</option>
-            </select>
-          </label>
-
-          <label className="calc-check">
-            <span>Measure</span>
-            <select
-              className="text-input"
-              value={filters.measure}
-              onChange={(event) => {
-                setFilter("measure", event.target.value)
-              }}
-            >
-              <option value="">All measures</option>
-              {measureOptions.map((measure) => (
-                <option key={measure.measureId} value={measure.measureId}>
-                  {measure.measureId} - {measure.measureName}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          <label className="calc-check">
-            <span>Limit</span>
-            <select
-              className="text-input"
-              value={String(filters.limit)}
-              onChange={(event) => {
-                setFilter("limit", Number(event.target.value))
-              }}
-            >
-              <option value="100">100</option>
-              <option value="200">200</option>
-              <option value="400">400</option>
-            </select>
-          </label>
-        </div>
-
-        {statusMessage ? <p className="card-message">{statusMessage}</p> : null}
-        {errorMessage ? <p className="card-message error">{errorMessage}</p> : null}
-      </article>
-
-      <article className="card">
-        <div className="card-head row-split">
-          <h2>Prioritized worklist</h2>
-          <span className="note">Click a row to inspect full scoring breakdown | Page {currentPage} of {totalPages}</span>
-        </div>
-
-        <div className="actions">
-          <button
-            type="button"
-            className="btn outline"
-            disabled={currentPage <= 1}
-            onClick={() => {
-              setCurrentPage((previous) => Math.max(1, previous - 1))
-            }}
-          >
-            Previous
-          </button>
-          <button
-            type="button"
-            className="btn outline"
-            disabled={currentPage >= totalPages}
-            onClick={() => {
-              setCurrentPage((previous) => Math.min(totalPages, previous + 1))
-            }}
-          >
-            Next
-          </button>
-          <span className="note">
-            Showing {worklist.length === 0 ? 0 : pageStart + 1}-{Math.min(pageEnd, worklist.length)} of {worklist.length}
-          </span>
-        </div>
-
-        <div className="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>Patient</th>
-                <th>Measure</th>
-                <th>Missing</th>
-                <th>Tier</th>
-                <th>Composite</th>
-                <th>Channel</th>
-                <th>Next visit</th>
-              </tr>
-            </thead>
-            <tbody>
-              {loadingWorklist ? (
-                <tr>
-                  <td colSpan={7} className="empty">Loading worklist...</td>
-                </tr>
-              ) : visibleRows.length > 0 ? (
-                visibleRows.map((item) => (
-                  <tr
-                    key={item.gapId}
-                    className={item.gapId === selectedGapId ? "history-row-active" : ""}
-                    onClick={() => {
-                      selectGap(item.gapId)
-                    }}
-                  >
-                    <td>{item.patientId}</td>
-                    <td>
-                      <div>{item.measureName}</div>
-                      <div className="note">{item.measureId}</div>
-                    </td>
-                    <td>{item.missingElement ?? "-"}</td>
-                    <td><span className={toTierClass(item.tier)}>{item.tier}</span></td>
-                    <td>{formatNumber(item.composite, 4)}</td>
-                    <td>{CHANNEL_LABELS[item.channel ?? ""] ?? item.channel ?? "-"}</td>
-                    <td>{item.nextVisit ? formatDateTime(item.nextVisit) : "-"}</td>
-                  </tr>
-                ))
-              ) : (
-                <tr>
-                  <td colSpan={7} className="empty">No open gaps found for selected filters.</td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </article>
+      <PrioritizedWorklist
+        worklist={worklist}
+        measures={overview?.measures ?? []}
+        filters={filters}
+        selectedGapId={selectedGapId}
+        loadingWorklist={loadingWorklist}
+        statusMessage={statusMessage}
+        errorMessage={errorMessage}
+        setFilter={setFilter}
+        selectGap={selectGap}
+        onOpenDetails={setDetailsItem}
+        showAdvancedFilters
+      />
 
       <article className="card">
         <div className="card-head row-split">
@@ -516,6 +320,18 @@ export function PrioritizationPage() {
           <p className="card-message">Select a gap from the worklist to inspect details.</p>
         )}
       </article>
+
+      {detailsItem ? (
+        <GapDetailsModal
+          item={detailsItem}
+          onGapChanged={() => {
+            void refreshAll()
+          }}
+          onClose={() => {
+            setDetailsItem(null)
+          }}
+        />
+      ) : null}
     </section>
   )
 }

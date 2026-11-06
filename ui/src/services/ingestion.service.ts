@@ -152,7 +152,7 @@ export async function loadIngestionPatients(
   jobId: string,
 ): Promise<IngestionPatientsResponse> {
   return fetchJson<IngestionPatientsResponse>(
-    withPrefix(mode, `/jobs/${encodeURIComponent(jobId)}/patients?persisted_only=false&bundleable_only=true`),
+    withPrefix(mode, `/jobs/${encodeURIComponent(jobId)}/patients?persisted_only=true&bundleable_only=true`),
     timeoutMs,
   )
 }

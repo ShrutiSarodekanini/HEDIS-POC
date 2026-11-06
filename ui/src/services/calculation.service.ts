@@ -5,6 +5,7 @@ import type {
   CalculationOverviewMeasure,
   CalculationPatientRow,
   CalculationRunResult,
+  LatestBatch,
 } from "../models/calculation"
 import type { StarCatalogResponse, StarDashboardResponse } from "../models/dashboard"
 import { fetchJson, postJson } from "./http"
@@ -283,4 +284,78 @@ export async function waitForCalculation(batchId: string): Promise<CalculationRu
     return { success: true, message: "Calculation finished." }
   }
   return { success: false, message: "Calculation is still running. Press Refresh to check again." }
+}
+
+interface IntegrationLatestBatch extends IntegrationBatchStatus {
+  batch_id?: string
+  started_at?: string | null
+  updated_at?: string | null
+  counts?: unknown
+}
+
+const asRecord = (value: unknown): Record<string, unknown> | null =>
+  value !== null && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : null
+
+/** The message of the newest stage in counts.progress that has not completed yet. */
+const currentProgressMessage = (counts: unknown): string | null => {
+  const progress = asRecord(asRecord(counts)?.progress)
+  if (!progress) {
+    return null
+  }
+  let newest: { at: number; message: string } | null = null
+  for (const entry of Object.values(progress)) {
+    const stage = asRecord(entry)
+    if (!stage || stage.status === "complete" || typeof stage.message !== "string" || !stage.message) {
+      continue
+    }
+    const at = typeof stage.updated_at === "string" ? Date.parse(stage.updated_at) : Number.NaN
+    const time = Number.isNaN(at) ? 0 : at
+    if (!newest || time > newest.at) {
+      newest = { at: time, message: stage.message }
+    }
+  }
+  return newest?.message ?? null
+}
+
+/** The most recently started batch, or null when no batch has run yet. */
+export async function fetchLatestBatch(): Promise<LatestBatch | null> {
+  const batch = await fetchJson<IntegrationLatestBatch | null>(withApiBase("/batches/latest"), timeoutMs)
+  if (!batch || !batch.batch_id) {
+    return null
+  }
+  return {
+    batchId: batch.batch_id,
+    status: batch.status ?? "unknown",
+    step: batch.step ?? null,
+    error: batch.error ?? null,
+    startedAt: batch.started_at ?? null,
+    updatedAt: batch.updated_at ?? null,
+    progressMessage: currentProgressMessage(batch.counts),
+  }
+}
+
+interface FlowLatestIngestJob {
+  status?: string | null
+  resources_persisted?: number | null
+  has_batch?: boolean
+}
+
+const FINISHED_INGEST_STATUSES = new Set(["completed", "partially_completed"])
+const STOPPED_INGEST_STATUSES = new Set(["failed", "cancelled", "canceled", "error"])
+
+/** True while the newest ingestion job is still loading, or persisted and waiting for its batch to start. */
+export async function fetchIngestionAwaitingBatch(): Promise<boolean> {
+  const flow = await fetchJson<{ latest_ingest_job?: FlowLatestIngestJob | null }>(withApiBase("/flow"), timeoutMs)
+  const job = flow.latest_ingest_job
+  if (!job || job.has_batch !== false) {
+    return false
+  }
+  const status = (job.status ?? "").trim().toLowerCase()
+  if (STOPPED_INGEST_STATUSES.has(status)) {
+    return false
+  }
+  if (FINISHED_INGEST_STATUSES.has(status)) {
+    return (job.resources_persisted ?? 0) > 0
+  }
+  return true
 }
