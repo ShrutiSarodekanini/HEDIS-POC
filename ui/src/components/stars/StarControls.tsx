@@ -2,6 +2,7 @@ import { useMemo } from "react"
 
 import type { StarCapabilities, StarOverview, StarWhatIfResult } from "../../models/stars"
 import { sortByMeasureId } from "./starFormat"
+import { StarSection } from "./StarSection"
 
 interface MeasureOption {
   measureId: string
@@ -22,6 +23,7 @@ interface StarControlsProps {
   runProjection: () => Promise<void>
   calculateCurrentStar: () => Promise<void>
   compareBeforeAfter: () => Promise<void>
+  bare?: boolean
 }
 
 export function StarControls({
@@ -38,6 +40,7 @@ export function StarControls({
   runProjection,
   calculateCurrentStar,
   compareBeforeAfter,
+  bare,
 }: StarControlsProps) {
   const measureOptions = useMemo(() => {
     const options: MeasureOption[] = []
@@ -66,15 +69,8 @@ export function StarControls({
     return sortByMeasureId(options)
   }, [overview?.measureCards, overview?.measures])
 
-  return (
-    <article className="card">
-      <div className="card-head row-split">
-        <h2>Star controls</h2>
-        <span className="chip info">
-          {capabilities?.mode === "integration" ? "Integration mode" : "Dashboard mode"}
-        </span>
-      </div>
-
+  const controls = (
+    <>
       <div className="calc-toolbar quality-filters">
         <label className="calc-check">
           <span>Measure</span>
@@ -126,9 +122,23 @@ export function StarControls({
           {runningComparison ? "Comparing..." : "Compare before vs after"}
         </button>
       </div>
+    </>
+  )
+
+  return (
+    <StarSection
+      title="Star controls"
+      bare={bare}
+      aside={
+        <span className="chip info">
+          {capabilities?.mode === "integration" ? "Integration mode" : "Dashboard mode"}
+        </span>
+      }
+    >
+      {bare ? <div className="star-controls-row">{controls}</div> : controls}
 
       {statusMessage ? <p className="card-message">{statusMessage}</p> : null}
       {errorMessage ? <p className="card-message error">{errorMessage}</p> : null}
-    </article>
+    </StarSection>
   )
 }

@@ -14,9 +14,9 @@ export function GapFacts({ detail }: { detail: EvidenceGapDetail }) {
       <section className="psec">
         <h3>1 · Gap</h3>
         <dl className="facts">
-          <div><dt>Measure</dt><dd>{detail.measureName} ({detail.measureId})</dd></div>
+          <div><dt>Measure</dt><dd title={`${detail.measureName} (${detail.measureId})`}>{detail.measureName} ({detail.measureId})</dd></div>
           <div><dt>Patient</dt><dd>{detail.patientId}</dd></div>
-          <div><dt>Missing</dt><dd>{detail.missingElement || "-"}</dd></div>
+          <div><dt>Missing</dt><dd title={detail.missingElement || undefined}>{detail.missingElement || "-"}</dd></div>
           <div><dt>Tier</dt><dd>{titleCase(detail.tier)}</dd></div>
           <div><dt>Deadline</dt><dd>{detail.deadlineDate ?? "-"}</dd></div>
           <div><dt>Review status</dt><dd>{titleCase(detail.reviewStatus)}</dd></div>

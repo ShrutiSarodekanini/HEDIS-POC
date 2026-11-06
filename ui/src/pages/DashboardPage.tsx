@@ -303,8 +303,6 @@ function DashboardResults({
         onGapChanged={onGapChanged}
       />
 
-      <h2 className="zone-title">Star rating</h2>
-
       <DashboardStarRating dataVersion={dataVersion} fetchedAt={snapshot.fetchedAt} isAdmin={isAdmin} />
 
       <p className="footnote">

@@ -35,7 +35,6 @@ export function GapDetailsModal({ item, onClose, onGapChanged = noop }: GapDetai
     capabilities,
     overview,
     scopeGapDetail,
-    latestRun,
     selectedScopeGap,
     selectedScopeGapId,
     selectedProposalId,
@@ -151,8 +150,6 @@ export function GapDetailsModal({ item, onClose, onGapChanged = noop }: GapDetai
           {tab === "evidence" && !loadingSetup && !setupError ? (
             <GapEvidenceTab
               rows={evidenceRows}
-              detail={detail}
-              latestRun={detail ? latestRun : null}
               canDecide={integration}
               canRun={integration && scopeReady && !noDocuments}
               noDocuments={noDocuments}

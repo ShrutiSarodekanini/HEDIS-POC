@@ -64,6 +64,41 @@ export function QualityAnomalyGroups({ groups, compact }: QualityAnomalyGroupsPr
         const limit = compact ? (expanded ? group.items.length : COMPACT_ANOMALIES_PER_GROUP) : MAX_ANOMALIES_PER_GROUP
         const visibleItems = group.items.slice(0, limit)
         const hiddenCount = group.items.length - visibleItems.length
+        const cards = (
+          <div className="dq-cards">
+            {visibleItems.map((anomaly) => (
+              <AnomalyCard key={anomaly.anomaly_id} anomaly={anomaly} />
+            ))}
+          </div>
+        )
+
+        if (compact) {
+          const topSeverity = String(group.items[0]?.severity ?? "unknown")
+          return (
+            <details key={group.type} className="dq-group dq-group-fold">
+              <summary className="dq-group-head">
+                <h3>{typeInfo.title}</h3>
+                <span className="status">{formatInteger(group.items.length)}</span>
+                <span className={toRunStatusClass(topSeverity)}>{humanize(topSeverity)}</span>
+              </summary>
+              {typeInfo.description ? <p className="note small">{typeInfo.description}</p> : null}
+              {cards}
+              {hiddenCount > 0 ? (
+                <div className="actions">
+                  <button
+                    type="button"
+                    className="btn outline calc-small"
+                    onClick={() => {
+                      setExpandedTypes((current) => new Set(current).add(group.type))
+                    }}
+                  >
+                    Show all {formatInteger(group.items.length)}
+                  </button>
+                </div>
+              ) : null}
+            </details>
+          )
+        }
 
         return (
           <section key={group.type} className="dq-group">
@@ -72,24 +107,8 @@ export function QualityAnomalyGroups({ groups, compact }: QualityAnomalyGroupsPr
               <span className="status">{formatInteger(group.items.length)}</span>
             </div>
             {typeInfo.description ? <p className="note small">{typeInfo.description}</p> : null}
-            <div className="dq-cards">
-              {visibleItems.map((anomaly) => (
-                <AnomalyCard key={anomaly.anomaly_id} anomaly={anomaly} />
-              ))}
-            </div>
-            {hiddenCount > 0 && compact ? (
-              <div className="actions">
-                <button
-                  type="button"
-                  className="btn outline calc-small"
-                  onClick={() => {
-                    setExpandedTypes((current) => new Set(current).add(group.type))
-                  }}
-                >
-                  Show all {formatInteger(group.items.length)}
-                </button>
-              </div>
-            ) : hiddenCount > 0 ? (
+            {cards}
+            {hiddenCount > 0 ? (
               <p className="note small">and {formatInteger(hiddenCount)} more</p>
             ) : null}
           </section>
