@@ -1673,12 +1673,14 @@ def get_calculation_patients(measure_id: str) -> dict:
 
 
 @app.post("/api/calculation/run", status_code=202)
-def run_calculation(body: CalculationRequest | None = None) -> dict:
+def run_calculation(body: CalculationRequest | None = None,
+                    user: integration_auth.AuthUser = Depends(current_auth_user)) -> dict:
     """Run selected measures for supplied patients, or every available persisted patient by default."""
     try:
         batch_id = integration_pipeline.start_recalculation(
             body.measures if body else None,
             body.patient_ids if body else None,
+            user.user_id,
         )
         print(f"Started recalculation with batch_id: {batch_id}")
     except integration_pipeline.CalculationNotReadyError as exc:

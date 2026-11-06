@@ -288,7 +288,8 @@ class CalculationNotReadyError(LookupError):
     """No batch is ready for a calculation yet."""
 
 
-def start_recalculation(measure_ids: list[str] | None, selected_patient_ids: list[str] | None = None) -> str:
+def start_recalculation(measure_ids: list[str] | None, selected_patient_ids: list[str] | None = None,
+                        actor_user_id: int | None = None) -> str:
     """Run selected persisted patients, or every available patient when none are specified."""
     with db.connect() as conn:
         row = conn.execute("""SELECT batch_id, ingest_job_id FROM batch_run
@@ -317,13 +318,15 @@ def start_recalculation(measure_ids: list[str] | None, selected_patient_ids: lis
     except Exception:
         _ONE_AT_A_TIME.release()
         raise
-    threading.Thread(target=_recalculate, args=(batch_id, job_id, measure_ids, selected), name=f"calc-{batch_id}",
-                     daemon=True).start()
+    thread_args = (batch_id, job_id, measure_ids, selected)
+    if actor_user_id is not None:
+        thread_args = (batch_id, job_id, measure_ids, selected, actor_user_id)
+    threading.Thread(target=_recalculate, args=thread_args, name=f"calc-{batch_id}", daemon=True).start()
     return str(batch_id)
 
 
 def _recalculate(batch_id: uuid.UUID, job_id: str, measure_ids: list[str] | None,
-                 selected_patient_ids: list[str]) -> None:
+                 selected_patient_ids: list[str], actor_user_id: int | None = None) -> None:
     step = "measuring"
     try:
         metrics.BATCH_RUNNING.set(1)
@@ -335,7 +338,7 @@ def _recalculate(batch_id: uuid.UUID, job_id: str, measure_ids: list[str] | None
                 raise RuntimeError("The selected patients are no longer available in the calculation batch.")
             selected_attributed = {patient_id: attributed.get(patient_id) for patient_id in selected}
             run = measures.run_measures(conn, selected, selected_attributed, batch_id.hex[:8], job_id,
-                                        measure_ids=measure_ids)
+                                        measure_ids=measure_ids, actor_user_id=actor_user_id)
             engine = run.counts()
             _event(conn, batch_id, "measures.received",
                    {"engine_run_id": run.run_id, "patients": run.patients, "measures": engine["measures"]})
