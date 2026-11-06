@@ -9,6 +9,8 @@ interface StarCalculationResultsProps {
   bare?: boolean
 }
 
+const scoreForDisplay = (result: StarCalculationResult): number | null => result.appliedScore ?? result.inputScore
+
 export function StarCalculationResults({ calculationResult, comparisonResult, bare }: StarCalculationResultsProps) {
   return (
     <StarSection
@@ -60,13 +62,13 @@ export function StarCalculationResults({ calculationResult, comparisonResult, ba
             <tbody>
               <tr>
                 <td>Before</td>
-                <td>{formatRate(comparisonResult.before.appliedScore)}</td>
+                <td>{formatRate(scoreForDisplay(comparisonResult.before))}</td>
                 <td>{comparisonResult.before.assignedStar ?? "-"}</td>
                 <td><span className={toStatusClass(comparisonResult.before.ratingStatus)}>{comparisonResult.before.ratingStatus}</span></td>
               </tr>
               <tr>
                 <td>After</td>
-                <td>{formatRate(comparisonResult.after.appliedScore)}</td>
+                <td>{formatRate(scoreForDisplay(comparisonResult.after))}</td>
                 <td>{comparisonResult.after.assignedStar ?? "-"}</td>
                 <td><span className={toStatusClass(comparisonResult.after.ratingStatus)}>{comparisonResult.after.ratingStatus}</span></td>
               </tr>
