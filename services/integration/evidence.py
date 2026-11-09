@@ -43,6 +43,10 @@ class Conflict(ValueError):
     """The request is valid but the record is in a state that does not allow it."""
 
 
+class AiEvidenceOff(Conflict):
+    """EXTRACTION_DATA_CLASS is not "synthetic", so no document may be sent to OpenRouter."""
+
+
 class _Capture(httpx.BaseTransport):
     """Records each request and response for the review screen, with the API key hidden (as on the demo page)."""
 
@@ -70,7 +74,11 @@ class _Capture(httpx.BaseTransport):
 def find_evidence(conn: psycopg.Connection, key: str) -> dict:
     """Run the extraction for one gap, save kept findings as proposed, then re-score. Raises LookupError.
 
-    The run and its attempts are committed as they happen, so failed calls are kept too."""
+    The run and its attempts are committed as they happen, so failed calls are kept too. Raises AiEvidenceOff, before
+    any run row or model call, unless EXTRACTION_DATA_CLASS is "synthetic"."""
+    if EXTRACTION_SETTINGS.data_class != "synthetic":
+        raise AiEvidenceOff("AI evidence is off: set EXTRACTION_DATA_CLASS=synthetic in .env to confirm only synthetic "
+                            "data is sent to OpenRouter.")
     gap = prompt.load_gap_context(conn, key)
     measure = prompt.load_measure(conn, gap.measure_code, gap.measurement_year)
     pages = prompt.select_pages(conn, gap)
