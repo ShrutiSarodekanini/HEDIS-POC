@@ -120,6 +120,10 @@ class UserRoleIn(BaseModel):
     role: Literal["admin", "user"]
 
 
+class UserPasswordIn(BaseModel):
+    new_password: str
+
+
 class CalculationRequest(BaseModel):
     measures: list[str] | None = None
     patient_ids: list[str] | None = None
@@ -1369,6 +1373,25 @@ def create_app(
             raise HTTPException(status_code=400, detail=str(exc)) from exc
         conn.commit()
         return updated
+
+    @app.put("/api/admin/users/{user_id}/password")
+    @app_metrics.track_admin("password")
+    def auth_admin_set_password(
+        user_id: int,
+        body: UserPasswordIn,
+        conn: psycopg.Connection = Depends(get_auth_conn),
+        actor: integration_auth.AuthUser = Depends(admin_auth_user),
+    ) -> dict:
+        try:
+            integration_auth.set_password(conn, user_id, body.new_password)
+        except LookupError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        intake_db.audit(conn, "app_user", str(user_id), "user.password_reset", {"user_id": user_id},
+                        actor=actor.email)  # phi-ok: actor is the admin's sign-in email, not patient data
+        conn.commit()
+        return {"status": "ok", "user_id": user_id}
 
     @app.post("/api/star-rating/calculate")
     @app_metrics.track_star("calculate", lambda kw: kw["request"].result.measure_code)

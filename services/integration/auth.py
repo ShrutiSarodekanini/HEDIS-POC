@@ -154,16 +154,13 @@ def signup(conn: psycopg.Connection, email: str, password: str) -> None:
         raise ValueError("This email is already registered.") from exc
 
 
-def reset_password_for_email(conn: psycopg.Connection, email: str, new_password: str) -> None:
-    user_email = normalize_email(email)
+def set_password(conn: psycopg.Connection, user_id: int, new_password: str) -> None:
+    """Set a user's password (administrator action) and revoke that user's sessions. Raises LookupError, AuthError."""
     validate_password(new_password)
-    row = conn.execute("""SELECT user_id FROM app_user
-                           WHERE email = %s AND is_active AND access_status = 'approved'""", (user_email,)).fetchone()
+    row = conn.execute("UPDATE app_user SET password_hash = %s, updated_at = now() WHERE user_id = %s RETURNING user_id",
+                       (hash_password(new_password), user_id)).fetchone()
     if row is None:
-        raise LookupError("Email does not exist.")
-    user_id = row[0]
-    conn.execute("UPDATE app_user SET password_hash = %s, updated_at = now() WHERE user_id = %s",
-                 (hash_password(new_password), user_id))
+        raise LookupError("User account not found.")
     conn.execute("UPDATE auth_session SET revoked_at = now() WHERE user_id = %s AND revoked_at IS NULL", (user_id,))
 
 
