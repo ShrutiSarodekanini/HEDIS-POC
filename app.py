@@ -1214,11 +1214,14 @@ def create_app(
             database.validate()
         try:
             with intake_db.connect() as conn:
-                integration_auth.ensure_default_users(conn)
+                has_admin = integration_auth.ensure_bootstrap_admin(conn)
         except Exception as exc:
             raise RuntimeError(
                 "Local auth setup failed. Run `python -m alembic -c db/alembic.ini upgrade head` and retry."
             ) from exc
+        if not has_admin:
+            log.warning("No admin account. Set HEDIS_BOOTSTRAP_ADMIN_EMAIL and HEDIS_BOOTSTRAP_ADMIN_PASSWORD "
+                        "in .env and restart.")
         integration_pipeline.recover_interrupted_batches()
         integration_pipeline.record_missing_upload_sizes()
         cfg.evidence_storage_dir.mkdir(parents=True, exist_ok=True)

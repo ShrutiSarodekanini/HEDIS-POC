@@ -25,6 +25,8 @@ Values that matter most:
 |---|---|
 | `DATABASE_URL` | Postgres connection, with the schema in `options=-csearch_path%3D<schema>` |
 | `OPENROUTER_API_KEY`, `EXTRACTION_MODEL` | AI evidence extraction (the model must be serving on OpenRouter) |
+| `HEDIS_BOOTSTRAP_ADMIN_EMAIL` | Email of the first admin, created at startup if no account has it (lowercase) |
+| `HEDIS_BOOTSTRAP_ADMIN_PASSWORD` | Password for that first admin, at least 8 characters; never changes an existing account |
 | `INTEGRATION_EVIDENCE_DIR` | Stored evidence documents, normally `data/evidence_store` |
 | `RABBITMQ_*` | Broker connection (defaults match `docker-compose.yml`) |
 | `GRAFANA_ADMIN_PASSWORD`, `GRAFANA_DB_PASSWORD` | Optional, for Grafana |

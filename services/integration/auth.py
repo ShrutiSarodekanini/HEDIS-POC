@@ -10,6 +10,7 @@ import base64
 import binascii
 import hashlib
 import hmac
+import logging
 import os
 import secrets
 import uuid
@@ -19,15 +20,14 @@ from datetime import UTC, datetime, timedelta
 import psycopg
 from fastapi import HTTPException
 
+from services.document_intake.db import audit
+
+log = logging.getLogger(__name__)
+
 SESSION_TTL_HOURS = 24
 PASSWORD_ITERATIONS = 210_000
 ROLES = {"admin", "user"}
 ACCESS_STATUSES = {"pending", "approved", "rejected"}
-
-_DEFAULT_USERS = [
-    ("admin@gmail.com", "Admin@123", "admin"),
-    ("user@gmail.com", "User@123", "user"),
-]
 
 
 @dataclass(frozen=True)
@@ -101,17 +101,34 @@ def _token_hash(token: str) -> str:
     return hashlib.sha256(token.encode("utf-8")).hexdigest()
 
 
-def ensure_default_users(conn: psycopg.Connection) -> None:
-    """Create default demo users once, with lowercase emails."""
-    for email, password, role in _DEFAULT_USERS:
-        found = conn.execute("SELECT 1 FROM app_user WHERE email = %s", (email,)).fetchone()
-        if found:
-            continue
-        conn.execute(
-            """INSERT INTO app_user (email, password_hash, role, is_active, access_status)
-               VALUES (%s, %s, %s, true, 'approved')""",
-            (email, hash_password(password), role),
-        )
+def ensure_bootstrap_admin(conn: psycopg.Connection) -> bool:
+    """Create the admin named by HEDIS_BOOTSTRAP_ADMIN_EMAIL and HEDIS_BOOTSTRAP_ADMIN_PASSWORD if it does not exist.
+
+    Does nothing when either setting is empty or the email already has an account (its password and role are never
+    changed). Returns whether an approved, active admin exists afterwards."""
+    email = os.environ.get("HEDIS_BOOTSTRAP_ADMIN_EMAIL", "").strip()
+    password = os.environ.get("HEDIS_BOOTSTRAP_ADMIN_PASSWORD", "")
+    if email and password:
+        try:
+            user_email = normalize_email(email)
+            validate_password(password)
+        except AuthError as exc:
+            log.warning("Bootstrap admin not created, HEDIS_BOOTSTRAP_ADMIN_* is not valid: %s", exc)
+        else:
+            found = conn.execute("SELECT 1 FROM app_user WHERE email = %s", (user_email,)).fetchone()
+            if not found:
+                user_id = conn.execute(
+                    """INSERT INTO app_user (email, password_hash, role, is_active, access_status)
+                       VALUES (%s, %s, 'admin', true, 'approved') RETURNING user_id""",
+                    (user_email, hash_password(password)),
+                ).fetchone()[0]
+                audit(conn, "app_user", str(user_id), "user.bootstrap_admin",
+                      {"email": user_email})  # phi-ok: staff admin sign-in email, required by the bootstrap audit
+    row = conn.execute(
+        """SELECT EXISTS (SELECT 1 FROM app_user
+                           WHERE role = 'admin' AND is_active AND access_status = 'approved')"""
+    ).fetchone()
+    return bool(row[0])
 
 
 def create_session(conn: psycopg.Connection, user_id: int) -> tuple[str, datetime]:
