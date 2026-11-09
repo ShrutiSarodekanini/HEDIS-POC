@@ -8,11 +8,10 @@ interface GapEvidenceTabProps {
   noDocuments: boolean
   runningExtraction: boolean
   selectedProposalId: string
-  reviewerId: string
+  reviewerEmail: string
   decisionReason: string
   runningDecision: boolean
   onRun: () => void
-  onReviewerChange: (value: string) => void
   onReasonChange: (value: string) => void
   onDecide: (decision: "confirm" | "reject", proposalId: string) => void
   onViewDocument: (pageRef: DocumentPageRef) => void
@@ -25,11 +24,10 @@ export function GapEvidenceTab({
   noDocuments,
   runningExtraction,
   selectedProposalId,
-  reviewerId,
+  reviewerEmail,
   decisionReason,
   runningDecision,
   onRun,
-  onReviewerChange,
   onReasonChange,
   onDecide,
   onViewDocument,
@@ -53,14 +51,8 @@ export function GapEvidenceTab({
         {canDecide && rows.length > 0 ? (
           <>
             <label className="calc-check">
-              <span>Reviewer ID</span>
-              <input
-                className="text-input"
-                value={reviewerId}
-                onChange={(event) => {
-                  onReviewerChange(event.target.value)
-                }}
-              />
+              <span>Reviewing as</span>
+              <input className="text-input" readOnly value={reviewerEmail} />
             </label>
             <label className="calc-check">
               <span>Decision notes (required to reject)</span>

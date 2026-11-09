@@ -237,13 +237,12 @@ def _save_proposed(conn: psycopg.Connection, gap_id: uuid.UUID, kept: list[dict]
     return saved, skipped
 
 
-def decide(conn: psycopg.Connection, evidence_id: str, decision: str, reason: str | None,
-           reviewer: str | None = None) -> dict:
+def decide(conn: psycopg.Connection, evidence_id: str, decision: str, reason: str | None, reviewer: str) -> dict:
     """Record a confirm or reject, update the proposal and its gap, then re-score.
 
-    reviewer is the ID typed on the review screen; without one the configured reviewer is recorded (the POC has no
-    sign-in yet). Raises LookupError for an unknown proposal, ValueError for a bad decision, a reject without a reason
-    or an unusable reviewer ID, and Conflict when the proposal was already decided."""
+    reviewer is the signed-in user's email, never a value from the request body. Raises LookupError for an unknown
+    proposal, ValueError for a bad decision, a reject without a reason or an unusable reviewer, and Conflict when the
+    proposal was already decided."""
     status = DECISIONS.get(decision)
     if status is None:
         raise ValueError("decision must be 'confirm' or 'reject'")
@@ -261,6 +260,8 @@ def decide(conn: psycopg.Connection, evidence_id: str, decision: str, reason: st
     gap_id, current = row
     if current != "proposed":
         raise Conflict(f"evidence {evidence_id} is already {current}")
+    if not (reviewer or "").strip():
+        raise ValueError("a decision needs the signed-in reviewer")
     reviewer = clean_reviewer(reviewer)
     decision_id = conn.execute(
         """INSERT INTO review_decisions (evidence_id, reviewer, decision, reject_reason_code, reason)
@@ -322,7 +323,7 @@ def close_gap(conn: psycopg.Connection, gap_id: str, actor_user_id: int, actor: 
 
 
 def clean_reviewer(reviewer: str | None) -> str:
-    """The reviewer ID typed on the screen, or the configured one; raises ValueError for an unusable ID."""
+    """The signed-in user's email, or the configured reviewer when none is given; raises ValueError for an unusable ID."""
     reviewer = (reviewer or "").strip() or SETTINGS.reviewer
     if len(reviewer) > 64 or not all(ch.isalnum() or ch in "._-@" for ch in reviewer):
         raise ValueError("reviewer ID may use letters, digits and . _ - @ only, up to 64 characters")

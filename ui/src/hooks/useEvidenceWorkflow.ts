@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
 
-import { envConfig } from "../config/env"
 import type {
   EvidenceCapabilities,
   EvidenceGapDetail,
@@ -9,6 +8,7 @@ import type {
   EvidenceQueueItem,
   EvidenceScopeGap,
 } from "../models/evidence"
+import { loadAuthSession } from "../services/authSession"
 import { toRequestErrorMessage } from "../services/http"
 import {
   clearEvidenceServiceCaches,
@@ -22,35 +22,6 @@ import {
   submitEvidenceDecision,
 } from "../services/evidence.service"
 
-const REVIEWER_STORAGE_KEY = "hedis.evidence.reviewer"
-
-const sanitizeDefaultReviewer = (value: string): string => {
-  const normalized = value.trim().toLowerCase().replace(/\s+/g, ".")
-  return normalized.replace(/[^a-z0-9._@-]/g, "")
-}
-
-const readStoredReviewer = (): string => {
-  try {
-    const fromStorage = localStorage.getItem(REVIEWER_STORAGE_KEY)
-    if (fromStorage && fromStorage.trim().length > 0) {
-      return fromStorage.trim()
-    }
-  } catch {
-    // Storage can fail in strict browser privacy mode.
-  }
-
-  const fallback = sanitizeDefaultReviewer(envConfig.defaultUserName)
-  return fallback.length > 0 ? fallback : "reviewer.user"
-}
-
-const rememberReviewer = (value: string): void => {
-  try {
-    localStorage.setItem(REVIEWER_STORAGE_KEY, value)
-  } catch {
-    // Ignore storage errors; reviewer stays in memory.
-  }
-}
-
 export function useEvidenceWorkflow() {
   const [capabilities, setCapabilities] = useState<EvidenceCapabilities | null>(null)
   const [overview, setOverview] = useState<EvidenceOverview | null>(null)
@@ -60,7 +31,8 @@ export function useEvidenceWorkflow() {
   const [selectedScopeGapId, setSelectedScopeGapId] = useState<string>("")
   const [selectedProposalId, setSelectedProposalId] = useState<string>("")
 
-  const [reviewerId, setReviewerId] = useState<string>(readStoredReviewer)
+  // Display only: the backend records the signed-in user from the session token.
+  const reviewerEmail = loadAuthSession()?.user.email ?? ""
   const [decisionReason, setDecisionReason] = useState<string>("")
 
   const [loadingSetup, setLoadingSetup] = useState<boolean>(true)
@@ -235,11 +207,6 @@ export function useEvidenceWorkflow() {
     setStatusMessage("Evidence review data refreshed.")
   }, [capabilities, initialize, refreshOverview])
 
-  const updateReviewer = useCallback((value: string): void => {
-    setReviewerId(value)
-    rememberReviewer(value)
-  }, [])
-
   const runExtractionNow = useCallback(async (): Promise<void> => {
     if (!capabilities || !selectedScopeGap?.gapId) {
       return
@@ -270,12 +237,6 @@ export function useEvidenceWorkflow() {
       return
     }
 
-    const reviewer = reviewerId.trim()
-    if (!reviewer) {
-      setErrorMessage("Reviewer ID is required.")
-      return
-    }
-
     if (decision === "reject" && decisionReason.trim().length === 0) {
       setErrorMessage("Reject requires a reason.")
       return
@@ -288,7 +249,6 @@ export function useEvidenceWorkflow() {
     try {
       const result = await submitEvidenceDecision(capabilities, targetProposalId, {
         decision,
-        reviewer,
         reason: decision === "reject" ? decisionReason.trim() : undefined,
       })
       setDecisionReason("")
@@ -299,16 +259,10 @@ export function useEvidenceWorkflow() {
     } finally {
       setRunningDecision(false)
     }
-  }, [capabilities, decisionReason, refreshOverview, reviewerId, selectedQueueItem?.proposalId])
+  }, [capabilities, decisionReason, refreshOverview, selectedQueueItem?.proposalId])
 
   const runExport = useCallback(async (): Promise<void> => {
     if (!capabilities) {
-      return
-    }
-
-    const reviewer = reviewerId.trim()
-    if (capabilities.mode === "integration" && !reviewer) {
-      setErrorMessage("Reviewer ID is required for export.")
       return
     }
 
@@ -318,7 +272,7 @@ export function useEvidenceWorkflow() {
 
     try {
       const result = capabilities.mode === "integration"
-        ? await exportSupplementalEvidence(capabilities, reviewer)
+        ? await exportSupplementalEvidence(capabilities)
         : await runEvidenceDashboardSeed()
       setStatusMessage(result.message)
       await refreshOverview(capabilities)
@@ -327,7 +281,7 @@ export function useEvidenceWorkflow() {
     } finally {
       setRunningExport(false)
     }
-  }, [capabilities, refreshOverview, reviewerId])
+  }, [capabilities, refreshOverview])
 
   return {
     capabilities,
@@ -338,7 +292,7 @@ export function useEvidenceWorkflow() {
     selectedQueueItem,
     selectedScopeGapId,
     selectedProposalId,
-    reviewerId,
+    reviewerEmail,
     decisionReason,
     loadingSetup,
     loadingOverview,
@@ -353,7 +307,6 @@ export function useEvidenceWorkflow() {
     refreshAll,
     setSelectedScopeGapId,
     setSelectedProposalId,
-    setReviewerId: updateReviewer,
     setDecisionReason,
     runExtractionNow,
     submitDecision,

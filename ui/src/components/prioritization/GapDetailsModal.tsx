@@ -38,7 +38,7 @@ export function GapDetailsModal({ item, onClose, onGapChanged = noop }: GapDetai
     selectedScopeGap,
     selectedScopeGapId,
     selectedProposalId,
-    reviewerId,
+    reviewerEmail,
     decisionReason,
     loadingSetup,
     loadingGapDetail,
@@ -50,7 +50,6 @@ export function GapDetailsModal({ item, onClose, onGapChanged = noop }: GapDetai
     retrySetup,
     setSelectedScopeGapId,
     setSelectedProposalId,
-    setReviewerId,
     setDecisionReason,
     runExtractionNow,
     submitDecision,
@@ -155,13 +154,12 @@ export function GapDetailsModal({ item, onClose, onGapChanged = noop }: GapDetai
               noDocuments={noDocuments}
               runningExtraction={runningExtraction}
               selectedProposalId={selectedProposalId}
-              reviewerId={reviewerId}
+              reviewerEmail={reviewerEmail}
               decisionReason={decisionReason}
               runningDecision={runningDecision}
               onRun={() => {
                 void runExtractionNow()
               }}
-              onReviewerChange={setReviewerId}
               onReasonChange={setDecisionReason}
               onDecide={(decision, proposalId) => {
                 setSelectedProposalId(proposalId)

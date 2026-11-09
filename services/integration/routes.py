@@ -82,11 +82,6 @@ class ForgotPasswordIn(BaseModel):
 class DecisionIn(BaseModel):
     decision: Literal["confirm", "reject"]
     reason: str | None = None
-    reviewer: str | None = None
-
-
-class ExportIn(BaseModel):
-    reviewer: str | None = None
 
 
 class ResetIn(BaseModel):
@@ -206,14 +201,14 @@ def build_router(current_user_dep: Callable[..., auth.AuthUser],
     @router.post("/api/evidence/{proposal_id}/decision")
     @app_metrics.track_evidence
     def decide(proposal_id: str, body: DecisionIn, conn: psycopg.Connection = Depends(get_conn),
-               _: auth.AuthUser = Depends(current_user_dep)) -> dict:
-        return evidence.decide(conn, proposal_id, body.decision, body.reason, body.reviewer)
+               user: auth.AuthUser = Depends(current_user_dep)) -> dict:
+        return evidence.decide(conn, proposal_id, body.decision, body.reason, user.email)
 
     @router.post("/api/supplemental/export")
     @track("supplemental export")
-    def export_supplemental(body: ExportIn | None = None, conn: psycopg.Connection = Depends(get_conn),
-                            _: auth.AuthUser = Depends(admin_dep)) -> dict:
-        return export.export_supplemental(conn, evidence.clean_reviewer(body.reviewer if body else None))
+    def export_supplemental(conn: psycopg.Connection = Depends(get_conn),
+                            user: auth.AuthUser = Depends(admin_dep)) -> dict:
+        return export.export_supplemental(conn, evidence.clean_reviewer(user.email))
 
     @router.post("/api/reset")
     @track("start over")
