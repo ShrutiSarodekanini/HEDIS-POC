@@ -175,39 +175,42 @@ def _gap_rate(closed_count: int, total_count: int) -> float | None:
 
 
 def _load_dashboard_rows(session: Session) -> list[dict[str, object]]:
-    """Read gap rows from whichever schema is present in the connected database."""
+    """Read real lifecycle gap rows from whichever schema is present in the connected database."""
     try:
         rows = session.execute(
             text(
-                """SELECT g.care_gap_id,
-                          g.member_id,
+                """SELECT g.gap_id::text AS care_gap_id,
+                          COALESCE(p.mrn, p.patient_id) AS member_id,
                           g.measure_id,
                           g.measurement_year,
                           g.status,
-                          m.name AS measure_name,
-                          mb.first_name,
-                          mb.last_name
-                     FROM care_gaps g
-                     JOIN measures m ON g.measure_id = m.measure_id
-                     JOIN members mb ON g.member_id = mb.member_id"""
+                          COALESCE(mr.name, g.measure_id) AS measure_name,
+                          NULL::text AS first_name,
+                          NULL::text AS last_name
+                     FROM care_gap g
+                     JOIN patient p ON g.patient_id = p.patient_id
+                     LEFT JOIN measure_rule mr ON mr.measure_id = g.measure_id
+                                              AND mr.measurement_year = g.measurement_year"""
             )
         ).mappings().all()
         return [dict(r) for r in rows]
     except SQLAlchemyError:
         session.rollback()
 
+    # Legacy compatibility fallback for schemas that expose care_gaps/measures/members only.
     rows = session.execute(
         text(
-            """SELECT g.gap_id::text AS care_gap_id,
-                      COALESCE(p.mrn, p.patient_id) AS member_id,
+            """SELECT g.care_gap_id,
+                      g.member_id,
                       g.measure_id,
                       g.measurement_year,
                       g.status,
-                      g.measure_id AS measure_name,
-                      NULL::text AS first_name,
-                      NULL::text AS last_name
-                 FROM care_gap g
-                 JOIN patient p ON g.patient_id = p.patient_id"""
+                      m.name AS measure_name,
+                      mb.first_name,
+                      mb.last_name
+                 FROM care_gaps g
+                 JOIN measures m ON g.measure_id = m.measure_id
+                 JOIN members mb ON g.member_id = mb.member_id"""
         )
     ).mappings().all()
     return [dict(r) for r in rows]
@@ -436,10 +439,17 @@ def _build_star_dashboard(
         fallback_total = int(stat["total"])
         fallback_baseline_closed = int(stat["baseline_closed"])
         selected_open = int(stat.get("selected_open") or 0)
+        engine_denominator = stat.get("engine_denominator")
+        engine_numerator = stat.get("engine_numerator")
 
-        # Use live care-gap statuses as baseline so manual close/open updates are reflected immediately.
-        total = fallback_total
-        baseline_closed = fallback_baseline_closed
+        # Prefer engine populations for baseline/projected stars when available.
+        if isinstance(engine_denominator, int) and isinstance(engine_numerator, int) and engine_denominator >= 0:
+            total = max(engine_denominator, 0)
+            baseline_closed = min(max(engine_numerator, 0), total)
+        else:
+            # Fallback for profiles without engine-result populations.
+            total = fallback_total
+            baseline_closed = fallback_baseline_closed
 
         projected_closed = min(total, baseline_closed + max(selected_open, 0))
         baseline_rate = _gap_rate(baseline_closed, total)

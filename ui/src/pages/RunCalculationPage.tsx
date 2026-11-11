@@ -8,7 +8,7 @@ type OutcomeFilter = "" | "gap" | "met" | "excluded" | "not in population"
 const OUTCOME_FILTERS: Array<{ value: OutcomeFilter; label: string }> = [
   { value: "", label: "All" },
   { value: "gap", label: "Gap" },
-  { value: "met", label: "Closed" },
+  { value: "met", label: "Met" },
   { value: "excluded", label: "Excluded" },
   { value: "not in population", label: "Not in population" },
 ]
@@ -21,7 +21,7 @@ const toOutcomeLabel = (value: string): string => {
     return "-"
   }
   if (normalized === "met") {
-    return "Closed"
+    return "Met"
   }
   return normalized.replace(/_/g, " ").replace(/\b\w/g, (part) => part.toUpperCase())
 }
@@ -200,7 +200,7 @@ export function RunCalculationPage() {
             <strong>{formatInteger(overview?.measures.reduce((sum, item) => sum + Math.max(0, item.inMeasure - item.excluded), 0) ?? 0)}</strong>
           </article>
           <article className="kpi-card">
-            <span>Closed</span>
+            <span>Met</span>
             <strong>{formatInteger(overview?.measures.reduce((sum, item) => sum + item.met, 0) ?? 0)}</strong>
           </article>
           <article className="kpi-card">
@@ -223,7 +223,7 @@ export function RunCalculationPage() {
                 <th>Measure</th>
                 <th>Type</th>
                 <th>In measure</th>
-                <th>Closed</th>
+                <th>Met</th>
                 <th>Excluded</th>
                 <th>Not met</th>
                 <th>Rate</th>
@@ -314,7 +314,7 @@ export function RunCalculationPage() {
               <tr>
                 <th>Patient</th>
                 <th>In denominator</th>
-                <th>Closed</th>
+                <th>Met</th>
                 <th>Excluded</th>
                 <th>Outcome</th>
                 <th>Gap status</th>
