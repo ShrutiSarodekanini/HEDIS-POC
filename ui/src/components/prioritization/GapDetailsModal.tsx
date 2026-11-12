@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react"
 
 import { useEvidenceWorkflow } from "../../hooks/useEvidenceWorkflow"
-import { useGapClose } from "../../hooks/useGapClose"
+import { useGapRerun } from "../../hooks/useGapRerun"
 import type { DocumentPageRef } from "../../models/evidence"
 import type { PrioritizationWorklistItem } from "../../models/prioritization"
 import { GapFacts } from "../evidence/GapFacts"
@@ -54,7 +54,7 @@ export function GapDetailsModal({ item, onClose, onGapChanged = noop }: GapDetai
     runExtractionNow,
     submitDecision,
   } = useEvidenceWorkflow()
-  const gapClose = useGapClose(gapId, onGapChanged)
+  const gapRerun = useGapRerun(gapId, onGapChanged)
 
   // The hook resets the scope to its first gap when the overview loads, so re-apply until it sticks.
   useEffect(() => {
@@ -127,11 +127,12 @@ export function GapDetailsModal({ item, onClose, onGapChanged = noop }: GapDetai
             <GapSummaryTab
               item={item}
               detail={detail}
-              closing={gapClose.closing}
-              closedStatus={gapClose.closedStatus}
-              closeError={gapClose.error}
-              onClose={() => {
-                void gapClose.closeGap()
+              running={gapRerun.running}
+              finalStatus={gapRerun.finalStatus}
+              outcome={gapRerun.outcome}
+              rerunError={gapRerun.error}
+              onRerun={() => {
+                void gapRerun.rerun()
               }}
             />
           ) : null}

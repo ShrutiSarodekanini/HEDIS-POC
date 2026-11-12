@@ -6,21 +6,25 @@ import { formatDateTime } from "../../utils/format"
 import { titleCase } from "../evidence/evidenceFormat"
 import { CHANNEL_LABELS, formatNumber } from "./prioritizationFormat"
 
-const CLOSABLE = new Set(["closed_pending_engine", "excluded_pending_engine"])
+// Every required part of the evidence is confirmed, so the engine can be asked to rerun with it.
+const READY_FOR_ENGINE = new Set(["closed_pending_engine", "excluded_pending_engine"])
+const CLOSED_BY_ENGINE = new Set(["closed", "excluded"])
 
 interface GapSummaryTabProps {
   item: PrioritizationWorklistItem
   detail: EvidenceGapDetail | null
-  closing: boolean
-  closedStatus: string | null
-  closeError: string | null
-  onClose: () => void
+  running: boolean
+  finalStatus: string | null
+  outcome: string | null
+  rerunError: string | null
+  onRerun: () => void
 }
 
-export function GapSummaryTab({ item, detail, closing, closedStatus, closeError, onClose }: GapSummaryTabProps) {
+export function GapSummaryTab({ item, detail, running, finalStatus, outcome, rerunError, onRerun }: GapSummaryTabProps) {
   const [confirming, setConfirming] = useState<boolean>(false)
-  const reviewStatus = closedStatus ?? detail?.reviewStatus ?? item.reviewStatus
-  const canClose = !closedStatus && CLOSABLE.has(reviewStatus)
+  const reviewStatus = finalStatus ?? detail?.reviewStatus ?? item.reviewStatus
+  const closed = CLOSED_BY_ENGINE.has(reviewStatus)
+  const canRerun = !closed && READY_FOR_ENGINE.has(reviewStatus)
 
   return (
     <>
@@ -49,27 +53,32 @@ export function GapSummaryTab({ item, detail, closing, closedStatus, closeError,
         <div><dt>Deadline</dt><dd>{detail?.deadlineDate ?? "-"}</dd></div>
       </dl>
 
-      {closedStatus ? (
-        <p className="card-message">Gap closed</p>
-      ) : canClose ? (
+      {outcome ? <p className="card-message">{outcome}</p> : null}
+
+      {closed ? (
+        outcome ? null : <p className="card-message">Closed by the measure engine</p>
+      ) : canRerun ? (
         confirming ? (
           <div className="confirm-box">
-            <p>Close this gap? This marks the care as done.</p>
+            <p>
+              Rerun the measure engine for this patient with the confirmed evidence? The engine closes the gap only if
+              the measure is now met.
+            </p>
             <div className="actions">
               <button
                 type="button"
                 className="btn success"
-                disabled={closing}
+                disabled={running}
                 onClick={() => {
-                  onClose()
+                  onRerun()
                 }}
               >
-                {closing ? "Closing..." : "Confirm"}
+                {running ? "Engine running..." : "Confirm"}
               </button>
               <button
                 type="button"
                 className="btn outline"
-                disabled={closing}
+                disabled={running}
                 onClick={() => {
                   setConfirming(false)
                 }}
@@ -87,20 +96,20 @@ export function GapSummaryTab({ item, detail, closing, closedStatus, closeError,
                 setConfirming(true)
               }}
             >
-              Close gap
+              Rerun engine
             </button>
           </div>
         )
       ) : (
         <div className="actions">
           <button type="button" className="btn primary" disabled>
-            Close gap
+            Rerun engine
           </button>
           <span className="note">Confirm the AI evidence first.</span>
         </div>
       )}
 
-      {closeError ? <p className="card-message error">{closeError}</p> : null}
+      {rerunError ? <p className="card-message error">{rerunError}</p> : null}
     </>
   )
 }

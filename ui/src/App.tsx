@@ -163,7 +163,7 @@ function App() {
       ) : activeView === "evidence" ? (
         <EvidenceReviewPage />
       ) : activeView === "admin" ? (
-        <AdministratorPage actorEmail={authUser?.email ?? ""} actorRole={authUser?.role ?? "user"} />
+        <AdministratorPage actorEmail={authUser?.email ?? ""} actorRole={authUser?.role ?? "outreach"} />
       ) : (
         <DashboardPage
           snapshot={snapshot}

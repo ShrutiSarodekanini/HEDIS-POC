@@ -1,7 +1,11 @@
-"""Local username/password auth for the integration app.
+"""Local username/password auth for the integration app, and the role a user needs for each kind of action.
 
 The POC uses app-managed users in PostgreSQL with bearer sessions stored server-side.
 Emails are lowercase-only. Session tokens expire after 24 hours.
+
+Roles follow the users named in UC-HC-02: quality analysts, medical record abstractors, outreach coordinators and the
+compliance (audit) team, plus administrators. PERMISSIONS says which roles may do what; the API checks it on every
+route (app.py `requires`), and the UI mirrors it only to hide what a role cannot use.
 """
 
 from __future__ import annotations
@@ -26,8 +30,23 @@ log = logging.getLogger(__name__)
 
 SESSION_TTL_HOURS = 24
 PASSWORD_ITERATIONS = 210_000
-ROLES = {"admin", "user"}
+ROLES = {"admin", "analyst", "abstractor", "outreach", "auditor"}
+# A new sign-up gets the least access until an administrator approves it and picks its role.
+SIGNUP_ROLE = "outreach"
 ACCESS_STATUSES = {"pending", "approved", "rejected"}
+
+PERMISSIONS: dict[str, frozenset[str]] = {
+    # Dashboards, the prioritized work list, measures, stars and data quality summaries.
+    "view": frozenset(ROLES),
+    # Anything with patient records: gap detail and evidence quotes, document pages, patient FHIR data, patient lists.
+    "view_records": frozenset({"admin", "analyst", "abstractor", "auditor"}),
+    # Run AI evidence for a gap, confirm or reject evidence, and ask the engine to rerun a gap.
+    "review": frozenset({"admin", "analyst", "abstractor"}),
+    # Start measure calculations.
+    "calculate": frozenset({"admin", "analyst"}),
+    # Uploads, users, exports, data quality runs, reset and sample data.
+    "admin": frozenset({"admin"}),
+}
 
 
 @dataclass(frozen=True)
@@ -164,8 +183,8 @@ def signup(conn: psycopg.Connection, email: str, password: str) -> None:
     try:
         conn.execute(
             """INSERT INTO app_user (email, password_hash, role, is_active, access_status)
-               VALUES (%s, %s, 'user', false, 'pending')""",
-            (user_email, hash_password(password)),
+               VALUES (%s, %s, %s, false, 'pending')""",
+            (user_email, hash_password(password), SIGNUP_ROLE),
         )
     except psycopg.errors.UniqueViolation as exc:
         raise ValueError("This email is already registered.") from exc
@@ -226,12 +245,13 @@ def list_users(conn: psycopg.Connection) -> list[dict]:
     return [dict(zip(keys, row)) for row in rows]
 
 
-def set_access_status(conn: psycopg.Connection, user_id: int, access_status: str, actor_id: int) -> dict:
-    """Approve or reject an account and revoke its sessions whenever access is removed."""
+def set_access_status(conn: psycopg.Connection, user_id: int, access_status: str, actor: AuthUser) -> dict:
+    """Approve or reject an account, revoke its sessions whenever access is removed, and audit the change."""
     if access_status not in ACCESS_STATUSES:
         raise ValueError("Access status must be pending, approved, or rejected.")
-    if user_id == actor_id:
+    if user_id == actor.user_id:
         raise ValueError("You cannot change your own account access.")
+    before = conn.execute("SELECT access_status FROM app_user WHERE user_id = %s FOR UPDATE", (user_id,)).fetchone()
     active = access_status == "approved"
     row = conn.execute(
         """UPDATE app_user
@@ -244,16 +264,20 @@ def set_access_status(conn: psycopg.Connection, user_id: int, access_status: str
         raise LookupError("User account not found.")
     if not active:
         conn.execute("UPDATE auth_session SET revoked_at = now() WHERE user_id = %s AND revoked_at IS NULL", (user_id,))
+    audit(conn, "app_user", str(user_id), "user.access_changed",
+          {"user_id": user_id, "access_status_before": before[0], "access_status": access_status},
+          actor=actor.email)  # phi-ok: actor is the admin's sign-in email, not patient data
     keys = ("user_id", "email", "role", "access_status", "is_active", "created_at", "updated_at")
     return dict(zip(keys, row))
 
 
-def set_role(conn: psycopg.Connection, user_id: int, role: str, actor_id: int) -> dict:
-    """Set an approved user's role and revoke sessions so the new authorization takes effect on next sign-in."""
+def set_role(conn: psycopg.Connection, user_id: int, role: str, actor: AuthUser) -> dict:
+    """Set an approved user's role, revoke sessions so it takes effect on next sign-in, and audit the change."""
     if role not in ROLES:
-        raise ValueError("Role must be admin or user.")
-    if user_id == actor_id and role != "admin":
+        raise ValueError(f"Role must be one of: {', '.join(sorted(ROLES))}.")
+    if user_id == actor.user_id and role != "admin":
         raise ValueError("You cannot remove your own administrator role.")
+    before = conn.execute("SELECT role FROM app_user WHERE user_id = %s FOR UPDATE", (user_id,)).fetchone()
     row = conn.execute(
         """UPDATE app_user
               SET role = %s, updated_at = now()
@@ -264,11 +288,21 @@ def set_role(conn: psycopg.Connection, user_id: int, role: str, actor_id: int) -
     if row is None:
         raise LookupError("Only an approved user can receive a role.")
     conn.execute("UPDATE auth_session SET revoked_at = now() WHERE user_id = %s AND revoked_at IS NULL", (user_id,))
+    audit(conn, "app_user", str(user_id), "user.role_changed",
+          {"user_id": user_id, "role_before": before[0], "role": role},
+          actor=actor.email)  # phi-ok: actor is the admin's sign-in email, not patient data
     keys = ("user_id", "email", "role", "access_status", "is_active", "created_at", "updated_at")
     return dict(zip(keys, row))
 
 
-def ensure_admin(user: AuthUser) -> AuthUser:
-    if user.role != "admin":
-        raise HTTPException(status_code=403, detail="Admin access is required.")
+def ensure_permission(user: AuthUser, permission: str) -> AuthUser:
+    """The user, or 403 when their role does not have this permission (PERMISSIONS)."""
+    allowed = PERMISSIONS[permission]
+    if user.role not in allowed:
+        raise HTTPException(status_code=403,
+                            detail=f"Your role ({user.role}) cannot do this. Roles that can: {', '.join(sorted(allowed))}.")
     return user
+
+
+def ensure_admin(user: AuthUser) -> AuthUser:
+    return ensure_permission(user, "admin")

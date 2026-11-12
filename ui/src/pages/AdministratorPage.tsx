@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useState } from "react"
 import type { AdminUserRecord, AuthRole } from "../models/auth"
 import { listAdminUsers, resetUserPassword, updateUserAccess, updateUserRole } from "../services/auth.service"
 import { toRequestErrorMessage } from "../services/http"
+import { AUTH_ROLES, ROLE_LABELS, roleLabel } from "../utils/access"
 import { formatDateTime } from "../utils/format"
 
 interface AdministratorPageProps {
@@ -179,13 +180,12 @@ export function AdministratorPage({ actorEmail, actorRole }: AdministratorPagePr
               {users.length > 0 ? users.map((user) => {
                 const isActor = user.email === actorEmail
                 const actionBusy = actionBusyId === user.user_id
-                const nextRole: AuthRole = user.role === "admin" ? "user" : "admin"
 
                 return (
                   <tr key={user.user_id}>
                     <td>{user.email}</td>
                     <td><span className={statusClass(user.access_status)}>{labelCase(user.access_status)}</span></td>
-                    <td>{labelCase(user.role)}</td>
+                    <td>{roleLabel(user.role)}</td>
                     <td>{formatDateTime(user.created_at)}</td>
                     <td>
                       {isActor ? (
@@ -263,11 +263,12 @@ export function AdministratorPage({ actorEmail, actorRole }: AdministratorPagePr
                       {isActor ? (
                         <span className="muted">Current account</span>
                       ) : (
-                        <button
-                          type="button"
-                          className="btn outline"
+                        <select
+                          aria-label={`Role for ${user.email}`}
+                          value={user.role}
                           disabled={actionBusy || user.access_status !== "approved"}
-                          onClick={() => {
+                          onChange={(event) => {
+                            const nextRole = event.target.value as AuthRole
                             void (async () => {
                               setActionBusyId(user.user_id)
                               setErrorMessage("")
@@ -282,8 +283,10 @@ export function AdministratorPage({ actorEmail, actorRole }: AdministratorPagePr
                             })()
                           }}
                         >
-                          Set {labelCase(nextRole)}
-                        </button>
+                          {AUTH_ROLES.map((role) => (
+                            <option key={role} value={role}>{ROLE_LABELS[role]}</option>
+                          ))}
+                        </select>
                       )}
                     </td>
                     <td>

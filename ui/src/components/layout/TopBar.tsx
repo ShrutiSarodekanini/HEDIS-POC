@@ -1,3 +1,5 @@
+import { roleLabel } from "../../utils/access"
+
 interface TopBarProps {
   appName: string
   runLabel: string
@@ -56,7 +58,7 @@ export function TopBar({
           </summary>
           <div className="profile-dropdown" role="menu" aria-label="Profile actions">
             <p className="profile-name">{userName}</p>
-            <p className="profile-role">{userRole}</p>
+            <p className="profile-role">{roleLabel(userRole)}</p>
             <button
               type="button"
               className="btn profile-logout"

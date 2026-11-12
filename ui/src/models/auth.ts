@@ -1,4 +1,5 @@
-export type AuthRole = "admin" | "user"
+/** Mirrors ROLES in services/integration/auth.py. */
+export type AuthRole = "admin" | "analyst" | "abstractor" | "outreach" | "auditor"
 
 export interface AuthUser {
   email: string

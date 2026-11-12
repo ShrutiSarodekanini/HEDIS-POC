@@ -1,4 +1,5 @@
-"""HTTP API for document intake (US-02 T1). No sign-in: authentication is out of scope for the POC.
+"""HTTP API for document intake (US-02 T1). Every route needs a signed-in user whose role may see patient records,
+with the same bearer token as the main app (services/integration/auth.py). The main app reuses get_page_image.
 
 Run: python -m uvicorn services.document_intake.api:app --port 8765
 """
@@ -9,7 +10,7 @@ from pathlib import Path
 from typing import Iterator, Literal
 
 import psycopg
-from fastapi import Depends, FastAPI, HTTPException, Query
+from fastapi import Depends, FastAPI, Header, HTTPException, Query
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
@@ -17,8 +18,6 @@ from . import db, intake
 from .config import REPO_ROOT
 
 log = logging.getLogger(__name__)
-
-app = FastAPI(title="HEDIS document intake", version="0.1.0")
 
 ProcessingStatus = Literal["pending", "processing", "done", "failed", "rejected", "duplicate"]
 MatchStatus = Literal["matched", "needs_match", "unmatched"]
@@ -28,6 +27,17 @@ def get_conn() -> Iterator[psycopg.Connection]:
     """One connection per request: committed when the request succeeds, rolled back on an error."""
     with db.connect() as conn:
         yield conn
+
+
+def signed_in(conn: psycopg.Connection = Depends(get_conn), authorization: str | None = Header(default=None)) -> None:
+    """401 unless the request carries a valid session token; 403 unless the role may see patient records (file names
+    and documents are patient details)."""
+    from services.integration import auth  # imported here: services.integration imports this module
+
+    auth.ensure_permission(auth.current_user(conn, authorization), "view_records")
+
+
+app = FastAPI(title="HEDIS document intake", version="0.1.0", dependencies=[Depends(signed_in)])
 
 
 # --- Response models ---------------------------------------------------------------------------------------------

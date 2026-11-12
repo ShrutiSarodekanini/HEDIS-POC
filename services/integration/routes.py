@@ -28,7 +28,7 @@ from services.document_intake import api as intake_api
 from services.document_intake import db
 from services.gap_priority.config import load_rules
 
-from . import auth, dq_checks, evidence, export, openrouter_status, pipeline, quality, reset, stars, work
+from . import auth, dq_checks, evidence, export, gap_rerun, openrouter_status, pipeline, quality, reset, stars, work
 from .config import SETTINGS
 
 log = logging.getLogger(__name__)
@@ -99,9 +99,9 @@ class WhatIfIn(BaseModel):
     gap_ids: list[str] = []
 
 
-def build_router(current_user_dep: Callable[..., auth.AuthUser],
-                 admin_dep: Callable[..., auth.AuthUser]) -> APIRouter:
-    """The router, with the caller's dependencies for "any signed-in user" and "admin"."""
+def build_router(requires: Callable[[str], Callable[..., auth.AuthUser]]) -> APIRouter:
+    """The router. requires(permission) is the caller's dependency for a signed-in user whose role has that
+    permission (auth.PERMISSIONS)."""
     router = APIRouter(route_class=MappedErrorsRoute)
     openrouter_status.warm()  # so the first /api/health after startup answers from cache
     track = app_metrics.track_route
@@ -109,7 +109,7 @@ def build_router(current_user_dep: Callable[..., auth.AuthUser],
     @router.post("/api/batches", status_code=202)
     @track("batch upload")
     def upload_batch(file: UploadFile | None = File(None), files: list[UploadFile] | None = File(None),
-                     _: auth.AuthUser = Depends(admin_dep)) -> dict:
+                     _: auth.AuthUser = Depends(requires("admin"))) -> dict:
         """One .zip of Synthea CSV files, or several .csv files, in one request (form field "file" or "files")."""
         uploads = ([file] if file else []) + (files or [])
         names = [Path(u.filename or "").name for u in uploads]
@@ -140,13 +140,13 @@ def build_router(current_user_dep: Callable[..., auth.AuthUser],
     @router.get("/api/batches/latest")
     @track("latest batch")
     def get_latest_batch(conn: psycopg.Connection = Depends(get_conn),
-                         _: auth.AuthUser = Depends(current_user_dep)) -> dict | None:
+                         _: auth.AuthUser = Depends(requires("view"))) -> dict | None:
         return pipeline.batch_status(conn, "latest")
 
     @router.get("/api/batches/{batch_id}")
     @track("batch status")
     def get_batch(batch_id: str, conn: psycopg.Connection = Depends(get_conn),
-                  _: auth.AuthUser = Depends(current_user_dep)) -> dict:
+                  _: auth.AuthUser = Depends(requires("view"))) -> dict:
         found = pipeline.batch_status(conn, batch_id)
         if found is None:
             raise HTTPException(404, f"batch {batch_id} not found")
@@ -155,20 +155,20 @@ def build_router(current_user_dep: Callable[..., auth.AuthUser],
     @router.get("/api/measures")
     @track("measures")
     def get_measures(as_of: date | None = None, conn: psycopg.Connection = Depends(get_conn),
-                     _: auth.AuthUser = Depends(current_user_dep)) -> dict:
+                     _: auth.AuthUser = Depends(requires("view"))) -> dict:
         return work.measures(conn, as_of or date.today())
 
     @router.get("/api/gaps")
     @track("work list")
     def get_gaps(role: str | None = None, tier: Literal["high", "medium", "low"] | None = None,
                  measure: str | None = None, limit: int = 400, conn: psycopg.Connection = Depends(get_conn),
-                 _: auth.AuthUser = Depends(current_user_dep)) -> list:
+                 _: auth.AuthUser = Depends(requires("view"))) -> list:
         return work.work_list(conn, role, tier, measure, limit)
 
     @router.get("/api/gaps/{gap_id}")
     @track("gap detail")
     def get_gap(gap_id: str, as_of: date | None = None, conn: psycopg.Connection = Depends(get_conn),
-                _: auth.AuthUser = Depends(current_user_dep)) -> dict:
+                _: auth.AuthUser = Depends(requires("view_records"))) -> dict:
         found = work.gap_detail(conn, gap_id, as_of or date.today())
         if found is None:
             raise HTTPException(404, f"gap {gap_id} not found")
@@ -177,38 +177,40 @@ def build_router(current_user_dep: Callable[..., auth.AuthUser],
     @router.post("/api/gaps/{gap_id}/evidence")
     @app_metrics.track_evidence
     def find_evidence(gap_id: str, conn: psycopg.Connection = Depends(get_conn),
-                      _: auth.AuthUser = Depends(current_user_dep)) -> dict:
+                      _: auth.AuthUser = Depends(requires("review"))) -> dict:
         return evidence.find_evidence(conn, gap_id)
 
-    @router.post("/api/gaps/{gap_id}/close")
-    @track("close gap")
-    def close_gap(gap_id: str, conn: psycopg.Connection = Depends(get_conn),
-                  user: auth.AuthUser = Depends(current_user_dep)) -> dict:
-        return evidence.close_gap(conn, gap_id, user.user_id, user.email)
+    @router.post("/api/gaps/{gap_id}/rerun", status_code=202)
+    @track("gap engine rerun")
+    def rerun_gap(gap_id: str, conn: psycopg.Connection = Depends(get_conn),
+                  user: auth.AuthUser = Depends(requires("review"))) -> dict:
+        """Rerun the engine for this gap's patient and measure with the confirmed supplemental data; the engine,
+        not this request, closes the gap. Watch the returned batch_id on /api/batches/{batch_id}."""
+        return gap_rerun.request_rerun(conn, gap_id, user.user_id, evidence.clean_reviewer(user.email))
 
     @router.post("/api/evidence/{proposal_id}/decision")
     @app_metrics.track_evidence
     def decide(proposal_id: str, body: DecisionIn, conn: psycopg.Connection = Depends(get_conn),
-               user: auth.AuthUser = Depends(current_user_dep)) -> dict:
+               user: auth.AuthUser = Depends(requires("review"))) -> dict:
         return evidence.decide(conn, proposal_id, body.decision, body.reason, user.email)
 
     @router.post("/api/supplemental/export")
     @track("supplemental export")
     def export_supplemental(conn: psycopg.Connection = Depends(get_conn),
-                            user: auth.AuthUser = Depends(admin_dep)) -> dict:
+                            user: auth.AuthUser = Depends(requires("admin"))) -> dict:
         return export.export_supplemental(conn, evidence.clean_reviewer(user.email))
 
     @router.post("/api/reset")
     @track("start over")
     def start_over(body: ResetIn, conn: psycopg.Connection = Depends(get_conn),
-                   _: auth.AuthUser = Depends(admin_dep)) -> dict:
+                   _: auth.AuthUser = Depends(requires("admin"))) -> dict:
         """Development only: empty the data tables and keep the reference data (see reset.py for the guards)."""
         return reset.reset(conn, body.confirm)
 
     @router.get("/api/health")
     @track("health")
     def health(conn: psycopg.Connection = Depends(get_conn),
-               _: auth.AuthUser = Depends(current_user_dep)) -> dict:
+               _: auth.AuthUser = Depends(requires("view"))) -> dict:
         schema = conn.execute("SELECT current_schema()").fetchone()[0]
         version = conn.execute("SELECT version_num FROM alembic_version").fetchone()[0]
         return {"status": "ok", "schema": schema, "migration": version, "rules_version": load_rules().version,
@@ -221,20 +223,20 @@ def build_router(current_user_dep: Callable[..., auth.AuthUser],
     @router.get("/api/quality")
     @track("quality overview")
     def get_quality(conn: psycopg.Connection = Depends(get_conn),
-                    _: auth.AuthUser = Depends(current_user_dep)) -> dict:
+                    _: auth.AuthUser = Depends(requires("view"))) -> dict:
         return quality.overview(conn)
 
     @router.get("/api/quality/runs")
     @track("quality runs")
     def get_quality_runs(batch_id: uuid.UUID, conn: psycopg.Connection = Depends(get_conn),
-                         _: auth.AuthUser = Depends(current_user_dep)) -> dict:
+                         _: auth.AuthUser = Depends(requires("view"))) -> dict:
         return quality.runs(conn, batch_id)
 
     @router.get("/api/quality/runs/{run_id}")
     @track("quality run detail")
     def get_quality_run(run_id: int, severity: Literal["critical", "high", "medium", "low"] | None = None,
                         conn: psycopg.Connection = Depends(get_conn),
-                        _: auth.AuthUser = Depends(current_user_dep)) -> dict:
+                        _: auth.AuthUser = Depends(requires("view"))) -> dict:
         found = quality.run_detail(conn, run_id, severity)
         if found is None:
             raise HTTPException(404, f"data quality run {run_id} not found")
@@ -242,7 +244,7 @@ def build_router(current_user_dep: Callable[..., auth.AuthUser],
 
     @router.post("/api/quality/runs")
     @track("quality run")
-    def run_quality(body: QualityRunIn, _: auth.AuthUser = Depends(admin_dep)) -> dict:
+    def run_quality(body: QualityRunIn, _: auth.AuthUser = Depends(requires("admin"))) -> dict:
         """Run the data quality checks again on one loaded batch (every measure, or one); returns the new run."""
         return dq_checks.run_checks(body.batch_id, body.measure_id, SETTINGS.actor)
 
@@ -251,13 +253,13 @@ def build_router(current_user_dep: Callable[..., auth.AuthUser],
     def get_coverage_report(payer: str | None = None, compliance: Literal["Compliant", "Violation"] | None = None,
                             start_date: date | None = None, end_date: date | None = None, limit: int = 1000,
                             conn: psycopg.Connection = Depends(get_conn),
-                            _: auth.AuthUser = Depends(admin_dep)) -> dict:
+                            _: auth.AuthUser = Depends(requires("admin"))) -> dict:
         compliant = None if compliance is None else compliance == "Compliant"
         return quality.coverage_report(conn, payer, compliant, start_date, end_date, min(max(limit, 1), 5000))
 
     @router.get("/api/stars/catalog")
     @track("stars catalog")
-    def get_star_catalog(_: auth.AuthUser = Depends(current_user_dep)) -> dict:
+    def get_star_catalog(_: auth.AuthUser = Depends(requires("view"))) -> dict:
         rules = load_rules()
         with stars.session() as s:
             return {"measurement_year": SETTINGS.measurement_year, "star_year": rules.star_year,
@@ -265,20 +267,20 @@ def build_router(current_user_dep: Callable[..., auth.AuthUser],
 
     @router.post("/api/stars/calculate")
     @track("stars calculate")
-    def calculate_star(body: StarCalculationIn, _: auth.AuthUser = Depends(current_user_dep)) -> dict:
+    def calculate_star(body: StarCalculationIn, _: auth.AuthUser = Depends(requires("view"))) -> dict:
         with stars.session() as s:
             return stars.calculate(s, body.measure_id, SETTINGS.measurement_year, body.rate, body.denominator)
 
     @router.post("/api/stars/what-if")
     @track("stars what-if")
-    def star_what_if(body: WhatIfIn, _: auth.AuthUser = Depends(current_user_dep)) -> dict:
+    def star_what_if(body: WhatIfIn, _: auth.AuthUser = Depends(requires("view"))) -> dict:
         with stars.session() as s:
             return stars.what_if(s, body.measure_id, body.gap_ids)
 
     @router.get("/api/documents/{document_id}/pages/{page_no}")
     @track("page text")
     def get_page(document_id: str, page_no: int, conn: psycopg.Connection = Depends(get_conn),
-                 _: auth.AuthUser = Depends(current_user_dep)) -> dict:
+                 _: auth.AuthUser = Depends(requires("view_records"))) -> dict:
         row = conn.execute(
             """SELECT text, method, handwritten, image_path IS NOT NULL
                  FROM document_pages WHERE document_reference_id = %s AND page_no = %s""",
@@ -290,5 +292,5 @@ def build_router(current_user_dep: Callable[..., auth.AuthUser],
 
     router.add_api_route("/api/documents/{document_id}/pages/{page_no}/image",
                          track("page image")(intake_api.get_page_image), methods=["GET"],
-                         dependencies=[Depends(current_user_dep)])
+                         dependencies=[Depends(requires("view_records"))])
     return router
