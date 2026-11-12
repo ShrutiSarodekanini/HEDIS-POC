@@ -92,3 +92,11 @@ export async function updateUserRole(userId: number, role: AuthRole): Promise<Ad
     { role },
   )
 }
+
+export async function resetUserPassword(userId: number, newPassword: string): Promise<void> {
+  await putJson<{ status: string }>(
+    withApiBase(`/admin/users/${userId}/password`),
+    envConfig.apiTimeoutMs,
+    { new_password: newPassword },
+  )
+}

@@ -1,7 +1,8 @@
 """Settings for evidence extraction, read from the repo-root .env and environment variables.
 
 The model runs on OpenRouter. The API key is read here and nowhere else, and never logged or stored.
-Only synthetic data may be sent to OpenRouter.
+Only synthetic data may be sent to OpenRouter: data_class (EXTRACTION_DATA_CLASS) must be "synthetic", the only value
+allowed to reach a hosted model, or the integration API refuses to run AI evidence.
 """
 
 import os
@@ -26,6 +27,7 @@ class Settings:
     min_confidence: float         # the model's own confidence below this means it does not believe the finding
     max_excerpt_chars: int        # longer quotes are narrowed to the sentence holding the value
     actor: str                    # recorded in audit events
+    data_class: str = ""          # "synthetic" is the only value allowed to send documents to a hosted model
 
 
 def load_settings() -> Settings:
@@ -40,6 +42,7 @@ def load_settings() -> Settings:
         min_confidence=float(os.environ.get("EXTRACTION_MIN_CONFIDENCE", "0.3")),
         max_excerpt_chars=int(os.environ.get("EXTRACTION_MAX_EXCERPT_CHARS", "200")),
         actor=os.environ.get("EXTRACTION_ACTOR", "evidence_extraction"),
+        data_class=os.environ.get("EXTRACTION_DATA_CLASS", "").strip(),
     )
 
 

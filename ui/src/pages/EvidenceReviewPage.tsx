@@ -46,7 +46,7 @@ export function EvidenceReviewPage() {
     selectedScopeGap,
     selectedScopeGapId,
     selectedProposalId,
-    reviewerId,
+    reviewerEmail,
     decisionReason,
     loadingSetup,
     loadingGapDetail,
@@ -59,7 +59,6 @@ export function EvidenceReviewPage() {
     retrySetup,
     setSelectedScopeGapId,
     setSelectedProposalId,
-    setReviewerId,
     setDecisionReason,
     runExtractionNow,
     submitDecision,
@@ -218,15 +217,8 @@ export function EvidenceReviewPage() {
           </div>
 
           <label className="calc-check">
-            <span>Reviewer ID</span>
-            <input
-              className="text-input"
-              value={reviewerId}
-              onChange={(event) => {
-                setReviewerId(event.target.value)
-              }}
-              placeholder="abstractor.user"
-            />
+            <span>Exporting as</span>
+            <input className="text-input" readOnly value={reviewerEmail} />
           </label>
 
           <div className="actions">
@@ -319,18 +311,12 @@ export function EvidenceReviewPage() {
 
                   {capabilities?.mode === "integration" ? (
                     <>
-                      <p className="note">Reviewer decision requires reviewer_id and decided_at.</p>
+                      <p className="note">The decision is recorded under your signed-in email.</p>
 
                       <div className="grid two">
                         <label className="calc-check">
-                          <span>Reviewer ID</span>
-                          <input
-                            className="text-input"
-                            value={reviewerId}
-                            onChange={(event) => {
-                              setReviewerId(event.target.value)
-                            }}
-                          />
+                          <span>Reviewing as</span>
+                          <input className="text-input" readOnly value={reviewerEmail} />
                         </label>
                         <label className="calc-check">
                           <span>Decision notes (required on reject)</span>

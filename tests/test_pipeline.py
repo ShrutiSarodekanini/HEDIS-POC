@@ -679,7 +679,7 @@ def test_root_app_starts_integration_watcher(monkeypatch):
         watcher_stopped.set()
 
     monkeypatch.setattr(root_app.intake_db, "connect", fake_connect)
-    monkeypatch.setattr(root_app.integration_auth, "ensure_default_users", lambda _: None)
+    monkeypatch.setattr(root_app.integration_auth, "ensure_bootstrap_admin", lambda _: True)
     monkeypatch.setattr(
         root_app.integration_pipeline,
         "recover_interrupted_batches",
