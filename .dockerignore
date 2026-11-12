@@ -1,0 +1,29 @@
+.git
+.gitignore
+.env
+.env.*
+**/node_modules
+ui/dist
+.venv
+venv
+logs
+.integration_work
+generated_evidence
+.uploaded_datasets
+.observability
+**/__pycache__
+**/*.py[cod]
+.pytest_cache
+.ruff_cache
+.vscode
+.idea
+
+# Uploaded documents and page images contain patient data; never bake them into an image.
+data/intake_store
+data/uploads
+
+# Built inside the image.
+services/measure_calc/engine/build
+services/measure_calc/engine/debug
+services/measure_calc/engine/coverage
+services/measure_calc/engine/cache
