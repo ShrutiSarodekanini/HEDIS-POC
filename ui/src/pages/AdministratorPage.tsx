@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
 
 import type { AdminUserRecord, AuthRole } from "../models/auth"
-import { listAdminUsers, updateUserAccess, updateUserRole } from "../services/auth.service"
+import { listAdminUsers, resetUserPassword, updateUserAccess, updateUserRole } from "../services/auth.service"
 import { toRequestErrorMessage } from "../services/http"
 import { formatDateTime } from "../utils/format"
 
@@ -27,6 +27,39 @@ export function AdministratorPage({ actorEmail, actorRole }: AdministratorPagePr
   const [loading, setLoading] = useState<boolean>(true)
   const [actionBusyId, setActionBusyId] = useState<number | null>(null)
   const [errorMessage, setErrorMessage] = useState<string>("")
+  const [statusMessage, setStatusMessage] = useState<string>("")
+  const [resetTarget, setResetTarget] = useState<AdminUserRecord | null>(null)
+  const [newPassword, setNewPassword] = useState<string>("")
+  const [confirmPassword, setConfirmPassword] = useState<string>("")
+  const [resetBusy, setResetBusy] = useState<boolean>(false)
+
+  const closeReset = (): void => {
+    setResetTarget(null)
+    setNewPassword("")
+    setConfirmPassword("")
+  }
+
+  const submitReset = async (): Promise<void> => {
+    if (!resetTarget) {
+      return
+    }
+    if (newPassword !== confirmPassword) {
+      setErrorMessage("The two passwords do not match.")
+      return
+    }
+    setResetBusy(true)
+    setErrorMessage("")
+    setStatusMessage("")
+    try {
+      await resetUserPassword(resetTarget.user_id, newPassword)
+      setStatusMessage(`Password reset for ${resetTarget.email}. Their existing sessions were signed out.`)
+      closeReset()
+    } catch (error) {
+      setErrorMessage(toRequestErrorMessage(error))
+    } finally {
+      setResetBusy(false)
+    }
+  }
 
   const pendingCount = useMemo(
     () => users.filter((user) => user.access_status === "pending").length,
@@ -85,6 +118,49 @@ export function AdministratorPage({ actorEmail, actorRole }: AdministratorPagePr
         </p>
 
         {errorMessage ? <p className="card-message error">{errorMessage}</p> : null}
+        {statusMessage ? <p className="card-message">{statusMessage}</p> : null}
+
+        {resetTarget ? (
+          <form
+            className="actions"
+            onSubmit={(event) => {
+              event.preventDefault()
+              void submitReset()
+            }}
+          >
+            <span>Reset password for {resetTarget.email}</span>
+            <label className="calc-check">
+              <span>New password</span>
+              <input
+                className="text-input"
+                type="password"
+                autoComplete="new-password"
+                value={newPassword}
+                onChange={(event) => {
+                  setNewPassword(event.target.value)
+                }}
+              />
+            </label>
+            <label className="calc-check">
+              <span>Confirm new password</span>
+              <input
+                className="text-input"
+                type="password"
+                autoComplete="new-password"
+                value={confirmPassword}
+                onChange={(event) => {
+                  setConfirmPassword(event.target.value)
+                }}
+              />
+            </label>
+            <button type="submit" className="btn primary" disabled={resetBusy || !newPassword || !confirmPassword}>
+              {resetBusy ? "Saving..." : "Set password"}
+            </button>
+            <button type="button" className="btn outline" disabled={resetBusy} onClick={closeReset}>
+              Cancel
+            </button>
+          </form>
+        ) : null}
 
         <div className="table-wrap">
           <table>
@@ -96,6 +172,7 @@ export function AdministratorPage({ actorEmail, actorRole }: AdministratorPagePr
                 <th>Registered</th>
                 <th>Access action</th>
                 <th>Role action</th>
+                <th>Password</th>
               </tr>
             </thead>
             <tbody>
@@ -209,11 +286,27 @@ export function AdministratorPage({ actorEmail, actorRole }: AdministratorPagePr
                         </button>
                       )}
                     </td>
+                    <td>
+                      <button
+                        type="button"
+                        className="btn outline"
+                        disabled={resetBusy}
+                        onClick={() => {
+                          setErrorMessage("")
+                          setStatusMessage("")
+                          setNewPassword("")
+                          setConfirmPassword("")
+                          setResetTarget(user)
+                        }}
+                      >
+                        Reset password
+                      </button>
+                    </td>
                   </tr>
                 )
               }) : (
                 <tr>
-                  <td colSpan={6} className="empty">
+                  <td colSpan={7} className="empty">
                     {loading ? "Loading users..." : "No registered users found."}
                   </td>
                 </tr>

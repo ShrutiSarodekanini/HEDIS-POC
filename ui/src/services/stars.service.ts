@@ -10,7 +10,7 @@ import type {
   StarOverview,
   StarWhatIfResult,
 } from "../models/stars"
-import { fetchJson, postJson } from "./http"
+import { fetchJson, HttpError, postJson } from "./http"
 import { getOpenApiPaths, hasOpenApiPath } from "./openapi"
 
 interface IntegrationCatalogMeasure {
@@ -91,6 +91,8 @@ interface IntegrationCalculateResponse {
 const timeoutMs = envConfig.apiTimeoutMs
 const STAR_OVERVIEW_CACHE_MS = 15_000
 const STAR_WHAT_IF_CACHE_MS = 10_000
+const STAR_CALCULATION_WAIT_MS = 10 * 60 * 1000
+const STAR_CALCULATION_POLL_MS = 2_000
 
 type StarOverviewCacheEntry = {
   expiresAt: number
@@ -108,6 +110,7 @@ const starWhatIfCache = new Map<string, StarWhatIfCacheEntry>()
 const starWhatIfInFlight = new Map<string, Promise<StarWhatIfResult>>()
 
 const now = (): number => Date.now()
+const delay = (ms: number): Promise<void> => new Promise((resolve) => window.setTimeout(resolve, ms))
 
 const starOverviewCacheKey = (
   mode: StarCapabilities["mode"],
@@ -122,6 +125,68 @@ const starWhatIfCacheKey = (
 ): string => `${mode}|${measureId}|${[...selectedGapIds].sort().join(",")}`
 
 const withApiBase = (path: string): string => `${envConfig.apiBaseUrl}${path}`
+
+interface CalculationRunResponse {
+  batch_id?: string
+}
+
+interface BatchStatusResponse {
+  status?: string
+  step?: string
+  error?: string | null
+}
+
+/**
+ * Start a fresh calculation run so star baseline data is up to date.
+ * Safe no-op when calculation endpoints are unavailable or a run is already active.
+ */
+export async function refreshStarCalculationData(): Promise<void> {
+  let batchId: string | null = null
+
+  try {
+    const response = await postJson<CalculationRunResponse>(withApiBase("/calculation/run"), timeoutMs, {})
+    batchId = typeof response.batch_id === "string" && response.batch_id.trim().length > 0
+      ? response.batch_id
+      : null
+  } catch (error) {
+    if (error instanceof HttpError && (error.status === 404 || error.status === 409)) {
+      return
+    }
+    throw error
+  }
+
+  if (!batchId) {
+    return
+  }
+
+  const deadline = Date.now() + STAR_CALCULATION_WAIT_MS
+  while (Date.now() < deadline) {
+    await delay(STAR_CALCULATION_POLL_MS)
+
+    let batch: BatchStatusResponse
+    try {
+      batch = await fetchJson<BatchStatusResponse>(
+        withApiBase(`/batches/${encodeURIComponent(batchId)}`),
+        timeoutMs,
+      )
+    } catch (error) {
+      if (error instanceof HttpError && error.status === 404) {
+        return
+      }
+      throw error
+    }
+
+    if (batch.status === "running") {
+      continue
+    }
+    if (batch.status === "failed") {
+      throw new Error(`Calculation failed while ${batch.step ?? "running"}: ${batch.error ?? "see backend logs."}`)
+    }
+    return
+  }
+
+  throw new Error("Calculation is still running. Refresh again in a moment.")
+}
 
 const asRate = (numerator: number, denominator: number): number | null => {
   if (denominator <= 0) {

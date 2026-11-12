@@ -989,7 +989,7 @@ export async function runEvidenceExtraction(
 export async function submitEvidenceDecision(
   capabilities: EvidenceCapabilities,
   proposalId: string,
-  payload: { decision: "confirm" | "reject"; reviewer: string; reason?: string },
+  payload: { decision: "confirm" | "reject"; reason?: string },
 ): Promise<EvidenceDecisionResult> {
   if (capabilities.mode !== "integration") {
     throw new Error("Evidence decision is available only in integration profile.")
@@ -1018,7 +1018,6 @@ export async function submitEvidenceDecision(
 
 export async function exportSupplementalEvidence(
   capabilities: EvidenceCapabilities,
-  reviewer: string,
 ): Promise<EvidenceExportResult> {
   if (capabilities.mode !== "integration") {
     throw new Error("Supplemental export is available only in integration profile.")
@@ -1027,7 +1026,7 @@ export async function exportSupplementalEvidence(
   const result = await postJson<RawExportResponse>(
     withApiBase("/supplemental/export"),
     timeoutMs,
-    { reviewer },
+    {},
   )
 
   if ((result.rows ?? 0) <= 0) {

@@ -12,6 +12,7 @@ import {
   discoverStarCapabilities,
   loadStarOverview,
   loadStarWhatIf,
+  refreshStarCalculationData,
   runStarCalculation,
   runStarComparison,
 } from "../services/stars.service"
@@ -161,6 +162,9 @@ export function useStarsWorkflow() {
       const discovered = await discoverStarCapabilities()
       setCapabilities(discovered)
 
+      setStatusMessage("Refreshing measure calculation...")
+      await refreshStarCalculationData()
+
       setLoadingOverview(true)
       try {
         const nextOverview = await loadStarOverview(discovered)
@@ -179,6 +183,7 @@ export function useStarsWorkflow() {
         } else {
           setWhatIfResult(null)
         }
+        setStatusMessage("Star data refreshed from latest calculation.")
       } finally {
         setLoadingOverview(false)
       }
@@ -203,6 +208,9 @@ export function useStarsWorkflow() {
     setLoadingOverview(true)
     setErrorMessage("")
     try {
+      setStatusMessage("Refreshing measure calculation...")
+      await refreshStarCalculationData()
+
       const nextOverview = await loadStarOverview(capabilities, {
         forceFresh: true,
         measureId: selectedMeasureId || null,
@@ -223,6 +231,7 @@ export function useStarsWorkflow() {
       } else {
         setWhatIfResult(null)
       }
+      setStatusMessage("Star data refreshed from latest calculation.")
     } catch (error) {
       setErrorMessage(toRequestErrorMessage(error))
     } finally {

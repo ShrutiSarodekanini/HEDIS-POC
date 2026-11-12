@@ -120,6 +120,10 @@ class UserRoleIn(BaseModel):
     role: Literal["admin", "user"]
 
 
+class UserPasswordIn(BaseModel):
+    new_password: str
+
+
 class CalculationRequest(BaseModel):
     measures: list[str] | None = None
     patient_ids: list[str] | None = None
@@ -175,39 +179,42 @@ def _gap_rate(closed_count: int, total_count: int) -> float | None:
 
 
 def _load_dashboard_rows(session: Session) -> list[dict[str, object]]:
-    """Read gap rows from whichever schema is present in the connected database."""
+    """Read real lifecycle gap rows from whichever schema is present in the connected database."""
     try:
         rows = session.execute(
             text(
-                """SELECT g.care_gap_id,
-                          g.member_id,
+                """SELECT g.gap_id::text AS care_gap_id,
+                          COALESCE(p.mrn, p.patient_id) AS member_id,
                           g.measure_id,
                           g.measurement_year,
                           g.status,
-                          m.name AS measure_name,
-                          mb.first_name,
-                          mb.last_name
-                     FROM care_gaps g
-                     JOIN measures m ON g.measure_id = m.measure_id
-                     JOIN members mb ON g.member_id = mb.member_id"""
+                          COALESCE(mr.name, g.measure_id) AS measure_name,
+                          NULL::text AS first_name,
+                          NULL::text AS last_name
+                     FROM care_gap g
+                     JOIN patient p ON g.patient_id = p.patient_id
+                     LEFT JOIN measure_rule mr ON mr.measure_id = g.measure_id
+                                              AND mr.measurement_year = g.measurement_year"""
             )
         ).mappings().all()
         return [dict(r) for r in rows]
     except SQLAlchemyError:
         session.rollback()
 
+    # Legacy compatibility fallback for schemas that expose care_gaps/measures/members only.
     rows = session.execute(
         text(
-            """SELECT g.gap_id::text AS care_gap_id,
-                      COALESCE(p.mrn, p.patient_id) AS member_id,
+            """SELECT g.care_gap_id,
+                      g.member_id,
                       g.measure_id,
                       g.measurement_year,
                       g.status,
-                      g.measure_id AS measure_name,
-                      NULL::text AS first_name,
-                      NULL::text AS last_name
-                 FROM care_gap g
-                 JOIN patient p ON g.patient_id = p.patient_id"""
+                      m.name AS measure_name,
+                      mb.first_name,
+                      mb.last_name
+                 FROM care_gaps g
+                 JOIN measures m ON g.measure_id = m.measure_id
+                 JOIN members mb ON g.member_id = mb.member_id"""
         )
     ).mappings().all()
     return [dict(r) for r in rows]
@@ -439,10 +446,12 @@ def _build_star_dashboard(
         engine_denominator = stat.get("engine_denominator")
         engine_numerator = stat.get("engine_numerator")
 
-        if isinstance(engine_denominator, int) and isinstance(engine_numerator, int) and engine_denominator > 0:
-            total = engine_denominator
+        # Prefer engine populations for baseline/projected stars when available.
+        if isinstance(engine_denominator, int) and isinstance(engine_numerator, int) and engine_denominator >= 0:
+            total = max(engine_denominator, 0)
             baseline_closed = min(max(engine_numerator, 0), total)
         else:
+            # Fallback for profiles without engine-result populations.
             total = fallback_total
             baseline_closed = fallback_baseline_closed
 
@@ -1210,11 +1219,14 @@ def create_app(
             database.validate()
         try:
             with intake_db.connect() as conn:
-                integration_auth.ensure_default_users(conn)
+                has_admin = integration_auth.ensure_bootstrap_admin(conn)
         except Exception as exc:
             raise RuntimeError(
                 "Local auth setup failed. Run `python -m alembic -c db/alembic.ini upgrade head` and retry."
             ) from exc
+        if not has_admin:
+            log.warning("No admin account. Set HEDIS_BOOTSTRAP_ADMIN_EMAIL and HEDIS_BOOTSTRAP_ADMIN_PASSWORD "
+                        "in .env and restart.")
         integration_pipeline.recover_interrupted_batches()
         integration_pipeline.record_missing_upload_sizes()
         cfg.evidence_storage_dir.mkdir(parents=True, exist_ok=True)
@@ -1369,6 +1381,25 @@ def create_app(
             raise HTTPException(status_code=400, detail=str(exc)) from exc
         conn.commit()
         return updated
+
+    @app.put("/api/admin/users/{user_id}/password")
+    @app_metrics.track_admin("password")
+    def auth_admin_set_password(
+        user_id: int,
+        body: UserPasswordIn,
+        conn: psycopg.Connection = Depends(get_auth_conn),
+        actor: integration_auth.AuthUser = Depends(admin_auth_user),
+    ) -> dict:
+        try:
+            integration_auth.set_password(conn, user_id, body.new_password)
+        except LookupError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        intake_db.audit(conn, "app_user", str(user_id), "user.password_reset", {"user_id": user_id},
+                        actor=actor.email)  # phi-ok: actor is the admin's sign-in email, not patient data
+        conn.commit()
+        return {"status": "ok", "user_id": user_id}
 
     @app.post("/api/star-rating/calculate")
     @app_metrics.track_star("calculate", lambda kw: kw["request"].result.measure_code)
