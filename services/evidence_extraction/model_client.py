@@ -17,7 +17,7 @@ from typing import Any
 
 import httpx
 
-from services.evidence_extraction.config import SETTINGS, Settings
+from services.evidence_extraction.config import SETTINGS, Settings, provider_policy_error
 from services.evidence_extraction.contracts import OUTPUT_SCHEMA, ModelError, ModelResult, PageRef, Prompt
 
 log = logging.getLogger(__name__)
@@ -42,6 +42,9 @@ class OpenRouterClient:
     def __init__(self, settings: Settings = SETTINGS, transport: httpx.BaseTransport | None = None,
                  sleep: Callable[[float], None] = time.sleep) -> None:
         """Fail at construction without a key, so a run stops before any gap is touched."""
+        policy_error = provider_policy_error(settings)
+        if policy_error is not None:
+            raise ValueError(policy_error)
         if not settings.openrouter_api_key:
             raise ValueError("Set OPENROUTER_API_KEY in .env")
         self.model = settings.model

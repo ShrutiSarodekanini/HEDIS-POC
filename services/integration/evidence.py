@@ -24,6 +24,7 @@ from psycopg.types.json import Jsonb
 from services.document_intake.db import audit
 from services.evidence_extraction import prompt
 from services.evidence_extraction.config import SETTINGS as EXTRACTION_SETTINGS
+from services.evidence_extraction.config import provider_policy_error
 from services.evidence_extraction.contracts import GapContext, ModelError, ModelResult, Prompt, UnusableAnswer
 from services.evidence_extraction.model_client import OpenRouterClient
 from services.evidence_extraction.validator import parse_findings, validate
@@ -44,7 +45,7 @@ class Conflict(ValueError):
 
 
 class AiEvidenceOff(Conflict):
-    """EXTRACTION_DATA_CLASS is not "synthetic", so no document may be sent to OpenRouter."""
+    """The configured provider policy does not allow model calls for the configured data class."""
 
 
 class _Capture(httpx.BaseTransport):
@@ -76,9 +77,9 @@ def find_evidence(conn: psycopg.Connection, key: str) -> dict:
 
     The run and its attempts are committed as they happen, so failed calls are kept too. Raises AiEvidenceOff, before
     any run row or model call, unless EXTRACTION_DATA_CLASS is "synthetic"."""
-    if EXTRACTION_SETTINGS.data_class != "synthetic":
-        raise AiEvidenceOff("AI evidence is off: set EXTRACTION_DATA_CLASS=synthetic in .env to confirm only synthetic "
-                            "data is sent to OpenRouter.")
+    policy_error = provider_policy_error(EXTRACTION_SETTINGS)
+    if policy_error is not None:
+        raise AiEvidenceOff(policy_error)
     gap = prompt.load_gap_context(conn, key)
     measure = prompt.load_measure(conn, gap.measure_code, gap.measurement_year)
     pages = prompt.select_pages(conn, gap)
