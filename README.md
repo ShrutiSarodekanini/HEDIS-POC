@@ -109,6 +109,13 @@ stays outside and is reached through `DATABASE_URL`.
 
 4. Open http://127.0.0.1:8080. RabbitMQ management is on http://localhost:15673.
 
+`scripts/run_containers.ps1` does steps 2 to 4 in one command (`-Setup` also loads the reference data, `-Stop` stops,
+`-Reset` removes the containers and volumes):
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/run_containers.ps1 -Setup
+```
+
 After changing `.env` or `.env.deploy`, run `up -d` again. `start` and `restart` keep the old values. `stop` keeps
 the data; `down -v` removes the containers and their volumes. Details are in `docs/deployment/CONTAINERS.md`.
 
