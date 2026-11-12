@@ -74,19 +74,9 @@ def get_conn() -> Iterator[psycopg.Connection]:
         yield conn
 
 
-class ForgotPasswordIn(BaseModel):
-    email: str
-    new_password: str
-
-
 class DecisionIn(BaseModel):
     decision: Literal["confirm", "reject"]
     reason: str | None = None
-    reviewer: str | None = None
-
-
-class ExportIn(BaseModel):
-    reviewer: str | None = None
 
 
 class ResetIn(BaseModel):
@@ -115,13 +105,6 @@ def build_router(current_user_dep: Callable[..., auth.AuthUser],
     router = APIRouter(route_class=MappedErrorsRoute)
     openrouter_status.warm()  # so the first /api/health after startup answers from cache
     track = app_metrics.track_route
-
-    @router.post("/api/auth/forgot-password")
-    @track("forgot password")
-    def forgot_password(body: ForgotPasswordIn, conn: psycopg.Connection = Depends(get_conn)) -> dict:
-        auth.reset_password_for_email(conn, body.email, body.new_password)
-        conn.commit()
-        return {"status": "ok", "message": "Password has been reset. Sign in with the new password."}
 
     @router.post("/api/batches", status_code=202)
     @track("batch upload")
@@ -206,14 +189,14 @@ def build_router(current_user_dep: Callable[..., auth.AuthUser],
     @router.post("/api/evidence/{proposal_id}/decision")
     @app_metrics.track_evidence
     def decide(proposal_id: str, body: DecisionIn, conn: psycopg.Connection = Depends(get_conn),
-               _: auth.AuthUser = Depends(current_user_dep)) -> dict:
-        return evidence.decide(conn, proposal_id, body.decision, body.reason, body.reviewer)
+               user: auth.AuthUser = Depends(current_user_dep)) -> dict:
+        return evidence.decide(conn, proposal_id, body.decision, body.reason, user.email)
 
     @router.post("/api/supplemental/export")
     @track("supplemental export")
-    def export_supplemental(body: ExportIn | None = None, conn: psycopg.Connection = Depends(get_conn),
-                            _: auth.AuthUser = Depends(admin_dep)) -> dict:
-        return export.export_supplemental(conn, evidence.clean_reviewer(body.reviewer if body else None))
+    def export_supplemental(conn: psycopg.Connection = Depends(get_conn),
+                            user: auth.AuthUser = Depends(admin_dep)) -> dict:
+        return export.export_supplemental(conn, evidence.clean_reviewer(user.email))
 
     @router.post("/api/reset")
     @track("start over")
