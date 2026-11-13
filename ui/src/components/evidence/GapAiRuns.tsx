@@ -1,6 +1,6 @@
 import type { EvidenceGapDetail, EvidenceLatestRun } from "../../models/evidence"
 import { formatDateTime, formatInteger } from "../../utils/format"
-import { titleCase, typeName } from "./evidenceFormat"
+import { titleCase } from "./evidenceFormat"
 
 type PageSent = { documentId: string; pageNo: number; method: string | null; handwritten: boolean }
 
@@ -10,17 +10,6 @@ const pageLabel = (page: PageSent): string =>
 const aiStatusClass = (status: string): string => {
   const normalized = status.trim().toLowerCase().replaceAll("_", "-")
   return `ai-run ai-${normalized || "unknown"}`
-}
-
-const prettyJson = (value: string | null | undefined): string => {
-  if (!value) {
-    return "-"
-  }
-  try {
-    return JSON.stringify(JSON.parse(value), null, 2)
-  } catch {
-    return value
-  }
 }
 
 function PagesSent({ pages }: { pages: PageSent[] }) {
@@ -40,21 +29,17 @@ export function GapAiRuns({ detail, latestRun }: GapAiRunsProps) {
 
       {latestRun ? (
         <div className="ai-run ai-succeeded">
-          <p className="label-strong">The run just made (run {latestRun.runId ?? "?"})</p>
-          <PagesSent pages={latestRun.pages} />
-          {latestRun.calls.map((call, index) => (
-            <details key={`latest-call-${index}`}>
-              <summary>Call {index + 1} ({call.status ?? "?"}, {call.seconds ?? "?"}s)</summary>
-              <pre className="codebox">{call.requestMessages.map((message) => `[${message.role}]\n${message.content}`).join("\n\n") || "No request payload captured."}</pre>
-              {call.error ? <p className="note small error">{call.error}</p> : null}
-              {call.answer ? <pre className="codebox">{prettyJson(call.answer)}</pre> : null}
-            </details>
-          ))}
-          {latestRun.kept.map((item, index) => (
-            <p key={`kept-${index}`} className="found kept">Kept: {typeName(item.evidenceType)} {item.documentId} p{item.pageNo ?? "?"}: "{item.excerpt}"</p>
-          ))}
-          {latestRun.dropped.map((item, index) => (
-            <p key={`dropped-${index}`} className="found dropped">Dropped: {typeName(item.evidenceType)} {item.documentId ?? "?"}: {item.reason}{item.evidenceId ? ` (evidence ${item.evidenceId.slice(0, 8)})` : ""}</p>
+          <p className="label-strong">The run just made (run {latestRun.runId ?? "?"}) · {titleCase(latestRun.status ?? "unknown")}</p>
+          <p className="note small">
+            Saved {formatInteger(latestRun.saved)} · Skipped {formatInteger(latestRun.skippedAlreadySaved)} ·
+            Failed attempts {formatInteger(latestRun.failedAttempts)}
+          </p>
+          {latestRun.attempts.map((attempt, index) => (
+            <p key={`latest-attempt-${index}`} className="note small">
+              Attempt {attempt.attemptId || "?"} · {titleCase(attempt.status)} · {attempt.model ?? "-"} ·
+              {" "}{attempt.durationMs != null ? `${attempt.durationMs}ms` : "-"} ·
+              {" "}tokens {attempt.promptTokens ?? "?"}/{attempt.outputTokens ?? "?"}
+            </p>
           ))}
         </div>
       ) : null}
@@ -66,18 +51,9 @@ export function GapAiRuns({ detail, latestRun }: GapAiRunsProps) {
               Run {run.runId} · {formatDateTime(run.startedAt)} · {run.modelName ?? "-"} · {titleCase(run.status)} ·
               {" "}{formatInteger(run.kept)} kept, {formatInteger(run.droppedCount)} dropped · prompt {run.promptVersion ?? "?"}
             </div>
+            {run.correlationId ? <p className="note small">Correlation ID: {run.correlationId}</p> : null}
             <PagesSent pages={run.pagesSent} />
             {run.error ? <p className="note small error">{run.error}</p> : null}
-            <details>
-              <summary>Raw answer</summary>
-              <pre className="codebox">{prettyJson(run.rawResponse)}</pre>
-            </details>
-            {run.dropped.map((dropped, index) => (
-              <p key={`${run.runId}-drop-${index}`} className="note small">
-                Dropped {typeName(dropped.evidenceType)}: {dropped.reason}
-                {dropped.evidenceId ? ` (evidence ${dropped.evidenceId.slice(0, 8)})` : ""}
-              </p>
-            ))}
           </div>
         ))
       ) : (

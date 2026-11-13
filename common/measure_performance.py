@@ -83,12 +83,51 @@ def get_measure_catalog(session: Session) -> list[dict[str, Any]]:
     return out
 
 
+def _engine_counts(session: Session, measure_code: str, measurement_year: int) -> tuple[int, int] | None:
+    """(denominator, numerator) from the engine's latest result, or None when no engine result exists."""
+    row = session.execute(
+        text(
+            """SELECT count(*) FILTER (WHERE in_denominator AND NOT coalesce(excluded, false)),
+                      count(*) FILTER (WHERE in_denominator AND in_numerator AND NOT coalesce(excluded, false))
+                 FROM v_measure_result_latest
+                WHERE measure_id = :measure AND measurement_year = :year"""
+        ),
+        {"measure": measure_code, "year": measurement_year},
+    ).first()
+    if row is None or row[0] is None:
+        return None
+    return int(row[0]), int(row[1])
+
+
+def _pending_counts(session: Session, measure_code: str, measurement_year: int) -> tuple[int, int]:
+    """(pending_closed, pending_excluded) — reviewer decisions not yet reflected in the engine result."""
+    rows = session.execute(
+        text(
+            """SELECT d.review_status
+                 FROM care_gap g
+                 JOIN care_gap_detail d ON d.gap_id = g.gap_id
+                WHERE g.measure_id = :measure AND g.measurement_year = :year
+                  AND d.review_status IN ('closed_pending_engine', 'excluded_pending_engine')"""
+        ),
+        {"measure": measure_code, "year": measurement_year},
+    ).all()
+    pending_closed = sum(1 for r in rows if r[0] == "closed_pending_engine")
+    pending_excluded = sum(1 for r in rows if r[0] == "excluded_pending_engine")
+    return pending_closed, pending_excluded
+
+
 def compare_measure(
     session: Session,
     measure_code: str,
     selected_gap_ids: list[str],
 ) -> dict[str, Any]:
-    """Compare baseline and projected performance for one measure from live DB rows."""
+    """Compare baseline and projected performance for one measure from live DB rows.
+
+    The baseline uses the same populations as the star dashboard: engine counts from
+    v_measure_result_latest adjusted for reviewer decisions not yet reflected in the engine
+    (closed_pending_engine adds to numerator; excluded_pending_engine removes from denominator).
+    This ensures what-if projections match the actual star movement seen after closing gaps.
+    """
     code = measure_code.upper().strip()
     measure_row = session.execute(
         text(
@@ -123,9 +162,19 @@ def compare_measure(
             + ", ".join(unknown_gap_ids)
         )
 
-    total_gaps = len(gap_rows)
     closed_statuses = {"closed", "complete", "completed", "resolved"}
-    baseline_closed = sum(1 for row in gap_rows if str(row[2] or "").strip().lower() in closed_statuses)
+
+    # Use engine populations (same source as the star dashboard) so what-if and actual star match.
+    engine = _engine_counts(session, actual_code, measurement_year)
+    pending_closed, pending_excluded = _pending_counts(session, actual_code, measurement_year)
+    if engine is not None:
+        engine_denom, engine_num = engine
+        total_gaps = max(engine_denom - pending_excluded, 0)
+        baseline_closed = min(engine_num + pending_closed, total_gaps)
+    else:
+        # Fallback: derive from care_gaps view when no engine result exists yet.
+        total_gaps = len(gap_rows)
+        baseline_closed = sum(1 for row in gap_rows if str(row[2] or "").strip().lower() in closed_statuses)
 
     warnings: list[str] = []
     eligible_selected: list[str] = []
@@ -144,7 +193,7 @@ def compare_measure(
         denominator=total_gaps,
         open_gaps=total_gaps - baseline_closed,
     )
-    recalculated_closed = baseline_closed + len(eligible_selected)
+    recalculated_closed = min(baseline_closed + len(eligible_selected), total_gaps)
     recalculated = _metric_payload(
         session,
         measure_code=actual_code,

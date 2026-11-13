@@ -555,7 +555,7 @@ export async function loadStarWhatIf(
       baselineNumerator: selected?.baseline_closed ?? 0,
       baselineDenominator: selected?.total_gaps ?? 0,
       projectedNumerator: selected?.projected_closed ?? 0,
-      projectedDenominator: selected?.total_gaps ?? 0,
+      projectedDenominator: selected?.projected_total_gaps ?? selected?.total_gaps ?? 0,
       baselineStar: selected?.baseline_star ?? null,
       projectedStar: selected?.projected_star ?? null,
       rateDelta: selected && selected.baseline_rate != null && selected.projected_rate != null

@@ -8,7 +8,7 @@ import type {
   LatestBatch,
 } from "../models/calculation"
 import type { StarCatalogResponse, StarDashboardResponse } from "../models/dashboard"
-import { fetchJson, postJson } from "./http"
+import { fetchJson, HttpError, postJson } from "./http"
 import { getOpenApiPaths, hasOpenApiPath } from "./openapi"
 
 interface IntegrationCalculationLatestRun {
@@ -284,6 +284,38 @@ export async function waitForCalculation(batchId: string): Promise<CalculationRu
     return { success: true, message: "Calculation finished." }
   }
   return { success: false, message: "Calculation is still running. Press Refresh to check again." }
+}
+
+/**
+ * Wait for a calculation that was already running, then start a fresh run so a newly closed gap is included.
+ */
+export async function runCalculationAfterActiveBatch(
+  capabilities: CalculationCapabilities,
+  selectedMeasureIds: string[],
+): Promise<CalculationRunResult> {
+  let started: CalculationRunResult
+  try {
+    started = await runCalculation(capabilities, selectedMeasureIds)
+  } catch (error) {
+    if (!(error instanceof HttpError) || error.status !== 409 || capabilities.mode !== "integration") {
+      throw error
+    }
+
+    const active = await fetchLatestBatch()
+    if (!active || active.status !== "running") {
+      throw error
+    }
+    const activeResult = await waitForCalculation(active.batchId)
+    if (!activeResult.success) {
+      return activeResult
+    }
+    started = await runCalculation(capabilities, selectedMeasureIds)
+  }
+
+  if (!started.batchId) {
+    return started
+  }
+  return waitForCalculation(started.batchId)
 }
 
 interface IntegrationLatestBatch extends IntegrationBatchStatus {

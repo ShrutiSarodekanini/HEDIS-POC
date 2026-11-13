@@ -190,11 +190,10 @@ def gap_detail(conn: psycopg.Connection, key: str, as_of: date) -> dict | None:
                  LEFT JOIN extraction_runs r ON r.id = a.run_id
                 WHERE p.gap_id = %s::uuid ORDER BY x.created_at, p.evidence_id""", (gap["gap_id"],)).fetchall()
         ai_runs = cur.execute(
-            """SELECT r.id AS run_id, r.started_at, r.model_name, a.id AS attempt_id, a.status,
+            """SELECT r.id AS run_id, r.started_at, r.model_name, r.correlation_id, a.id AS attempt_id, a.status,
                       (SELECT count(*) FROM evidence_proposal_detail x WHERE x.attempt_id = a.id) AS kept,
-                      coalesce(jsonb_array_length(a.dropped), 0) AS dropped_count, a.dropped, a.pages_sent,
-                      a.raw_response, a.prompt_version,
-                      a.prompt_tokens, a.output_tokens, a.duration_ms, split_part(a.error, E'\n', 1) AS error
+                      coalesce(jsonb_array_length(a.dropped), 0) AS dropped_count, a.pages_sent, a.prompt_version,
+                      a.prompt_tokens, a.output_tokens, a.duration_ms, a.error
                  FROM extraction_attempts a JOIN extraction_runs r ON r.id = a.run_id
                 WHERE a.gap_id = %s::uuid ORDER BY r.started_at DESC, a.id DESC""", (gap["gap_id"],)).fetchall()
     rule, age, items = parts.load(conn, gap["gap_id"])

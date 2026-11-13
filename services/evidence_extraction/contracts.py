@@ -100,9 +100,10 @@ class ModelResult:
 class ModelError(Exception):
     """A call that produced no usable answer. `transient` errors may be retried later (timeouts, 5xx, 429)."""
 
-    def __init__(self, message: str, *, transient: bool, raw: str | None = None):
+    def __init__(self, message: str, *, transient: bool, code: str, raw: str | None = None):
         super().__init__(message)
         self.transient = transient
+        self.code = code
         self.raw = raw
 
 

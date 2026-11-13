@@ -143,6 +143,7 @@ export interface EvidenceAiRun {
   runId: number
   startedAt: string | null
   modelName: string | null
+  correlationId: string | null
   status: string
   kept: number
   droppedCount: number
@@ -155,12 +156,6 @@ export interface EvidenceAiRun {
     method: string | null
     handwritten: boolean
   }>
-  dropped: Array<{
-    evidenceType: string | null
-    reason: string
-    evidenceId: string | null
-  }>
-  rawResponse: string | null
 }
 
 export interface EvidenceGapScoreStep {
@@ -226,39 +221,23 @@ export interface EvidenceExportRun {
   fileSha256: string
 }
 
-export interface EvidenceCallExchange {
-  status: number | null
-  seconds: number | null
-  error: string | null
-  requestMessages: Array<{
-    role: string
-    content: string
-  }>
-  answer: string | null
+export interface EvidenceExtractionAttemptSummary {
+  attemptId: number
+  status: string
+  model: string | null
+  durationMs: number | null
+  promptTokens: number | null
+  outputTokens: number | null
 }
 
 export interface EvidenceLatestRun {
   gapId: string
   runId: number | null
-  pages: Array<{
-    documentId: string
-    pageNo: number
-    method: string | null
-    handwritten: boolean
-  }>
-  calls: EvidenceCallExchange[]
-  kept: Array<{
-    evidenceType: string | null
-    documentId: string
-    pageNo: number | null
-    excerpt: string
-  }>
-  dropped: Array<{
-    evidenceType: string | null
-    documentId: string | null
-    reason: string
-    evidenceId: string | null
-  }>
+  status: string | null
+  attempts: EvidenceExtractionAttemptSummary[]
+  saved: number
+  skippedAlreadySaved: number
+  failedAttempts: number
 }
 
 export interface EvidenceExtractionResult {

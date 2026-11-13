@@ -2,8 +2,7 @@ import { useCallback, useState } from "react"
 
 import {
   discoverCalculationCapabilities,
-  runCalculation,
-  waitForCalculation,
+  runCalculationAfterActiveBatch,
 } from "../services/calculation.service"
 import { closeCareGap } from "../services/evidence.service"
 import { toRequestErrorMessage } from "../services/http"
@@ -29,12 +28,9 @@ export function useGapClose(gapId: string, onClosed: () => void): UseGapCloseRes
       setClosedStatus(result.reviewStatus)
       try {
         const capabilities = await discoverCalculationCapabilities()
-        const started = await runCalculation(capabilities, [])
-        if (started.batchId) {
-          const finished = await waitForCalculation(started.batchId)
-          if (!finished.success) {
-            throw new Error(finished.message)
-          }
+        const finished = await runCalculationAfterActiveBatch(capabilities, [])
+        if (!finished.success) {
+          throw new Error(finished.message)
         }
       } catch (recalculationError) {
         setError(`Gap closed, but automatic recalculation failed: ${toRequestErrorMessage(recalculationError)}. Run calculation manually.`)
