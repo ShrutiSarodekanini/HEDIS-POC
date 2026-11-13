@@ -213,7 +213,8 @@ def build_router(current_user_dep: Callable[..., auth.AuthUser],
         version = conn.execute("SELECT version_num FROM alembic_version").fetchone()[0]
         return {"status": "ok", "schema": schema, "migration": version, "rules_version": load_rules().version,
                 "engine_built": (SETTINGS.engine_root / "build" / "cli.js").exists(),
-                "evidence_dir_set": SETTINGS.evidence_dir is not None, "reset_allowed": reset.allowed(),
+                "evidence_library_documents": conn.execute("SELECT count(*) FROM evidence_library").fetchone()[0],
+                "reset_allowed": reset.allowed(),
                 "openrouter": openrouter_status.status(),
                 "services": {"ingestion": {"prefix": "/api/ingestion", "schema": schema},
                              "quality": {**dq_checks.status(), "schema": schema}}}

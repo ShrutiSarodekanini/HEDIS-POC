@@ -12,8 +12,8 @@
 # Needs: Rancher Desktop (or Docker Desktop) running, the local Postgres from .env's DATABASE_URL, Python 3.11+,
 # Node 20+, and a repo-root .env (copy .env.example). The Python packages install on a fresh clone and again whenever
 # requirements.txt changes; the measure engine build and the UI packages install when missing. Migrations always
-# run; they are a no-op when up to date. For AI evidence, .env also needs INTEGRATION_EVIDENCE_DIR
-# (data/evidence_store) and an EXTRACTION_MODEL that is serving on OpenRouter. Key values are never printed.
+# run; they are a no-op when up to date. For AI evidence, .env also needs EXTRACTION_DATA_CLASS=synthetic and an
+# EXTRACTION_MODEL that is serving on OpenRouter. Key values are never printed.
 
 param([switch]$Setup, [switch]$NoObservability, [switch]$Install, [switch]$Stop)
 

@@ -83,10 +83,7 @@ class DocumentsWorker(Worker):
 
             with db.connect() as conn:
                 patient_ids, _ = team_schema_loader.job_patients(conn, job_id)
-            if SETTINGS.evidence_dir is None:
-                attached = {"skipped": "evidence directory is not configured"}
-            else:
-                attached = stored_evidence.attach(SETTINGS.evidence_dir, list(patient_ids), lambda _done, _total: None)
+            attached = stored_evidence.attach(list(patient_ids), lambda _done, _total: None)
 
             # Send progress: processing
             asyncio.run(progress_tracker.notify(

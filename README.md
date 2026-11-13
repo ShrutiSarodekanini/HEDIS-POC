@@ -27,7 +27,7 @@ Values that matter most:
 | `OPENROUTER_API_KEY`, `EXTRACTION_MODEL` | AI evidence extraction (the model must be serving on OpenRouter) |
 | `HEDIS_BOOTSTRAP_ADMIN_EMAIL` | Email of the first admin, created at startup if no account has it (lowercase) |
 | `HEDIS_BOOTSTRAP_ADMIN_PASSWORD` | Password for that first admin, at least 8 characters; never changes an existing account |
-| `INTEGRATION_EVIDENCE_DIR` | Stored evidence documents, normally `data/evidence_store` |
+| `EXTRACTION_DATA_CLASS` | Must be `synthetic` for AI evidence to run; it confirms only synthetic data goes to OpenRouter |
 | `RABBITMQ_*` | Broker connection (defaults match `docker-compose.yml`) |
 | `GRAFANA_ADMIN_PASSWORD`, `GRAFANA_DB_PASSWORD` | Optional, for Grafana |
 
@@ -45,7 +45,7 @@ dispatcher, the workers and the UI.
 
 | Option | Use |
 |---|---|
-| `-Setup` | First run on an empty schema: also loads the reference data (measures, rules, star cut points) |
+| `-Setup` | First run on an empty schema: also loads the reference data (measures, rules, star cut points, evidence library) |
 | `-Install` | Reinstall packages and rebuild the measure engine, for example after a pull |
 | `-NoObservability` | Skip Prometheus, Grafana, Loki and Alloy |
 | `-Stop` | Stop everything the script started. Database and container data are kept |
@@ -148,7 +148,9 @@ python scripts/rabbitmq_dlq.py replay --queue measures.run --limit 10
 ```
 
 Synthetic test files are in `data/test_uploads`: upload `synthea_20_patients.zip`, or the CSV files in
-`cohort_4_patients/`, on the Data Ingestion page. Their evidence documents are in `data/evidence_store`.
+`cohort_4_patients/`, on the Data Ingestion page. Their evidence documents are stored in the `evidence_library`
+table, loaded from `data/seed/stored_evidence` with the reference data. For a schema loaded before that table
+existed, run `python scripts/db/load_seed.py --evidence-only` once.
 
 ## Database
 
