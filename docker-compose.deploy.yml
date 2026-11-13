@@ -17,7 +17,6 @@ x-python: &python
     RABBITMQ_HOST: rabbitmq
     INTEGRATION_WORK_DIR: /data/work
     EVIDENCE_STORAGE_DIR: /data/generated_evidence
-    INTEGRATION_EVIDENCE_DIR: /app/data/evidence_store
     INTAKE_STORE_DIR: /data/intake_store
   depends_on:
     rabbitmq:

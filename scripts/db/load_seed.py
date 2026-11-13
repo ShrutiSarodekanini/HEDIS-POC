@@ -3,12 +3,16 @@
 Usage (from the repo root, after `alembic -c db/alembic.ini upgrade head`):
     python scripts/db/load_seed.py           # load into an empty database
     python scripts/db/load_seed.py --reset   # empty every table first (development only)
-    python scripts/db/load_seed.py --reference-only   # organizations, practitioners, measures, stars; no patients
+    python scripts/db/load_seed.py --reference-only   # organizations, practitioners, measures, stars, evidence
+                                                      # library; no patients
+    python scripts/db/load_seed.py --evidence-only    # only the evidence library, for a schema loaded before it
 
 Everything loads in one transaction:
 - one source_batch row, stamped on every team-table row that has a batch_id
 - organizations, practitioners, patients (with a minimal FHIR Patient), coverage, encounters
 - measure definitions and rules, star weights and cut points
+- the evidence library: the documents in data/seed/stored_evidence with their bytes, attached to a batch's patients
+  by the documents step. Rows already there are kept, so a second load adds only new documents.
 - the engine run, one measure_result per patient per measure, care gaps and their detail
 - documents and structured files as received files with status "pending", ready for document intake.
   No page text is created here.
@@ -335,6 +339,21 @@ def register_file(cur, path: Path, org_id, patient_id, needs_match: bool) -> int
     return cur.fetchone()[0]
 
 
+def load_evidence_library(cur) -> None:
+    """Copy data/seed/stored_evidence into evidence_library. Each file must match the sha256 in its manifest."""
+    folder = SEED / "stored_evidence"
+    for entry in json.loads((folder / "manifest.json").read_text(encoding="utf-8")):
+        path = folder / entry["file"]
+        content = path.read_bytes()
+        if hashlib.sha256(content).hexdigest() != entry["sha256"]:
+            raise ValueError(f"{entry['doc_id']}: file does not match the sha256 in manifest.json")
+        cur.execute(
+            """INSERT INTO evidence_library (doc_id, synthea_patient_id, file_name, mime_type, sha256, content)
+               VALUES (%s, %s, %s, %s, %s, %s) ON CONFLICT (doc_id) DO NOTHING""",
+            (entry["doc_id"], entry["synthea_patient_id"], path.name,
+             entry.get("mime_type") or mimetypes.guess_type(path.name)[0], entry["sha256"], content))
+
+
 def load_documents(cur, patients: dict[str, str], authors: dict[str, str]) -> None:
     cur.execute("SELECT name, organization_id FROM organization")
     org_by_name = dict(cur.fetchall())
@@ -384,8 +403,17 @@ def main() -> None:
     parser.add_argument("--reset", action="store_true", help="empty every table before loading (development only)")
     parser.add_argument("--reference-only", action="store_true",
                         help="load only data that is not about patients: organizations, practitioners, measure "
-                             "definitions and rules, star weights and cut points")
+                             "definitions and rules, star weights and cut points, the evidence library")
+    parser.add_argument("--evidence-only", action="store_true",
+                        help="load only the evidence library, into a schema whose reference data is already loaded")
     args = parser.parse_args()
+    if args.evidence_only:
+        with connect() as conn, conn.cursor() as cur:
+            load_evidence_library(cur)
+            cur.execute("SELECT count(*) FROM evidence_library")
+            print(f"evidence_library  {cur.fetchone()[0]}")
+            conn.commit()
+        return
     run = json.loads((SEED / "engine" / "engine_run_MY2026.json").read_text(encoding="utf-8"))
 
     with connect() as conn, conn.cursor() as cur:
@@ -397,6 +425,7 @@ def main() -> None:
         if args.reference_only:
             lib = load_measures(cur)
             load_stars(cur, lib["measurement_year"])
+            load_evidence_library(cur)
         else:
             patients = load_patients(cur)
             load_engagement(cur, patients)
@@ -406,6 +435,7 @@ def main() -> None:
             gap_pk = load_results(cur, run, lib, patients)
             load_gaps(cur, run, patients, gap_pk)
             load_documents(cur, patients, authors)
+            load_evidence_library(cur)
         finish_batch(cur)
         counts = table_counts(cur)
         audit(cur, counts)

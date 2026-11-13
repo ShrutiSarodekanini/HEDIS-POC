@@ -79,7 +79,8 @@ if ($Setup) {
     if ($seedExit -eq 0) {
         Write-Host "Reference data loaded."
     } elseif ($output -match "source_batch_pkey") {
-        Write-Host "Reference data was already loaded in this schema; nothing to do." -ForegroundColor Yellow
+        Write-Host "Reference data was already loaded in this schema; loading only the evidence library." -ForegroundColor Yellow
+        Invoke-Compose @("--profile", "setup", "run", "--rm", "seed", "python", "scripts/db/load_seed.py", "--evidence-only")
     } else {
         Write-Host $output
         throw "Loading the reference data failed. The output is above."
