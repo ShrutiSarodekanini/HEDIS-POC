@@ -302,10 +302,10 @@ _CLOSE_AS = {"closed_pending_engine": "closed", "excluded_pending_engine": "excl
 
 
 def close_gap(conn: psycopg.Connection, gap_id: str, actor_user_id: int, actor: str) -> dict:
-    """Close a gap whose required evidence is confirmed, without waiting for the next engine run, then re-score.
+    """Submit a fully evidenced gap for the engine rerun that finalizes its outcome.
 
     actor is the signed-in user. Raises LookupError for an unknown gap and Conflict when the gap is already closed or
-    its evidence is not complete. A later engine run leaves the closed gap alone (it only closes open gaps)."""
+    its evidence is not complete."""
     try:
         gap_uuid = uuid.UUID(gap_id)
     except ValueError as exc:
@@ -321,19 +321,16 @@ def close_gap(conn: psycopg.Connection, gap_id: str, actor_user_id: int, actor: 
     closed_as = _CLOSE_AS.get(before or "")
     if closed_as is None:
         raise Conflict("Confirm the evidence for every required part before closing this gap")
-    conn.execute(
-        "UPDATE care_gap SET status = 'closed', closed_at = now(), closed_by = %s WHERE gap_id = %s",
-        (actor_user_id, gap_uuid),
+    audit(
+        conn,
+        "care_gap",
+        str(gap_uuid),
+        "gap.engine_requested",
+        {"review_status": before, "expected_outcome": closed_as},
+        actor=actor,
     )
-    conn.execute("UPDATE care_gap_detail SET review_status = %s, updated_at = now() WHERE gap_id = %s",
-                 (closed_as, gap_uuid))
-    audit(conn, "care_gap", str(gap_uuid), "gap.closed", {"review_status_before": before, "closed_as": closed_as},
-          actor=actor)
     conn.commit()
-    score_all(conn, date.today(), load_rules())
-    conn.commit()
-    _star_scenario(conn, gap_uuid, actor)
-    return {"gap_id": str(gap_uuid), "status": "closed", "review_status": closed_as}
+    return {"gap_id": str(gap_uuid), "status": "open", "review_status": before}
 
 
 def clean_reviewer(reviewer: str | None) -> str:

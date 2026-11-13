@@ -72,6 +72,12 @@ tests/
 !tests/
 tests/*
 !tests/test_rabbitmq_pipeline.py
+!tests/star_calculation/
+tests/star_calculation/*
+!tests/star_calculation/test_star_dashboard_parity.py
+!tests/integration/
+tests/integration/*
+!tests/integration/test_supplemental_measure_results.py
 !tests/data_ingestion/
 tests/data_ingestion/*
 !tests/data_ingestion/test_adapter_contract.py

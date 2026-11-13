@@ -18,15 +18,15 @@ from fastapi import APIRouter, Depends, FastAPI, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 from fastapi.routing import APIRoute, APIWebSocketRoute
-from pydantic import BaseModel, Field
 from prometheus_fastapi_instrumentator import Instrumentator
+from pydantic import BaseModel, Field
 from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.orm import Session
 
-from common.config import AppConfig
 from common import app_metrics
 from common.app_logging import path_template, safe_text, setup_file_logging
+from common.config import AppConfig
 from common.database import Database
 from common.evidence import (
     ensure_supported_formats,
@@ -40,6 +40,7 @@ from services.data_ingestion.app import api as ingestion_api
 from services.document_intake import db as intake_db
 from services.integration import auth as integration_auth
 from services.integration import calculation as integration_calculation
+from services.integration import parts as integration_parts
 from services.integration import pipeline as integration_pipeline
 from services.integration import routes as integration_routes
 from services.star_modeler.main import (
@@ -195,12 +196,41 @@ def _load_dashboard_rows(session: Session) -> list[dict[str, object]]:
                           g.status,
                           d.review_status,
                           d.engine_run_id,
+                          latest.in_denominator AS current_in_denominator,
+                          latest.in_numerator AS current_in_numerator,
+                          coalesce(latest.excluded, false) AS current_excluded,
+                          mr.kind AS measure_rule_kind,
+                          mr.thresholds AS measure_rule_thresholds,
+                          date_part(
+                              'year',
+                              age(make_date(g.measurement_year, 12, 31), p.birth_date)
+                          )::int AS patient_age,
+                          proposed.items AS proposed_evidence,
                           COALESCE(mr.name, g.measure_id) AS measure_name,
                           NULL::text AS first_name,
                           NULL::text AS last_name
                      FROM care_gap g
                      JOIN patient p ON g.patient_id = p.patient_id
                      LEFT JOIN care_gap_detail d ON d.gap_id = g.gap_id
+                     LEFT JOIN v_measure_result_latest latest
+                       ON latest.patient_id = g.patient_id
+                      AND latest.measure_id = g.measure_id
+                      AND latest.measurement_year = g.measurement_year
+                     LEFT JOIN LATERAL (
+                         SELECT jsonb_agg(
+                                    jsonb_build_object(
+                                        'evidence_id', p.evidence_id::text,
+                                        'kind', x.evidence_kind,
+                                        'evidence_type', x.evidence_type,
+                                        'date_from', x.service_date_from,
+                                        'reason', x.reason
+                                    )
+                                ) AS items
+                           FROM evidence_proposal p
+                           JOIN evidence_proposal_detail x ON x.evidence_id = p.evidence_id
+                          WHERE p.gap_id = g.gap_id
+                            AND p.status IN ('proposed', 'confirmed')
+                     ) proposed ON true
                      LEFT JOIN measure_rule mr ON mr.measure_id = g.measure_id
                                               AND mr.measurement_year = g.measurement_year"""
             )
@@ -219,6 +249,13 @@ def _load_dashboard_rows(session: Session) -> list[dict[str, object]]:
                       g.status,
                       NULL::text AS review_status,
                       NULL::text AS engine_run_id,
+                      NULL::boolean AS current_in_denominator,
+                      NULL::boolean AS current_in_numerator,
+                      NULL::boolean AS current_excluded,
+                      NULL::text AS measure_rule_kind,
+                      NULL::jsonb AS measure_rule_thresholds,
+                      NULL::int AS patient_age,
+                      NULL::jsonb AS proposed_evidence,
                       m.name AS measure_name,
                       mb.first_name,
                       mb.last_name
@@ -266,23 +303,6 @@ def _load_engine_measure_counts(session: Session) -> dict[tuple[str, int], dict[
     return counts
 
 
-def _load_latest_engine_run_id(session: Session) -> str | None:
-    """Latest engine run id, used to detect lifecycle decisions not yet reflected in engine populations."""
-    try:
-        row = session.execute(
-            text(
-                """SELECT run_id
-                     FROM engine_runs
-                 ORDER BY run_at DESC
-                    LIMIT 1"""
-            )
-        ).first()
-    except SQLAlchemyError:
-        session.rollback()
-        return None
-    return str(row[0]) if row and row[0] is not None else None
-
-
 def _load_measure_catalog(session: Session) -> dict[tuple[str, int], dict[str, object]]:
     """Load measure metadata used by the star dashboard from reference tables."""
     try:
@@ -326,6 +346,60 @@ def _load_measure_catalog(session: Session) -> dict[tuple[str, int], dict[str, o
     return catalog
 
 
+def _projected_gap_outcome(row: dict[str, object]) -> str | None:
+    """Expected engine outcome if all active evidence proposals for a gap are confirmed."""
+    raw_items = row.get("proposed_evidence")
+    if not isinstance(raw_items, list):
+        return None
+
+    items: list[integration_parts.Item] = []
+    for raw_item in raw_items:
+        if not isinstance(raw_item, dict):
+            continue
+        evidence_id = raw_item.get("evidence_id")
+        kind = raw_item.get("kind")
+        evidence_type = raw_item.get("evidence_type")
+        if not all(isinstance(value, str) for value in (evidence_id, kind, evidence_type)):
+            continue
+        reason = raw_item.get("reason")
+        part = integration_parts.split_reason(reason if isinstance(reason, str) else None)[0]
+        date_from = raw_item.get("date_from")
+        if isinstance(date_from, str):
+            try:
+                date_from = dt.date.fromisoformat(date_from)
+            except ValueError:
+                date_from = None
+        if not isinstance(date_from, dt.date):
+            date_from = None
+        items.append(
+            integration_parts.Item(
+                evidence_id=evidence_id,
+                status="confirmed",
+                kind=kind,
+                evidence_type=evidence_type,
+                date_from=date_from,
+                part=part,
+            )
+        )
+
+    if not items:
+        return None
+    result = integration_parts.check(
+        {
+            "kind": row.get("measure_rule_kind"),
+            "name": row.get("measure_name"),
+            "thresholds": row.get("measure_rule_thresholds") or {},
+        },
+        int(row["patient_age"]) if row.get("patient_age") is not None else None,
+        items,
+    )
+    if result["exclusion_complete"]:
+        return "exclusion"
+    if result["closure_complete"]:
+        return "closure"
+    return None
+
+
 def _build_star_dashboard(
     session: Session,
     *,
@@ -336,7 +410,6 @@ def _build_star_dashboard(
 
     rows = _load_dashboard_rows(session)
     engine_counts = _load_engine_measure_counts(session)
-    latest_engine_run_id = _load_latest_engine_run_id(session)
     catalog_entries = _load_measure_catalog(session)
 
     measure_stats: dict[str, dict[str, object]] = {}
@@ -376,30 +449,38 @@ def _build_star_dashboard(
                 "measurement_year": measurement_year,
                 "measure_name": measure_name,
                 "total": 0,
+                "finalized_closed": 0,
+                "finalized_excluded": 0,
                 "pending_closed": 0,
                 "pending_excluded": 0,
                 "projected_closed": 0,
-                "selected_open": 0,
+                "selected_closed": 0,
+                "selected_excluded": 0,
                 "weight": catalog_entry.get("weight"),
                 "measure_type": catalog_entry.get("measure_type"),
             }
 
-        engine_run_id = str(row.get("engine_run_id") or "")
-        waiting_for_engine = bool(latest_engine_run_id) and engine_run_id != latest_engine_run_id
         review_status = str(row.get("review_status") or "").strip().lower()
+        engine_met = bool(row.get("current_in_numerator"))
+        engine_excluded = bool(row.get("current_excluded"))
+        pending_closed = not is_closed and review_status == "closed_pending_engine"
+        pending_excluded = not is_closed and review_status == "excluded_pending_engine"
 
         measure_stats[m_id]["total"] = int(measure_stats[m_id]["total"]) + 1
-        if waiting_for_engine or not latest_engine_run_id:
-            if is_closed and is_excluded:
-                measure_stats[m_id]["pending_excluded"] = int(measure_stats[m_id]["pending_excluded"]) + 1
-            elif is_closed:
-                measure_stats[m_id]["pending_closed"] = int(measure_stats[m_id]["pending_closed"]) + 1
-            elif review_status == "excluded_pending_engine":
-                measure_stats[m_id]["pending_excluded"] = int(measure_stats[m_id]["pending_excluded"]) + 1
-            elif review_status == "closed_pending_engine":
-                measure_stats[m_id]["pending_closed"] = int(measure_stats[m_id]["pending_closed"]) + 1
-        if (not is_closed) and gap_id in selected_set:
-            measure_stats[m_id]["selected_open"] = int(measure_stats[m_id]["selected_open"]) + 1
+        if is_closed and is_excluded:
+            measure_stats[m_id]["finalized_excluded"] = int(measure_stats[m_id]["finalized_excluded"]) + 1
+        elif is_closed:
+            measure_stats[m_id]["finalized_closed"] = int(measure_stats[m_id]["finalized_closed"]) + 1
+        elif pending_closed and not engine_met:
+            measure_stats[m_id]["pending_closed"] = int(measure_stats[m_id]["pending_closed"]) + 1
+        elif pending_excluded and not engine_excluded:
+            measure_stats[m_id]["pending_excluded"] = int(measure_stats[m_id]["pending_excluded"]) + 1
+        elif gap_id in selected_set and not engine_met and not engine_excluded:
+            projected_outcome = _projected_gap_outcome(row)
+            if projected_outcome == "exclusion":
+                measure_stats[m_id]["selected_excluded"] = int(measure_stats[m_id]["selected_excluded"]) + 1
+            elif projected_outcome == "closure" or not row.get("proposed_evidence"):
+                measure_stats[m_id]["selected_closed"] = int(measure_stats[m_id]["selected_closed"]) + 1
         if projected_closed:
             measure_stats[m_id]["projected_closed"] = int(measure_stats[m_id]["projected_closed"]) + 1
 
@@ -449,10 +530,13 @@ def _build_star_dashboard(
                     str(catalog_entry.get("measure_name") or m_id),
                 ),
                 "total": 0,
+                "finalized_closed": 0,
+                "finalized_excluded": 0,
                 "pending_closed": 0,
                 "pending_excluded": 0,
                 "projected_closed": 0,
-                "selected_open": 0,
+                "selected_closed": 0,
+                "selected_excluded": 0,
                 "weight": catalog_entry.get("weight"),
                 "measure_type": catalog_entry.get("measure_type"),
             }
@@ -467,10 +551,13 @@ def _build_star_dashboard(
                 "measurement_year": int(entry["measurement_year"]),
                 "measure_name": str(entry["measure_name"]),
                 "total": 0,
+                "finalized_closed": 0,
+                "finalized_excluded": 0,
                 "pending_closed": 0,
                 "pending_excluded": 0,
                 "projected_closed": 0,
-                "selected_open": 0,
+                "selected_closed": 0,
+                "selected_excluded": 0,
                 "weight": entry.get("weight"),
                 "measure_type": entry.get("measure_type"),
             }
@@ -486,25 +573,27 @@ def _build_star_dashboard(
         measure_code = str(stat["measure_id"])
         measurement_year = int(stat["measurement_year"])
         fallback_total = int(stat["total"])
-        fallback_pending_closed = int(stat.get("pending_closed") or 0)
-        fallback_pending_excluded = int(stat.get("pending_excluded") or 0)
-        selected_open = int(stat.get("selected_open") or 0)
+        finalized_closed = int(stat.get("finalized_closed") or 0)
+        finalized_excluded = int(stat.get("finalized_excluded") or 0)
+        pending_closed = int(stat.get("pending_closed") or 0)
+        pending_excluded = int(stat.get("pending_excluded") or 0)
+        selected_closed = int(stat.get("selected_closed") or 0)
+        selected_excluded = int(stat.get("selected_excluded") or 0)
         engine_denominator = stat.get("engine_denominator")
         engine_numerator = stat.get("engine_numerator")
 
-        # Prefer engine populations, and add reviewer decisions not yet reflected by the latest engine run.
         if isinstance(engine_denominator, int) and isinstance(engine_numerator, int) and engine_denominator >= 0:
-            total = max(engine_denominator - fallback_pending_excluded, 0)
-            baseline_closed = max(engine_numerator, 0) + fallback_pending_closed
+            total = max(engine_denominator - pending_excluded, 0)
+            baseline_closed = max(engine_numerator, 0) + pending_closed
             baseline_closed = min(baseline_closed, total)
         else:
-            # Fallback for profiles without engine-result populations.
-            total = max(fallback_total - fallback_pending_excluded, 0)
-            baseline_closed = min(fallback_pending_closed, total)
+            total = max(fallback_total - finalized_excluded - pending_excluded, 0)
+            baseline_closed = min(finalized_closed + pending_closed, total)
 
-        projected_closed = min(total, baseline_closed + max(selected_open, 0))
+        projected_total = max(total - selected_excluded, 0)
+        projected_closed = min(projected_total, baseline_closed + max(selected_closed, 0))
         baseline_rate = _gap_rate(baseline_closed, total)
-        projected_rate = _gap_rate(projected_closed, total)
+        projected_rate = _gap_rate(projected_closed, projected_total)
         star_eligible = has_cutpoints_sqlalchemy(
             session,
             measure_code=measure_code,
@@ -522,7 +611,7 @@ def _build_star_dashboard(
             measure_code=measure_code,
             measurement_year=measurement_year,
             scoring_value=projected_rate,
-            denominator=total,
+            denominator=projected_total,
         )
         baseline_star = baseline_result.assigned_star_rating
         projected_star = projected_result.assigned_star_rating
@@ -543,6 +632,7 @@ def _build_star_dashboard(
                 "star_eligible": star_eligible,
                 "rating_note": rating_note,
                 "total_gaps": total,
+                "projected_total_gaps": projected_total,
                 "baseline_closed": baseline_closed,
                 "projected_closed": projected_closed,
                 "baseline_rate": baseline_rate,
