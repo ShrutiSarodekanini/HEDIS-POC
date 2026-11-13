@@ -1,0 +1,147 @@
+# One container per component, built from the current code. Postgres stays outside (DATABASE_URL in .env.deploy).
+#   docker compose -p hedis-deploy -f docker-compose.deploy.yml up -d --build
+#   docker compose -p hedis-deploy -f docker-compose.deploy.yml --profile setup run --rm seed   (empty schema only)
+# Only the UI (8080) and the RabbitMQ management page (15673) are published, so the dev stack's ports stay free.
+name: hedis-deploy
+
+# Built once by migrate (parallel builds of one tag collide); the other Python services reuse the local image.
+x-python: &python
+  image: hedis-deploy-python:latest
+  pull_policy: never
+  init: true
+  restart: unless-stopped
+  env_file:
+    - .env
+    - .env.deploy
+  environment:
+    RABBITMQ_HOST: rabbitmq
+    INTEGRATION_WORK_DIR: /data/work
+    EVIDENCE_STORAGE_DIR: /data/generated_evidence
+    INTEGRATION_EVIDENCE_DIR: /app/data/evidence_store
+    INTAKE_STORE_DIR: /data/intake_store
+  depends_on:
+    rabbitmq:
+      condition: service_healthy
+    migrate:
+      condition: service_completed_successfully
+  networks:
+    - hedis
+
+services:
+  rabbitmq:
+    image: rabbitmq:3.13-management
+    hostname: rabbitmq
+    restart: unless-stopped
+    env_file:
+      - .env.deploy
+    # Map the app's RABBITMQ_USER/RABBITMQ_PASSWORD to the broker's default user (guest only works on localhost).
+    # The cookie is made up front: a healthcheck that runs first would create it as root and lock the broker out.
+    entrypoint:
+      - /bin/sh
+      - -c
+      - >-
+        export RABBITMQ_DEFAULT_USER="$$RABBITMQ_USER" RABBITMQ_DEFAULT_PASS="$$RABBITMQ_PASSWORD";
+        cookie=/var/lib/rabbitmq/.erlang.cookie;
+        [ -s "$$cookie" ] || { head -c 24 /dev/urandom | od -An -tx1 | tr -d ' \n' > "$$cookie"; chmod 400 "$$cookie"; };
+        exec docker-entrypoint.sh rabbitmq-server
+    ports:
+      - "15673:15672"
+    volumes:
+      - rabbitmq-data:/var/lib/rabbitmq
+    healthcheck:
+      # ping passes before the AMQP listener is up; this waits until it accepts connections.
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "check_port_connectivity"]
+      interval: 10s
+      timeout: 10s
+      retries: 12
+      start_period: 20s
+    networks:
+      - hedis
+
+  migrate:
+    <<: *python
+    build:
+      context: .
+      dockerfile: Dockerfile
+    pull_policy: missing
+    restart: "no"
+    command: ["sh", "-c", "python scripts/db/ensure_schema.py && python -m alembic -c db/alembic.ini upgrade head"]
+    depends_on: {}
+
+  seed:
+    <<: *python
+    restart: "no"
+    profiles: ["setup"]
+    command: ["python", "scripts/db/load_seed.py", "--reference-only"]
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+  api:
+    <<: *python
+    command: ["python", "-m", "uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8000"]
+    volumes:
+      - hedis-data:/data
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/docs', timeout=5)"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
+
+  outbox:
+    <<: *python
+    command: ["python", "-m", "services.outbox_dispatcher"]
+
+  ingestion:
+    <<: *python
+    command: ["python", "scripts/run_workers.py", "conversion", "load"]
+    volumes:
+      - hedis-data:/data
+
+  quality:
+    <<: *python
+    command: ["python", "scripts/run_workers.py", "quality"]
+
+  measures:
+    <<: *python
+    command: ["python", "scripts/run_workers.py", "valuesets", "measures"]
+
+  gap-identifier:
+    <<: *python
+    command: ["python", "scripts/run_workers.py", "gap_identifier"]
+
+  prioritization:
+    <<: *python
+    command: ["python", "scripts/run_workers.py", "gaps"]
+
+  ai-evidence:
+    <<: *python
+    command: ["python", "scripts/run_workers.py", "documents", "evidence"]
+    volumes:
+      - hedis-data:/data
+
+  stars:
+    <<: *python
+    command: ["python", "scripts/run_workers.py", "stars"]
+
+  ui:
+    image: hedis-deploy-ui:latest
+    build:
+      context: .
+      dockerfile: ui/Dockerfile
+    restart: unless-stopped
+    ports:
+      - "8080:80"
+    depends_on:
+      api:
+        condition: service_healthy
+    networks:
+      - hedis
+
+volumes:
+  hedis-data:
+  rabbitmq-data:
+
+networks:
+  hedis:

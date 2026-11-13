@@ -87,6 +87,38 @@ names to run only some, for example `python scripts/run_workers.py measures evid
 
 The backend and the workers do not reload on code changes. Restart them after editing backend code.
 
+## Run as containers
+
+`docker-compose.deploy.yml` runs each component in its own container: ingestion, quality, measures, gap identifier,
+prioritization, AI evidence and stars, plus the API, the outbox dispatcher, the UI (nginx) and RabbitMQ. Postgres
+stays outside and is reached through `DATABASE_URL`.
+
+1. Copy `.env.deploy.example` to `.env.deploy` and fill in `DATABASE_URL` (use its own schema), `RABBITMQ_USER` and
+   `RABBITMQ_PASSWORD`. The containers read `.env` first, then `.env.deploy`.
+2. Build and start. The `migrate` job creates the schema and runs the migrations:
+
+   ```powershell
+   docker compose -p hedis-deploy -f docker-compose.deploy.yml up -d --build
+   ```
+
+3. Load the reference data, once per schema (a second run fails on a duplicate key, which is harmless):
+
+   ```powershell
+   docker compose -p hedis-deploy -f docker-compose.deploy.yml --profile setup run --rm seed
+   ```
+
+4. Open http://127.0.0.1:8080. RabbitMQ management is on http://localhost:15673.
+
+`scripts/run_containers.ps1` does steps 2 to 4 in one command (`-Setup` also loads the reference data, `-Stop` stops,
+`-Reset` removes the containers and volumes):
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/run_containers.ps1 -Setup
+```
+
+After changing `.env` or `.env.deploy`, run `up -d` again. `start` and `restart` keep the old values. `stop` keeps
+the data; `down -v` removes the containers and their volumes. Details are in `docs/deployment/CONTAINERS.md`.
+
 ## Pipeline
 
 An upload goes through these steps. Each step is a RabbitMQ queue, fed through the transactional outbox
@@ -131,7 +163,7 @@ schema that exists but belongs to another user is left alone; the script stops a
 TO` command a superuser runs.
 
 To start from scratch, drop the schema (`DROP SCHEMA <schema> CASCADE;`) and run the script with `-Setup`. The
-backend creates the default users at startup.
+backend creates the bootstrap admin from `.env` at startup.
 
 ## Monitoring
 
@@ -177,6 +209,7 @@ reason. Cut points follow the CMS 2027 Star Ratings Technical Notes.
 | `ui/` | React UI |
 | `observability/` | Prometheus, Grafana, Loki and Alloy |
 | `scripts/` | Start, worker, seed and maintenance scripts |
+| `Dockerfile`, `ui/Dockerfile`, `docker-compose.deploy.yml` | Container images and the per-component deployment |
 
 ## Tests
 
