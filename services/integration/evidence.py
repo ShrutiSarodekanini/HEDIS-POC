@@ -7,17 +7,16 @@ proposal changes status once, with a matching review decision.
 
 Tracking: each "Review with AI" is one extraction_runs row with one extraction_attempts row per model call, and every
 saved finding points to the attempt that produced it. A confirmation adds a supplemental_records row (the database
-accepts it only with a confirming decision) and every decision adds a star_scenario snapshot of the measure.
+accepts it only with a confirming decision) and every decision adds a star_scenario snapshot of the measure. Run and
+attempt rows store only metadata and protected diagnostics; API responses never include raw prompt or completion text.
 """
 
-import json
 import logging
 import time
 import uuid
 from dataclasses import asdict
 from datetime import UTC, date, datetime
 
-import httpx
 import psycopg
 from psycopg.types.json import Jsonb
 
@@ -48,30 +47,6 @@ class AiEvidenceOff(Conflict):
     """The configured provider policy does not allow model calls for the configured data class."""
 
 
-class _Capture(httpx.BaseTransport):
-    """Records each request and response for the review screen, with the API key hidden (as on the demo page)."""
-
-    def __init__(self) -> None:
-        self.inner = httpx.HTTPTransport()
-        self.exchanges: list[dict] = []
-
-    def handle_request(self, request: httpx.Request) -> httpx.Response:
-        headers = {k: ("Bearer [hidden]" if k.lower() == "authorization" else v) for k, v in request.headers.items()}
-        started = time.perf_counter()
-        response = self.inner.handle_request(request)
-        content = response.read()
-        try:
-            body = json.loads(content)
-        except json.JSONDecodeError:
-            body = content.decode("utf-8", errors="replace")
-        self.exchanges.append({"url": str(request.url), "headers": headers, "request": json.loads(request.content),
-                               "status": response.status_code, "seconds": round(time.perf_counter() - started, 2),
-                               "response": body})
-        kept = [(k, v) for k, v in response.headers.multi_items()
-                if k.lower() not in ("content-encoding", "content-length", "transfer-encoding")]
-        return httpx.Response(response.status_code, headers=kept, content=content, request=request)
-
-
 def find_evidence(conn: psycopg.Connection, key: str) -> dict:
     """Run the extraction for one gap, save kept findings as proposed, then re-score. Raises LookupError.
 
@@ -84,92 +59,100 @@ def find_evidence(conn: psycopg.Connection, key: str) -> dict:
     measure = prompt.load_measure(conn, gap.measure_code, gap.measurement_year)
     pages = prompt.select_pages(conn, gap)
     conn.rollback()
-    page_list = [{"document_id": p.document_id, "page_no": p.page_no, "doc_type": p.doc_type,
-                  "document_date": p.document_date, "method": p.method, "handwritten": p.handwritten}
-                 for p in pages]
+    correlation_id = f"evd-{uuid.uuid4().hex}"
     run_id = conn.execute(
-        """INSERT INTO extraction_runs (status, provider, model_name, scope)
-           VALUES ('running', 'openrouter', %s, %s) RETURNING id""",
+        """INSERT INTO extraction_runs (status, provider, model_name, scope, correlation_id)
+           VALUES ('running', 'openrouter', %s, %s, %s) RETURNING id""",
         (EXTRACTION_SETTINGS.model, Jsonb({"gap_id": gap.gap_id, "measure": gap.measure_code,
-                                           "trigger": "review_with_ai", "pages": len(pages)}))).fetchone()[0]
+                                           "trigger": "review_with_ai", "pages": len(pages)}), correlation_id),
+    ).fetchone()[0]
     conn.commit()
     if not pages:
-        _finish_run(conn, run_id, gap.gap_id, kept=0, dropped=0, failed=0, calls=0)
-        return {"run_id": run_id, "pages": [], "calls": [], "kept": [], "dropped": [], "saved": 0,
+        _finish_run(conn, run_id, gap.gap_id, correlation_id=correlation_id, kept=0, dropped=0, failed=0, calls=0)
+        return {"run_id": run_id, "correlation_id": correlation_id, "status": "completed", "attempts": [], "saved": 0,
                 "skipped_already_saved": 0,
+                "failed_attempts": 0,
                 "note": "No converted documents for this patient yet: upload one first. No model call was made."}
-    capture = _Capture()
-    calls, kept, dropped = [], [], []
+    attempts, kept, dropped = [], [], []
     try:
-        client = OpenRouterClient(transport=capture)
+        client = OpenRouterClient()
         for p in prompt.build_prompts(gap, measure, pages):
-            call, call_kept, call_dropped = _attempt(conn, client, capture, run_id, gap, measure, p)
-            calls.append(call)
-            kept += call_kept
-            dropped += call_dropped
-        saved, skipped = _save_proposed(conn, uuid.UUID(gap.gap_id), kept)
+            attempt, attempt_kept, attempt_dropped = _attempt(
+                conn, client, run_id, gap, measure, p, correlation_id=correlation_id
+            )
+            attempts.append(attempt)
+            kept += attempt_kept
+            dropped += attempt_dropped
+        saved, skipped = _save_proposed(conn, uuid.UUID(gap.gap_id), kept, correlation_id=correlation_id)
         skipped += sum(1 for d in dropped if d.get("already_proposed"))
         conn.commit()
     except Exception:
         conn.rollback()
-        failed = sum(1 for c in calls if c.get("error"))
-        _finish_run(conn, run_id, gap.gap_id, kept=0, dropped=len(dropped), failed=failed + 1, calls=len(calls) + 1)
+        failed = sum(1 for a in attempts if a["status"] == "failed")
+        _finish_run(conn, run_id, gap.gap_id, correlation_id=correlation_id, kept=0, dropped=len(dropped), failed=failed + 1,
+                    calls=len(attempts) + 1)
         raise
-    failed = sum(1 for c in calls if c.get("error"))
-    _finish_run(conn, run_id, gap.gap_id, kept=len(kept), dropped=len(dropped), failed=failed, calls=len(calls))
+    failed = sum(1 for a in attempts if a["status"] == "failed")
+    status = _finish_run(conn, run_id, gap.gap_id, correlation_id=correlation_id, kept=len(kept), dropped=len(dropped), failed=failed,
+                         calls=len(attempts))
     tiers = score_all(conn, date.today(), load_rules()).tiers if saved else None
     conn.commit()
-    log.info("gap %s run %s: %d calls, %d kept, %d dropped, %d saved", gap.gap_id, run_id, len(calls), len(kept),
+    log.info("gap %s run %s: %d calls, %d kept, %d dropped, %d saved", gap.gap_id, run_id, len(attempts), len(kept),
              len(dropped), saved)
-    return {"run_id": run_id, "pages": page_list, "calls": calls, "kept": kept, "dropped": dropped, "saved": saved,
-            "skipped_already_saved": skipped, "tiers": tiers, "note": None}
+    return {"run_id": run_id, "correlation_id": correlation_id, "status": status, "attempts": attempts, "saved": saved,
+            "skipped_already_saved": skipped, "failed_attempts": failed, "tiers": tiers, "note": None}
 
 
-def _attempt(conn: psycopg.Connection, client: OpenRouterClient, capture: _Capture, run_id: int,
-             gap: GapContext, measure: dict, p: Prompt) -> tuple[dict, list, list]:
+def _attempt(conn: psycopg.Connection, client: OpenRouterClient, run_id: int,
+             gap: GapContext, measure: dict, p: Prompt, *, correlation_id: str) -> tuple[dict, list, list]:
     """One model call, recorded as one extraction_attempts row (committed) before any of its findings is saved."""
     claimed_at, started = datetime.now(UTC), time.perf_counter()
     pages_sent = [{"document_id": pg.document_id, "page_no": pg.page_no, "method": pg.method,
                    "handwritten": pg.handwritten} for pg in p.pages]
     result: ModelResult | None = None
-    failure: str | None = None
+    failure_type: str | None = None
     kept: list[dict] = []
     dropped: list[dict] = []
     try:
         result = _complete(client, p)
         findings = parse_findings(result.text)
     except (ModelError, UnusableAnswer) as exc:
-        failure = type(exc).__name__
-        raw = getattr(exc, "raw", None) or (result.text if result else None)
-        status, error, call = "failed", str(exc), {**(capture.exchanges[-1] if capture.exchanges else {}),
-                                                   "error": str(exc)}
+        failure_type = type(exc).__name__
+        raw = _diagnostic_raw(exc, result)
+        status, error = "failed", _error_code(exc)
     else:
         checked = validate(gap, measure, list(p.pages), findings)
         dropped = [{"evidence_type": d.finding.evidence_type, "document_id": d.finding.document_id,
-                    "excerpt": d.finding.excerpt, "reason": d.reason} for d in checked.dropped]
+                    "reason": d.reason} for d in checked.dropped]
         for c in checked.kept:
             earlier = _already_proposed(conn, gap.gap_id, c.document_id, c.page_no, c.char_start, c.char_end)
             if earlier:
                 dropped.append({"evidence_type": c.evidence_type, "document_id": c.document_id,
-                                "excerpt": c.excerpt, "reason": "already proposed in an earlier run",
+                                "reason": "already proposed in an earlier run",
                                 "evidence_id": earlier, "already_proposed": True})
             else:
                 kept.append({**asdict(c), "model": result.model, "prompt_version": p.prompt_version})
-        raw, status, error = result.text, ("succeeded" if checked.kept else "no_evidence"), None
-        call = {**capture.exchanges[-1], "answer": result.text, "model": result.model}
+        raw, status, error = _diagnostic_raw(None, result), ("succeeded" if checked.kept else "no_evidence"), None
     duration = result.duration_ms if result else round(1000 * (time.perf_counter() - started))
     attempt_id = conn.execute(
         """INSERT INTO extraction_attempts (run_id, gap_id, status, error, prompt_version, pages_sent, dropped,
-               duration_ms, prompt_tokens, output_tokens, raw_response, claimed_at)
-           VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING id""",
+               duration_ms, prompt_tokens, output_tokens, raw_response, claimed_at, correlation_id)
+           VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING id""",
         (run_id, gap.gap_id, status, error, p.prompt_version, Jsonb(pages_sent), Jsonb(dropped), duration,
-         result.prompt_tokens if result else None, result.output_tokens if result else None, raw,
-         claimed_at)).fetchone()[0]
+         result.prompt_tokens if result else None, result.output_tokens if result else None, raw, claimed_at,
+         correlation_id)).fetchone()[0]
     conn.commit()
-    if failure:
+    if failure_type:
         # The reason can quote the provider's answer, so it stays in extraction_attempts.error, not in the log.
-        log.error("gap %s run %s attempt %s: model call failed (%s)", gap.gap_id, run_id, attempt_id, failure)
-    return {**call, "attempt_id": attempt_id}, [{**k, "attempt_id": attempt_id} for k in kept], dropped
+        log.error("gap %s run %s attempt %s failed (%s)", gap.gap_id, run_id, attempt_id, failure_type)
+    return {
+        "attempt_id": attempt_id,
+        "status": status,
+        "model": result.model if result else EXTRACTION_SETTINGS.model,
+        "duration_ms": duration,
+        "prompt_tokens": result.prompt_tokens if result else None,
+        "output_tokens": result.output_tokens if result else None,
+    }, [{**k, "attempt_id": attempt_id} for k in kept], dropped
 
 
 def _complete(client: OpenRouterClient, p: Prompt) -> ModelResult:
@@ -201,18 +184,38 @@ def _already_proposed(conn: psycopg.Connection, gap_id: str, document_id: str, p
     return row[0] if row else None
 
 
-def _finish_run(conn: psycopg.Connection, run_id: int, gap_id: str, *, kept: int, dropped: int, failed: int,
-                calls: int) -> None:
+def _diagnostic_raw(exc: Exception | None, result: ModelResult | None) -> str | None:
+    """Raw provider/model content is optional and stays in protected DB diagnostics only."""
+    if not EXTRACTION_SETTINGS.store_raw_attempt_response:
+        return None
+    if exc is not None:
+        return getattr(exc, "raw", None) or (result.text if result else None)
+    return result.text if result else None
+
+
+def _error_code(exc: ModelError | UnusableAnswer) -> str:
+    """A safe error code for API-visible call records; never include provider/body text here."""
+    if isinstance(exc, ModelError):
+        prefix = "model_transient" if exc.transient else "model_permanent"
+        return f"{prefix}:{exc.code}"
+    return "answer:unusable"
+
+
+def _finish_run(conn: psycopg.Connection, run_id: int, gap_id: str, *, correlation_id: str, kept: int, dropped: int,
+                failed: int,
+                calls: int) -> str:
     """Close the run: failed when every call failed, otherwise completed; one audit event."""
     status = "failed" if calls and failed == calls else "completed"
     conn.execute("UPDATE extraction_runs SET status = %s, finished_at = now() WHERE id = %s", (status, run_id))
     audit(conn, "extraction_run", str(run_id), f"extraction.{status}",
-          {"run_id": run_id, "gap_id": gap_id, "kept": kept, "dropped": dropped, "failed": failed},
+          {"run_id": run_id, "gap_id": gap_id, "correlation_id": correlation_id, "kept": kept, "dropped": dropped,
+           "failed": failed},
           actor=SETTINGS.actor)
     conn.commit()
+    return status
 
 
-def _save_proposed(conn: psycopg.Connection, gap_id: uuid.UUID, kept: list[dict]) -> tuple[int, int]:
+def _save_proposed(conn: psycopg.Connection, gap_id: uuid.UUID, kept: list[dict], *, correlation_id: str) -> tuple[int, int]:
     """Store kept findings as proposed evidence (the demo page's save), skipping quotes already proposed."""
     saved = skipped = 0
     for c in kept:
@@ -240,7 +243,8 @@ def _save_proposed(conn: psycopg.Connection, gap_id: uuid.UUID, kept: list[dict]
              c["evidence_kind"], c["evidence_type"], c["service_date_raw"], c["service_date_from"],
              c["service_date_to"], c["value"], parts.tag_reason(c["reason"], c.get("part", "")), c["prompt_version"],
              c["handwritten"], c["low_confidence"]))
-        audit(conn, "evidence", str(evidence_id), "evidence.proposed", {"gap_id": str(gap_id)}, actor=SETTINGS.actor)
+        audit(conn, "evidence", str(evidence_id), "evidence.proposed",
+              {"gap_id": str(gap_id), "correlation_id": correlation_id}, actor=SETTINGS.actor)
         saved += 1
     _refresh_gap(conn, gap_id)
     return saved, skipped
@@ -272,6 +276,7 @@ def decide(conn: psycopg.Connection, evidence_id: str, decision: str, reason: st
     if not (reviewer or "").strip():
         raise ValueError("a decision needs the signed-in reviewer")
     reviewer = clean_reviewer(reviewer)
+    correlation_id = _evidence_correlation_id(conn, evidence_uuid)
     decision_id = conn.execute(
         """INSERT INTO review_decisions (evidence_id, reviewer, decision, reject_reason_code, reason)
            VALUES (%s, %s, %s, %s, %s) RETURNING id""",
@@ -281,7 +286,7 @@ def decide(conn: psycopg.Connection, evidence_id: str, decision: str, reason: st
     supplemental_id = _record_supplemental(conn, evidence_uuid, decision_id, reviewer) if status == "confirmed" else None
     review_status = _refresh_gap(conn, gap_id)
     audit(conn, "evidence", evidence_id, f"evidence.{status}",
-          {"gap_id": str(gap_id), "review_status": review_status}, actor=reviewer)
+          {"gap_id": str(gap_id), "review_status": review_status, "correlation_id": correlation_id}, actor=reviewer)
     conn.commit()
     metrics.AI_REVIEW_DECISIONS.labels(_DECISION_METRIC[status]).inc()
     summary = score_all(conn, date.today(), load_rules())
@@ -289,7 +294,7 @@ def decide(conn: psycopg.Connection, evidence_id: str, decision: str, reason: st
     scenario_id = _star_scenario(conn, gap_id, reviewer)
     return {"evidence_id": evidence_id, "status": status, "gap_id": str(gap_id), "review_status": review_status,
             "tiers": summary.tiers, "decision_id": decision_id, "supplemental_record_id": supplemental_id,
-            "star_scenario_id": scenario_id}
+            "star_scenario_id": scenario_id, "correlation_id": correlation_id}
 
 
 # Review states that mean every required part is confirmed, and the final state each one closes as.
@@ -337,6 +342,19 @@ def clean_reviewer(reviewer: str | None) -> str:
     if len(reviewer) > 64 or not all(ch.isalnum() or ch in "._-@" for ch in reviewer):
         raise ValueError("reviewer ID may use letters, digits and . _ - @ only, up to 64 characters")
     return reviewer
+
+
+def _evidence_correlation_id(conn: psycopg.Connection, evidence_id: uuid.UUID) -> str | None:
+    """The extraction correlation ID for this proposal, if the proposal came from an extraction attempt."""
+    row = conn.execute(
+        """SELECT a.correlation_id
+             FROM evidence_proposal_detail d
+             JOIN extraction_attempts a ON a.id = d.attempt_id
+            WHERE d.evidence_id = %s
+            LIMIT 1""",
+        (evidence_id,),
+    ).fetchone()
+    return row[0] if row else None
 
 
 def _record_supplemental(conn: psycopg.Connection, evidence_id: uuid.UUID, decision_id: int, reviewer: str) -> int:

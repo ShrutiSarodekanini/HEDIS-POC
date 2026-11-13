@@ -172,6 +172,11 @@ def _is_closed_status(status: str | None) -> bool:
     return normalized in {"closed", "complete", "completed", "resolved"}
 
 
+def _is_excluded_review_status(status: str | None) -> bool:
+    normalized = (status or "").strip().lower()
+    return normalized in {"excluded", "excluded_pending_engine"}
+
+
 def _gap_rate(closed_count: int, total_count: int) -> float | None:
     if total_count <= 0:
         return None
@@ -188,11 +193,14 @@ def _load_dashboard_rows(session: Session) -> list[dict[str, object]]:
                           g.measure_id,
                           g.measurement_year,
                           g.status,
+                          d.review_status,
+                          d.engine_run_id,
                           COALESCE(mr.name, g.measure_id) AS measure_name,
                           NULL::text AS first_name,
                           NULL::text AS last_name
                      FROM care_gap g
                      JOIN patient p ON g.patient_id = p.patient_id
+                     LEFT JOIN care_gap_detail d ON d.gap_id = g.gap_id
                      LEFT JOIN measure_rule mr ON mr.measure_id = g.measure_id
                                               AND mr.measurement_year = g.measurement_year"""
             )
@@ -209,6 +217,8 @@ def _load_dashboard_rows(session: Session) -> list[dict[str, object]]:
                       g.measure_id,
                       g.measurement_year,
                       g.status,
+                      NULL::text AS review_status,
+                      NULL::text AS engine_run_id,
                       m.name AS measure_name,
                       mb.first_name,
                       mb.last_name
@@ -254,6 +264,23 @@ def _load_engine_measure_counts(session: Session) -> dict[tuple[str, int], dict[
             "numerator": numerator,
         }
     return counts
+
+
+def _load_latest_engine_run_id(session: Session) -> str | None:
+    """Latest engine run id, used to detect lifecycle decisions not yet reflected in engine populations."""
+    try:
+        row = session.execute(
+            text(
+                """SELECT run_id
+                     FROM engine_runs
+                 ORDER BY run_at DESC
+                    LIMIT 1"""
+            )
+        ).first()
+    except SQLAlchemyError:
+        session.rollback()
+        return None
+    return str(row[0]) if row and row[0] is not None else None
 
 
 def _load_measure_catalog(session: Session) -> dict[tuple[str, int], dict[str, object]]:
@@ -309,6 +336,7 @@ def _build_star_dashboard(
 
     rows = _load_dashboard_rows(session)
     engine_counts = _load_engine_measure_counts(session)
+    latest_engine_run_id = _load_latest_engine_run_id(session)
     catalog_entries = _load_measure_catalog(session)
 
     measure_stats: dict[str, dict[str, object]] = {}
@@ -331,6 +359,7 @@ def _build_star_dashboard(
         measurement_year = int(row["measurement_year"])
         p_id = str(row["member_id"])
         is_closed = _is_closed_status(str(row.get("status") or ""))
+        is_excluded = _is_excluded_review_status(str(row.get("review_status") or ""))
         projected_closed = is_closed or (gap_id in selected_set)
         catalog_entry = catalog_by_measure_id.get(m_id, {})
         measure_name = str(
@@ -347,17 +376,29 @@ def _build_star_dashboard(
                 "measurement_year": measurement_year,
                 "measure_name": measure_name,
                 "total": 0,
-                "baseline_closed": 0,
+                "pending_closed": 0,
+                "pending_excluded": 0,
                 "projected_closed": 0,
                 "selected_open": 0,
                 "weight": catalog_entry.get("weight"),
                 "measure_type": catalog_entry.get("measure_type"),
             }
 
+        engine_run_id = str(row.get("engine_run_id") or "")
+        waiting_for_engine = bool(latest_engine_run_id) and engine_run_id != latest_engine_run_id
+        review_status = str(row.get("review_status") or "").strip().lower()
+
         measure_stats[m_id]["total"] = int(measure_stats[m_id]["total"]) + 1
-        if is_closed:
-            measure_stats[m_id]["baseline_closed"] = int(measure_stats[m_id]["baseline_closed"]) + 1
-        elif gap_id in selected_set:
+        if waiting_for_engine or not latest_engine_run_id:
+            if is_closed and is_excluded:
+                measure_stats[m_id]["pending_excluded"] = int(measure_stats[m_id]["pending_excluded"]) + 1
+            elif is_closed:
+                measure_stats[m_id]["pending_closed"] = int(measure_stats[m_id]["pending_closed"]) + 1
+            elif review_status == "excluded_pending_engine":
+                measure_stats[m_id]["pending_excluded"] = int(measure_stats[m_id]["pending_excluded"]) + 1
+            elif review_status == "closed_pending_engine":
+                measure_stats[m_id]["pending_closed"] = int(measure_stats[m_id]["pending_closed"]) + 1
+        if (not is_closed) and gap_id in selected_set:
             measure_stats[m_id]["selected_open"] = int(measure_stats[m_id]["selected_open"]) + 1
         if projected_closed:
             measure_stats[m_id]["projected_closed"] = int(measure_stats[m_id]["projected_closed"]) + 1
@@ -375,12 +416,14 @@ def _build_star_dashboard(
                 "measure_name": str(row.get("measure_name") or m_id),
                 "total": 0,
                 "baseline_closed": 0,
+                "baseline_excluded": 0,
                 "projected_closed": 0,
             }
 
         patient_stats[patient_key]["total"] = int(patient_stats[patient_key]["total"]) + 1
         if is_closed:
-            patient_stats[patient_key]["baseline_closed"] = int(patient_stats[patient_key]["baseline_closed"]) + 1
+            if not is_excluded:
+                patient_stats[patient_key]["baseline_closed"] = int(patient_stats[patient_key]["baseline_closed"]) + 1
         if projected_closed:
             patient_stats[patient_key]["projected_closed"] = int(patient_stats[patient_key]["projected_closed"]) + 1
 
@@ -406,7 +449,8 @@ def _build_star_dashboard(
                     str(catalog_entry.get("measure_name") or m_id),
                 ),
                 "total": 0,
-                "baseline_closed": 0,
+                "pending_closed": 0,
+                "pending_excluded": 0,
                 "projected_closed": 0,
                 "selected_open": 0,
                 "weight": catalog_entry.get("weight"),
@@ -423,7 +467,8 @@ def _build_star_dashboard(
                 "measurement_year": int(entry["measurement_year"]),
                 "measure_name": str(entry["measure_name"]),
                 "total": 0,
-                "baseline_closed": 0,
+                "pending_closed": 0,
+                "pending_excluded": 0,
                 "projected_closed": 0,
                 "selected_open": 0,
                 "weight": entry.get("weight"),
@@ -441,19 +486,21 @@ def _build_star_dashboard(
         measure_code = str(stat["measure_id"])
         measurement_year = int(stat["measurement_year"])
         fallback_total = int(stat["total"])
-        fallback_baseline_closed = int(stat["baseline_closed"])
+        fallback_pending_closed = int(stat.get("pending_closed") or 0)
+        fallback_pending_excluded = int(stat.get("pending_excluded") or 0)
         selected_open = int(stat.get("selected_open") or 0)
         engine_denominator = stat.get("engine_denominator")
         engine_numerator = stat.get("engine_numerator")
 
-        # Prefer engine populations for baseline/projected stars when available.
+        # Prefer engine populations, and add reviewer decisions not yet reflected by the latest engine run.
         if isinstance(engine_denominator, int) and isinstance(engine_numerator, int) and engine_denominator >= 0:
-            total = max(engine_denominator, 0)
-            baseline_closed = min(max(engine_numerator, 0), total)
+            total = max(engine_denominator - fallback_pending_excluded, 0)
+            baseline_closed = max(engine_numerator, 0) + fallback_pending_closed
+            baseline_closed = min(baseline_closed, total)
         else:
             # Fallback for profiles without engine-result populations.
-            total = fallback_total
-            baseline_closed = fallback_baseline_closed
+            total = max(fallback_total - fallback_pending_excluded, 0)
+            baseline_closed = min(fallback_pending_closed, total)
 
         projected_closed = min(total, baseline_closed + max(selected_open, 0))
         baseline_rate = _gap_rate(baseline_closed, total)

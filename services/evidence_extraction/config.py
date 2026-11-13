@@ -31,6 +31,7 @@ class Settings:
     provider_mode: str = "hosted"  # hosted | local
     provider_has_baa: bool = False
     provider_allowed_data_classes: tuple[str, ...] = ("synthetic",)
+    store_raw_attempt_response: bool = False
 
 
 def _env_bool(name: str, default: bool) -> bool:
@@ -87,6 +88,7 @@ def load_settings() -> Settings:
         provider_mode=os.environ.get("EXTRACTION_PROVIDER_MODE", "hosted").strip().lower() or "hosted",
         provider_has_baa=_env_bool("EXTRACTION_PROVIDER_HAS_BAA", False),
         provider_allowed_data_classes=_csv_env("EXTRACTION_PROVIDER_ALLOWED_DATA_CLASSES", ("synthetic",)),
+        store_raw_attempt_response=_env_bool("EXTRACTION_STORE_RAW_ATTEMPT_RESPONSE", False),
     )
 
 
