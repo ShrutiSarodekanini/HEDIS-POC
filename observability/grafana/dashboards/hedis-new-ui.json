@@ -810,7 +810,7 @@
           "refId": "A",
           "editorMode": "code",
           "queryType": "range",
-          "expr": "{job=\"hedis-api\"}"
+          "expr": "{job=~\"hedis-api|hedis\", service=~\"api|\"}"
         }
       ]
     },
@@ -837,7 +837,7 @@
           "refId": "A",
           "editorMode": "code",
           "queryType": "range",
-          "expr": "{job=\"hedis-api\", level=~\"ERROR|WARNING\"}"
+          "expr": "{job=~\"hedis-api|hedis\", service=~\"api|\", level=~\"ERROR|WARNING\"}"
         }
       ]
     },

@@ -4,7 +4,7 @@
 #   docker compose -p hedis-deploy -f docker-compose.deploy.yml up -d --build
 #   docker compose -p hedis-deploy -f docker-compose.deploy.yml --profile setup run --rm seed   (empty schema only)
 # Only the UI (8080) and the RabbitMQ management page (15673) are published, so the dev stack's ports stay free.
-# Monitoring is in docker/docker-compose.observability.yml and docker/docker-compose.logs.yml, merged in only when wanted.
+# Monitoring (Prometheus, Grafana, Loki, Alloy) is docker/docker-compose.observability.yml, merged in only when wanted.
 name: hedis-deploy
 
 x-python: &python

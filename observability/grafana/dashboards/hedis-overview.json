@@ -1850,7 +1850,7 @@
           "refId": "A",
           "editorMode": "code",
           "queryType": "range",
-          "expr": "sum by (level) (count_over_time({job=\"hedis-api\", level=~\"ERROR|WARNING\"}[1m]))",
+          "expr": "sum by (level) (count_over_time({job=~\"hedis-api|hedis\", service=~\"api|\", level=~\"ERROR|WARNING\"}[1m]))",
           "legendFormat": "{{level}}"
         }
       ]
@@ -1889,7 +1889,7 @@
           "refId": "A",
           "editorMode": "code",
           "queryType": "range",
-          "expr": "{job=\"hedis-api\"}"
+          "expr": "{job=~\"hedis-api|hedis\", service=~\"api|\"}"
         }
       ]
     }

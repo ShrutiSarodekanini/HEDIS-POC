@@ -5,6 +5,7 @@ Defines the data structures for messages flowing through the pipeline
 and provides Publisher/Worker abstractions for easy queue interaction.
 """
 
+import contextvars
 import functools
 import json
 import logging
@@ -19,6 +20,7 @@ from uuid import uuid4
 import pika
 import pika.exceptions
 
+from common.app_logging import bind_log_context, reset_log_context, ship_logs
 from services.rabbitmq_config import DEAD_LETTER_EXCHANGE_NAME, EXCHANGE_NAME, RabbitMQConfig
 from services.reliable_messaging import (
     claim_inbox,
@@ -39,6 +41,13 @@ _CONNECTION_ERRORS = (
     pika.exceptions.ConnectionClosedByBroker,
     pika.exceptions.ChannelClosedByBroker,
 )
+# The service label each worker's shipped logs carry (the names scripts/run_workers.py uses).
+WORKER_SERVICE = {
+    "ingestion.convert": "conversion", "ingestion.load": "load", "quality.check": "quality",
+    "valuesets.resolve": "valuesets", "measures.run": "measures", "gaps.identify": "gap_identifier",
+    "gaps.prioritize": "gaps", "documents.attach": "documents", "evidence.extract": "evidence",
+    "stars.calculate": "stars",
+}
 
 
 # Message dataclasses for each pipeline stage
@@ -234,6 +243,7 @@ class Worker:
         self.queue_name = queue_name
         self.config = config or RabbitMQConfig()
         self.prefetch_count = prefetch_count
+        ship_logs(WORKER_SERVICE.get(queue_name, queue_name))
         if prefetch_count > 1:
             logger.warning("Worker on queue '%s' uses prefetch_count=%d; jobs may then run concurrently",
                            queue_name, prefetch_count)
@@ -335,8 +345,12 @@ class Worker:
     def _run_job(self, ch, delivery_tag: int, properties, body: bytes, message_id: str) -> None:
         """Process one claimed delivery. Never touches the channel; channel actions go to the connection thread."""
         self.current_message_id = message_id
+        context = bind_log_context()
         try:
             message = json.loads(body)
+            if isinstance(message, dict):
+                reset_log_context(context)
+                context = bind_log_context(batch_id=message.get("batch_id"), job_id=message.get("job_id"))
             logger.info(f"\n📨 Received message from '{self.queue_name}':")
             logger.info(f"   Delivery Tag: {delivery_tag}")
             logger.debug(f"   Properties: content_type={properties.content_type}, delivery_mode={properties.delivery_mode}")
@@ -355,6 +369,7 @@ class Worker:
             self._on_connection_thread(message_id, self._retry_or_dead_letter, ch, delivery_tag, properties, body)
         finally:
             self.current_message_id = None
+            reset_log_context(context)
 
     def _fail_inbox(self, message_id: str, reason: str) -> None:
         """fail_inbox, logged instead of raised so the delivery is still retried rather than left unacked."""
@@ -366,7 +381,8 @@ class Worker:
 
     def _on_connection_thread(self, message_id: str, action: Callable[..., None], ch, *args: Any) -> None:
         """Run a channel action on the connection thread; pika channels are not thread-safe. Never raises."""
-        call = functools.partial(self._channel_action, message_id, action, ch, *args)
+        # copy_context: the retry and dead-letter lines keep the job's batch_id and job_id.
+        call = functools.partial(contextvars.copy_context().run, self._channel_action, message_id, action, ch, *args)
         if self.connection is None:
             call()
             return

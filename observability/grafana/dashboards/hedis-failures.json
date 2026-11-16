@@ -1,0 +1,138 @@
+{
+  "uid": "hedis-failures",
+  "title": "HEDIS failures",
+  "description": "Where a batch failed: log lines pushed by every service (job=\"hedis\", masked by Alloy). Pick a service, or paste a batch_id to follow one batch across every step. The local run pushes no logs, so this stays empty there.",
+  "tags": ["hedis"],
+  "timezone": "browser",
+  "editable": false,
+  "graphTooltip": 1,
+  "schemaVersion": 41,
+  "version": 1,
+  "refresh": "30s",
+  "time": {"from": "now-24h", "to": "now"},
+  "links": [
+    {"title": "Pipeline", "type": "link", "url": "/d/hedis-overview", "icon": "dashboard", "keepTime": true,
+     "includeVars": false, "targetBlank": false, "asDropdown": false, "tags": [],
+     "tooltip": "Metrics: batches, steps, engine, AI calls"},
+    {"title": "Run history", "type": "link", "url": "/d/hedis-run-history", "icon": "dashboard", "keepTime": true,
+     "includeVars": false, "targetBlank": false, "asDropdown": false, "tags": [],
+     "tooltip": "Every batch, AI call, quality check, engine run and review, with errors (Postgres)"}
+  ],
+  "templating": {
+    "list": [
+      {
+        "name": "service",
+        "label": "Service",
+        "type": "query",
+        "datasource": {"type": "loki", "uid": "hedis-loki"},
+        "query": {"refId": "LokiVariableQueryEditor-VariableQuery", "type": 1, "label": "service", "stream": "{job=\"hedis\"}"},
+        "definition": "label_values({job=\"hedis\"}, service)",
+        "refresh": 2,
+        "sort": 1,
+        "multi": true,
+        "includeAll": true,
+        "allValue": ".+",
+        "current": {"selected": true, "text": ["All"], "value": ["$__all"]},
+        "options": []
+      },
+      {
+        "name": "batch_id",
+        "label": "batch_id",
+        "description": "A batch id from the dashboard, the run history or an ERROR line; empty shows every batch.",
+        "type": "textbox",
+        "query": "",
+        "current": {"selected": false, "text": "", "value": ""},
+        "options": []
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "timeseries",
+      "title": "Errors per service",
+      "description": "ERROR lines per minute, by service (api, outbox and each worker).",
+      "datasource": {"type": "loki", "uid": "hedis-loki"},
+      "gridPos": {"h": 8, "w": 24, "x": 0, "y": 0},
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0,
+          "color": {"mode": "palette-classic"},
+          "custom": {"drawStyle": "bars", "fillOpacity": 80, "lineWidth": 1, "showPoints": "never",
+                     "stacking": {"mode": "normal", "group": "A"}}
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {"displayMode": "list", "placement": "bottom", "showLegend": true},
+        "tooltip": {"mode": "multi", "sort": "desc"}
+      },
+      "targets": [
+        {
+          "datasource": {"type": "loki", "uid": "hedis-loki"},
+          "refId": "A",
+          "editorMode": "code",
+          "queryType": "range",
+          "expr": "sum by (service) (count_over_time({job=\"hedis\", service=~\"$service\", level=\"ERROR\"} | batch_id=~\"$batch_id.*\" [1m]))",
+          "legendFormat": "{{service}}"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "type": "logs",
+      "title": "Latest errors and warnings",
+      "description": "Newest first, for the chosen services (and batch_id, when one is given). Click a line for its service, batch_id and job_id.",
+      "datasource": {"type": "loki", "uid": "hedis-loki"},
+      "gridPos": {"h": 12, "w": 24, "x": 0, "y": 8},
+      "options": {
+        "showTime": true,
+        "showLabels": true,
+        "showCommonLabels": false,
+        "wrapLogMessage": true,
+        "prettifyLogMessage": false,
+        "enableLogDetails": true,
+        "dedupStrategy": "none",
+        "sortOrder": "Descending"
+      },
+      "targets": [
+        {
+          "datasource": {"type": "loki", "uid": "hedis-loki"},
+          "refId": "A",
+          "editorMode": "code",
+          "queryType": "range",
+          "expr": "{job=\"hedis\", service=~\"$service\", level=~\"ERROR|WARNING\"} | batch_id=~\"$batch_id.*\""
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "type": "logs",
+      "title": "One batch across every service, in time order",
+      "description": "Every line carrying the batch_id above, oldest first: the steps the batch went through and where it stopped. Empty until a batch_id is entered.",
+      "datasource": {"type": "loki", "uid": "hedis-loki"},
+      "gridPos": {"h": 16, "w": 24, "x": 0, "y": 20},
+      "options": {
+        "showTime": true,
+        "showLabels": true,
+        "showCommonLabels": false,
+        "wrapLogMessage": true,
+        "prettifyLogMessage": false,
+        "enableLogDetails": true,
+        "dedupStrategy": "none",
+        "sortOrder": "Ascending"
+      },
+      "targets": [
+        {
+          "datasource": {"type": "loki", "uid": "hedis-loki"},
+          "refId": "A",
+          "editorMode": "code",
+          "queryType": "range",
+          "maxLines": 5000,
+          "expr": "{job=\"hedis\"} | batch_id!=\"\" | batch_id=\"$batch_id\""
+        }
+      ]
+    }
+  ]
+}

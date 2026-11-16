@@ -7,6 +7,7 @@ import logging
 import time
 from typing import Any
 
+from common.app_logging import ship_logs
 from services.document_intake import db
 from services.rabbitmq_messages import Publisher
 
@@ -87,6 +88,7 @@ def main() -> None:
     parser.add_argument("--poll-seconds", type=float, default=1.0)
     args = parser.parse_args()
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
+    ship_logs("outbox")
     if args.once:
         log.info("Published %d outbox messages", dispatch_once())
         return
