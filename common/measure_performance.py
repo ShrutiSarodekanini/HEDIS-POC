@@ -116,6 +116,25 @@ def _pending_counts(session: Session, measure_code: str, measurement_year: int) 
     return pending_closed, pending_excluded
 
 
+def _count_exclusion_evidence(session: Session, gap_ids: list[str]) -> int:
+    """Count how many of the selected gaps have confirmed exclusion evidence."""
+    if not gap_ids:
+        return 0
+    placeholders = ",".join(f":{i}" for i in range(len(gap_ids)))
+    rows = session.execute(
+        text(
+            f"""SELECT COUNT(DISTINCT p.gap_id)
+                 FROM evidence_proposal p
+                 JOIN evidence_proposal_detail d ON d.evidence_id = p.evidence_id
+                WHERE p.gap_id IN ({placeholders})
+                  AND p.status = 'confirmed'
+                  AND d.evidence_kind = 'exclusion'"""
+        ),
+        {str(i): gap_ids[i] for i in range(len(gap_ids))},
+    ).scalar()
+    return int(rows or 0)
+
+
 def compare_measure(
     session: Session,
     measure_code: str,
@@ -193,14 +212,20 @@ def compare_measure(
         denominator=total_gaps,
         open_gaps=total_gaps - baseline_closed,
     )
-    recalculated_closed = min(baseline_closed + len(eligible_selected), total_gaps)
+
+    # Calculate projected state: count exclusions in selected gaps to adjust denominator
+    selected_exclusion_count = _count_exclusion_evidence(session, eligible_selected)
+    selected_closure_count = len(eligible_selected) - selected_exclusion_count
+    recalculated_total = max(total_gaps - selected_exclusion_count, 0)
+    recalculated_closed = min(recalculated_total, baseline_closed + selected_closure_count)
+
     recalculated = _metric_payload(
         session,
         measure_code=actual_code,
         measurement_year=measurement_year,
         numerator=recalculated_closed,
-        denominator=total_gaps,
-        open_gaps=max(total_gaps - recalculated_closed, 0),
+        denominator=recalculated_total,
+        open_gaps=max(recalculated_total - recalculated_closed, 0),
     )
 
     baseline_rate = baseline["performance_rate"]
