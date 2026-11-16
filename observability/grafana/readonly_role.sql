@@ -8,6 +8,9 @@
 -- SELECT is granted per column, so this login cannot read model answers, prompts, page lists, free-text reasons or
 -- run summaries (raw_response, pages_sent, dropped, scope, summary, reason), even from Grafana's query editor.
 -- batch_run.counts is left out too: besides its numbers it holds per-document error text.
+--
+-- The grants below are for the schema hedis. For any other app schema, scripts/db/grant_grafana_readonly.py applies
+-- the same per-column grants to the schema in DATABASE_URL; it runs after every migration (run_all.ps1, migrate).
 
 DO $$
 BEGIN

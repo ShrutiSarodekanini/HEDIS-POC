@@ -146,7 +146,23 @@ the monitoring containers (`-Reset` also removes their volumes), so nothing is l
 
 What is collected:
 
-- API metrics (requests, pipeline steps, engine, AI calls) from `/metrics`.
+- API metrics (requests, pipeline steps, engine, AI calls) from `/metrics` (job `hedis-api`).
+- Worker metrics: every worker process and the outbox serve their own `/metrics` on a fixed port (job
+  `hedis-workers`, label `worker`), so AI calls, engine runs and steps recorded in the workers reach Prometheus too.
+  The ports are in `services/rabbitmq_messages.py` (`METRICS_PORT`) and are not published; Prometheus reaches them on
+  the compose network (the local run scrapes them on `host.docker.internal`). A port that cannot be opened logs one
+  warning and the worker carries on.
+
+  | Worker | Target | Worker | Target |
+  |---|---|---|---|
+  | outbox | `outbox:9100` | gap_identifier | `gap-identifier:9106` |
+  | conversion | `ingestion:9101` | gaps | `prioritization:9107` |
+  | load | `ingestion:9102` | documents | `ai-evidence:9108` |
+  | quality | `quality:9103` | evidence | `ai-evidence:9109` |
+  | valuesets | `measures:9104` | stars | `stars:9110` |
+  | measures | `measures:9105` | | |
+
+  A stopped worker shows as a down target; the panels add up whatever is up.
 - The logs of every Python process: the overlay sets `ALLOY_URL=http://alloy:3500` on api, outbox and the seven
   worker containers, and `common/app_logging.py` (`ship_logs`) sends their records at INFO and above to Alloy in
   batches (labels `job="hedis"`, `service`, `level`; `batch_id` and `job_id` as structured metadata). Alloy masks
@@ -167,12 +183,15 @@ Files) for `loki-data` and `grafana-data`, or logs and Grafana settings are lost
 logs over HTTP, so no shared files or Log Analytics are needed.
 
 The run history dashboard and the database panels of the new UI dashboard read Postgres as the read-only login
-`hedis_grafana_ro` at `host.docker.internal:5432`, database `HEDISPOCDB`. That login exists only after a superuser
-runs `observability/grafana/readonly_role.sql` and sets its password, and `GRAFANA_DB_PASSWORD` (in `.env` or
-`.env.deploy`) holds the same password. Without it those panels show a datasource error (also when the login exists
-but has no grants on the schema `hedis`: "permission denied for schema hedis"); the overview dashboard and the
-Prometheus and Loki panels still work. The dashboard queries and the grants name the schema `hedis`
-(`hedis.batch_run` and so on), not the schema in `.env.deploy`, so they show the `hedis` schema's data.
+`hedis_grafana_ro` at `host.docker.internal:5432`, database `HEDISPOCDB`. Their `schema` dropdown lists every schema
+the login may read that holds the app's tables (newest name first); pick the one in `.env.deploy`.
+
+The login is created once, by a superuser, with `observability/grafana/readonly_role.sql`, which also sets its
+per-column grants on `hedis`; set its password and put the same value in `GRAFANA_DB_PASSWORD` (`.env` or
+`.env.deploy`). After that, `scripts/db/grant_grafana_readonly.py` gives it the same columns in the schema of
+`DATABASE_URL` after every migration (the migrate job, `run_all.ps1`), so each new schema shows up in the dropdown
+without a superuser. Without the login the script prints a one-line hint, the database panels show a datasource
+error, and the overview dashboard and the Prometheus and Loki panels still work.
 
 ## Notes
 

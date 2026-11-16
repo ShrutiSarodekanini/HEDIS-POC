@@ -14,6 +14,33 @@ scrape_configs:
     static_configs:
       - targets: ["__TARGET__"]
 
+  # The workers on the host, one port per process (services/rabbitmq_messages.py METRICS_PORT).
+  - job_name: hedis-workers
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["host.docker.internal:9100"]
+        labels: {worker: outbox}
+      - targets: ["host.docker.internal:9101"]
+        labels: {worker: conversion}
+      - targets: ["host.docker.internal:9102"]
+        labels: {worker: load}
+      - targets: ["host.docker.internal:9103"]
+        labels: {worker: quality}
+      - targets: ["host.docker.internal:9104"]
+        labels: {worker: valuesets}
+      - targets: ["host.docker.internal:9105"]
+        labels: {worker: measures}
+      - targets: ["host.docker.internal:9106"]
+        labels: {worker: gap_identifier}
+      - targets: ["host.docker.internal:9107"]
+        labels: {worker: gaps}
+      - targets: ["host.docker.internal:9108"]
+        labels: {worker: documents}
+      - targets: ["host.docker.internal:9109"]
+        labels: {worker: evidence}
+      - targets: ["host.docker.internal:9110"]
+        labels: {worker: stars}
+
   # For later: RabbitMQ with the rabbitmq_prometheus plugin enabled.
   # - job_name: rabbitmq
   #   static_configs:

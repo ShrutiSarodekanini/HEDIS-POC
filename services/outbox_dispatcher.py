@@ -9,7 +9,7 @@ from typing import Any
 
 from common.app_logging import ship_logs
 from services.document_intake import db
-from services.rabbitmq_messages import Publisher
+from services.rabbitmq_messages import Publisher, serve_metrics
 
 log = logging.getLogger(__name__)
 MAX_PUBLISH_ATTEMPTS = 10
@@ -92,6 +92,7 @@ def main() -> None:
     if args.once:
         log.info("Published %d outbox messages", dispatch_once())
         return
+    serve_metrics("outbox")
     run(args.poll_seconds)
 
 

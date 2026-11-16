@@ -441,7 +441,7 @@
             "uid": "hedis-prometheus"
           },
           "refId": "A",
-          "expr": "sum(hedis_gaps_open) or vector(0)",
+          "expr": "sum(max by (measure) (hedis_gaps_open)) or vector(0)",
           "instant": true,
           "range": false
         }
@@ -1009,7 +1009,7 @@
             "uid": "hedis-prometheus"
           },
           "refId": "A",
-          "expr": "sum by (measure) (hedis_gaps_open)",
+          "expr": "max by (measure) (hedis_gaps_open)",
           "legendFormat": "{{measure}}",
           "instant": true,
           "range": false
