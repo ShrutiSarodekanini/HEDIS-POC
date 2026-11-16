@@ -1,3 +1,5 @@
 # Seed data must keep its exact bytes: document hashes and ground-truth text depend on them.
 data/seed/** -text
 data/test_uploads/** -text
+# Shell scripts run inside Linux images; CRLF from a Windows checkout would break them.
+*.sh text eol=lf

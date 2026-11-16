@@ -7,9 +7,9 @@
 #   powershell -ExecutionPolicy Bypass -File scripts/run_containers.ps1 -Reset     remove containers and volumes
 #   powershell -ExecutionPolicy Bypass -File scripts/run_containers.ps1 -NoObservability   the app only
 #
-# Prometheus, Grafana, Loki and Alloy (docker/docker-compose.observability.yml) start with the app unless
-# -NoObservability is given; every service then ships its logs to Alloy. -Stop and -Reset always include them, so
-# nothing is left running (-Reset also removes their volumes).
+# Prometheus, Grafana, Loki and Alloy run in one container, monitoring (docker/monitoring/docker-compose.yml), which
+# starts with the app unless -NoObservability is given; every service then ships its logs to Alloy. -Stop and -Reset
+# always include it, so nothing is left running (-Reset also removes its volumes).
 #
 # The database schema is not removed by -Reset. To start clean, put a new schema name in .env.deploy and use -Setup.
 
@@ -28,7 +28,7 @@ Set-Location (Split-Path $PSScriptRoot -Parent)
 $Compose = @("compose", "-p", "hedis-deploy", "-f", "docker-compose.deploy.yml")
 # Monitoring is on by default; -Stop and -Reset always include it so its containers are never left behind.
 $Observability = $Stop -or $Reset -or -not $NoObservability
-if ($Observability) { $Compose += @("-f", "docker/docker-compose.observability.yml") }
+if ($Observability) { $Compose += @("-f", "docker/monitoring/docker-compose.yml") }
 
 function Invoke-Compose([string[]]$Arguments) {
     & docker @Compose @Arguments
@@ -61,13 +61,26 @@ foreach ($file in ".env", ".env.deploy") {
 }
 
 # up -d (not start) so changes to .env or .env.deploy reach the containers.
-if ($NoBuild) {
-    Invoke-Compose @("up", "-d")
-} else {
+if (-not $NoBuild) {
     # The component images start FROM hedis-base and copy from hedis-engine; compose cannot order that itself.
     Invoke-Compose @("--profile", "build", "build", "base", "engine")
-    Invoke-Compose @("up", "-d", "--build")
+    Invoke-Compose @("build")
 }
+
+if ($Observability) {
+    # Containers from the earlier four-service monitoring would hold ports 3001 and 9091; their volumes are reused.
+    foreach ($old in "prometheus", "grafana", "loki", "alloy") {
+        $ids = & docker ps -aq --filter "label=com.docker.compose.project=hedis-deploy" `
+            --filter "label=com.docker.compose.service=$old"
+        if ($ids) { & docker rm -f $ids | Out-Null }
+    }
+    # The monitoring tools run as uid 472; volumes made by the earlier four monitoring containers belong to other users.
+    & docker @Compose run --rm --no-deps --user root --entrypoint chown monitoring -R 472:0 /prometheus /loki `
+        /var/lib/alloy/data /var/lib/grafana/state
+    if ($LASTEXITCODE -ne 0) { Write-Host "Warning: could not hand the monitoring volumes to its user." -ForegroundColor Yellow }
+}
+
+Invoke-Compose @("up", "-d")
 
 $migrate = Get-ContainerId "migrate"
 $migrateExit = & docker inspect -f "{{.State.ExitCode}}" $migrate
@@ -109,5 +122,6 @@ if ($Observability) {
     Write-Host "  Grafana    http://127.0.0.1:3001"
     Write-Host "  Prometheus http://127.0.0.1:9091/targets"
     Write-Host "  Logs       Grafana > Explore > HEDIS logs"
+    Write-Host "  Monitoring docker logs hedis-deploy-monitoring-1"
 }
 Write-Host "Stop it with: powershell -ExecutionPolicy Bypass -File scripts/run_containers.ps1 -Stop"

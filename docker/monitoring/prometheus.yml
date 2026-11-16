@@ -1,4 +1,5 @@
-# For the container deployment (docker-compose.deploy.yml, profile observability); the local run uses the template.
+# For the container deployment (the monitoring container, docker/monitoring/); the local run uses
+# observability/prometheus.yml.template.
 global:
   scrape_interval: 15s
   evaluation_interval: 15s

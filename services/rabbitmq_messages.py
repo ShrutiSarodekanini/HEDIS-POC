@@ -49,7 +49,7 @@ WORKER_SERVICE = {
     "gaps.prioritize": "gaps", "documents.attach": "documents", "evidence.extract": "evidence",
     "stars.calculate": "stars",
 }
-# Prometheus port per process (job hedis-workers in observability/prometheus.deploy.yml and the local template).
+# Prometheus port per process (job hedis-workers in docker/monitoring/prometheus.yml and the local template).
 # One per worker, not per container: run_workers.py starts several workers in one container.
 METRICS_PORT = {
     "outbox": 9100, "conversion": 9101, "load": 9102, "quality": 9103, "valuesets": 9104, "measures": 9105,
