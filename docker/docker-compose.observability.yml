@@ -1,0 +1,45 @@
+# Metrics and dashboards for the container deployment: Prometheus and Grafana, built from docker/prometheus.Dockerfile
+# and docker/grafana.Dockerfile with the configs from observability/ copied in (rebuild after changing them).
+# Always used after docker-compose.deploy.yml, which must come first: Compose resolves every relative path from the
+# first file's folder (the repo root), and the network hedis is declared there.
+#   docker compose -p hedis-deploy -f docker-compose.deploy.yml -f docker/docker-compose.observability.yml up -d
+# scripts/run_containers.ps1 -Observability passes both files. Logs (Loki, Alloy) are docker/docker-compose.logs.yml.
+# Other ports (Grafana 127.0.0.1:3001, Prometheus 127.0.0.1:9091) and default container names, so the local run's
+# hedis-prometheus and hedis-grafana stay apart.
+services:
+  prometheus:
+    image: hedis-deploy-prometheus:latest
+    build:
+      context: .
+      dockerfile: docker/prometheus.Dockerfile
+    ports:
+      - "127.0.0.1:9091:9090"
+    volumes:
+      - prometheus-data:/prometheus
+    restart: unless-stopped
+    networks:
+      - hedis
+
+  grafana:
+    image: hedis-deploy-grafana:latest
+    build:
+      context: .
+      dockerfile: docker/grafana.Dockerfile
+    # GRAFANA_ADMIN_PASSWORD and GRAFANA_DB_PASSWORD come from the env files, so .env.deploy can override .env.
+    env_file:
+      - .env
+      - .env.deploy
+    ports:
+      - "127.0.0.1:3001:3000"
+    depends_on:
+      - prometheus
+    volumes:
+      # Grafana's state (GF_PATHS_DATA in the image); the dashboards stay in the image.
+      - grafana-data:/var/lib/grafana/state
+    restart: unless-stopped
+    networks:
+      - hedis
+
+volumes:
+  prometheus-data:
+  grafana-data:
