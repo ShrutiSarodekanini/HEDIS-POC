@@ -20,7 +20,7 @@ import psycopg
 from fastapi import APIRouter, Depends, File, HTTPException, Request, Response, UploadFile
 from fastapi.exceptions import RequestValidationError
 from fastapi.routing import APIRoute
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from common import app_metrics
@@ -96,7 +96,7 @@ class StarCalculationIn(BaseModel):
 
 class WhatIfIn(BaseModel):
     measure_id: str
-    gap_ids: list[str] = []
+    gap_ids: list[str] = Field(default_factory=list)
 
 
 def build_router(current_user_dep: Callable[..., auth.AuthUser],

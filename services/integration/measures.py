@@ -161,6 +161,23 @@ SELECT g.gap_id, %s, 'numerator', g.org_id, 'open', 0
 ON CONFLICT (gap_id) DO NOTHING
 """
 
+_SUPPLEMENTAL_OUTCOMES = """
+SELECT g.patient_id, d.review_status
+  FROM care_gap g
+  JOIN care_gap_detail d ON d.gap_id = g.gap_id
+ WHERE g.measure_id = %s
+   AND g.measurement_year = %s
+   AND g.patient_id = ANY(%s)
+   AND d.review_status IN ('closed_pending_engine', 'excluded_pending_engine', 'closed', 'excluded')
+   AND EXISTS (
+       SELECT 1
+         FROM supplemental_records s
+        WHERE s.patient_id = g.patient_id
+          AND s.measure_id = g.measure_id
+          AND s.measurement_year = g.measurement_year
+   )
+"""
+
 
 @dataclass(frozen=True)
 class MeasureBundle:
@@ -558,6 +575,13 @@ def _write_results(conn: psycopg.Connection, bundle: MeasureBundle, populations:
     if bundle.measure_id in INVERSE_MEASURES:
         num = [d and not n for d, n in zip(den, num)]
         version += " / numerator inverted (engine counts poor control)"
+    supplemental = dict(conn.execute(
+        _SUPPLEMENTAL_OUTCOMES,
+        (bundle.measure_id, year, patients),
+    ).fetchall())
+    _apply_supplemental_outcomes(patients, den, num, exc, supplemental)
+    if supplemental:
+        version += " / confirmed supplemental evidence applied"
     rows = conn.execute(_RESULTS, (bundle.measure_id, year, version, patients, den, num, exc)).fetchall()
     result_pk = {patient: pk for pk, patient in rows}
     gap_patients = [p for p, d, n, e in zip(patients, den, num, exc) if d and not n and not e]
@@ -570,6 +594,26 @@ def _write_results(conn: psycopg.Connection, bundle: MeasureBundle, populations:
                              exc, actor_user_id)
     return MeasureOutcome(denominator=sum(den), numerator=sum(d and n for d, n in zip(den, num)), excluded=sum(exc),
                           gaps_new=new, gaps_open=len(gap_patients), gaps_closed=closed)
+
+
+def _apply_supplemental_outcomes(
+    patients: list[str],
+    denominator: list[bool],
+    numerator: list[bool],
+    excluded: list[bool],
+    outcomes: dict[str, str],
+) -> None:
+    """Apply reviewer-confirmed outcomes after normalizing the engine populations."""
+    for index, patient_id in enumerate(patients):
+        outcome = outcomes.get(patient_id)
+        if outcome in {"closed_pending_engine", "closed"}:
+            denominator[index] = True
+            numerator[index] = True
+            excluded[index] = False
+        elif outcome in {"excluded_pending_engine", "excluded"}:
+            denominator[index] = True
+            numerator[index] = False
+            excluded[index] = True
 
 
 def _close_met_gaps(conn: psycopg.Connection, measure_id: str, year: int, run_id: str, patients: list[str],

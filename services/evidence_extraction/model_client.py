@@ -17,7 +17,7 @@ from typing import Any
 
 import httpx
 
-from services.evidence_extraction.config import SETTINGS, Settings
+from services.evidence_extraction.config import SETTINGS, Settings, provider_policy_error
 from services.evidence_extraction.contracts import OUTPUT_SCHEMA, ModelError, ModelResult, PageRef, Prompt
 
 log = logging.getLogger(__name__)
@@ -42,6 +42,9 @@ class OpenRouterClient:
     def __init__(self, settings: Settings = SETTINGS, transport: httpx.BaseTransport | None = None,
                  sleep: Callable[[float], None] = time.sleep) -> None:
         """Fail at construction without a key, so a run stops before any gap is touched."""
+        policy_error = provider_policy_error(settings)
+        if policy_error is not None:
+            raise ValueError(policy_error)
         if not settings.openrouter_api_key:
             raise ValueError("Set OPENROUTER_API_KEY in .env")
         self.model = settings.model
@@ -67,19 +70,18 @@ class OpenRouterClient:
 
         error = data.get("error")
         if error is not None:
-            message = error.get("message", "") if isinstance(error, dict) else str(error)
-            raise ModelError(f"OpenRouter returned an error instead of an answer: {message}", transient=True)
+            raise ModelError("OpenRouter returned an error payload", transient=True, code="provider_error")
         choices = data.get("choices") or []
         if not choices:
-            raise ModelError("OpenRouter returned no choices", transient=True)
+            raise ModelError("OpenRouter returned no choices", transient=True, code="no_choices")
         choice = choices[0]
         original = (choice.get("message") or {}).get("content") or ""
         if choice.get("finish_reason") == "length":
-            raise ModelError(f"Answer was cut off at the {self._settings.max_output_tokens}-token output limit; "
-                             "raise EXTRACTION_MAX_OUTPUT_TOKENS", transient=False, raw=original)
+            raise ModelError("Answer was cut off at the output token limit", transient=False, code="truncated_output",
+                             raw=original)
         text = clean_answer(original)
         if not text:
-            raise ModelError("OpenRouter returned an empty answer", transient=True, raw=original)
+            raise ModelError("OpenRouter returned an empty answer", transient=True, code="empty_answer", raw=original)
 
         usage = data.get("usage") or {}
         return ModelResult(
@@ -120,8 +122,8 @@ class OpenRouterClient:
                     continue
                 if status == 429:
                     if rate_limit_waits == RATE_LIMIT_MAX_WAITS:
-                        raise ModelError(f"OpenRouter still rate limited (HTTP 429) after {rate_limit_waits} waits",
-                                         transient=True)
+                        raise ModelError("OpenRouter remained rate limited after retries", transient=True,
+                                         code="rate_limited")
                     rate_limit_waits += 1
                     wait = _retry_after_s(response)
                     log.warning("OpenRouter rate limited (HTTP 429); waiting %.0fs (wait %d of %d)",
@@ -129,11 +131,13 @@ class OpenRouterClient:
                     self._sleep(wait)
                     continue
                 if status < 500:
-                    raise ModelError(f"OpenRouter returned HTTP {status}: {self._excerpt(response)}", transient=False)
+                    raise ModelError(f"OpenRouter returned HTTP {status}", transient=False,
+                                     code=f"http_{status}")
                 failure = f"HTTP {status}: {self._excerpt(response)}"
 
             if backoffs == len(BACKOFF_S):
-                raise ModelError(f"OpenRouter failed after {backoffs} retries: {failure}", transient=True)
+                raise ModelError(f"OpenRouter failed after {backoffs} retries", transient=True,
+                                 code="retries_exhausted")
             wait = BACKOFF_S[backoffs]
             backoffs += 1
             log.warning("OpenRouter call failed (%s); retrying in %.0fs (retry %d of %d)",
@@ -145,11 +149,11 @@ class OpenRouterClient:
         try:
             data = response.json()
         except json.JSONDecodeError as exc:
-            raise ModelError(f"OpenRouter returned a body that is not JSON: {self._excerpt(response)}",
-                             transient=True) from exc
+            raise ModelError("OpenRouter returned a body that is not JSON", transient=True,
+                             code="invalid_json") from exc
         if not isinstance(data, dict):
-            raise ModelError(f"OpenRouter returned a body that is not a JSON object: {self._excerpt(response)}",
-                             transient=True)
+            raise ModelError("OpenRouter returned a body that is not a JSON object", transient=True,
+                             code="invalid_json_shape")
         return data
 
     def _excerpt(self, response: httpx.Response) -> str:
