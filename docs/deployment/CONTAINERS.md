@@ -135,13 +135,14 @@ docker compose -p hedis-deploy -f docker-compose.deploy.yml -f docker/docker-com
 Or with the script:
 
 ```
-powershell -ExecutionPolicy Bypass -File scripts/run_containers.ps1 -Observability
-powershell -ExecutionPolicy Bypass -File scripts/run_containers.ps1 -Stop -Observability
+powershell -ExecutionPolicy Bypass -File scripts/run_containers.ps1
+powershell -ExecutionPolicy Bypass -File scripts/run_containers.ps1 -NoObservability
+powershell -ExecutionPolicy Bypass -File scripts/run_containers.ps1 -Stop
 ```
 
-`-Stop` and `-Reset` need `-Observability` too, or the monitoring containers are left out (`-Reset -Observability`
-also removes their volumes). Stop them before starting the app without the switch, or they keep running on their
-own. `docker-compose.deploy.yml` alone is the app without monitoring.
+The script starts monitoring with the app unless `-NoObservability` is given. `-Stop` and `-Reset` always include
+the monitoring containers (`-Reset` also removes their volumes), so nothing is left running.
+`docker-compose.deploy.yml` alone is the app without monitoring.
 
 What is collected:
 
