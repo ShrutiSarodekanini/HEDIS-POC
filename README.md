@@ -95,9 +95,11 @@ stays outside and is reached through `DATABASE_URL`.
 
 1. Copy `.env.deploy.example` to `.env.deploy` and fill in `DATABASE_URL` (use its own schema), `RABBITMQ_USER` and
    `RABBITMQ_PASSWORD`. The containers read `.env` first, then `.env.deploy`.
-2. Build and start. The `migrate` job creates the schema and runs the migrations:
+2. Build and start. The `migrate` job creates the schema and runs the migrations. The component images start from
+   two shared images, so build those first:
 
    ```powershell
+   docker compose -p hedis-deploy -f docker-compose.deploy.yml --profile build build base engine
    docker compose -p hedis-deploy -f docker-compose.deploy.yml up -d --build
    ```
 
@@ -211,7 +213,7 @@ reason. Cut points follow the CMS 2027 Star Ratings Technical Notes.
 | `ui/` | React UI |
 | `observability/` | Prometheus, Grafana, Loki and Alloy |
 | `scripts/` | Start, worker, seed and maintenance scripts |
-| `Dockerfile`, `ui/Dockerfile`, `docker-compose.deploy.yml` | Container images and the per-component deployment |
+| `docker/`, `ui/Dockerfile`, `docker-compose.deploy.yml` | One container image per component and the deployment |
 
 ## Tests
 
