@@ -1,13 +1,12 @@
-# One container per component, built from the current code. Postgres stays outside (DATABASE_URL in .env.deploy).
+# One container and one image per component, built from the current code. Postgres stays outside (DATABASE_URL in
+# .env.deploy). The component images start FROM hedis-base and copy from hedis-engine, so build those two first:
+#   docker compose -p hedis-deploy -f docker-compose.deploy.yml --profile build build base engine
 #   docker compose -p hedis-deploy -f docker-compose.deploy.yml up -d --build
 #   docker compose -p hedis-deploy -f docker-compose.deploy.yml --profile setup run --rm seed   (empty schema only)
 # Only the UI (8080) and the RabbitMQ management page (15673) are published, so the dev stack's ports stay free.
 name: hedis-deploy
 
-# Built once by migrate (parallel builds of one tag collide); the other Python services reuse the local image.
 x-python: &python
-  image: hedis-deploy-python:latest
-  pull_policy: never
   init: true
   restart: unless-stopped
   env_file:
@@ -26,6 +25,21 @@ x-python: &python
     - hedis
 
 services:
+  # Build-only: profile "build" never starts them; their images are the base of the component images.
+  base:
+    image: hedis-base:latest
+    build:
+      context: .
+      dockerfile: docker/base.Dockerfile
+    profiles: ["build"]
+
+  engine:
+    image: hedis-engine:latest
+    build:
+      context: .
+      dockerfile: docker/engine.Dockerfile
+    profiles: ["build"]
+
   rabbitmq:
     image: rabbitmq:3.13-management
     hostname: rabbitmq
@@ -56,18 +70,21 @@ services:
     networks:
       - hedis
 
+  # migrate builds hedis-deploy-tools; seed reuses it (parallel builds of one tag collide).
   migrate:
     <<: *python
+    image: hedis-deploy-tools:latest
     build:
       context: .
-      dockerfile: Dockerfile
-    pull_policy: missing
+      dockerfile: docker/tools.Dockerfile
     restart: "no"
     command: ["sh", "-c", "python scripts/db/ensure_schema.py && python -m alembic -c db/alembic.ini upgrade head"]
     depends_on: {}
 
   seed:
     <<: *python
+    image: hedis-deploy-tools:latest
+    pull_policy: never
     restart: "no"
     profiles: ["setup"]
     command: ["python", "scripts/db/load_seed.py", "--reference-only"]
@@ -77,7 +94,10 @@ services:
 
   api:
     <<: *python
-    command: ["python", "-m", "uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8000"]
+    image: hedis-deploy-api:latest
+    build:
+      context: .
+      dockerfile: docker/api.Dockerfile
     volumes:
       - hedis-data:/data
     healthcheck:
@@ -89,39 +109,63 @@ services:
 
   outbox:
     <<: *python
-    command: ["python", "-m", "services.outbox_dispatcher"]
+    image: hedis-deploy-outbox:latest
+    build:
+      context: .
+      dockerfile: docker/outbox.Dockerfile
 
   ingestion:
     <<: *python
-    command: ["python", "scripts/run_workers.py", "conversion", "load"]
+    image: hedis-deploy-ingestion:latest
+    build:
+      context: .
+      dockerfile: docker/ingestion.Dockerfile
     volumes:
       - hedis-data:/data
 
   quality:
     <<: *python
-    command: ["python", "scripts/run_workers.py", "quality"]
+    image: hedis-deploy-quality:latest
+    build:
+      context: .
+      dockerfile: docker/quality.Dockerfile
 
   measures:
     <<: *python
-    command: ["python", "scripts/run_workers.py", "valuesets", "measures"]
+    image: hedis-deploy-measures:latest
+    build:
+      context: .
+      dockerfile: docker/measures.Dockerfile
 
   gap-identifier:
     <<: *python
-    command: ["python", "scripts/run_workers.py", "gap_identifier"]
+    image: hedis-deploy-gap-identifier:latest
+    build:
+      context: .
+      dockerfile: docker/gap-identifier.Dockerfile
 
   prioritization:
     <<: *python
-    command: ["python", "scripts/run_workers.py", "gaps"]
+    image: hedis-deploy-prioritization:latest
+    build:
+      context: .
+      dockerfile: docker/prioritization.Dockerfile
 
   ai-evidence:
     <<: *python
-    command: ["python", "scripts/run_workers.py", "documents", "evidence"]
+    image: hedis-deploy-ai-evidence:latest
+    build:
+      context: .
+      dockerfile: docker/ai-evidence.Dockerfile
     volumes:
       - hedis-data:/data
 
   stars:
     <<: *python
-    command: ["python", "scripts/run_workers.py", "stars"]
+    image: hedis-deploy-stars:latest
+    build:
+      context: .
+      dockerfile: docker/stars.Dockerfile
 
   ui:
     image: hedis-deploy-ui:latest

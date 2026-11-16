@@ -52,7 +52,13 @@ foreach ($file in ".env", ".env.deploy") {
 }
 
 # up -d (not start) so changes to .env or .env.deploy reach the containers.
-if ($NoBuild) { Invoke-Compose @("up", "-d") } else { Invoke-Compose @("up", "-d", "--build") }
+if ($NoBuild) {
+    Invoke-Compose @("up", "-d")
+} else {
+    # The component images start FROM hedis-base and copy from hedis-engine; compose cannot order that itself.
+    Invoke-Compose @("--profile", "build", "build", "base", "engine")
+    Invoke-Compose @("up", "-d", "--build")
+}
 
 $migrate = Get-ContainerId "migrate"
 $migrateExit = & docker inspect -f "{{.State.ExitCode}}" $migrate
