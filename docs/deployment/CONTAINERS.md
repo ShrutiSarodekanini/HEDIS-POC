@@ -30,6 +30,10 @@ The Python containers read `.env` and then `.env.deploy`, so `.env.deploy` wins.
 `.env.deploy` and fill in `DATABASE_URL` (use its own schema, for example `hedis_deploy`), `RABBITMQ_USER` and
 `RABBITMQ_PASSWORD`. The RabbitMQ container creates that user on first start. `.env.deploy` is ignored by git.
 
+For the UI container:
+- `API_UPSTREAM` controls the nginx proxy target at runtime (default `http://api:8000`).
+- `VITE_*` values are build-time inputs. Pass them as Docker build args for Azure builds.
+
 ## Build and start
 
 ```
