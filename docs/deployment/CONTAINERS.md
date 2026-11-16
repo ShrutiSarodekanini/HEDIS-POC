@@ -108,6 +108,42 @@ docker compose -p hedis-deploy -f docker-compose.deploy.yml logs -f measures
 The gap identifier, evidence and stars workers write nothing to stdout when a message succeeds, so their container
 logs stay quiet; RabbitMQ management shows their consumers and acknowledgements.
 
+## Monitoring
+
+Prometheus, Grafana, Loki and Alloy run in the `observability` profile, with the dashboards, alerts and log masking
+of the local run (the files in `observability/`):
+
+```
+powershell -ExecutionPolicy Bypass -File scripts/run_containers.ps1 -Observability
+powershell -ExecutionPolicy Bypass -File scripts/run_containers.ps1 -Stop -Observability
+```
+
+Add `-Observability` to `-Stop` and `-Reset` as well, or the four monitoring containers are left out.
+
+| Service | Address | Notes |
+|---|---|---|
+| Grafana | http://127.0.0.1:3001 | Opens without sign-in (viewer); admin password from `GRAFANA_ADMIN_PASSWORD` |
+| Prometheus | http://127.0.0.1:9091/targets | Scrapes `api:8000/metrics` (`observability/prometheus.deploy.yml`) |
+| Loki, Alloy | not published | Reached only inside the compose network |
+
+The ports differ from the local run (3000, 9090) and the containers keep compose's default names
+(`hedis-deploy-grafana-1` and so on), so both stacks can run at once.
+
+What is collected:
+
+- API metrics (requests, pipeline steps, engine, AI calls) from `/metrics`.
+- The API log: the api container writes `logs/hedis-app.log` into the `hedis-logs` volume, and Alloy tails it,
+  masks emails, file names and OpenRouter user ids, and sends it to Loki (Explore, `{job="hedis-api"}`).
+- Not the workers: they log to stdout only, as in the local run, so their logs are in `docker logs`.
+
+The run history dashboard and the database panels of the new UI dashboard read Postgres as the read-only login
+`hedis_grafana_ro` at `host.docker.internal:5432`, database `HEDISPOCDB`. That login exists only after a superuser
+runs `observability/grafana/readonly_role.sql` and sets its password, and `GRAFANA_DB_PASSWORD` (in `.env` or
+`.env.deploy`) holds the same password. Without it those panels show a datasource error (also when the login exists
+but has no grants on the schema `hedis`: "permission denied for schema hedis"); the overview dashboard and the
+Prometheus and Loki panels still work. The dashboard queries and the grants name the schema `hedis`
+(`hedis.batch_run` and so on), not the schema in `.env.deploy`, so they show the `hedis` schema's data.
+
 ## Notes
 
 - The base image pins fastapi to the version the dev environment runs (`FASTAPI_VERSION` in
