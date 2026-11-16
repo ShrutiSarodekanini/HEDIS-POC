@@ -1,0 +1,62 @@
+# Monitoring for the container deployment: one container, `monitoring`, running Prometheus, Loki, Alloy and Grafana
+# (docker/monitoring/Dockerfile, start.sh), with the configs from docker/monitoring/prometheus.yml and observability/
+# copied in (rebuild after changing a config or dashboard). Every Python service gets ALLOY_URL and pushes its log
+# records to Alloy, which masks them and sends them to Loki.
+# Always used after docker-compose.deploy.yml, which must come first: Compose resolves every relative path from the
+# first file's folder (the repo root), and the network hedis is declared there.
+#   docker compose -p hedis-deploy -f docker-compose.deploy.yml -f docker/monitoring/docker-compose.yml up -d
+# scripts/run_containers.ps1 adds this file unless -NoObservability is given. Only Grafana (127.0.0.1:3001) and
+# Prometheus (127.0.0.1:9091) are published; the local run's hedis-grafana and the rest stay apart.
+x-ship-logs: &ship-logs
+  environment:
+    ALLOY_URL: http://alloy:3500
+
+services:
+  # Merged into the app services of docker-compose.deploy.yml (not migrate or seed): only ALLOY_URL is added.
+  api: *ship-logs
+  outbox: *ship-logs
+  ingestion: *ship-logs
+  quality: *ship-logs
+  measures: *ship-logs
+  gap-identifier: *ship-logs
+  prioritization: *ship-logs
+  ai-evidence: *ship-logs
+  stars: *ship-logs
+
+  monitoring:
+    image: hedis-deploy-monitoring:latest
+    build:
+      context: .
+      dockerfile: docker/monitoring/Dockerfile
+    init: true
+    # GRAFANA_ADMIN_PASSWORD, GRAFANA_DB_PASSWORD and GRAFANA_ANONYMOUS come from the env files; .env.deploy wins.
+    env_file:
+      - .env
+      - .env.deploy
+    ports:
+      - "127.0.0.1:3001:3000"
+      - "127.0.0.1:9091:9090"
+    volumes:
+      - prometheus-data:/prometheus
+      - loki-data:/loki
+      - alloy-data:/var/lib/alloy/data
+      # Grafana's state (GF_PATHS_DATA in the image); a volume on /var/lib/grafana would hide the dashboards.
+      - grafana-data:/var/lib/grafana/state
+    restart: unless-stopped
+    # start.sh gives the four tools 20 seconds to stop before it kills them.
+    stop_grace_period: 30s
+    networks:
+      hedis:
+        # The four tools keep the names every config already uses (http://prometheus:9090, http://loki:3100,
+        # http://alloy:3500).
+        aliases:
+          - prometheus
+          - loki
+          - alloy
+          - grafana
+
+volumes:
+  prometheus-data:
+  grafana-data:
+  loki-data:
+  alloy-data:

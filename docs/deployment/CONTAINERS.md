@@ -110,26 +110,48 @@ logs stay quiet; RabbitMQ management shows their consumers and acknowledgements.
 
 ## Monitoring
 
-Prometheus, Grafana, Loki and Alloy run as four containers from one overlay, `docker/docker-compose.observability.yml`,
-with the dashboards, alerts and log masking of the local run:
+Prometheus, Grafana, Loki and Alloy run in one container, `monitoring`, built from `docker/monitoring/`, with the
+dashboards, alerts and log masking of the local run:
 
-| Container | Image (Dockerfile) | Copies in | Address |
-|---|---|---|---|
-| prometheus | `hedis-deploy-prometheus` (`docker/prometheus.Dockerfile`) | `prometheus.deploy.yml`, `alerts.yml` | http://127.0.0.1:9091/targets |
-| grafana | `hedis-deploy-grafana` (`docker/grafana.Dockerfile`) | `grafana/provisioning`, `grafana/dashboards` | http://127.0.0.1:3001 |
-| loki | `hedis-deploy-loki` (`docker/loki.Dockerfile`) | `loki/loki-config.yml` (15 days of logs) | network only |
-| alloy | `hedis-deploy-alloy` (`docker/alloy.Dockerfile`) | `alloy/config.alloy` | network only (3500 push, 12345 UI) |
+| File in `docker/monitoring/` | What it is |
+|---|---|
+| `Dockerfile` | Grafana 12.1.0 (Ubuntu, because Alloy needs glibc) plus the Prometheus v3.5.0, Loki 3.5.0 and Alloy v1.10.0 binaries copied from their pinned images; runs as uid 472 |
+| `start.sh` | Starts Loki, Prometheus, Alloy and Grafana, prefixes their output, stops them all on a stop signal |
+| `prometheus.yml` | Scrape config for the containers (`api:8000` and the `hedis-workers` targets) |
+| `docker-compose.yml` | The `monitoring` service, its volumes, and `ALLOY_URL` on the Python services |
 
-Each image is FROM the pinned official image with its config from `observability/` copied in. Nothing is
-bind-mounted, so a change to a dashboard, alert or config needs a rebuild: rerun the script (it builds), or `up -d
---build`. The ports differ from the local run (3000, 9090) and the containers keep compose's default names
-(`hedis-deploy-grafana-1` and so on), so both stacks can run at once.
+The shared configs stay in `observability/` (`alerts.yml`, `loki/loki-config.yml` with 15 days of logs,
+`alloy/config.alloy`, `grafana/provisioning`, `grafana/dashboards`) because the local run uses them too; the image
+copies them in. Nothing is bind-mounted, so a change to a dashboard, alert or config needs a rebuild: rerun the
+script (it builds). On the compose network the container answers to `prometheus`, `loki`, `alloy` and `grafana`, so
+every existing URL works unchanged.
+
+| Tool | Address |
+|---|---|
+| Grafana | http://127.0.0.1:3001 |
+| Prometheus | http://127.0.0.1:9091/targets |
+| Loki, Alloy | network only (Loki 3100, Alloy 3500 push and 12345 UI) |
+
+The ports differ from the local run (3000, 9090), so both can run at once. The local run (`run_all.ps1`,
+`observability/docker-compose.yml`) is unchanged and still starts its own four containers.
+
+The container's log holds all four tools, each line prefixed with `[loki]`, `[prometheus]`, `[alloy]` or `[grafana]`
+(and `[monitoring]` for the start script):
+
+```
+docker logs hedis-deploy-monitoring-1
+```
+
+If one tool stops by itself, the start script stops the other three and exits 1, and Docker restarts the container.
+On `docker stop` the tools get 20 seconds to stop before they are killed. The data volumes (`prometheus-data`,
+`loki-data`, `alloy-data`, `grafana-data`) keep metrics, logs and Grafana settings across restarts; the script hands
+them to uid 472 before starting, which also fixes volumes left by the earlier four monitoring containers.
 
 `docker-compose.deploy.yml` must come first: Compose resolves every relative path from the first file's folder (the
 repo root), and the network `hedis` is declared there.
 
 ```
-docker compose -p hedis-deploy -f docker-compose.deploy.yml -f docker/docker-compose.observability.yml up -d
+docker compose -p hedis-deploy -f docker-compose.deploy.yml -f docker/monitoring/docker-compose.yml up -d
 ```
 
 Or with the script:
@@ -141,7 +163,7 @@ powershell -ExecutionPolicy Bypass -File scripts/run_containers.ps1 -Stop
 ```
 
 The script starts monitoring with the app unless `-NoObservability` is given. `-Stop` and `-Reset` always include
-the monitoring containers (`-Reset` also removes their volumes), so nothing is left running.
+the monitoring container (`-Reset` also removes its volumes), so nothing is left running.
 `docker-compose.deploy.yml` alone is the app without monitoring.
 
 What is collected:
@@ -178,8 +200,8 @@ Grafana opens without sign-in (viewer) by default. For anything reachable by oth
 a real `GRAFANA_ADMIN_PASSWORD` in `.env.deploy`; both are read when the container starts, never built into the image
 (the admin password only takes effect on Grafana's first start with an empty `grafana-data` volume).
 
-On Azure Container Apps, the same four images run as their own apps; Loki and Grafana need persistent storage (Azure
-Files) for `loki-data` and `grafana-data`, or logs and Grafana settings are lost on restart. The services push their
+On Azure Container Apps, the monitoring image runs as one app; its Loki and Grafana data (`loki-data`, `grafana-data`)
+need persistent storage (Azure Files), or logs and Grafana settings are lost on restart. The services push their
 logs over HTTP, so no shared files or Log Analytics are needed.
 
 The run history dashboard and the database panels of the new UI dashboard read Postgres as the read-only login
