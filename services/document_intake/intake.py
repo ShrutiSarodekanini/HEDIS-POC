@@ -153,7 +153,7 @@ def receive_file(conn: psycopg.Connection, data: bytes, filename: str, source_or
     if reason in ("infected", "scan_failed"):
         stored_path, encrypted = NOT_STORED, False
     else:
-        stored_path, encrypted = storage.save_original(data)
+        stored_path, encrypted = storage.save_original(conn, data)
 
     keeps_member = patient_id is not None or kind in CONTAINER_KINDS or kind in STRUCTURED_KINDS
     match_status = "unmatched" if reason else ("matched" if keeps_member else NEEDS_MATCH)
@@ -251,7 +251,7 @@ def _process(conn: psycopg.Connection, row: dict) -> dict:
     file_id = row["id"]
     conn.execute("UPDATE source_files SET processing_status = 'processing' WHERE id = %s", (file_id,))
     audit(conn, "source_file", str(file_id), "file.processing_started", None)
-    data = storage.read_original(row["stored_path"], row["encrypted"])
+    data = storage.read_original(conn, row["stored_path"], row["encrypted"])
 
     kind = row["detected_kind"]
     if kind is None:  # seed files are registered by extension; detect from the content now

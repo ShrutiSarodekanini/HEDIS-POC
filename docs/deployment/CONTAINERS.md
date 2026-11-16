@@ -30,6 +30,10 @@ The Python containers read `.env` and then `.env.deploy`, so `.env.deploy` wins.
 `.env.deploy` and fill in `DATABASE_URL` (use its own schema, for example `hedis_deploy`), `RABBITMQ_USER` and
 `RABBITMQ_PASSWORD`. The RabbitMQ container creates that user on first start. `.env.deploy` is ignored by git.
 
+`FILE_ENCRYPTION_KEY` is required (in `.env` or `.env.deploy`). Uploaded documents, page images and the evidence
+library are stored encrypted in the database with it, so back the key up: without it every stored document is
+unreadable.
+
 ## Build and start
 
 ```
@@ -77,7 +81,7 @@ logs stay quiet; RabbitMQ management shows their consumers and acknowledgements.
   requirements.txt has no upper bound, and fastapi 0.16x breaks the Prometheus middleware (500 on every route).
 - Dataset uploads are saved under `./.uploaded_datasets` by the code; in the image that path links into the shared
   volume (`/data/uploaded_datasets`) so the ingestion container can read what the api container received.
-- Document intake files go to `/data/intake_store` (`INTAKE_STORE_DIR`) in the same volume.
+- Document originals and page images are not files: they are stored encrypted in the database.
 - Handwriting OCR uses a local Ollama model at `OLLAMA_URL` (default `http://localhost:11434`), which inside a
   container is the container itself. To use the host's Ollama, set `OLLAMA_URL=http://host.docker.internal:11434`
   in `.env.deploy`. Printed text is read by Tesseract, which is in the image.

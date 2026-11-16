@@ -24,6 +24,7 @@ Values that matter most:
 | Key | Purpose |
 |---|---|
 | `DATABASE_URL` | Postgres connection, with the schema in `options=-csearch_path%3D<schema>` |
+| `FILE_ENCRYPTION_KEY` | Required. Fernet key that encrypts every stored document; back it up (see below) |
 | `OPENROUTER_API_KEY`, `EXTRACTION_MODEL` | AI evidence extraction (the model must be serving on OpenRouter) |
 | `HEDIS_BOOTSTRAP_ADMIN_EMAIL` | Email of the first admin, created at startup if no account has it (lowercase) |
 | `HEDIS_BOOTSTRAP_ADMIN_PASSWORD` | Password for that first admin, at least 8 characters; never changes an existing account |
@@ -166,6 +167,13 @@ TO` command a superuser runs.
 
 To start from scratch, drop the schema (`DROP SCHEMA <schema> CASCADE;`) and run the script with `-Setup`. The
 backend creates the bootstrap admin from `.env` at startup.
+
+Uploaded documents, their page images and the evidence library are stored in the database (`stored_file`,
+`page_image`, `evidence_library`), encrypted with `FILE_ENCRYPTION_KEY`; nothing is written to `data/intake_store`.
+The key is required to upload, load the reference data or read a document. Back it up: without it every stored
+document is unreadable. To rotate, put the new key in `FILE_ENCRYPTION_KEY` and the old one in
+`FILE_ENCRYPTION_OLD_KEYS`. Schemas that received uploads before this change point at files on disk and are not
+supported; start from a fresh schema.
 
 ## Monitoring
 

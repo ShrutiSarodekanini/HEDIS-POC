@@ -7,7 +7,8 @@ app uses, public included: the schema, its tables, views, triggers and migration
 
 Kept: REFERENCE_TABLES, and the source_batch rows they point to (the reference load's batch). Every other table is
 emptied by one TRUNCATE ... RESTART IDENTITY CASCADE, after checking that the cascade cannot reach a kept table, in
-one transaction with an audit event for the reset. Encrypted document originals stay in the intake store folder.
+one transaction with an audit event for the reset. Stored document bytes (stored_file, page_image) are data tables
+and are emptied too; the evidence library is reference data and stays.
 """
 
 import logging
