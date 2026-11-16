@@ -1,13 +1,15 @@
 # Start or stop the app as containers, one per component (docker-compose.deploy.yml).
 #
-#   powershell -ExecutionPolicy Bypass -File scripts/run_containers.ps1            build and start
+#   powershell -ExecutionPolicy Bypass -File scripts/run_containers.ps1            build and start, with monitoring
 #   powershell -ExecutionPolicy Bypass -File scripts/run_containers.ps1 -Setup     also load the reference data (new schema)
 #   powershell -ExecutionPolicy Bypass -File scripts/run_containers.ps1 -NoBuild   start without rebuilding the images
 #   powershell -ExecutionPolicy Bypass -File scripts/run_containers.ps1 -Stop      stop, keep containers and data
 #   powershell -ExecutionPolicy Bypass -File scripts/run_containers.ps1 -Reset     remove containers and volumes
-#   add -Observability to any of these to include Prometheus, Grafana, Loki and Alloy
-#   (docker/docker-compose.observability.yml; every service then ships its logs to Alloy). -Stop and -Reset need
-#   -Observability too, or the monitoring containers and volumes are left alone.
+#   powershell -ExecutionPolicy Bypass -File scripts/run_containers.ps1 -NoObservability   the app only
+#
+# Prometheus, Grafana, Loki and Alloy (docker/docker-compose.observability.yml) start with the app unless
+# -NoObservability is given; every service then ships its logs to Alloy. -Stop and -Reset always include them, so
+# nothing is left running (-Reset also removes their volumes).
 #
 # The database schema is not removed by -Reset. To start clean, put a new schema name in .env.deploy and use -Setup.
 
@@ -16,7 +18,7 @@ param(
     [switch]$NoBuild,
     [switch]$Stop,
     [switch]$Reset,
-    [switch]$Observability
+    [switch]$NoObservability
 )
 
 # Continue, not Stop: Windows PowerShell 5.1 turns any stderr line from docker (progress, warnings) into a fatal
@@ -24,6 +26,8 @@ param(
 $ErrorActionPreference = "Continue"
 Set-Location (Split-Path $PSScriptRoot -Parent)
 $Compose = @("compose", "-p", "hedis-deploy", "-f", "docker-compose.deploy.yml")
+# Monitoring is on by default; -Stop and -Reset always include it so its containers are never left behind.
+$Observability = $Stop -or $Reset -or -not $NoObservability
 if ($Observability) { $Compose += @("-f", "docker/docker-compose.observability.yml") }
 
 function Invoke-Compose([string[]]$Arguments) {
@@ -106,5 +110,4 @@ if ($Observability) {
     Write-Host "  Prometheus http://127.0.0.1:9091/targets"
     Write-Host "  Logs       Grafana > Explore > HEDIS logs"
 }
-$stopArgs = if ($Observability) { "-Stop -Observability" } else { "-Stop" }
-Write-Host "Stop it with: powershell -ExecutionPolicy Bypass -File scripts/run_containers.ps1 $stopArgs"
+Write-Host "Stop it with: powershell -ExecutionPolicy Bypass -File scripts/run_containers.ps1 -Stop"

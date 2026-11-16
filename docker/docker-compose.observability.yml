@@ -4,8 +4,9 @@
 # Always used after docker-compose.deploy.yml, which must come first: Compose resolves every relative path from the
 # first file's folder (the repo root), and the network hedis is declared there.
 #   docker compose -p hedis-deploy -f docker-compose.deploy.yml -f docker/docker-compose.observability.yml up -d
-# scripts/run_containers.ps1 -Observability passes both files. Only Grafana (127.0.0.1:3001) and Prometheus
-# (127.0.0.1:9091) are published; containers keep compose's default names, apart from the local run's hedis-grafana.
+# scripts/run_containers.ps1 passes both files unless -NoObservability is given. Only Grafana (127.0.0.1:3001) and
+# Prometheus (127.0.0.1:9091) are published; containers keep compose's default names, apart from the local run's
+# hedis-grafana.
 x-ship-logs: &ship-logs
   environment:
     ALLOY_URL: http://alloy:3500
