@@ -5,7 +5,9 @@
 #   powershell -ExecutionPolicy Bypass -File scripts/run_containers.ps1 -NoBuild   start without rebuilding the images
 #   powershell -ExecutionPolicy Bypass -File scripts/run_containers.ps1 -Stop      stop, keep containers and data
 #   powershell -ExecutionPolicy Bypass -File scripts/run_containers.ps1 -Reset     remove containers and volumes
-#   add -Observability to any of these to include Prometheus, Grafana, Loki and Alloy
+#   add -Observability to any of these to include Prometheus and Grafana (docker/docker-compose.observability.yml), or
+#   -Logs to also include Loki and Alloy (docker/docker-compose.logs.yml; implies -Observability). Pass the same
+#   switches to -Stop and -Reset, or the monitoring containers and volumes are left alone.
 #
 # The database schema is not removed by -Reset. To start clean, put a new schema name in .env.deploy and use -Setup.
 
@@ -14,7 +16,8 @@ param(
     [switch]$NoBuild,
     [switch]$Stop,
     [switch]$Reset,
-    [switch]$Observability
+    [switch]$Observability,
+    [switch]$Logs
 )
 
 # Continue, not Stop: Windows PowerShell 5.1 turns any stderr line from docker (progress, warnings) into a fatal
@@ -22,7 +25,10 @@ param(
 $ErrorActionPreference = "Continue"
 Set-Location (Split-Path $PSScriptRoot -Parent)
 $Compose = @("compose", "-p", "hedis-deploy", "-f", "docker-compose.deploy.yml")
-if ($Observability) { $Compose += @("--profile", "observability") }
+# Grafana is where the logs are read, so -Logs needs the observability overlay too.
+if ($Logs) { $Observability = $true }
+if ($Observability) { $Compose += @("-f", "docker/docker-compose.observability.yml") }
+if ($Logs) { $Compose += @("-f", "docker/docker-compose.logs.yml") }
 
 function Invoke-Compose([string[]]$Arguments) {
     & docker @Compose @Arguments
@@ -103,5 +109,8 @@ if ($Observability) {
     Write-Host "  Grafana    http://127.0.0.1:3001"
     Write-Host "  Prometheus http://127.0.0.1:9091/targets"
 }
-$stopArgs = if ($Observability) { "-Stop -Observability" } else { "-Stop" }
+if ($Logs) {
+    Write-Host "  Logs       Grafana > Explore > HEDIS logs"
+}
+$stopArgs = if ($Logs) { "-Stop -Logs" } elseif ($Observability) { "-Stop -Observability" } else { "-Stop" }
 Write-Host "Stop it with: powershell -ExecutionPolicy Bypass -File scripts/run_containers.ps1 $stopArgs"

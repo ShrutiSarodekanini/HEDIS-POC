@@ -1,0 +1,45 @@
+# Logs in Grafana for the container deployment: Loki and Alloy, built from docker/loki.Dockerfile and
+# docker/alloy.Dockerfile with the configs from observability/ copied in (rebuild after changing them). The api writes
+# logs/hedis-app.log (common/app_logging.py) into the hedis-logs volume; Alloy tails it, masks it and sends it to Loki.
+# Used together with the deploy file and the observability file, in that order (paths resolve from the first file):
+#   docker compose -p hedis-deploy -f docker-compose.deploy.yml -f docker/docker-compose.observability.yml \
+#     -f docker/docker-compose.logs.yml up -d
+# scripts/run_containers.ps1 -Logs passes all three. Loki and Alloy publish no ports.
+services:
+  api:
+    volumes:
+      - hedis-logs:/app/logs
+
+  grafana:
+    depends_on:
+      - loki
+
+  loki:
+    image: hedis-deploy-loki:latest
+    build:
+      context: .
+      dockerfile: docker/loki.Dockerfile
+    volumes:
+      - loki-data:/loki
+    restart: unless-stopped
+    networks:
+      - hedis
+
+  alloy:
+    image: hedis-deploy-alloy:latest
+    build:
+      context: .
+      dockerfile: docker/alloy.Dockerfile
+    depends_on:
+      - loki
+    volumes:
+      - hedis-logs:/var/log/hedis:ro
+      - alloy-data:/var/lib/alloy/data
+    restart: unless-stopped
+    networks:
+      - hedis
+
+volumes:
+  hedis-logs:
+  loki-data:
+  alloy-data:

@@ -110,21 +110,45 @@ logs stay quiet; RabbitMQ management shows their consumers and acknowledgements.
 
 ## Monitoring
 
-Prometheus, Grafana, Loki and Alloy run in the `observability` profile, with the dashboards, alerts and log masking
-of the local run (the files in `observability/`):
+Monitoring is two optional overlays in `docker/`, with the dashboards, alerts and log masking of the local run:
+
+| Overlay | Adds | Switch |
+|---|---|---|
+| `docker/docker-compose.observability.yml` | Prometheus and Grafana: metrics and dashboards | `-Observability` |
+| `docker/docker-compose.logs.yml` | Loki and Alloy, and the API log volume: logs in Grafana | `-Logs` (implies `-Observability`) |
+
+Each service has its own image (`docker/prometheus.Dockerfile`, `grafana.Dockerfile`, `loki.Dockerfile`,
+`alloy.Dockerfile`) built FROM the pinned official image with its config from `observability/` copied in. Nothing
+is bind-mounted, so a change to a dashboard, alert or config needs a rebuild: rerun the script (it builds), or `up -d
+--build`. Passwords are not in the images: `GRAFANA_ADMIN_PASSWORD` (default admin) and `GRAFANA_DB_PASSWORD` are
+read from `.env` and `.env.deploy` when the container starts.
+
+`docker-compose.deploy.yml` must come first: Compose resolves every relative path from the first file's folder (the
+repo root), and the network `hedis` is declared there. The overlays follow in this order:
+
+```
+docker compose -p hedis-deploy -f docker-compose.deploy.yml -f docker/docker-compose.observability.yml up -d
+docker compose -p hedis-deploy -f docker-compose.deploy.yml -f docker/docker-compose.observability.yml -f docker/docker-compose.logs.yml up -d
+```
+
+Or with the script:
 
 ```
 powershell -ExecutionPolicy Bypass -File scripts/run_containers.ps1 -Observability
-powershell -ExecutionPolicy Bypass -File scripts/run_containers.ps1 -Stop -Observability
+powershell -ExecutionPolicy Bypass -File scripts/run_containers.ps1 -Logs
+powershell -ExecutionPolicy Bypass -File scripts/run_containers.ps1 -Stop -Logs
 ```
 
-Add `-Observability` to `-Stop` and `-Reset` as well, or the four monitoring containers are left out.
+Pass the same switch to `-Stop` and `-Reset`, or the monitoring containers are left out (`-Reset` with a switch
+also removes their volumes). Stop them before starting the app without the switch, or they keep running on their
+own. `docker-compose.deploy.yml` alone is the app without monitoring. On Azure Container Apps, Azure Monitor takes
+this role and Log Analytics collects the container output, so the logs overlay is not needed there.
 
 | Service | Address | Notes |
 |---|---|---|
 | Grafana | http://127.0.0.1:3001 | Opens without sign-in (viewer); admin password from `GRAFANA_ADMIN_PASSWORD` |
 | Prometheus | http://127.0.0.1:9091/targets | Scrapes `api:8000/metrics` (`observability/prometheus.deploy.yml`) |
-| Loki, Alloy | not published | Reached only inside the compose network |
+| Loki, Alloy | not published | `-Logs` only; reached only inside the compose network |
 
 The ports differ from the local run (3000, 9090) and the containers keep compose's default names
 (`hedis-deploy-grafana-1` and so on), so both stacks can run at once.
@@ -132,8 +156,10 @@ The ports differ from the local run (3000, 9090) and the containers keep compose
 What is collected:
 
 - API metrics (requests, pipeline steps, engine, AI calls) from `/metrics`.
-- The API log: the api container writes `logs/hedis-app.log` into the `hedis-logs` volume, and Alloy tails it,
-  masks emails, file names and OpenRouter user ids, and sends it to Loki (Explore, `{job="hedis-api"}`).
+- The API log (`-Logs` only): the api container writes `logs/hedis-app.log` into the `hedis-logs` volume, and Alloy
+  tails it, masks emails, file names and OpenRouter user ids, and sends it to Loki (Explore, `{job="hedis-api"}`).
+  Grafana always provisions the Loki datasource, so with `-Observability` alone Explore and the log panels show a
+  datasource error while the metric panels work.
 - Not the workers: they log to stdout only, as in the local run, so their logs are in `docker logs`.
 
 The run history dashboard and the database panels of the new UI dashboard read Postgres as the read-only login

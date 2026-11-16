@@ -118,7 +118,9 @@ stays outside and is reached through `DATABASE_URL`.
 powershell -ExecutionPolicy Bypass -File scripts/run_containers.ps1 -Setup
 ```
 
-Add `-Observability` to also run Prometheus (http://127.0.0.1:9091), Grafana (http://127.0.0.1:3001), Loki and Alloy.
+Add `-Observability` to also run Prometheus (http://127.0.0.1:9091) and Grafana (http://127.0.0.1:3001), or `-Logs` to
+also send the API log to Loki through Alloy (implies `-Observability`). They are overlays in `docker/`;
+`docker-compose.deploy.yml` alone is the app without monitoring.
 
 After changing `.env` or `.env.deploy`, run `up -d` again. `start` and `restart` keep the old values. `stop` keeps
 the data; `down -v` removes the containers and their volumes. Details are in `docs/deployment/CONTAINERS.md`.
