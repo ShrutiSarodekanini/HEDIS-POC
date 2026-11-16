@@ -1,10 +1,9 @@
 """Attach stored evidence: documents kept in evidence_library go to their patients after a batch finds its gaps.
 
-evidence_library holds each document's bytes (encrypted with FILE_ENCRYPTION_KEY) and its synthea_patient_id;
-scripts/db/load_seed.py fills it from data/seed/stored_evidence. The ingestion mapping gives every patient a new FHIR
-id and keeps the Synthea id as a Patient identifier with system urn:synthea:patients, so documents are matched through
-that identifier, never through patient_id. Each document goes through documents.upload, the same intake and OCR path
-as an upload.
+evidence_library holds each document's bytes and its synthea_patient_id; scripts/db/load_seed.py fills it from
+data/seed/stored_evidence. The ingestion mapping gives every patient a new FHIR id and keeps the Synthea id as a
+Patient identifier with system urn:synthea:patients, so documents are matched through that identifier, never through
+patient_id. Each document goes through documents.upload, the same intake and OCR path as an upload.
 
 Documents belong to patients, not gaps: nothing links a document to a gap, and the AI does not run here. Each
 document has its own transaction, so one bad file does not undo or stop the others; intake recognises a file it has
@@ -14,7 +13,7 @@ seen before, so running twice attaches nothing new.
 import logging
 from collections.abc import Callable
 
-from services.document_intake import db, storage
+from services.document_intake import db
 
 from . import documents
 
@@ -67,7 +66,7 @@ def _send(doc_id: str, patient_id: str) -> str | None:
     try:
         with db.connect() as conn:
             file_name, content = conn.execute(_LIBRARY_FILE, (doc_id,)).fetchone()
-            result = documents.upload(conn, patient_id, storage.decrypt(content), file_name)
+            result = documents.upload(conn, patient_id, bytes(content), file_name)
     except Exception as exc:  # noqa: BLE001 - one document's failure is recorded and the others still go
         return _first_line(f"{type(exc).__name__}: {exc}")
     if result["status"] == "duplicate":

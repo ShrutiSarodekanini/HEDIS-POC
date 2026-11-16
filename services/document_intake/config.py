@@ -28,8 +28,6 @@ def _default_tesseract() -> str:
 class Settings:
     database_url: str
     max_upload_bytes: int
-    file_encryption_key: str | None  # Fernet key for every stored document; required to store or read one
-    file_encryption_old_keys: tuple[str, ...]  # earlier keys, still accepted for decrypting after a rotation
     tesseract_cmd: str
     ocr_low_confidence: float       # page confidence below this is flagged low_confidence
     handwriting_confidence: float   # printed-OCR confidence below this triggers handwriting recognition
@@ -45,9 +43,6 @@ def load_settings() -> Settings:
     return Settings(
         database_url=url.replace("postgresql+psycopg://", "postgresql://", 1),
         max_upload_bytes=int(os.environ.get("INTAKE_MAX_UPLOAD_MB", "25")) * 1024 * 1024,
-        file_encryption_key=os.environ.get("FILE_ENCRYPTION_KEY") or None,
-        file_encryption_old_keys=tuple(
-            key.strip() for key in os.environ.get("FILE_ENCRYPTION_OLD_KEYS", "").split(",") if key.strip()),
         tesseract_cmd=os.environ.get("TESSERACT_CMD") or _default_tesseract(),
         ocr_low_confidence=float(os.environ.get("OCR_LOW_CONFIDENCE", "0.75")),
         handwriting_confidence=float(os.environ.get("OCR_HANDWRITING_CONFIDENCE", "0.55")),

@@ -1,7 +1,7 @@
-"""Add stored_file and page_image: uploaded originals and rendered page images kept in the database, encrypted.
+"""Add stored_file and page_image: uploaded originals and rendered page images kept in the database.
 
-stored_file holds one Fernet token per uploaded file, keyed by the SHA-256 of its plain bytes
-(source_files.stored_path is "db:<sha256>"). page_image holds the encrypted PNG of each converted page
+stored_file holds the bytes of each uploaded file as they are (not encrypted), keyed by their SHA-256
+(source_files.stored_path is "db:<sha256>"). page_image holds the PNG of each converted page as it is
 (document_pages.image_path is "db:<document_id>/<page_no>"). Nothing of either is written to disk.
 
 Revision ID: 0018_document_bytes_in_db

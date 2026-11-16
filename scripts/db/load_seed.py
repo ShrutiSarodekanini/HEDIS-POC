@@ -38,10 +38,6 @@ from dotenv import load_dotenv
 from psycopg.types.json import Jsonb
 
 ROOT = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(ROOT))
-
-from services.document_intake.storage import encrypt  # noqa: E402
-
 SEED = ROOT / "data" / "seed"
 MIGRATION = ROOT / "db" / "migrations" / "versions" / "0003_align_team_schema.py"
 
@@ -344,8 +340,7 @@ def register_file(cur, path: Path, org_id, patient_id, needs_match: bool) -> int
 
 
 def load_evidence_library(cur) -> None:
-    """Copy data/seed/stored_evidence into evidence_library, encrypted. Each file must match the sha256 in its
-    manifest (checked on the plain bytes)."""
+    """Copy data/seed/stored_evidence into evidence_library. Each file must match the sha256 in its manifest."""
     folder = SEED / "stored_evidence"
     for entry in json.loads((folder / "manifest.json").read_text(encoding="utf-8")):
         path = folder / entry["file"]
@@ -356,7 +351,7 @@ def load_evidence_library(cur) -> None:
             """INSERT INTO evidence_library (doc_id, synthea_patient_id, file_name, mime_type, sha256, content)
                VALUES (%s, %s, %s, %s, %s, %s) ON CONFLICT (doc_id) DO NOTHING""",
             (entry["doc_id"], entry["synthea_patient_id"], path.name,
-             entry.get("mime_type") or mimetypes.guess_type(path.name)[0], entry["sha256"], encrypt(content)))
+             entry.get("mime_type") or mimetypes.guess_type(path.name)[0], entry["sha256"], content))
 
 
 def load_documents(cur, patients: dict[str, str], authors: dict[str, str]) -> None:
