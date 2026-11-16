@@ -9,7 +9,26 @@
   "refresh": "30s",
   "time": { "from": "now-6h", "to": "now" },
   "timezone": "browser",
-  "templating": { "list": [] },
+  "templating": { "list": [
+    {
+      "name": "schema",
+      "label": "Schema",
+      "description": "The app schema to read (each deployment has its own); the read-only login must have USAGE on it.",
+      "type": "query",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "hedis-postgres"
+      },
+      "query": "SELECT n.nspname FROM pg_namespace n\n WHERE has_schema_privilege(n.nspname, 'USAGE')\n   AND EXISTS (SELECT 1 FROM pg_tables t WHERE t.schemaname = n.nspname AND t.tablename = 'batch_run')\n ORDER BY n.nspname DESC",
+      "definition": "SELECT n.nspname FROM pg_namespace n\n WHERE has_schema_privilege(n.nspname, 'USAGE')\n   AND EXISTS (SELECT 1 FROM pg_tables t WHERE t.schemaname = n.nspname AND t.tablename = 'batch_run')\n ORDER BY n.nspname DESC",
+      "refresh": 1,
+      "sort": 0,
+      "multi": false,
+      "includeAll": false,
+      "current": {},
+      "options": []
+    }
+  ] },
   "annotations": { "list": [] },
   "links": [
     {
@@ -895,7 +914,7 @@
         {
           "datasource": { "type": "grafana-postgresql-datasource", "uid": "hedis-postgres" },
           "refId": "A", "format": "table", "rawQuery": true, "editorMode": "code",
-          "rawSql": "SELECT started_at AS \"Started\", completed_at AS \"Completed\", extract(epoch FROM completed_at - started_at) AS \"Duration\", status AS \"Status\", total_source_records AS \"Source records\", resources_generated AS \"Generated\", resources_validated AS \"Validated\", resources_persisted AS \"Persisted\", warning_count AS \"Warnings\", error_count AS \"Errors\", id AS \"Job id\", batch_id AS \"Batch id\"\n  FROM hedis.conversion_jobs WHERE $__timeFilter(started_at) ORDER BY started_at DESC LIMIT 500"
+          "rawSql": "SELECT started_at AS \"Started\", completed_at AS \"Completed\", extract(epoch FROM completed_at - started_at) AS \"Duration\", status AS \"Status\", total_source_records AS \"Source records\", resources_generated AS \"Generated\", resources_validated AS \"Validated\", resources_persisted AS \"Persisted\", warning_count AS \"Warnings\", error_count AS \"Errors\", id AS \"Job id\", batch_id AS \"Batch id\"\n  FROM ${schema}.conversion_jobs WHERE $__timeFilter(started_at) ORDER BY started_at DESC LIMIT 500"
         }
       ]
     },
@@ -935,7 +954,7 @@
         {
           "datasource": { "type": "grafana-postgresql-datasource", "uid": "hedis-postgres" },
           "refId": "A", "format": "table", "rawQuery": true, "editorMode": "code",
-          "rawSql": "SELECT max(created_at) AS \"Last seen\", job_id AS \"Job id\", severity AS \"Severity\", issue_category AS \"Category\", error_code AS \"Error code\", resource_type AS \"Resource type\", field_path AS \"Field\", count(*) AS \"Issues\"\n  FROM hedis.validation_issues WHERE $__timeFilter(created_at)\n GROUP BY job_id, severity, issue_category, error_code, resource_type, field_path ORDER BY max(created_at) DESC LIMIT 500"
+          "rawSql": "SELECT max(created_at) AS \"Last seen\", job_id AS \"Job id\", severity AS \"Severity\", issue_category AS \"Category\", error_code AS \"Error code\", resource_type AS \"Resource type\", field_path AS \"Field\", count(*) AS \"Issues\"\n  FROM ${schema}.validation_issues WHERE $__timeFilter(created_at)\n GROUP BY job_id, severity, issue_category, error_code, resource_type, field_path ORDER BY max(created_at) DESC LIMIT 500"
         }
       ]
     },
@@ -955,7 +974,7 @@
         {
           "datasource": { "type": "grafana-postgresql-datasource", "uid": "hedis-postgres" },
           "refId": "A", "format": "table", "rawQuery": true, "editorMode": "code",
-          "rawSql": "SELECT s.created_at AS \"Signed in\", s.user_id AS \"User id\", u.role AS \"Role\", s.expires_at AS \"Expires\", s.revoked_at AS \"Signed out or revoked\"\n  FROM hedis.auth_session s JOIN hedis.app_user u ON u.user_id = s.user_id WHERE $__timeFilter(s.created_at) ORDER BY s.created_at DESC LIMIT 500"
+          "rawSql": "SELECT s.created_at AS \"Signed in\", s.user_id AS \"User id\", u.role AS \"Role\", s.expires_at AS \"Expires\", s.revoked_at AS \"Signed out or revoked\"\n  FROM ${schema}.auth_session s JOIN ${schema}.app_user u ON u.user_id = s.user_id WHERE $__timeFilter(s.created_at) ORDER BY s.created_at DESC LIMIT 500"
         }
       ]
     },
@@ -995,7 +1014,7 @@
         {
           "datasource": { "type": "grafana-postgresql-datasource", "uid": "hedis-postgres" },
           "refId": "A", "format": "table", "rawQuery": true, "editorMode": "code",
-          "rawSql": "SELECT updated_at AS \"Changed\", user_id AS \"User id\", role AS \"Role\", access_status AS \"Access\", is_active AS \"Active\", created_at AS \"Created\"\n  FROM hedis.app_user WHERE $__timeFilter(updated_at) ORDER BY updated_at DESC LIMIT 500"
+          "rawSql": "SELECT updated_at AS \"Changed\", user_id AS \"User id\", role AS \"Role\", access_status AS \"Access\", is_active AS \"Active\", created_at AS \"Created\"\n  FROM ${schema}.app_user WHERE $__timeFilter(updated_at) ORDER BY updated_at DESC LIMIT 500"
         }
       ]
     },

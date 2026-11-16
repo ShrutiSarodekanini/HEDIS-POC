@@ -80,7 +80,8 @@ services:
       context: .
       dockerfile: docker/tools.Dockerfile
     restart: "no"
-    command: ["sh", "-c", "python scripts/db/ensure_schema.py && python -m alembic -c db/alembic.ini upgrade head"]
+    # The Grafana grants never fail the job: the script only warns.
+    command: ["sh", "-c", "python scripts/db/ensure_schema.py && python -m alembic -c db/alembic.ini upgrade head && python scripts/db/grant_grafana_readonly.py"]
     depends_on: {}
 
   seed:

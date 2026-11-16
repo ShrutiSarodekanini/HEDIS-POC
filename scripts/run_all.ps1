@@ -148,6 +148,11 @@ Write-Host "`n== Database" -ForegroundColor Cyan
 if ($LASTEXITCODE -ne 0) { throw "The schema in .env's DATABASE_URL is not usable (see the message above)." }
 & $Python -m alembic -c db/alembic.ini upgrade head
 if ($LASTEXITCODE -ne 0) { throw "Migrations failed." }
+# Grafana's read-only login gets this schema's columns; a problem here only warns.
+$previous = $ErrorActionPreference; $ErrorActionPreference = "Continue"
+& $Python scripts/db/grant_grafana_readonly.py
+if ($LASTEXITCODE -ne 0) { Write-Host "Warning: Grafana read-only grants were not applied." -ForegroundColor Yellow }
+$ErrorActionPreference = $previous
 if ($Setup) {
     & $Python scripts/db/load_seed.py --reference-only
     if ($LASTEXITCODE -ne 0) { throw "Reference data load failed (it only runs on an empty schema)." }

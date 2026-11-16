@@ -12,6 +12,33 @@ scrape_configs:
     static_configs:
       - targets: ["api:8000"]
 
+  # One target per worker process (ports in services/rabbitmq_messages.py METRICS_PORT); some containers run two.
+  - job_name: hedis-workers
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["outbox:9100"]
+        labels: {worker: outbox}
+      - targets: ["ingestion:9101"]
+        labels: {worker: conversion}
+      - targets: ["ingestion:9102"]
+        labels: {worker: load}
+      - targets: ["quality:9103"]
+        labels: {worker: quality}
+      - targets: ["measures:9104"]
+        labels: {worker: valuesets}
+      - targets: ["measures:9105"]
+        labels: {worker: measures}
+      - targets: ["gap-identifier:9106"]
+        labels: {worker: gap_identifier}
+      - targets: ["prioritization:9107"]
+        labels: {worker: gaps}
+      - targets: ["ai-evidence:9108"]
+        labels: {worker: documents}
+      - targets: ["ai-evidence:9109"]
+        labels: {worker: evidence}
+      - targets: ["stars:9110"]
+        labels: {worker: stars}
+
   # For later: RabbitMQ with the rabbitmq_prometheus plugin enabled.
   # - job_name: rabbitmq
   #   static_configs:

@@ -19,6 +19,7 @@ from uuid import uuid4
 
 import pika
 import pika.exceptions
+from prometheus_client import start_http_server
 
 from common.app_logging import bind_log_context, reset_log_context, ship_logs
 from services.rabbitmq_config import DEAD_LETTER_EXCHANGE_NAME, EXCHANGE_NAME, RabbitMQConfig
@@ -48,6 +49,25 @@ WORKER_SERVICE = {
     "gaps.prioritize": "gaps", "documents.attach": "documents", "evidence.extract": "evidence",
     "stars.calculate": "stars",
 }
+# Prometheus port per process (job hedis-workers in observability/prometheus.deploy.yml and the local template).
+# One per worker, not per container: run_workers.py starts several workers in one container.
+METRICS_PORT = {
+    "outbox": 9100, "conversion": 9101, "load": 9102, "quality": 9103, "valuesets": 9104, "measures": 9105,
+    "gap_identifier": 9106, "gaps": 9107, "documents": 9108, "evidence": 9109, "stars": 9110,
+}
+_metrics_served: set[str] = set()
+
+
+def serve_metrics(service: str) -> None:
+    """Expose this process's metrics on its fixed port. A failure is logged once and never stops the process."""
+    port = METRICS_PORT.get(service)
+    if port is None or service in _metrics_served:
+        return
+    _metrics_served.add(service)
+    try:
+        start_http_server(port, addr="0.0.0.0")
+    except Exception as exc:  # noqa: BLE001 - metrics are optional; the worker keeps running without them
+        logger.warning("Metrics endpoint for %s not started on port %d: %s", service, port, type(exc).__name__)
 
 
 # Message dataclasses for each pipeline stage
@@ -457,6 +477,7 @@ class Worker:
 
         Blocks until Ctrl+C. A lost connection is re-established with backoff instead of ending the worker.
         """
+        serve_metrics(WORKER_SERVICE.get(self.queue_name, self.queue_name))
         delay = RECONNECT_FIRST_DELAY_S
         try:
             while True:
