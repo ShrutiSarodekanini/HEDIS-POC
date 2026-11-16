@@ -3,18 +3,30 @@
 FROM node:22-slim AS build
 WORKDIR /app/ui
 
-# Same values as .env.example; Vite reads VITE_* from the environment at build time.
-ENV VITE_APP_NAME=HEDIS \
-    VITE_API_BASE_URL=/api \
-    VITE_API_TIMEOUT_MS=15000 \
-    VITE_API_OPENAPI_PATH=/openapi.json \
-    VITE_DASHBOARD_CATALOG_PATH=/star-rating/catalog \
-    VITE_DASHBOARD_SUMMARY_PATH=/star-dashboard/calculate \
-    VITE_DASHBOARD_DEFAULT_MEASURE_ID=BCS-E \
-    VITE_INTEGRATION_SEED_PATH=/star-dashboard/seed-sample-data \
-    VITE_INTEGRATION_PROCESS_PATH=/automation/process-gaps \
-    VITE_DEFAULT_USER_NAME="Local Reviewer" \
-    VITE_DEFAULT_USER_ROLE="Clinical Abstractor"
+# Vite reads VITE_* from the build environment.
+ARG VITE_APP_NAME=HEDIS
+ARG VITE_API_BASE_URL=/api
+ARG VITE_API_TIMEOUT_MS=15000
+ARG VITE_API_OPENAPI_PATH=/openapi.json
+ARG VITE_DASHBOARD_CATALOG_PATH=/star-rating/catalog
+ARG VITE_DASHBOARD_SUMMARY_PATH=/star-dashboard/calculate
+ARG VITE_DASHBOARD_DEFAULT_MEASURE_ID=BCS-E
+ARG VITE_INTEGRATION_SEED_PATH=/star-dashboard/seed-sample-data
+ARG VITE_INTEGRATION_PROCESS_PATH=/automation/process-gaps
+ARG VITE_DEFAULT_USER_NAME="Local Reviewer"
+ARG VITE_DEFAULT_USER_ROLE="Clinical Abstractor"
+
+ENV VITE_APP_NAME=${VITE_APP_NAME} \
+    VITE_API_BASE_URL=${VITE_API_BASE_URL} \
+    VITE_API_TIMEOUT_MS=${VITE_API_TIMEOUT_MS} \
+    VITE_API_OPENAPI_PATH=${VITE_API_OPENAPI_PATH} \
+    VITE_DASHBOARD_CATALOG_PATH=${VITE_DASHBOARD_CATALOG_PATH} \
+    VITE_DASHBOARD_SUMMARY_PATH=${VITE_DASHBOARD_SUMMARY_PATH} \
+    VITE_DASHBOARD_DEFAULT_MEASURE_ID=${VITE_DASHBOARD_DEFAULT_MEASURE_ID} \
+    VITE_INTEGRATION_SEED_PATH=${VITE_INTEGRATION_SEED_PATH} \
+    VITE_INTEGRATION_PROCESS_PATH=${VITE_INTEGRATION_PROCESS_PATH} \
+    VITE_DEFAULT_USER_NAME=${VITE_DEFAULT_USER_NAME} \
+    VITE_DEFAULT_USER_ROLE=${VITE_DEFAULT_USER_ROLE}
 
 COPY ui/package.json ui/package-lock.json ./
 RUN npm ci --no-audit --no-fund
@@ -28,6 +40,7 @@ COPY ui/ ./
 RUN npm run build
 
 FROM nginx:alpine
-COPY ui/nginx.conf /etc/nginx/conf.d/default.conf
+ENV API_UPSTREAM=http://api:8000
+COPY ui/nginx.conf /etc/nginx/templates/default.conf.template
 COPY --from=build /app/ui/dist /usr/share/nginx/html
 EXPOSE 80
