@@ -110,57 +110,60 @@ logs stay quiet; RabbitMQ management shows their consumers and acknowledgements.
 
 ## Monitoring
 
-Monitoring is two optional overlays in `docker/`, with the dashboards, alerts and log masking of the local run:
+Prometheus, Grafana, Loki and Alloy run as four containers from one overlay, `docker/docker-compose.observability.yml`,
+with the dashboards, alerts and log masking of the local run:
 
-| Overlay | Adds | Switch |
-|---|---|---|
-| `docker/docker-compose.observability.yml` | Prometheus and Grafana: metrics and dashboards | `-Observability` |
-| `docker/docker-compose.logs.yml` | Loki and Alloy, and the API log volume: logs in Grafana | `-Logs` (implies `-Observability`) |
+| Container | Image (Dockerfile) | Copies in | Address |
+|---|---|---|---|
+| prometheus | `hedis-deploy-prometheus` (`docker/prometheus.Dockerfile`) | `prometheus.deploy.yml`, `alerts.yml` | http://127.0.0.1:9091/targets |
+| grafana | `hedis-deploy-grafana` (`docker/grafana.Dockerfile`) | `grafana/provisioning`, `grafana/dashboards` | http://127.0.0.1:3001 |
+| loki | `hedis-deploy-loki` (`docker/loki.Dockerfile`) | `loki/loki-config.yml` (15 days of logs) | network only |
+| alloy | `hedis-deploy-alloy` (`docker/alloy.Dockerfile`) | `alloy/config.alloy` | network only (3500 push, 12345 UI) |
 
-Each service has its own image (`docker/prometheus.Dockerfile`, `grafana.Dockerfile`, `loki.Dockerfile`,
-`alloy.Dockerfile`) built FROM the pinned official image with its config from `observability/` copied in. Nothing
-is bind-mounted, so a change to a dashboard, alert or config needs a rebuild: rerun the script (it builds), or `up -d
---build`. Passwords are not in the images: `GRAFANA_ADMIN_PASSWORD` (default admin) and `GRAFANA_DB_PASSWORD` are
-read from `.env` and `.env.deploy` when the container starts.
+Each image is FROM the pinned official image with its config from `observability/` copied in. Nothing is
+bind-mounted, so a change to a dashboard, alert or config needs a rebuild: rerun the script (it builds), or `up -d
+--build`. The ports differ from the local run (3000, 9090) and the containers keep compose's default names
+(`hedis-deploy-grafana-1` and so on), so both stacks can run at once.
 
 `docker-compose.deploy.yml` must come first: Compose resolves every relative path from the first file's folder (the
-repo root), and the network `hedis` is declared there. The overlays follow in this order:
+repo root), and the network `hedis` is declared there.
 
 ```
 docker compose -p hedis-deploy -f docker-compose.deploy.yml -f docker/docker-compose.observability.yml up -d
-docker compose -p hedis-deploy -f docker-compose.deploy.yml -f docker/docker-compose.observability.yml -f docker/docker-compose.logs.yml up -d
 ```
 
 Or with the script:
 
 ```
 powershell -ExecutionPolicy Bypass -File scripts/run_containers.ps1 -Observability
-powershell -ExecutionPolicy Bypass -File scripts/run_containers.ps1 -Logs
-powershell -ExecutionPolicy Bypass -File scripts/run_containers.ps1 -Stop -Logs
+powershell -ExecutionPolicy Bypass -File scripts/run_containers.ps1 -Stop -Observability
 ```
 
-Pass the same switch to `-Stop` and `-Reset`, or the monitoring containers are left out (`-Reset` with a switch
+`-Stop` and `-Reset` need `-Observability` too, or the monitoring containers are left out (`-Reset -Observability`
 also removes their volumes). Stop them before starting the app without the switch, or they keep running on their
-own. `docker-compose.deploy.yml` alone is the app without monitoring. On Azure Container Apps, Azure Monitor takes
-this role and Log Analytics collects the container output, so the logs overlay is not needed there.
-
-| Service | Address | Notes |
-|---|---|---|
-| Grafana | http://127.0.0.1:3001 | Opens without sign-in (viewer); admin password from `GRAFANA_ADMIN_PASSWORD` |
-| Prometheus | http://127.0.0.1:9091/targets | Scrapes `api:8000/metrics` (`observability/prometheus.deploy.yml`) |
-| Loki, Alloy | not published | `-Logs` only; reached only inside the compose network |
-
-The ports differ from the local run (3000, 9090) and the containers keep compose's default names
-(`hedis-deploy-grafana-1` and so on), so both stacks can run at once.
+own. `docker-compose.deploy.yml` alone is the app without monitoring.
 
 What is collected:
 
 - API metrics (requests, pipeline steps, engine, AI calls) from `/metrics`.
-- The API log (`-Logs` only): the api container writes `logs/hedis-app.log` into the `hedis-logs` volume, and Alloy
-  tails it, masks emails, file names and OpenRouter user ids, and sends it to Loki (Explore, `{job="hedis-api"}`).
-  Grafana always provisions the Loki datasource, so with `-Observability` alone Explore and the log panels show a
-  datasource error while the metric panels work.
-- Not the workers: they log to stdout only, as in the local run, so their logs are in `docker logs`.
+- The logs of every Python process: the overlay sets `ALLOY_URL=http://alloy:3500` on api, outbox and the seven
+  worker containers, and `common/app_logging.py` (`ship_logs`) sends their records at INFO and above to Alloy in
+  batches (labels `job="hedis"`, `service`, `level`; `batch_id` and `job_id` as structured metadata). Alloy masks
+  emails, file names and OpenRouter user ids before Loki stores them. If Alloy is down, lines are dropped and counted
+  (one warning a minute on stderr); the app does not wait. Without `ALLOY_URL` nothing is shipped, as in the local run.
+
+To follow one batch: open the HEDIS failures dashboard, paste the batch id into `batch_id`. "One batch across every
+service" lists its lines from every step in time order, so the last lines show where it stopped; "Latest errors and
+warnings" and "Errors per service" narrow it down by service. In Explore, `{job="hedis"}` shows everything,
+`{job="hedis", service="measures"} | batch_id="<id>"` one step of one batch.
+
+Grafana opens without sign-in (viewer) by default. For anything reachable by others, set `GRAFANA_ANONYMOUS=false` and
+a real `GRAFANA_ADMIN_PASSWORD` in `.env.deploy`; both are read when the container starts, never built into the image
+(the admin password only takes effect on Grafana's first start with an empty `grafana-data` volume).
+
+On Azure Container Apps, the same four images run as their own apps; Loki and Grafana need persistent storage (Azure
+Files) for `loki-data` and `grafana-data`, or logs and Grafana settings are lost on restart. The services push their
+logs over HTTP, so no shared files or Log Analytics are needed.
 
 The run history dashboard and the database panels of the new UI dashboard read Postgres as the read-only login
 `hedis_grafana_ro` at `host.docker.internal:5432`, database `HEDISPOCDB`. That login exists only after a superuser

@@ -1,5 +1,8 @@
-// Tails the backend's log (root app.py, logs/hedis-app*.log, mounted read-only), masks emails, file names and
-// OpenRouter user ids, and pushes the lines to Loki. Traceback lines are joined to their log line.
+// Two sources, one masking pipeline:
+// - the backend's log file (local run: root app.py, logs/hedis-app*.log, mounted read-only); in containers there is
+//   no file and this source stays idle;
+// - log records pushed by every Python process (common/app_logging.py ship_logs, ALLOY_URL) on port 3500.
+// Both go through loki.process "mask" (emails, file names, OpenRouter user ids; level and logger) and on to Loki.
 
 local.file_match "hedis" {
   path_targets = [
@@ -12,17 +15,32 @@ local.file_match "hedis" {
 
 loki.source.file "hedis" {
   targets    = local.file_match.hedis.targets
-  forward_to = [loki.process.hedis.receiver]
+  forward_to = [loki.process.file.receiver]
 }
 
-loki.process "hedis" {
+// Pushed records arrive whole (traceback included), labelled job="hedis", service, level, with batch_id and job_id
+// as structured metadata.
+loki.source.api "push" {
+  http {
+    listen_address = "0.0.0.0"
+    listen_port    = 3500
+  }
+  use_incoming_timestamp = true
+  forward_to             = [loki.process.mask.receiver]
+}
+
+loki.process "file" {
   // A new entry starts with the app's timestamp; anything else (traceback lines) belongs to the entry before it.
   stage.multiline {
     firstline     = `^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}`
     max_wait_time = "3s"
   }
 
-  // Prometheus scrapes /metrics every 15s; those access lines stay in the file but are not sent to Loki.
+  forward_to = [loki.process.mask.receiver]
+}
+
+loki.process "mask" {
+  // Prometheus scrapes /metrics every 15s; those access lines are not sent to Loki.
   stage.drop {
     expression          = `"GET /metrics HTTP/`
     drop_counter_reason = "metrics_scrape"

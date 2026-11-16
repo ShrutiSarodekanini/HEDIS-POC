@@ -26,7 +26,7 @@ from sqlalchemy.orm import Session
 
 from common.config import AppConfig
 from common import app_metrics
-from common.app_logging import path_template, safe_text, setup_file_logging
+from common.app_logging import path_template, safe_text, setup_file_logging, ship_logs
 from common.database import Database
 from common.evidence import (
     ensure_supported_formats,
@@ -53,6 +53,7 @@ from services.star_modeler.main import (
 
 # uvicorn --reload imports this module without a __main__, so the log file is set up here (once per process).
 setup_file_logging("hedis-app.log")
+ship_logs("api")
 log = logging.getLogger("app")
 _client_error_limit = app_metrics.RateLimit(30, 60)
 
