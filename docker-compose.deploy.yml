@@ -4,6 +4,7 @@
 #   docker compose -p hedis-deploy -f docker-compose.deploy.yml up -d --build
 #   docker compose -p hedis-deploy -f docker-compose.deploy.yml --profile setup run --rm seed   (empty schema only)
 # Only the UI (8080) and the RabbitMQ management page (15673) are published, so the dev stack's ports stay free.
+# Profile "observability" adds Grafana (127.0.0.1:3001) and Prometheus (127.0.0.1:9091).
 name: hedis-deploy
 
 x-python: &python
@@ -101,6 +102,8 @@ services:
       dockerfile: docker/api.Dockerfile
     volumes:
       - hedis-data:/data
+      # logs/hedis-app.log (common/app_logging.py), tailed by alloy under profile observability.
+      - hedis-logs:/app/logs
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/docs', timeout=5)"]
       interval: 15s
@@ -182,9 +185,92 @@ services:
     networks:
       - hedis
 
+  # Monitoring, profile "observability" (run_containers.ps1 -Observability). Same configs as observability/, other
+  # ports and default container names, so the local run's hedis-prometheus, hedis-grafana and the rest stay apart.
+  prometheus:
+    image: prom/prometheus:v3.5.0
+    profiles: ["observability"]
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=15d
+    ports:
+      - "127.0.0.1:9091:9090"
+    volumes:
+      - ./observability/prometheus.deploy.yml:/etc/prometheus/prometheus.yml:ro
+      - ./observability/alerts.yml:/etc/prometheus/alerts.yml:ro
+      - prometheus-data:/prometheus
+    restart: unless-stopped
+    networks:
+      - hedis
+
+  grafana:
+    image: grafana/grafana:12.1.0
+    profiles: ["observability"]
+    # GRAFANA_ADMIN_PASSWORD and GRAFANA_DB_PASSWORD come from the env files, so .env.deploy can override .env.
+    env_file:
+      - .env
+      - .env.deploy
+    entrypoint:
+      - /bin/sh
+      - -c
+      - export GF_SECURITY_ADMIN_PASSWORD="$${GRAFANA_ADMIN_PASSWORD:-admin}"; exec /run.sh
+    environment:
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /var/lib/grafana/dashboards/hedis-overview.json
+    ports:
+      - "127.0.0.1:3001:3000"
+    depends_on:
+      - prometheus
+      - loki
+    volumes:
+      - ./observability/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./observability/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana-data:/var/lib/grafana
+    restart: unless-stopped
+    networks:
+      - hedis
+
+  loki:
+    image: grafana/loki:3.5.0
+    profiles: ["observability"]
+    command:
+      - -config.file=/etc/loki/loki-config.yml
+    volumes:
+      - ./observability/loki/loki-config.yml:/etc/loki/loki-config.yml:ro
+      - loki-data:/loki
+    restart: unless-stopped
+    networks:
+      - hedis
+
+  alloy:
+    image: grafana/alloy:v1.10.0
+    profiles: ["observability"]
+    command:
+      - run
+      - --server.http.listen-addr=0.0.0.0:12345
+      - --storage.path=/var/lib/alloy/data
+      - /etc/alloy/config.alloy
+    depends_on:
+      - loki
+    volumes:
+      - ./observability/alloy/config.alloy:/etc/alloy/config.alloy:ro
+      - hedis-logs:/var/log/hedis:ro
+      - alloy-data:/var/lib/alloy/data
+    restart: unless-stopped
+    networks:
+      - hedis
+
 volumes:
   hedis-data:
   rabbitmq-data:
+  hedis-logs:
+  prometheus-data:
+  grafana-data:
+  loki-data:
+  alloy-data:
 
 networks:
   hedis:

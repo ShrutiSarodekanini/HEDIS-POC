@@ -5,6 +5,7 @@
 #   powershell -ExecutionPolicy Bypass -File scripts/run_containers.ps1 -NoBuild   start without rebuilding the images
 #   powershell -ExecutionPolicy Bypass -File scripts/run_containers.ps1 -Stop      stop, keep containers and data
 #   powershell -ExecutionPolicy Bypass -File scripts/run_containers.ps1 -Reset     remove containers and volumes
+#   add -Observability to any of these to include Prometheus, Grafana, Loki and Alloy
 #
 # The database schema is not removed by -Reset. To start clean, put a new schema name in .env.deploy and use -Setup.
 
@@ -12,7 +13,8 @@ param(
     [switch]$Setup,
     [switch]$NoBuild,
     [switch]$Stop,
-    [switch]$Reset
+    [switch]$Reset,
+    [switch]$Observability
 )
 
 # Continue, not Stop: Windows PowerShell 5.1 turns any stderr line from docker (progress, warnings) into a fatal
@@ -20,6 +22,7 @@ param(
 $ErrorActionPreference = "Continue"
 Set-Location (Split-Path $PSScriptRoot -Parent)
 $Compose = @("compose", "-p", "hedis-deploy", "-f", "docker-compose.deploy.yml")
+if ($Observability) { $Compose += @("--profile", "observability") }
 
 function Invoke-Compose([string[]]$Arguments) {
     & docker @Compose @Arguments
@@ -96,4 +99,9 @@ if ($Setup) {
 Write-Host "`nThe app is running." -ForegroundColor Green
 Write-Host "  App        http://127.0.0.1:8080"
 Write-Host "  RabbitMQ   http://localhost:15673"
-Write-Host "Stop it with: powershell -ExecutionPolicy Bypass -File scripts/run_containers.ps1 -Stop"
+if ($Observability) {
+    Write-Host "  Grafana    http://127.0.0.1:3001"
+    Write-Host "  Prometheus http://127.0.0.1:9091/targets"
+}
+$stopArgs = if ($Observability) { "-Stop -Observability" } else { "-Stop" }
+Write-Host "Stop it with: powershell -ExecutionPolicy Bypass -File scripts/run_containers.ps1 $stopArgs"
