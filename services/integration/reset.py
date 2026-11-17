@@ -26,7 +26,8 @@ from .config import SETTINGS
 log = logging.getLogger(__name__)
 
 REFERENCE_TABLES = ("measure_definition", "measure_rule", "measure_star_weight", "star_cutpoint",
-                    "organization_quality", "organization", "practitioner", "alembic_version")
+                    "organization_quality", "organization", "practitioner", "evidence_library",
+                    "alembic_version")
 # Immutable decision/audit history must survive Start over. Their FK parents are kept too.
 IMMUTABLE_HISTORY_TABLES = (
     "audit_events",

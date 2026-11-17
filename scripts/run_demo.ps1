@@ -18,8 +18,8 @@
 # overrides that search path for one run. -Setup installs packages, creates the schema if missing, upgrades the tables
 # to the latest migration, loads reference data only (no patients) when the organization table is empty, and builds
 # the measure engine (needs Node 20).
-# -EvidenceDir (default data/evidence_store): after a batch is prioritized, the folder's documents (listed in its
-# manifest.json) are attached to their patients.
+# Stored evidence comes from the evidence_library table (loaded with the reference data): after a batch is prioritized,
+# its patients' documents are attached.
 # -AllowReset switches on the page's "Start over" button, which empties every data table and keeps reference data.
 # EXTRACTION_MODEL and EXTRACTION_MAX_OUTPUT_TOKENS come from .env; the token limit defaults to 32768.
 # -Observability (with -Integration): the backend's metrics are at http://localhost:<port>/metrics; this also starts
@@ -29,8 +29,7 @@
 # HEDIS logs. These need Docker.
 # Nothing is downloaded. Stop all four Docker ones with: docker compose -f observability/docker-compose.yml down
 
-param([switch]$Setup, [switch]$Integration, [string]$Schema = "", [string]$EvidenceDir = "data/evidence_store",
-      [switch]$AllowReset, [switch]$Observability)
+param([switch]$Setup, [switch]$Integration, [string]$Schema = "", [switch]$AllowReset, [switch]$Observability)
 
 $ErrorActionPreference = "Stop"
 $RepoRoot = Split-Path -Parent $PSScriptRoot
@@ -175,11 +174,6 @@ if ($Integration) {
     }
     if (-not (Test-Path services/measure_calc/engine/build/cli.js)) {
         throw "The measure engine is not built. Run with -Integration -Setup first."
-    }
-    if ($EvidenceDir) {
-        if (-not (Test-Path (Join-Path $EvidenceDir "manifest.json"))) { throw "No manifest.json in $EvidenceDir." }
-        $env:INTEGRATION_EVIDENCE_DIR = (Resolve-Path $EvidenceDir).Path
-        Write-Host "Stored evidence: $env:INTEGRATION_EVIDENCE_DIR" -ForegroundColor Cyan
     }
     if ($AllowReset) {
         $env:INTEGRATION_ALLOW_RESET = "1"
