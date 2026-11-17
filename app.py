@@ -19,15 +19,15 @@ from fastapi import APIRouter, Depends, FastAPI, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 from fastapi.routing import APIRoute, APIWebSocketRoute
-from pydantic import BaseModel, Field
 from prometheus_fastapi_instrumentator import Instrumentator
+from pydantic import BaseModel, Field
 from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.orm import Session
 
-from common.config import AppConfig
 from common import app_metrics
 from common.app_logging import path_template, safe_text, setup_file_logging
+from common.config import AppConfig
 from common.database import Database
 from common.evidence import (
     ensure_supported_formats,
@@ -1699,6 +1699,19 @@ app = create_app()
 app.include_router(_ingestion_routes(), prefix="/api/ingestion")
 # The integration endpoints (formerly the 8780 app): batches, work list, AI evidence, export, quality, stars, health.
 app.include_router(integration_routes.build_router(requires))
+
+
+def _ensure_route_paths(routes: list[object]) -> None:
+    """prometheus-fastapi-instrumentator expects every route object to expose `.path`."""
+    for route in routes:
+        if not hasattr(route, "path"):
+            route.path = getattr(route, "path_format", "")  # type: ignore[attr-defined]
+        nested = getattr(route, "routes", None)
+        if isinstance(nested, list):
+            _ensure_route_paths(nested)
+
+
+_ensure_route_paths(app.routes)
 # handler is the route template; paths no route matches (the UI's 404s) are all grouped as handler "none".
 Instrumentator(should_group_untemplated=True).instrument(app).expose(app, endpoint="/metrics", include_in_schema=False)
 

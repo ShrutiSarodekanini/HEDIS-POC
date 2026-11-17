@@ -1,4 +1,4 @@
-"""File storage: originals (encrypted when a key is configured) and page images.
+"""File storage: originals (always encrypted in secure mode) and page images.
 
 Seed files registered by scripts/db/load_seed.py live in data/seed and are read in place.
 Uploaded files are stored under SETTINGS.store_dir by their SHA-256 hash.
@@ -17,7 +17,11 @@ def sha256_hex(data: bytes) -> str:
 
 
 def _fernet() -> Fernet | None:
-    return Fernet(SETTINGS.file_encryption_key.encode()) if SETTINGS.file_encryption_key else None
+    if SETTINGS.file_encryption_key:
+        return Fernet(SETTINGS.file_encryption_key.encode())
+    if SETTINGS.require_encryption:
+        raise RuntimeError("FILE_ENCRYPTION_KEY is required for intake file storage.")
+    return None
 
 
 def save_original(data: bytes) -> tuple[str, bool]:

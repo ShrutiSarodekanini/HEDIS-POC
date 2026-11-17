@@ -195,12 +195,13 @@ async function runExtract(key) {
   if (!res.ok) { out.replaceChildren($("p", { class: "note" }, r.detail || "Extraction failed.")); return; }
   if (r.note) { out.replaceChildren($("p", { class: "note" }, r.note)); return; }
   const kids = [
-    $("p", { class: "note" }, `${r.pages.length} page(s) sent: ` + r.pages.map(p => `${p.document_id} p${p.page_no} (${p.doc_type || "?"}, ${p.method}${p.handwritten ? ", handwritten" : ""})`).join(" · ")),
-    ...r.calls.flatMap((c, i) => [
-      block(`Call ${i + 1}: user prompt sent`, c.request ? c.request.messages[1].content : "", false),
-      block(`Call ${i + 1}: system prompt`, c.request ? c.request.messages[0].content : "", false),
-      block(`Call ${i + 1}: raw response (HTTP ${c.status ?? "?"}, ${c.seconds ?? "?"}s)`, JSON.stringify(c.response, null, 2), false),
-      c.error ? $("p", { class: "note" }, "Failed: " + c.error) : block(`Call ${i + 1}: the model's answer`, (() => { try { return JSON.stringify(JSON.parse(c.answer), null, 2); } catch (_) { return c.answer; } })(), true)]),
+    $("p", { class: "note" }, `${r.pages.length} page(s) sent: ` + r.pages.map(p => `${p.document_id} p${p.page_no} (${p.doc_type || "?"}, ${p.method}${p.handwritten ? ", handwritten" : ""}, ${p.text_chars ?? 0} chars)`).join(" · ")),
+    $("p", { class: "note" }, "Prompt text and raw model output are hidden in this demo response; only call metadata is shown."),
+    ...r.calls.map((c, i) => block(
+      `Call ${i + 1}: metadata (HTTP ${c.status ?? "?"}, ${c.seconds ?? "?"}s)`,
+      JSON.stringify({ request: c.request_summary ?? null, response: c.response_summary ?? null, error: c.error ?? null }, null, 2),
+      i === r.calls.length - 1
+    )),
     $("h3", { style: "margin-top:10px" }, `Validator: ${r.kept.length} kept, ${r.dropped.length} dropped`),
     ...r.kept.map(k => $("div", { class: "found kept" }, $("b", {}, `Kept · ${k.evidence_kind} · ${k.evidence_type} · ${k.service_date_raw} · ${k.document_id} p${k.page_no}`),
       $("div", {}, `“${k.excerpt}”`), $("div", { class: "note" }, `characters ${k.char_start} to ${k.char_end} · confidence ${k.confidence} · ${k.reason}`))),

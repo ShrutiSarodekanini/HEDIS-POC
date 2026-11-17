@@ -460,6 +460,58 @@ def test_measure_evaluator_rejects_duplicate_patient_results(monkeypatch, tmp_pa
         )
 
 
+def test_reopen_not_met_gaps_reopens_closed_gap_and_audits(monkeypatch):
+    from services.integration import measures
+
+    audited: list[tuple[str, dict]] = []
+
+    class _Result:
+        def __init__(self, rows):
+            self._rows = rows
+
+        def fetchall(self):
+            return self._rows
+
+    class _Conn:
+        def execute(self, query, params):
+            assert query == measures._REOPEN_GAPS
+            assert params["measure"] == "CBP"
+            assert params["year"] == 2026
+            assert params["patients"] == ["patient-1"]
+            assert params["needs_open"] == [True]
+            return _Result([(uuid.UUID("11111111-1111-1111-1111-111111111111"), "closed")])
+
+    monkeypatch.setattr(
+        measures,
+        "audit",
+        lambda _conn, _entity_type, _entity_id, action, payload, actor: audited.append((action, payload)),
+    )
+
+    reopened = measures._reopen_not_met_gaps(
+        _Conn(),
+        "CBP",
+        2026,
+        "engine-run-1",
+        ["patient-1"],
+        [True],
+        actor_user_id=77,
+    )
+
+    assert reopened == 1
+    assert audited == [
+        (
+            "gap.reopened_by_engine",
+            {
+                "measure_id": "CBP",
+                "engine_run_id": "engine-run-1",
+                "review_status_before": "closed",
+                "review_status": "open",
+                "requested_by_user_id": 77,
+            },
+        )
+    ]
+
+
 def test_recalculation_defaults_to_patients_in_latest_ready_batch(monkeypatch):
     from services.integration import pipeline
 

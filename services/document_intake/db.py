@@ -14,7 +14,7 @@ def connect() -> Iterator[psycopg.Connection]:
     """A connection that commits on success and rolls back on error."""
     if not SETTINGS.database_url:
         raise RuntimeError("DATABASE_URL is not set. Copy .env.example to .env and fill it in.")
-    with psycopg.connect(SETTINGS.database_url, connect_timeout=10) as conn:
+    with psycopg.connect(SETTINGS.database_url, connect_timeout=10, sslmode=SETTINGS.db_sslmode) as conn:
         yield conn
 
 

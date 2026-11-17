@@ -14,7 +14,6 @@ import email.policy
 import io
 import logging
 import mimetypes
-import os
 import zipfile
 from pathlib import PurePosixPath
 from typing import Any, Callable
@@ -137,8 +136,9 @@ def receive_file(conn: psycopg.Connection, data: bytes, filename: str, source_or
     limit = SETTINGS.max_upload_bytes
     if len(data) > limit:
         message = f"File is larger than the {limit // (1024 * 1024)} MB upload limit."
-        audit(conn, "upload", name, "file.rejected", {"reason": "file_too_large", "size_bytes": len(data),
-                                                      "limit_bytes": limit, "parent_file_id": parent_file_id})
+        upload_ref = storage.sha256_hex(data)[:16]
+        audit(conn, "upload", upload_ref, "file.rejected", {"reason": "file_too_large", "size_bytes": len(data),
+                                                            "limit_bytes": limit, "parent_file_id": parent_file_id})
         return {"status": "too_large", "filename": name, "reason": "file_too_large", "message": message}
     patient_id = _check_references(conn, source_org_id, member_id)
 
@@ -172,10 +172,10 @@ def receive_file(conn: psycopg.Connection, data: bytes, filename: str, source_or
 
     claimed = mimetypes.guess_type(name)[0]
     audit(conn, "source_file", str(file_id), "file.received", {
-        "name": name, "sha256": digest, "size_bytes": len(data), "detected_kind": kind, "detected_type": mime_for(kind),
+        "sha256": digest, "size_bytes": len(data), "detected_kind": kind, "detected_type": mime_for(kind),
         "claimed_type": claimed, "extension_mismatch": bool(claimed and claimed != mime_for(kind)),
         "encrypted": encrypted, "parent_file_id": parent_file_id, "source_org_id": source_org_id,
-        "member_id": member_id, "patient_id": patient_id})
+        "has_member_hint": member_id is not None, "matched_on_receive": patient_id is not None})
     audit(conn, "source_file", str(file_id), "file.scanned", {"result": scan_result})
 
     if reason:
@@ -188,7 +188,7 @@ def receive_file(conn: psycopg.Connection, data: bytes, filename: str, source_or
 def _refusal(kind: str, scan_result: str) -> tuple[str | None, str | None]:
     if scan_result == scan.INFECTED:
         return "infected", "Virus scan found a threat. The file was not stored and will not be converted."
-    if scan_result == scan.SCAN_FAILED and os.environ.get("INTAKE_REQUIRE_SCAN") == "1":
+    if scan_result == scan.SCAN_FAILED and SETTINGS.require_scan_success:
         return "scan_failed", "The virus scan could not complete, so the file was not accepted. Send it again."
     if kind not in ALLOWED_KINDS:
         return "unsupported_type", "Unsupported file type (checked from the file content, not the extension)."
@@ -197,7 +197,7 @@ def _refusal(kind: str, scan_result: str) -> tuple[str | None, str | None]:
 
 def _duplicate(conn: psycopg.Connection, existing_id: int, name: str, parent_file_id: int | None) -> dict:
     audit(conn, "source_file", str(existing_id), "file.duplicate_received",
-          {"name": name, "parent_file_id": parent_file_id})
+          {"parent_file_id": parent_file_id})
     return {"status": "duplicate", "source_file_id": existing_id, "filename": name, "children": [],
             "message": f"The same file was received before (file {existing_id}). Nothing new was recorded."}
 
@@ -310,13 +310,12 @@ def _convert(conn: psycopg.Connection, row: dict, data: bytes, kind: str) -> tup
             patient_id = match.patient_id
             conn.execute("UPDATE source_files SET patient_id = %s, match_status = 'matched' WHERE id = %s",
                          (patient_id, file_id))
-            member_id = match.mrn
             audit(conn, "source_file", str(file_id), "file.member_matched",
-                  {"member_id": member_id, "patient_id": patient_id, "method": match.method})
+                  {"method": match.method})
         else:
             conn.execute("UPDATE source_files SET match_status = 'needs_match' WHERE id = %s", (file_id,))
             audit(conn, "source_file", str(file_id), "file.needs_match",
-                  {"candidates": [c["patient_id"] for c in match.candidates]})
+                  {"candidate_count": len(match.candidates)})
 
     doc = conn.execute(
         """SELECT c.document_reference_id, r.patient_id FROM document_conversion c
@@ -359,13 +358,14 @@ def _unpack(conn: psycopg.Connection, row: dict, data: bytes, kind: str) -> list
             member_id = mail_match.mrn
             conn.execute("UPDATE source_files SET patient_id = %s WHERE id = %s", (mail_match.patient_id, row["id"]))
             audit(conn, "source_file", str(row["id"]), "file.member_matched",
-                  {"member_id": member_id, "patient_id": mail_match.patient_id, "method": "email_text"})
+                  {"method": "email_text"})
 
     results = []
-    for name, payload in entries:
+    for index, (name, payload) in enumerate(entries, start=1):
         if isinstance(payload, Exception):
             results.append({"status": "error", "filename": name, "message": str(payload)})
-            audit(conn, "source_file", str(row["id"]), "file.child_failed", {"name": name, "error": str(payload)})
+            audit(conn, "source_file", str(row["id"]), "file.child_failed",
+                  {"entry_index": index, "error": str(payload)})
             continue
         try:
             with conn.transaction():
@@ -373,10 +373,10 @@ def _unpack(conn: psycopg.Connection, row: dict, data: bytes, kind: str) -> list
         except Exception as exc:  # noqa: BLE001 - one bad entry must not stop the rest of the bundle
             results.append({"status": "error", "filename": name, "message": f"{type(exc).__name__}: {exc}"})
             audit(conn, "source_file", str(row["id"]), "file.child_failed",
-                  {"name": name, "error": f"{type(exc).__name__}: {exc}"})
+                  {"entry_index": index, "error": f"{type(exc).__name__}: {exc}"})
     audit(conn, "source_file", str(row["id"]), "file.unpacked",
-          {"kind": kind, "entries": [{"name": r.get("filename"), "status": r["status"],
-                                      "source_file_id": r.get("source_file_id")} for r in results]})
+          {"kind": kind, "entries": [{"status": r["status"], "source_file_id": r.get("source_file_id")}
+                                     for r in results]})
     return results
 
 

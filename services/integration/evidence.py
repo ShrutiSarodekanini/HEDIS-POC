@@ -25,7 +25,7 @@ from services.document_intake.db import audit
 from services.evidence_extraction import prompt
 from services.evidence_extraction.config import SETTINGS as EXTRACTION_SETTINGS
 from services.evidence_extraction.contracts import GapContext, ModelError, ModelResult, Prompt, UnusableAnswer
-from services.evidence_extraction.model_client import OpenRouterClient
+from services.evidence_extraction.model_client import OpenRouterClient, assert_hosted_model_allowed
 from services.evidence_extraction.validator import parse_findings, validate
 from services.gap_priority.config import load_rules
 from services.gap_priority.runner import score_all
@@ -76,9 +76,10 @@ def find_evidence(conn: psycopg.Connection, key: str) -> dict:
 
     The run and its attempts are committed as they happen, so failed calls are kept too. Raises AiEvidenceOff, before
     any run row or model call, unless EXTRACTION_DATA_CLASS is "synthetic"."""
-    if EXTRACTION_SETTINGS.data_class != "synthetic":
-        raise AiEvidenceOff("AI evidence is off: set EXTRACTION_DATA_CLASS=synthetic in .env to confirm only synthetic "
-                            "data is sent to OpenRouter.")
+    try:
+        assert_hosted_model_allowed(EXTRACTION_SETTINGS)
+    except ValueError as exc:
+        raise AiEvidenceOff(str(exc)) from exc
     gap = prompt.load_gap_context(conn, key)
     measure = prompt.load_measure(conn, gap.measure_code, gap.measurement_year)
     pages = prompt.select_pages(conn, gap)

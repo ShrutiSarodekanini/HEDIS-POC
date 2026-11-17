@@ -24,6 +24,9 @@ Values that matter most:
 | Key | Purpose |
 |---|---|
 | `DATABASE_URL` | Postgres connection, with the schema in `options=-csearch_path%3D<schema>` |
+| `FILE_ENCRYPTION_KEY`, `INTAKE_REQUIRE_ENCRYPTION` | Encrypt uploaded originals at rest (required by default) |
+| `INTAKE_DB_SSLMODE` | Intake DB transport mode (`require` by default) |
+| `INTAKE_VIRUS_SCAN`, `INTAKE_REQUIRE_SCAN` | Virus scanning and reject-on-scan-failure policy (both default to on) |
 | `OPENROUTER_API_KEY`, `EXTRACTION_MODEL` | AI evidence extraction (the model must be serving on OpenRouter) |
 | `HEDIS_BOOTSTRAP_ADMIN_EMAIL` | Email of the first admin, created at startup if no account has it (lowercase) |
 | `HEDIS_BOOTSTRAP_ADMIN_PASSWORD` | Password for that first admin, at least 8 characters; never changes an existing account |

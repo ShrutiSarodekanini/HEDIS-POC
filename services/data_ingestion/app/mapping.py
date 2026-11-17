@@ -913,8 +913,8 @@ def detect_enrollment_gaps(coverage_records: list[SourceRecord]) -> EnrollmentAn
             
             total_gap_days += gap_days
     
-    # Overall enrollment compliance: ALL gaps must be <= 45 days
-    continuous_enrollment_compliant = all(g.hedis_compliant for g in gaps)
+    # HEDIS allows at most one enrollment gap, and that single gap must be <= 45 days.
+    continuous_enrollment_compliant = len(gaps) <= 1 and all(g.hedis_compliant for g in gaps)
     
     return EnrollmentAnalysis(
         patient_id=patient_id,
