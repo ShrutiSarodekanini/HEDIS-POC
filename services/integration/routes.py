@@ -28,7 +28,7 @@ from services.document_intake import api as intake_api
 from services.document_intake import db
 from services.gap_priority.config import load_rules
 
-from . import auth, dq_checks, evidence, export, openrouter_status, pipeline, quality, reset, stars, work
+from . import auth, dq_checks, evidence, export, gap_rerun, openrouter_status, pipeline, quality, reset, stars, work
 from .config import SETTINGS
 
 log = logging.getLogger(__name__)
@@ -185,6 +185,12 @@ def build_router(current_user_dep: Callable[..., auth.AuthUser],
     def close_gap(gap_id: str, conn: psycopg.Connection = Depends(get_conn),
                   user: auth.AuthUser = Depends(current_user_dep)) -> dict:
         return evidence.close_gap(conn, gap_id, user.user_id, user.email)
+
+    @router.post("/api/gaps/{gap_id}/rerun")
+    @track("rerun gap")
+    def rerun_gap(gap_id: str, conn: psycopg.Connection = Depends(get_conn),
+                  user: auth.AuthUser = Depends(current_user_dep)) -> dict:
+        return gap_rerun.request_rerun(conn, gap_id, user.user_id, user.email)
 
     @router.post("/api/evidence/{proposal_id}/decision")
     @app_metrics.track_evidence
