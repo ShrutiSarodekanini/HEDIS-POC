@@ -22,6 +22,10 @@ const statusClass = (status: AdminUserRecord["access_status"]): string => {
 
 const labelCase = (value: string): string => `${value.charAt(0).toUpperCase()}${value.slice(1)}`
 
+const roleDisplay = (role: string): string => role === "admin" ? "Administrator" : "User"
+
+const AVAILABLE_ROLES: AuthRole[] = ["admin", "user"]
+
 export function AdministratorPage({ actorEmail, actorRole }: AdministratorPageProps) {
   const [users, setUsers] = useState<AdminUserRecord[]>([])
   const [loading, setLoading] = useState<boolean>(true)
@@ -179,13 +183,12 @@ export function AdministratorPage({ actorEmail, actorRole }: AdministratorPagePr
               {users.length > 0 ? users.map((user) => {
                 const isActor = user.email === actorEmail
                 const actionBusy = actionBusyId === user.user_id
-                const nextRole: AuthRole = user.role === "admin" ? "user" : "admin"
 
                 return (
                   <tr key={user.user_id}>
                     <td>{user.email}</td>
                     <td><span className={statusClass(user.access_status)}>{labelCase(user.access_status)}</span></td>
-                    <td>{labelCase(user.role)}</td>
+                    <td>{roleDisplay(user.role)}</td>
                     <td>{formatDateTime(user.created_at)}</td>
                     <td>
                       {isActor ? (
@@ -263,11 +266,12 @@ export function AdministratorPage({ actorEmail, actorRole }: AdministratorPagePr
                       {isActor ? (
                         <span className="muted">Current account</span>
                       ) : (
-                        <button
-                          type="button"
-                          className="btn outline"
+                        <select
+                          aria-label={`Role for ${user.email}`}
+                          value={user.role}
                           disabled={actionBusy || user.access_status !== "approved"}
-                          onClick={() => {
+                          onChange={(event) => {
+                            const nextRole = event.target.value as AuthRole
                             void (async () => {
                               setActionBusyId(user.user_id)
                               setErrorMessage("")
@@ -282,8 +286,10 @@ export function AdministratorPage({ actorEmail, actorRole }: AdministratorPagePr
                             })()
                           }}
                         >
-                          Set {labelCase(nextRole)}
-                        </button>
+                          {AVAILABLE_ROLES.map((role) => (
+                            <option key={role} value={role}>{roleDisplay(role)}</option>
+                          ))}
+                        </select>
                       )}
                     </td>
                     <td>

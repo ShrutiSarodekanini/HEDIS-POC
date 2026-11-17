@@ -20,7 +20,7 @@ import type {
   EvidenceRuleCheckPart,
   EvidenceQueueItem,
   EvidenceScopeGap,
-  GapCloseResult,
+  GapRerunResult,
 } from "../models/evidence"
 import { fetchBlob, fetchJson, postJson } from "./http"
 import { getOpenApiPaths, hasOpenApiPath } from "./openapi"
@@ -1066,22 +1066,34 @@ export async function loadDocumentPageImage(documentId: string, pageNo: number):
   return fetchBlob(withApiBase(`${pagePath(documentId, pageNo)}/image`), timeoutMs)
 }
 
-interface RawGapCloseResponse {
+interface RawGapRerunResponse {
   gap_id?: string
-  status?: string
-  review_status?: string
+  batch_id?: string
+  engine_inputs?: number
+  not_usable?: Array<{ evidence_type?: string; reason?: string }>
 }
 
-export async function closeCareGap(gapId: string): Promise<GapCloseResult> {
-  const result = await postJson<RawGapCloseResponse>(
-    withApiBase(`/gaps/${encodeURIComponent(gapId)}/close`),
+/** Asks the engine to rerun this gap's patient and measure with the confirmed supplemental data. */
+export async function requestGapRerun(gapId: string): Promise<GapRerunResult> {
+  const result = await postJson<RawGapRerunResponse>(
+    withApiBase(`/gaps/${encodeURIComponent(gapId)}/rerun`),
     timeoutMs,
     {},
   )
-  invalidateGapDetailCache(gapId)
   return {
     gapId: result.gap_id ?? gapId,
-    status: result.status ?? "closed",
-    reviewStatus: result.review_status ?? "closed",
+    batchId: result.batch_id ?? "",
+    engineInputs: result.engine_inputs ?? 0,
+    notUsable: (result.not_usable ?? []).map((row) => ({
+      evidenceType: row.evidence_type ?? "",
+      reason: row.reason ?? "",
+    })),
   }
+}
+
+/** The gap's review status fresh from the API, after an engine run may have changed it. */
+export async function loadGapReviewStatus(gapId: string): Promise<string> {
+  invalidateGapDetailCache(gapId)
+  const detail = await fetchGapDetailCached(gapId)
+  return detail.gap?.review_status ?? "open"
 }

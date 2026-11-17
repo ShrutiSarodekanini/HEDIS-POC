@@ -18,15 +18,15 @@ from fastapi import APIRouter, Depends, FastAPI, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 from fastapi.routing import APIRoute, APIWebSocketRoute
-from pydantic import BaseModel, Field
 from prometheus_fastapi_instrumentator import Instrumentator
+from pydantic import BaseModel, Field
 from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.orm import Session
 
-from common.config import AppConfig
 from common import app_metrics
 from common.app_logging import path_template, safe_text, setup_file_logging
+from common.config import AppConfig
 from common.database import Database
 from common.evidence import (
     ensure_supported_formats,
@@ -1669,6 +1669,7 @@ def create_app(
 
 
 app = create_app()
+# Ingestion: reads need view_records, uploads and job actions need admin, the progress websocket needs view.
 app.include_router(_ingestion_routes(), prefix="/api/ingestion")
 # The integration endpoints (formerly the 8780 app): batches, work list, AI evidence, export, quality, stars, health.
 app.include_router(integration_routes.build_router(current_auth_user, admin_auth_user))
@@ -1678,27 +1679,28 @@ Instrumentator(should_group_untemplated=True).instrument(app).expose(app, endpoi
 
 @app.get("/api/flow")
 @app_metrics.track_route("ingestion flow")
-def ingestion_flow_snapshot() -> dict[str, object]:
+def ingestion_flow_snapshot(_: integration_auth.AuthUser = Depends(current_auth_user)) -> dict[str, object]:
     """Return the persisted integration workflow state for the ingestion UI."""
     with intake_db.connect() as conn:
         return integration_pipeline.flow(conn)
 
 
 @app.get("/api/calculation")
-def get_calculation() -> dict:
+def get_calculation(_: integration_auth.AuthUser = Depends(current_auth_user)) -> dict:
     """Return stored HEDIS engine populations and gaps for the calculation screen."""
     with intake_db.connect() as conn:
         return integration_calculation.overview(conn)
 
 
 @app.get("/api/calculation/patients")
-def get_calculation_candidates(offset: int = 0, limit: int = 10) -> dict:
+def get_calculation_candidates(offset: int = 0, limit: int = 10,
+                               _: integration_auth.AuthUser = Depends(current_auth_user)) -> dict:
     with intake_db.connect() as conn:
         return integration_calculation.run_candidates(conn, offset, limit)
 
 
 @app.get("/api/calculation/{measure_id}/patients")
-def get_calculation_patients(measure_id: str) -> dict:
+def get_calculation_patients(measure_id: str, _: integration_auth.AuthUser = Depends(current_auth_user)) -> dict:
     with intake_db.connect() as conn:
         return integration_calculation.patients(conn, measure_id)
 

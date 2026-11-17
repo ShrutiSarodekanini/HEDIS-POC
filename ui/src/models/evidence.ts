@@ -283,10 +283,12 @@ export interface EvidenceDocumentPage {
   hasImage: boolean
 }
 
-export interface GapCloseResult {
+/** An engine rerun started for one gap; the engine, not the user, closes the gap when the run finishes. */
+export interface GapRerunResult {
   gapId: string
-  status: string
-  reviewStatus: string
+  batchId: string
+  engineInputs: number
+  notUsable: Array<{ evidenceType: string; reason: string }>
 }
 
 /** What the document viewer opens: a page, plus the quote to highlight when it came from a finding. */

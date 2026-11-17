@@ -4,14 +4,14 @@ Each row is one document with its bytes and the Synthea patient it belongs to. s
 data/seed/stored_evidence; the documents step attaches the rows of a batch's patients through intake.
 
 Revision ID: 0017_evidence_library
-Revises: 0014_care_gap_closed_by_user
+Revises: 0015_drop_care_gap_closed_by
 Create Date: 2026-11-13
 """
 
 from alembic import op
 
 revision = "0017_evidence_library"
-down_revision = "0014_care_gap_closed_by_user"
+down_revision = "0015_drop_care_gap_closed_by"
 branch_labels = None
 depends_on = None
 

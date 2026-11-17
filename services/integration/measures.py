@@ -7,7 +7,8 @@ module). Every patient sent must come back for every measure, or the step fails 
 
 Gaps are the results in the denominator, not met and not excluded. Two measures need a bridge to the stored data
 (see INVERSE_MEASURES and COMBINED_BP_MEASURES below); the engine, its measures and its pruning are not changed.
-A later run closes open gaps it shows met or excluded.
+A later run closes open gaps it shows met or excluded. Confirmed supplemental data (supplemental.py) is added to each
+measure's own patient bundle, so a reviewer's approved evidence closes a gap only through an engine run.
 """
 
 import json
@@ -30,7 +31,7 @@ from services.data_ingestion.app.api import (
 )
 from services.document_intake.db import audit
 
-from . import metrics
+from . import metrics, supplemental
 from .config import SETTINGS, Settings
 
 log = logging.getLogger(__name__)
@@ -123,25 +124,13 @@ WITH result AS (
              AS r(patient_id, met, excluded)
      WHERE r.met OR r.excluded
 ), closing AS (
-        SELECT g.gap_id, r.excluded, d.review_status AS before, reviewer_user.user_id AS reviewer_user_id
+    SELECT g.gap_id, r.excluded, d.review_status AS before
       FROM care_gap g
       JOIN result r ON r.patient_id = g.patient_id
       LEFT JOIN care_gap_detail d ON d.gap_id = g.gap_id
-            LEFT JOIN LATERAL (
-                    SELECT u.user_id
-                        FROM evidence_proposal p
-                        JOIN review_decisions rd ON rd.evidence_id = p.evidence_id AND rd.decision = 'confirmed'
-                        JOIN app_user u ON u.email = lower(rd.reviewer)
-                     WHERE p.gap_id = g.gap_id
-                     ORDER BY rd.decided_at DESC, rd.id DESC
-                     LIMIT 1
-            ) reviewer_user ON true
      WHERE g.measure_id = %(measure)s AND g.measurement_year = %(year)s AND g.status = 'open'
 ), closed AS (
-        UPDATE care_gap g
-             SET status = 'closed',
-                     closed_at = now(),
-                                         closed_by = coalesce(g.closed_by, %(closed_by_user_id)s, c.reviewer_user_id)
+    UPDATE care_gap g SET status = 'closed', closed_at = now()
       FROM closing c WHERE g.gap_id = c.gap_id
     RETURNING g.gap_id
 ), detail AS (
@@ -186,10 +175,14 @@ class EngineRun:
     run_id: str
     patients: int
     measures: dict[str, MeasureOutcome] = field(default_factory=dict)
+    supplemental_used: int = 0
+    supplemental_unusable: list[supplemental.Unusable] = field(default_factory=list)
 
     def counts(self) -> dict:
         return {"engine_run_id": self.run_id, "patients": self.patients,
                 "measures": {m: vars(o) for m, o in self.measures.items()},
+                "supplemental_used": self.supplemental_used,
+                "supplemental_unusable": [vars(u) for u in self.supplemental_unusable],
                 "gaps_open": sum(o.gaps_open for o in self.measures.values()),
                 "gaps_closed_by_engine": sum(o.gaps_closed for o in self.measures.values())}
 
@@ -215,7 +208,7 @@ def run_measures(conn: psycopg.Connection, patient_ids: list[str], attributed_or
                  batch_label: str, ingest_job_id: str, settings: Settings = SETTINGS,
                  measure_ids: list[str] | None = None, actor_user_id: int | None = None) -> EngineRun:
     """Run the engine for these patients (all measures, or the chosen ones) and write results and gaps in the
-    caller's transaction."""
+    caller's transaction. actor_user_id is the signed-in user who asked for the run, recorded on each gap it closes."""
     bundles = measure_bundles()
     if measure_ids:
         unknown = set(measure_ids) - {b.measure_id for b in bundles}
@@ -235,7 +228,13 @@ def run_measures(conn: psycopg.Connection, patient_ids: list[str], attributed_or
              "services/measure_calc/engine/examples"))
         names = dict(conn.execute("SELECT measure_id, name FROM measure_rule WHERE measurement_year = %s",
                                   (year,)).fetchall())
-        evaluations = _evaluate_measures(bundles, files, work, settings)
+        inputs = supplemental.load(conn, list(files), year)
+        wanted = {b.measure_id for b in bundles}
+        run.supplemental_used = sum(1 for key in inputs.resources if key[1] in wanted)
+        run.supplemental_unusable = [u for u in inputs.unusable if u.measure_id in wanted]
+        for unusable in run.supplemental_unusable:
+            log.warning("supplemental record %s not sent to the engine: %s", unusable.record_id, unusable.reason)
+        evaluations = _evaluate_measures(bundles, files, work, settings, inputs.resources)
         for bundle in bundles:
             populations = evaluations[bundle.measure_id]
             run.measures[bundle.measure_id] = _write_results(conn, bundle, populations, attributed_org, run.run_id,
@@ -300,19 +299,22 @@ def _normalize_measure_bundle_fields(bundle_text: str) -> str:
     return json.dumps(bundle) if changed else bundle_text
 
 
-def _evaluate_measures(bundles: list[MeasureBundle], files: dict[str, Path], work: Path,
-                       settings: Settings) -> dict[str, dict[str, dict]]:
+def _evaluate_measures(bundles: list[MeasureBundle], files: dict[str, Path], work: Path, settings: Settings,
+                       extra: dict[tuple[str, str], list[dict]] | None = None) -> dict[str, dict[str, dict]]:
     """Evaluate independent measures concurrently while retaining deterministic result persistence."""
     worker_count = min(settings.engine_workers, len(bundles))
     if worker_count == 1:
-        return {bundle.measure_id: _evaluate(bundle, files, work, settings) for bundle in bundles}
+        return {bundle.measure_id: _evaluate(bundle, files, work, settings, extra) for bundle in bundles}
     with ThreadPoolExecutor(max_workers=worker_count, thread_name_prefix="hedis-measure") as executor:
-        futures = {bundle.measure_id: executor.submit(_evaluate, bundle, files, work, settings) for bundle in bundles}
+        futures = {bundle.measure_id: executor.submit(_evaluate, bundle, files, work, settings, extra)
+                   for bundle in bundles}
         return {bundle.measure_id: futures[bundle.measure_id].result() for bundle in bundles}
 
 
-def _evaluate(bundle: MeasureBundle, files: dict[str, Path], work: Path, settings: Settings) -> dict[str, dict]:
-    """Engine populations per patient for one measure, in chunks so Node's memory stays bounded."""
+def _evaluate(bundle: MeasureBundle, files: dict[str, Path], work: Path, settings: Settings,
+              extra: dict[tuple[str, str], list[dict]] | None = None) -> dict[str, dict]:
+    """Engine populations per patient for one measure, in chunks so Node's memory stays bounded. extra holds the
+    supplemental resources per (patient_id, measure_id); each goes only into its own measure's copy."""
     root_ref = _extract_root_library_reference(bundle.path)
     patients = list(files)
     results: dict[str, dict] = {}
@@ -324,6 +326,7 @@ def _evaluate(bundle: MeasureBundle, files: dict[str, Path], work: Path, setting
             copy = work / bundle.measure_id / files[patient_id].name
             copy.parent.mkdir(parents=True, exist_ok=True)
             shutil.copyfile(files[patient_id], copy)
+            _add_supplemental(copy, (extra or {}).get((patient_id, bundle.measure_id), []))
             added = _add_combined_bp(copy) if bundle.measure_id in COMBINED_BP_MEASURES else 0
             _prune_patient_bundle(copy, bundle)
             if added and _count_code(copy, BP_PANEL) < added:
@@ -345,6 +348,15 @@ def _evaluate(bundle: MeasureBundle, files: dict[str, Path], work: Path, setting
         raise RuntimeError(f"engine returned {len(back & sent)} of {len(sent)} patients for {bundle.measure_id} "
                            f"({len(sent - back)} missing, {len(back - sent)} unexpected)")
     return results
+
+
+def _add_supplemental(path: Path, resources: list[dict]) -> None:
+    """Append a patient's supplemental resources for this measure to its bundle copy."""
+    if not resources:
+        return
+    bundle = json.loads(path.read_text(encoding="utf-8"))
+    bundle.setdefault("entry", []).extend({"resource": r} for r in resources)
+    path.write_text(json.dumps(bundle), encoding="utf-8")
 
 
 def _code(resource: dict) -> str | None:
@@ -583,13 +595,12 @@ def _close_met_gaps(conn: psycopg.Connection, measure_id: str, year: int, run_id
             "patients": patients,
             "met": met,
             "excluded": excluded,
-            "closed_by_user_id": actor_user_id,
         },
     ).fetchall()
     for gap_id, review_before, review_after in rows:
         audit(conn, "care_gap", str(gap_id), "gap.closed_by_engine",
               {"measure_id": measure_id, "engine_run_id": run_id, "review_status_before": review_before,
-               "review_status": review_after}, actor=SETTINGS.actor)
+               "review_status": review_after, "requested_by_user_id": actor_user_id}, actor=SETTINGS.actor)
     return len(rows)
 
 
