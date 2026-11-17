@@ -1,0 +1,44 @@
+{
+  "BCS-E": {
+    "description": "Breast Cancer Screening",
+    "phase": "complete",
+    "observation_codes": [],
+    "required_condition_codes": [],
+    "required_procedure_codes": []
+  },
+  "CBP": {
+    "description": "Comprehensive Blood Pressure Control",
+    "phase": "complete",
+    "observation_codes": [],
+    "required_condition_codes": [],
+    "required_procedure_codes": []
+  },
+  "COL": {
+    "description": "Colorectal Cancer Screening",
+    "phase": "complete",
+    "observation_codes": [],
+    "required_condition_codes": [],
+    "required_procedure_codes": []
+  },
+  "COA": {
+    "description": "Cardiovascular Conditions - Comprehensive Diabetes Care",
+    "phase": "complete",
+    "observation_codes": [],
+    "required_condition_codes": [],
+    "required_procedure_codes": []
+  },
+  "CWP": {
+    "description": "Cervical Cancer Screening",
+    "phase": "complete",
+    "observation_codes": [],
+    "required_condition_codes": [],
+    "required_procedure_codes": []
+  },
+  "GSD": {
+    "description": "Glaucoma Screening in Patients with Diabetes",
+    "phase": "complete",
+    "observation_codes": [],
+    "required_condition_codes": [],
+    "required_procedure_codes": []
+  }
+}
