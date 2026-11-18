@@ -35,8 +35,10 @@ from common.evidence import generate_document, prepare_evidence_data  # noqa: E4
 from services.document_intake import db  # noqa: E402
 from services.document_intake.db import audit  # noqa: E402
 from services.evidence_extraction import prompt  # noqa: E402
+from services.evidence_extraction.config import SETTINGS as EXTRACTION_SETTINGS  # noqa: E402
+from services.evidence_extraction.config import provider_policy_error  # noqa: E402
 from services.evidence_extraction.contracts import ModelError, UnusableAnswer  # noqa: E402
-from services.evidence_extraction.model_client import OpenRouterClient, assert_hosted_model_allowed  # noqa: E402
+from services.evidence_extraction.model_client import OpenRouterClient  # noqa: E402
 from services.evidence_extraction.validator import parse_findings, validate  # noqa: E402
 from services.gap_priority import scoring  # noqa: E402
 from services.gap_priority.config import load_rules  # noqa: E402
@@ -372,10 +374,9 @@ def _response_summary(payload: dict[str, Any]) -> dict[str, Any]:
 @app.post("/api/gaps/{key}/extract")
 def extract(key: str) -> dict:
     """Run the real prompt builder, model client and validator for one gap. Nothing is saved here."""
-    try:
-        assert_hosted_model_allowed()
-    except ValueError as exc:
-        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    policy_error = provider_policy_error(EXTRACTION_SETTINGS)
+    if policy_error is not None:
+        raise HTTPException(409, policy_error)
     with db.connect() as conn:
         try:
             gap = prompt.load_gap_context(conn, key)

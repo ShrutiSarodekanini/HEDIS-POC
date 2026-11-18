@@ -37,6 +37,7 @@ export interface StarDashboardMeasureCard {
   star_eligible: boolean
   rating_note: string
   total_gaps: number
+  projected_total_gaps: number
   baseline_closed: number
   projected_closed: number
   baseline_rate: number | null

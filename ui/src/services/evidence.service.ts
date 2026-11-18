@@ -2,7 +2,6 @@ import { envConfig } from "../config/env"
 import type { StarDashboardResponse } from "../models/dashboard"
 import type {
   EvidenceAttempt,
-  EvidenceCallExchange,
   EvidenceCapabilities,
   EvidenceContextQuote,
   EvidenceDecisionResult,
@@ -198,6 +197,7 @@ interface RawGapDetail {
     run_id?: number
     started_at?: string | null
     model_name?: string | null
+    correlation_id?: string | null
     status?: string
     kept?: number
     dropped_count?: number
@@ -210,12 +210,6 @@ interface RawGapDetail {
       method?: string | null
       handwritten?: boolean
     }>
-    dropped?: Array<{
-      evidence_type?: string | null
-      reason?: string
-      evidence_id?: string
-    }>
-    raw_response?: string | null
   }>
 }
 
@@ -230,41 +224,21 @@ interface RawHealthResponse {
 
 interface RawExtractionResponse {
   run_id?: number
-  pages?: Array<{
-    document_id?: string
-    page_no?: number
-    method?: string | null
-    handwritten?: boolean
-  }>
-  calls?: RawExtractionCall[]
-  kept?: Array<{
-    evidence_type?: string | null
-    document_id?: string
-    page_no?: number
-    excerpt?: string
-  }>
-  dropped?: Array<{
-    evidence_type?: string | null
-    document_id?: string | null
-    reason?: string
-    evidence_id?: string
-  }>
+  status?: string
+  attempts?: RawExtractionAttempt[]
   saved?: number
   skipped_already_saved?: number
+  failed_attempts?: number
   note?: string | null
 }
 
-interface RawExtractionCall {
-  status?: number
-  seconds?: number
-  error?: string | null
-  request?: {
-    messages?: Array<{
-      role?: string
-      content?: string
-    }>
-  }
-  answer?: string | null
+interface RawExtractionAttempt {
+  attempt_id?: number
+  status?: string
+  model?: string | null
+  duration_ms?: number | null
+  prompt_tokens?: number | null
+  output_tokens?: number | null
 }
 
 interface RawDecisionResponse {
@@ -635,44 +609,26 @@ const toExportHistory = (
   fileSha256: row.file_sha256 ?? "",
 }))
 
-const toCallExchange = (row: RawExtractionCall): EvidenceCallExchange => ({
-  status: row.status ?? null,
-  seconds: row.seconds ?? null,
-  error: row.error ?? null,
-  requestMessages: (row.request?.messages ?? []).map((message) => ({
-    role: message.role ?? "",
-    content: message.content ?? "",
-  })),
-  answer: row.answer ?? null,
-})
-
 const toLatestRun = (gapId: string, row: RawExtractionResponse): EvidenceLatestRun | null => {
-  if (!row.run_id && !(row.pages ?? []).length && !(row.calls ?? []).length) {
+  if (!row.run_id && !(row.attempts ?? []).length) {
     return null
   }
 
   return {
     gapId,
     runId: row.run_id ?? null,
-    pages: (row.pages ?? []).map((page) => ({
-      documentId: page.document_id ?? "",
-      pageNo: page.page_no ?? 0,
-      method: page.method ?? null,
-      handwritten: Boolean(page.handwritten),
+    status: row.status ?? null,
+    attempts: (row.attempts ?? []).map((attempt) => ({
+      attemptId: attempt.attempt_id ?? 0,
+      status: attempt.status ?? "unknown",
+      model: attempt.model ?? null,
+      durationMs: attempt.duration_ms ?? null,
+      promptTokens: attempt.prompt_tokens ?? null,
+      outputTokens: attempt.output_tokens ?? null,
     })),
-    calls: (row.calls ?? []).map(toCallExchange),
-    kept: (row.kept ?? []).map((item) => ({
-      evidenceType: item.evidence_type ?? null,
-      documentId: item.document_id ?? "",
-      pageNo: item.page_no ?? null,
-      excerpt: item.excerpt ?? "",
-    })),
-    dropped: (row.dropped ?? []).map((item) => ({
-      evidenceType: item.evidence_type ?? null,
-      documentId: item.document_id ?? null,
-      reason: item.reason ?? "",
-      evidenceId: item.evidence_id ?? null,
-    })),
+    saved: row.saved ?? 0,
+    skippedAlreadySaved: row.skipped_already_saved ?? 0,
+    failedAttempts: row.failed_attempts ?? 0,
   }
 }
 
@@ -926,6 +882,7 @@ export async function loadEvidenceGapDetail(
       runId: row.run_id ?? 0,
       startedAt: row.started_at ?? null,
       modelName: row.model_name ?? null,
+      correlationId: row.correlation_id ?? null,
       status: row.status ?? "unknown",
       kept: row.kept ?? 0,
       droppedCount: row.dropped_count ?? 0,
@@ -938,12 +895,6 @@ export async function loadEvidenceGapDetail(
         method: page.method ?? null,
         handwritten: Boolean(page.handwritten),
       })),
-      dropped: (row.dropped ?? []).map((dropped) => ({
-        evidenceType: dropped.evidence_type ?? null,
-        reason: dropped.reason ?? "",
-        evidenceId: dropped.evidence_id ?? null,
-      })),
-      rawResponse: row.raw_response ?? null,
     })),
   }
 }
@@ -964,10 +915,10 @@ export async function runEvidenceExtraction(
 
   invalidateGapDetailCache(gapId)
 
-  const callErrors = (result.calls ?? []).map((call) => call.error?.trim() ?? "").filter((text) => text.length > 0)
-  const callCount = (result.calls ?? []).length
-  if (callCount > 0 && callErrors.length === callCount) {
-    throw new Error(`AI run ${result.run_id ?? "?"} failed: ${callErrors[0]}`)
+  const attemptCount = (result.attempts ?? []).length
+  const failedAttempts = result.failed_attempts ?? 0
+  if (attemptCount > 0 && failedAttempts === attemptCount && (result.status ?? "").toLowerCase() === "failed") {
+    throw new Error(`AI run ${result.run_id ?? "?"} failed. All model attempts failed.`)
   }
 
   const run = toLatestRun(gapId, result)
@@ -977,8 +928,8 @@ export async function runEvidenceExtraction(
     return { message: note, run }
   }
 
-  const partial = callErrors.length > 0
-    ? ` ${callErrors.length} of ${callCount} model calls failed: ${callErrors[0]}`
+  const partial = failedAttempts > 0
+    ? ` ${failedAttempts} of ${attemptCount} model attempts failed.`
     : ""
   return {
     message: `Extraction run ${result.run_id ?? "?"} completed. Saved ${result.saved ?? 0} findings and skipped ${result.skipped_already_saved ?? 0}.${partial}`,

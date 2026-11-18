@@ -1,8 +1,7 @@
 """Settings for evidence extraction, read from the repo-root .env and environment variables.
 
-The model runs on OpenRouter. The API key is read here and nowhere else, and never logged or stored.
-Only synthetic data may be sent to OpenRouter: data_class (EXTRACTION_DATA_CLASS) must be "synthetic", the only value
-allowed to reach a hosted model, or the integration API refuses to run AI evidence.
+The default provider is OpenRouter. The API key is read here and nowhere else, and never logged or stored.
+Model calls are blocked unless the provider policy allows the configured data class.
 """
 
 import os
@@ -27,7 +26,49 @@ class Settings:
     min_confidence: float         # the model's own confidence below this means it does not believe the finding
     max_excerpt_chars: int        # longer quotes are narrowed to the sentence holding the value
     actor: str                    # recorded in audit events
-    data_class: str = ""          # "synthetic" is the only value allowed to send documents to a hosted model
+    data_class: str = ""          # "synthetic" is the only class allowed for hosted providers without a BAA
+    provider: str = "openrouter"
+    provider_mode: str = "hosted"  # hosted | local
+    provider_has_baa: bool = False
+    provider_allowed_data_classes: tuple[str, ...] = ("synthetic",)
+    store_raw_attempt_response: bool = False
+
+
+def _env_bool(name: str, default: bool) -> bool:
+    raw = os.environ.get(name)
+    if raw is None:
+        return default
+    return raw.strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _csv_env(name: str, default: tuple[str, ...]) -> tuple[str, ...]:
+    raw = os.environ.get(name, "")
+    if not raw.strip():
+        return default
+    values = tuple(v.strip().lower() for v in raw.split(",") if v.strip())
+    return values or default
+
+
+def provider_policy_error(settings: Settings) -> str | None:
+    """Return the provider-policy failure message when this configuration is unsafe; otherwise None."""
+    data_class = (settings.data_class or "").strip().lower()
+    if not data_class:
+        return ("AI evidence is off: set EXTRACTION_DATA_CLASS to an approved value and retry. "
+                "For hosted providers without a BAA, only synthetic data is allowed.")
+
+    provider_mode = (settings.provider_mode or "").strip().lower()
+    if provider_mode not in {"hosted", "local"}:
+        return "AI evidence is off: EXTRACTION_PROVIDER_MODE must be hosted or local."
+
+    if data_class not in settings.provider_allowed_data_classes:
+        allowed = ", ".join(settings.provider_allowed_data_classes)
+        return (f"AI evidence is off: data class '{data_class}' is not approved for provider "
+                f"'{settings.provider}'. Allowed classes: {allowed}.")
+
+    if provider_mode == "hosted" and data_class != "synthetic" and not settings.provider_has_baa:
+        return (f"AI evidence is off: provider '{settings.provider}' is hosted without a BAA, so it cannot receive "
+                f"'{data_class}' data. Use a local provider or a hosted provider covered by a signed BAA.")
+    return None
 
 
 def load_settings() -> Settings:
@@ -43,6 +84,11 @@ def load_settings() -> Settings:
         max_excerpt_chars=int(os.environ.get("EXTRACTION_MAX_EXCERPT_CHARS", "200")),
         actor=os.environ.get("EXTRACTION_ACTOR", "evidence_extraction"),
         data_class=os.environ.get("EXTRACTION_DATA_CLASS", "").strip(),
+        provider=os.environ.get("EXTRACTION_PROVIDER", "openrouter").strip().lower() or "openrouter",
+        provider_mode=os.environ.get("EXTRACTION_PROVIDER_MODE", "hosted").strip().lower() or "hosted",
+        provider_has_baa=_env_bool("EXTRACTION_PROVIDER_HAS_BAA", False),
+        provider_allowed_data_classes=_csv_env("EXTRACTION_PROVIDER_ALLOWED_DATA_CLASSES", ("synthetic",)),
+        store_raw_attempt_response=_env_bool("EXTRACTION_STORE_RAW_ATTEMPT_RESPONSE", False),
     )
 
 
