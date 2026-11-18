@@ -331,8 +331,6 @@ def close_gap(conn: psycopg.Connection, gap_id: str, actor_user_id: int, actor: 
     )
     conn.commit()
     return {"gap_id": str(gap_uuid), "status": "open", "review_status": before}
-
-
 def clean_reviewer(reviewer: str | None) -> str:
     """The signed-in user's email, or the configured reviewer when none is given; raises ValueError for an unusable ID."""
     reviewer = (reviewer or "").strip() or SETTINGS.reviewer

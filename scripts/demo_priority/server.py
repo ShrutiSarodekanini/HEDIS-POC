@@ -4,12 +4,12 @@
 
 Shows the star position of every measure, the ranked work list per role, and for any gap exactly how its three
 scores were built. "Run scoring" appends a new scoring run. "Find evidence with AI" runs the real prompt builder,
-OpenRouter client and validator for one gap and shows the exact request and response; nothing is saved until
-"Save as proposed evidence" stores the kept findings (a simplified stand-in for the US-03 runner) and re-scores.
+OpenRouter client and validator for one gap and shows call metadata only; nothing is saved until "Save as proposed
+evidence" stores the kept findings (a simplified stand-in for the US-03 runner) and re-scores.
 
 Uses the database in the repo-root .env and its OPENROUTER_API_KEY / EXTRACTION_MODEL. Synthetic data only.
-The work list carries seed codes, measures and scores only; the evidence panel shows document text, which is
-synthetic in this POC. Listens on 127.0.0.1 only.
+The work list carries seed codes, measures and scores only; extraction responses do not include full prompts,
+raw model output, or page text. Listens on 127.0.0.1 only.
 """
 
 import json
@@ -20,6 +20,7 @@ import uuid
 from dataclasses import asdict
 from datetime import date
 from pathlib import Path
+from typing import Any
 
 import httpx
 import uvicorn
@@ -290,27 +291,84 @@ _LAST_RUN: dict[str, dict] = {}   # the last extraction per gap, so "save" store
 
 
 class _Capture(httpx.BaseTransport):
-    """Records the exact request and response, with the API key hidden."""
+    """Records call metadata only, so prompt and page text are never sent back to the browser."""
 
     def __init__(self) -> None:
         self.inner = httpx.HTTPTransport()
         self.exchanges: list[dict] = []
 
     def handle_request(self, request: httpx.Request) -> httpx.Response:
-        headers = {k: ("Bearer [hidden]" if k.lower() == "authorization" else v) for k, v in request.headers.items()}
         started = time.perf_counter()
         response = self.inner.handle_request(request)
         content = response.read()
         try:
-            body = json.loads(content)
+            request_body = json.loads(request.content)
         except json.JSONDecodeError:
-            body = content.decode("utf-8", errors="replace")
-        self.exchanges.append({"url": str(request.url), "headers": headers, "request": json.loads(request.content),
-                               "status": response.status_code, "seconds": round(time.perf_counter() - started, 2),
-                               "response": body})
+            request_body = {}
+        try:
+            response_body = json.loads(content)
+        except json.JSONDecodeError:
+            response_body = {}
+        self.exchanges.append({
+            "url": str(request.url),
+            "status": response.status_code,
+            "seconds": round(time.perf_counter() - started, 2),
+            "request_summary": _request_summary(request_body),
+            "response_summary": _response_summary(response_body),
+        })
         kept = [(k, v) for k, v in response.headers.multi_items()
                 if k.lower() not in ("content-encoding", "content-length", "transfer-encoding")]
         return httpx.Response(response.status_code, headers=kept, content=content, request=request)
+
+
+def _request_summary(payload: dict[str, Any]) -> dict[str, Any]:
+    """Return safe request metadata without prompt text."""
+    messages = payload.get("messages") if isinstance(payload, dict) else None
+    if not isinstance(messages, list):
+        messages = []
+    system_chars = 0
+    user_chars = 0
+    for message in messages:
+        if not isinstance(message, dict):
+            continue
+        role = message.get("role")
+        content = message.get("content")
+        if not isinstance(content, str):
+            continue
+        if role == "system":
+            system_chars += len(content)
+        elif role == "user":
+            user_chars += len(content)
+    return {
+        "model": payload.get("model") if isinstance(payload, dict) else None,
+        "message_count": len(messages),
+        "system_chars": system_chars,
+        "user_chars": user_chars,
+        "max_tokens": payload.get("max_tokens") if isinstance(payload, dict) else None,
+        "temperature": payload.get("temperature") if isinstance(payload, dict) else None,
+    }
+
+
+def _response_summary(payload: dict[str, Any]) -> dict[str, Any]:
+    """Return safe response metadata without model answer text."""
+    usage = payload.get("usage") if isinstance(payload, dict) else None
+    usage = usage if isinstance(usage, dict) else {}
+    choices = payload.get("choices") if isinstance(payload, dict) else None
+    finish_reason = None
+    if isinstance(choices, list) and choices and isinstance(choices[0], dict):
+        finish_reason = choices[0].get("finish_reason")
+    error = payload.get("error") if isinstance(payload, dict) else None
+    if isinstance(error, dict):
+        error = error.get("message") or "provider_error"
+    elif error is not None:
+        error = str(error)
+    return {
+        "model": payload.get("model") if isinstance(payload, dict) else None,
+        "finish_reason": finish_reason,
+        "prompt_tokens": usage.get("prompt_tokens"),
+        "output_tokens": usage.get("completion_tokens"),
+        "error": error,
+    }
 
 
 @app.post("/api/gaps/{key}/extract")
@@ -329,7 +387,7 @@ def extract(key: str) -> dict:
         conn.rollback()
     page_list = [{"document_id": p.document_id, "page_no": p.page_no, "doc_type": p.doc_type,
                   "document_date": p.document_date, "method": p.method, "handwritten": p.handwritten,
-                  "text": p.text} for p in pages]
+                  "text_chars": len(p.text)} for p in pages]
     if not pages:
         _LAST_RUN.pop(key, None)
         return {"pages": [], "calls": [], "kept": [], "dropped": [],
@@ -344,7 +402,7 @@ def extract(key: str) -> dict:
         except (ModelError, UnusableAnswer) as exc:
             calls.append({**(capture.exchanges[-1] if capture.exchanges else {}), "error": str(exc)})
             continue
-        calls.append({**capture.exchanges[-1], "answer": result.text, "model": result.model})
+        calls.append({**capture.exchanges[-1], "model": result.model})
         checked = validate(gap, measure, list(p.pages), findings)
         kept += [{**asdict(c), "model": result.model, "prompt_version": p.prompt_version} for c in checked.kept]
         dropped += [{"evidence_type": d.finding.evidence_type, "document_id": d.finding.document_id,

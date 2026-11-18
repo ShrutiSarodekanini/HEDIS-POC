@@ -289,12 +289,13 @@ class CalculationNotReadyError(LookupError):
 
 
 def start_recalculation(measure_ids: list[str] | None, selected_patient_ids: list[str] | None = None,
-                        actor_user_id: int | None = None) -> str:
-    """Run selected persisted patients, or every available patient when none are specified."""
+                        actor_user_id: int | None = None, batch: tuple[str, str] | None = None) -> str:
+    """Run selected persisted patients, or every available patient when none are specified. batch is the
+    (batch_id, ingest_job_id) to run in; when None, the latest calculation-ready batch."""
     with db.connect() as conn:
-        row = conn.execute("""SELECT batch_id, ingest_job_id FROM batch_run
-                               WHERE status IN ('ready', 'prioritized') AND ingest_job_id IS NOT NULL
-                               ORDER BY started_at DESC LIMIT 1""").fetchone()
+        row = batch or conn.execute("""SELECT batch_id, ingest_job_id FROM batch_run
+                                        WHERE status IN ('ready', 'prioritized') AND ingest_job_id IS NOT NULL
+                                        ORDER BY started_at DESC LIMIT 1""").fetchone()
         if row is not None:
             available_ids, _ = team_schema_loader.job_patients(conn, row[1])
         else:

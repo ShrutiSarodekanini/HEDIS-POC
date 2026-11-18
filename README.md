@@ -24,10 +24,13 @@ Values that matter most:
 | Key | Purpose |
 |---|---|
 | `DATABASE_URL` | Postgres connection, with the schema in `options=-csearch_path%3D<schema>` |
+| `FILE_ENCRYPTION_KEY`, `INTAKE_REQUIRE_ENCRYPTION` | Encrypt uploaded originals at rest (required by default) |
+| `INTAKE_DB_SSLMODE` | Intake DB transport mode (`require` by default) |
+| `INTAKE_VIRUS_SCAN`, `INTAKE_REQUIRE_SCAN` | Virus scanning and reject-on-scan-failure policy (both default to on) |
 | `OPENROUTER_API_KEY`, `EXTRACTION_MODEL` | AI evidence extraction (the model must be serving on OpenRouter) |
 | `HEDIS_BOOTSTRAP_ADMIN_EMAIL` | Email of the first admin, created at startup if no account has it (lowercase) |
 | `HEDIS_BOOTSTRAP_ADMIN_PASSWORD` | Password for that first admin, at least 8 characters; never changes an existing account |
-| `INTEGRATION_EVIDENCE_DIR` | Stored evidence documents, normally `data/evidence_store` |
+| `EXTRACTION_DATA_CLASS` | Must be `synthetic` for AI evidence to run; it confirms only synthetic data goes to OpenRouter |
 | `RABBITMQ_*` | Broker connection (defaults match `docker-compose.yml`) |
 | `GRAFANA_ADMIN_PASSWORD`, `GRAFANA_DB_PASSWORD` | Optional, for Grafana |
 
@@ -45,7 +48,7 @@ dispatcher, the workers and the UI.
 
 | Option | Use |
 |---|---|
-| `-Setup` | First run on an empty schema: also loads the reference data (measures, rules, star cut points) |
+| `-Setup` | First run on an empty schema: also loads the reference data (measures, rules, star cut points, evidence library) |
 | `-Install` | Reinstall packages and rebuild the measure engine, for example after a pull |
 | `-NoObservability` | Skip Prometheus, Grafana, Loki and Alloy |
 | `-Stop` | Stop everything the script started. Database and container data are kept |
@@ -87,6 +90,40 @@ names to run only some, for example `python scripts/run_workers.py measures evid
 
 The backend and the workers do not reload on code changes. Restart them after editing backend code.
 
+## Run as containers
+
+`docker-compose.deploy.yml` runs each component in its own container: ingestion, quality, measures, gap identifier,
+prioritization, AI evidence and stars, plus the API, the outbox dispatcher, the UI (nginx) and RabbitMQ. Postgres
+stays outside and is reached through `DATABASE_URL`.
+
+1. Copy `.env.deploy.example` to `.env.deploy` and fill in `DATABASE_URL` (use its own schema), `RABBITMQ_USER` and
+   `RABBITMQ_PASSWORD`. The containers read `.env` first, then `.env.deploy`.
+2. Build and start. The `migrate` job creates the schema and runs the migrations. The component images start from
+   two shared images, so build those first:
+
+   ```powershell
+   docker compose -p hedis-deploy -f docker-compose.deploy.yml --profile build build base engine
+   docker compose -p hedis-deploy -f docker-compose.deploy.yml up -d --build
+   ```
+
+3. Load the reference data, once per schema (a second run fails on a duplicate key, which is harmless):
+
+   ```powershell
+   docker compose -p hedis-deploy -f docker-compose.deploy.yml --profile setup run --rm seed
+   ```
+
+4. Open http://127.0.0.1:8080. RabbitMQ management is on http://localhost:15673.
+
+`scripts/run_containers.ps1` does steps 2 to 4 in one command (`-Setup` also loads the reference data, `-Stop` stops,
+`-Reset` removes the containers and volumes):
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/run_containers.ps1 -Setup
+```
+
+After changing `.env` or `.env.deploy`, run `up -d` again. `start` and `restart` keep the old values. `stop` keeps
+the data; `down -v` removes the containers and their volumes. Details are in `docs/deployment/CONTAINERS.md`.
+
 ## Pipeline
 
 An upload goes through these steps. Each step is a RabbitMQ queue, fed through the transactional outbox
@@ -116,7 +153,9 @@ python scripts/rabbitmq_dlq.py replay --queue measures.run --limit 10
 ```
 
 Synthetic test files are in `data/test_uploads`: upload `synthea_20_patients.zip`, or the CSV files in
-`cohort_4_patients/`, on the Data Ingestion page. Their evidence documents are in `data/evidence_store`.
+`cohort_4_patients/`, on the Data Ingestion page. Their evidence documents are stored in the `evidence_library`
+table, loaded from `data/seed/stored_evidence` with the reference data. For a schema loaded before that table
+existed, run `python scripts/db/load_seed.py --evidence-only` once.
 
 ## Database
 
@@ -131,7 +170,7 @@ schema that exists but belongs to another user is left alone; the script stops a
 TO` command a superuser runs.
 
 To start from scratch, drop the schema (`DROP SCHEMA <schema> CASCADE;`) and run the script with `-Setup`. The
-backend creates the default users at startup.
+backend creates the bootstrap admin from `.env` at startup.
 
 ## Monitoring
 
@@ -177,6 +216,7 @@ reason. Cut points follow the CMS 2027 Star Ratings Technical Notes.
 | `ui/` | React UI |
 | `observability/` | Prometheus, Grafana, Loki and Alloy |
 | `scripts/` | Start, worker, seed and maintenance scripts |
+| `docker/`, `ui/Dockerfile`, `docker-compose.deploy.yml` | One container image per component and the deployment |
 
 ## Tests
 

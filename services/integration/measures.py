@@ -1,13 +1,14 @@
 """Bridge B: run the measure engine for one batch and turn its results into measure_result rows and care gaps.
 
 For each loaded patient one FHIR bundle is written from fhir_resource_raw; the fqm-execution engine then runs in
-"detailed" mode for the nine measures in MEASURE_FOLDERS, called the same way the data ingestion service's /run-request-file
+"detailed" mode for the ten measures in MEASURE_FOLDERS, called the same way the data ingestion service's /run-request-file
 endpoint calls it (same command line, root library lookup and blood pressure bundle pruning, reused from that
 module). Every patient sent must come back for every measure, or the step fails with the counts.
 
 Gaps are the results in the denominator, not met and not excluded. Two measures need a bridge to the stored data
 (see INVERSE_MEASURES and COMBINED_BP_MEASURES below); the engine, its measures and its pruning are not changed.
-A later run closes open gaps it shows met or excluded.
+A later run closes open gaps it shows met or excluded. Confirmed supplemental data (supplemental.py) is added to each
+measure's own patient bundle, so a reviewer's approved evidence closes a gap only through an engine run.
 """
 
 import json
@@ -30,7 +31,7 @@ from services.data_ingestion.app.api import (
 )
 from services.document_intake.db import audit
 
-from . import metrics
+from . import metrics, supplemental
 from .config import SETTINGS, Settings
 
 log = logging.getLogger(__name__)
@@ -42,14 +43,27 @@ EXAMPLES = SETTINGS.engine_root / "examples"
 # measures and their cards show no star.
 MEASURE_FOLDERS = ("independent_public_bcse", "independent_public_cole", "independent_public_eed",
                    "independent_public_gsd", "independent_public_ked", "independent_public_cbp",
-                   "independent_public_aab", "independent_public_ccse", "independent_public_spd")
-LIBRARY_TO_MEASURE = {
+                   "independent_public_bpd", "independent_public_aab", "independent_public_ccse",
+                   "independent_public_spd")
+FOLDER_TO_MEASURE = {
+    "independent_public_bcse": "BCS-E",
+    "independent_public_cole": "COL-E",
+    "independent_public_eed": "EED",
+    "independent_public_gsd": "GSD",
+    "independent_public_ked": "KED",
+    "independent_public_cbp": "CBP",
+    "independent_public_bpd": "BPD",
+    "independent_public_aab": "AAB",
+    "independent_public_ccse": "CCS-E",
+    "independent_public_spd": "SPD",
+}
+KNOWN_ROOT_LIBRARIES = {
     "PublicBreastCancerScreeningTechnicalDemo": "BCS-E",
     "PublicColorectalCancerScreeningTechnicalDemo": "COL-E",
     "PublicEedDiabetesEyeExamTechnicalDemo": "EED",
     "PublicGsdGlycemicStatusTechnicalDemo": "GSD",
     "PublicKidneyHealthTechnicalDemo": "KED",
-    "CMS165FHIRControllingHighBP": "CBP",
+    "CMS165FHIRControllingHighBP": "CBP",  # also used by BPD artifacts
     "PublicAabAntibioticAvoidanceTechnicalDemo": "AAB",
     "CMS124FHIRCervicalCancerScreen": "CCS-E",
     "PublicSpdStatinTherapyTechnicalDemo": "SPD",
@@ -57,12 +71,13 @@ LIBRARY_TO_MEASURE = {
 GAP_NAMESPACE = uuid.UUID("6f0f4a52-4f59-4b7e-9a1e-2c8d3b7e5a10")
 BP_NAMESPACE = uuid.UUID("0d8f2c3e-6a1b-4f7d-9c55-3e2b8a41d7f6")
 
-# CBP (CMS165) reads blood pressure only from combined readings (US Core blood pressure profile) with systolic and
-# diastolic components. The CSV-to-FHIR mapping writes them as two separate Observations, so for CBP only, each pair
-# of the same encounter and time becomes one combined reading in the engine bundle. The separate ones are left out of
-# that file: the engine runs with --trust-meta-profile false, so it would read them as readings without components,
-# and the CQL's lowest-reading sort fails on them. Nothing stored changes; other measures get the bundle as stored.
-COMBINED_BP_MEASURES = {"CBP"}
+# The blood-pressure artifacts read blood pressure only from combined readings (US Core blood pressure profile) with
+# systolic and diastolic components. The CSV-to-FHIR mapping writes them as two separate Observations, so for those
+# measures, each pair of the same encounter and time becomes one combined reading in the engine bundle. The separate
+# ones are left out of that file: the engine runs with --trust-meta-profile false, so it would read them as readings
+# without components, and the CQL's lowest-reading sort fails on them. Nothing stored changes; other measures get the
+# bundle as stored.
+COMBINED_BP_MEASURES = {"CBP", "BPD"}
 SYSTOLIC, DIASTOLIC, BP_PANEL = "8480-6", "8462-4", "85354-9"
 US_CORE_BP = "http://hl7.org/fhir/us/core/StructureDefinition/us-core-blood-pressure"
 LOINC = "http://loinc.org"
@@ -123,25 +138,13 @@ WITH result AS (
              AS r(patient_id, met, excluded)
      WHERE r.met OR r.excluded
 ), closing AS (
-        SELECT g.gap_id, r.excluded, d.review_status AS before, reviewer_user.user_id AS reviewer_user_id
+    SELECT g.gap_id, r.excluded, d.review_status AS before
       FROM care_gap g
       JOIN result r ON r.patient_id = g.patient_id
       LEFT JOIN care_gap_detail d ON d.gap_id = g.gap_id
-            LEFT JOIN LATERAL (
-                    SELECT u.user_id
-                        FROM evidence_proposal p
-                        JOIN review_decisions rd ON rd.evidence_id = p.evidence_id AND rd.decision = 'confirmed'
-                        JOIN app_user u ON u.email = lower(rd.reviewer)
-                     WHERE p.gap_id = g.gap_id
-                     ORDER BY rd.decided_at DESC, rd.id DESC
-                     LIMIT 1
-            ) reviewer_user ON true
      WHERE g.measure_id = %(measure)s AND g.measurement_year = %(year)s AND g.status = 'open'
 ), closed AS (
-        UPDATE care_gap g
-             SET status = 'closed',
-                     closed_at = now(),
-                                         closed_by = coalesce(g.closed_by, %(closed_by_user_id)s, c.reviewer_user_id)
+    UPDATE care_gap g SET status = 'closed', closed_at = now()
       FROM closing c WHERE g.gap_id = c.gap_id
     RETURNING g.gap_id
 ), detail AS (
@@ -152,6 +155,29 @@ WITH result AS (
 )
 SELECT c.gap_id, c.before, CASE WHEN c.excluded THEN 'excluded' ELSE 'closed' END
   FROM closing c JOIN closed USING (gap_id)
+"""
+
+_REOPEN_GAPS = """
+WITH result AS (
+    SELECT * FROM unnest(%(patients)s::text[], %(needs_open)s::boolean[])
+             AS r(patient_id, needs_open)
+     WHERE r.needs_open
+), reopening AS (
+    SELECT g.gap_id, d.review_status AS before
+      FROM care_gap g
+      JOIN result r ON r.patient_id = g.patient_id
+      LEFT JOIN care_gap_detail d ON d.gap_id = g.gap_id
+     WHERE g.measure_id = %(measure)s AND g.measurement_year = %(year)s AND g.status = 'closed'
+), opened AS (
+    UPDATE care_gap g SET status = 'open', closed_at = NULL
+      FROM reopening r WHERE g.gap_id = r.gap_id
+    RETURNING g.gap_id
+), detail AS (
+    UPDATE care_gap_detail d SET review_status = 'open', updated_at = now()
+      FROM reopening r WHERE d.gap_id = r.gap_id
+    RETURNING d.gap_id
+)
+SELECT r.gap_id, r.before FROM reopening r JOIN opened USING (gap_id)
 """
 
 _GAP_DETAILS = """
@@ -203,10 +229,14 @@ class EngineRun:
     run_id: str
     patients: int
     measures: dict[str, MeasureOutcome] = field(default_factory=dict)
+    supplemental_used: int = 0
+    supplemental_unusable: list[supplemental.Unusable] = field(default_factory=list)
 
     def counts(self) -> dict:
         return {"engine_run_id": self.run_id, "patients": self.patients,
                 "measures": {m: vars(o) for m, o in self.measures.items()},
+                "supplemental_used": self.supplemental_used,
+                "supplemental_unusable": [vars(u) for u in self.supplemental_unusable],
                 "gaps_open": sum(o.gaps_open for o in self.measures.values()),
                 "gaps_closed_by_engine": sum(o.gaps_closed for o in self.measures.values())}
 
@@ -217,14 +247,17 @@ def measure_bundles() -> list[MeasureBundle]:
     for folder in MEASURE_FOLDERS:
         path = next((EXAMPLES / folder).glob("*-bundle.json"))
         library = _extract_root_library_reference(path)
-        if library not in LIBRARY_TO_MEASURE:
+        if library not in KNOWN_ROOT_LIBRARIES:
             raise LookupError(f"measure bundle {path.name} has library {library}, which is not mapped to a measure")
+        measure_id = FOLDER_TO_MEASURE.get(folder)
+        if measure_id is None:
+            raise LookupError(f"measure bundle folder {folder} is not mapped to a measure")
         entries = json.loads(path.read_text(encoding="utf-8")).get("entry", [])
         version = next((e["resource"].get("version") for e in entries
                         if e["resource"].get("resourceType") == "Library" and library in (e["resource"].get("id"),
                                                                                           e["resource"].get("name"))),
                        None)
-        found.append(MeasureBundle(LIBRARY_TO_MEASURE[library], path, library, version))
+        found.append(MeasureBundle(measure_id, path, library, version))
     return found
 
 
@@ -232,7 +265,7 @@ def run_measures(conn: psycopg.Connection, patient_ids: list[str], attributed_or
                  batch_label: str, ingest_job_id: str, settings: Settings = SETTINGS,
                  measure_ids: list[str] | None = None, actor_user_id: int | None = None) -> EngineRun:
     """Run the engine for these patients (all measures, or the chosen ones) and write results and gaps in the
-    caller's transaction."""
+    caller's transaction. actor_user_id is the signed-in user who asked for the run, recorded on each gap it closes."""
     bundles = measure_bundles()
     if measure_ids:
         unknown = set(measure_ids) - {b.measure_id for b in bundles}
@@ -252,7 +285,13 @@ def run_measures(conn: psycopg.Connection, patient_ids: list[str], attributed_or
              "services/measure_calc/engine/examples"))
         names = dict(conn.execute("SELECT measure_id, name FROM measure_rule WHERE measurement_year = %s",
                                   (year,)).fetchall())
-        evaluations = _evaluate_measures(bundles, files, work, settings)
+        inputs = supplemental.load(conn, list(files), year)
+        wanted = {b.measure_id for b in bundles}
+        run.supplemental_used = sum(1 for key in inputs.resources if key[1] in wanted)
+        run.supplemental_unusable = [u for u in inputs.unusable if u.measure_id in wanted]
+        for unusable in run.supplemental_unusable:
+            log.warning("supplemental record %s not sent to the engine: %s", unusable.record_id, unusable.reason)
+        evaluations = _evaluate_measures(bundles, files, work, settings, inputs.resources)
         for bundle in bundles:
             populations = evaluations[bundle.measure_id]
             run.measures[bundle.measure_id] = _write_results(conn, bundle, populations, attributed_org, run.run_id,
@@ -317,19 +356,22 @@ def _normalize_measure_bundle_fields(bundle_text: str) -> str:
     return json.dumps(bundle) if changed else bundle_text
 
 
-def _evaluate_measures(bundles: list[MeasureBundle], files: dict[str, Path], work: Path,
-                       settings: Settings) -> dict[str, dict[str, dict]]:
+def _evaluate_measures(bundles: list[MeasureBundle], files: dict[str, Path], work: Path, settings: Settings,
+                       extra: dict[tuple[str, str], list[dict]] | None = None) -> dict[str, dict[str, dict]]:
     """Evaluate independent measures concurrently while retaining deterministic result persistence."""
     worker_count = min(settings.engine_workers, len(bundles))
     if worker_count == 1:
-        return {bundle.measure_id: _evaluate(bundle, files, work, settings) for bundle in bundles}
+        return {bundle.measure_id: _evaluate(bundle, files, work, settings, extra) for bundle in bundles}
     with ThreadPoolExecutor(max_workers=worker_count, thread_name_prefix="hedis-measure") as executor:
-        futures = {bundle.measure_id: executor.submit(_evaluate, bundle, files, work, settings) for bundle in bundles}
+        futures = {bundle.measure_id: executor.submit(_evaluate, bundle, files, work, settings, extra)
+                   for bundle in bundles}
         return {bundle.measure_id: futures[bundle.measure_id].result() for bundle in bundles}
 
 
-def _evaluate(bundle: MeasureBundle, files: dict[str, Path], work: Path, settings: Settings) -> dict[str, dict]:
-    """Engine populations per patient for one measure, in chunks so Node's memory stays bounded."""
+def _evaluate(bundle: MeasureBundle, files: dict[str, Path], work: Path, settings: Settings,
+              extra: dict[tuple[str, str], list[dict]] | None = None) -> dict[str, dict]:
+    """Engine populations per patient for one measure, in chunks so Node's memory stays bounded. extra holds the
+    supplemental resources per (patient_id, measure_id); each goes only into its own measure's copy."""
     root_ref = _extract_root_library_reference(bundle.path)
     patients = list(files)
     results: dict[str, dict] = {}
@@ -341,6 +383,7 @@ def _evaluate(bundle: MeasureBundle, files: dict[str, Path], work: Path, setting
             copy = work / bundle.measure_id / files[patient_id].name
             copy.parent.mkdir(parents=True, exist_ok=True)
             shutil.copyfile(files[patient_id], copy)
+            _add_supplemental(copy, (extra or {}).get((patient_id, bundle.measure_id), []))
             added = _add_combined_bp(copy) if bundle.measure_id in COMBINED_BP_MEASURES else 0
             _prune_patient_bundle(copy, bundle)
             if added and _count_code(copy, BP_PANEL) < added:
@@ -364,6 +407,15 @@ def _evaluate(bundle: MeasureBundle, files: dict[str, Path], work: Path, setting
     return results
 
 
+def _add_supplemental(path: Path, resources: list[dict]) -> None:
+    """Append a patient's supplemental resources for this measure to its bundle copy."""
+    if not resources:
+        return
+    bundle = json.loads(path.read_text(encoding="utf-8"))
+    bundle.setdefault("entry", []).extend({"resource": r} for r in resources)
+    path.write_text(json.dumps(bundle), encoding="utf-8")
+
+
 def _code(resource: dict) -> str | None:
     codings = (resource.get("code") or {}).get("coding") or [{}]
     return codings[0].get("code")
@@ -375,10 +427,10 @@ def _count_code(path: Path, code: str) -> int:
 
 
 def _prune_patient_bundle(path: Path, measure: MeasureBundle) -> None:
-    """Apply generic pruning and, for CBP, retain the resource types its measure artifact declares."""
+    """Apply generic pruning and, for blood-pressure measures, retain the resource types their artifact declares."""
     patient_bundle = json.loads(path.read_text(encoding="utf-8"))
     _maybe_prune_run_request_bundle(patient_bundle, measure.measure_id, measure.path)
-    if measure.measure_id == "CBP":
+    if measure.measure_id in COMBINED_BP_MEASURES:
         definition = json.loads(measure.path.read_text(encoding="utf-8"))
         value_set_codes: dict[str, set[tuple[str | None, str]]] = {}
         for entry in definition.get("entry", []):
@@ -418,7 +470,7 @@ def _prune_patient_bundle(path: Path, measure: MeasureBundle) -> None:
 
 def _tag_cbp_profiles(entries: list[dict], definition: dict,
                       value_set_codes: dict[str, set[tuple[str | None, str]]]) -> None:
-    """Tag each kept resource with the profiles CBP declares for it, so CBP can run with meta profiles trusted.
+    """Tag each kept resource with the profiles the measure declares, so BP measures can trust meta profiles.
     Untrusted, [USCoreBloodPressureProfile] returns every Observation, and a non-BP one on the latest BP day
     (housing status, kept for the frailty exclusion) has no systolic value, which crashes the engine's sort."""
     type_profiles: dict[str, set[str]] = {}
@@ -543,7 +595,7 @@ def _call_engine(bundle: MeasureBundle, root_ref: str | None, paths: list[str], 
     cmd = ["node", f"--max-old-space-size={settings.engine_node_heap_mb}", str(cli), "detailed",
            "--measure-bundle", str(bundle.path), "--patient-bundles", *paths,
            "--measurement-period-start", f"{year}-01-01", "--measurement-period-end", f"{year}-12-31",
-           # CBP bundles are profile-tagged in _tag_cbp_profiles; the other measures' bundles are not.
+           # Blood-pressure bundles are profile-tagged in _tag_cbp_profiles; the other measures' bundles are not.
            "--trust-meta-profile", "true" if bundle.measure_id in COMBINED_BP_MEASURES else "false"]
     if root_ref:
         cmd.extend(["--root-lib-ref", root_ref])
@@ -592,6 +644,8 @@ def _write_results(conn: psycopg.Connection, bundle: MeasureBundle, populations:
     conn.execute(_GAP_DETAILS, (run_id, gap_ids, [attributed_org.get(p) for p in gap_patients]))
     closed = _close_met_gaps(conn, bundle.measure_id, year, run_id, patients, [d and n for d, n in zip(den, num)],
                              exc, actor_user_id)
+    _reopen_not_met_gaps(conn, bundle.measure_id, year, run_id, patients,
+                         [d and not n and not e for d, n, e in zip(den, num, exc)], actor_user_id)
     return MeasureOutcome(denominator=sum(den), numerator=sum(d and n for d, n in zip(den, num)), excluded=sum(exc),
                           gaps_new=new, gaps_open=len(gap_patients), gaps_closed=closed)
 
@@ -627,13 +681,31 @@ def _close_met_gaps(conn: psycopg.Connection, measure_id: str, year: int, run_id
             "patients": patients,
             "met": met,
             "excluded": excluded,
-            "closed_by_user_id": actor_user_id,
         },
     ).fetchall()
     for gap_id, review_before, review_after in rows:
         audit(conn, "care_gap", str(gap_id), "gap.closed_by_engine",
               {"measure_id": measure_id, "engine_run_id": run_id, "review_status_before": review_before,
-               "review_status": review_after}, actor=SETTINGS.actor)
+               "review_status": review_after, "requested_by_user_id": actor_user_id}, actor=SETTINGS.actor)
+    return len(rows)
+
+
+def _reopen_not_met_gaps(conn: psycopg.Connection, measure_id: str, year: int, run_id: str, patients: list[str],
+                         needs_open: list[bool], actor_user_id: int | None) -> int:
+    """Reopen this measure's closed gaps whose patient this run shows as a current open gap; one audit event each."""
+    rows = conn.execute(
+        _REOPEN_GAPS,
+        {
+            "measure": measure_id,
+            "year": year,
+            "patients": patients,
+            "needs_open": needs_open,
+        },
+    ).fetchall()
+    for gap_id, review_before in rows:
+        audit(conn, "care_gap", str(gap_id), "gap.reopened_by_engine",
+              {"measure_id": measure_id, "engine_run_id": run_id, "review_status_before": review_before,
+               "review_status": "open", "requested_by_user_id": actor_user_id}, actor=SETTINGS.actor)
     return len(rows)
 
 

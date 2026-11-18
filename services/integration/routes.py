@@ -28,7 +28,7 @@ from services.document_intake import api as intake_api
 from services.document_intake import db
 from services.gap_priority.config import load_rules
 
-from . import auth, dq_checks, evidence, export, openrouter_status, pipeline, quality, reset, stars, work
+from . import auth, dq_checks, evidence, export, gap_rerun, openrouter_status, pipeline, quality, reset, stars, work
 from .config import SETTINGS
 
 log = logging.getLogger(__name__)
@@ -186,6 +186,12 @@ def build_router(current_user_dep: Callable[..., auth.AuthUser],
                   user: auth.AuthUser = Depends(current_user_dep)) -> dict:
         return evidence.close_gap(conn, gap_id, user.user_id, user.email)
 
+    @router.post("/api/gaps/{gap_id}/rerun")
+    @track("rerun gap")
+    def rerun_gap(gap_id: str, conn: psycopg.Connection = Depends(get_conn),
+                  user: auth.AuthUser = Depends(current_user_dep)) -> dict:
+        return gap_rerun.request_rerun(conn, gap_id, user.user_id, user.email)
+
     @router.post("/api/evidence/{proposal_id}/decision")
     @app_metrics.track_evidence
     def decide(proposal_id: str, body: DecisionIn, conn: psycopg.Connection = Depends(get_conn),
@@ -213,7 +219,8 @@ def build_router(current_user_dep: Callable[..., auth.AuthUser],
         version = conn.execute("SELECT version_num FROM alembic_version").fetchone()[0]
         return {"status": "ok", "schema": schema, "migration": version, "rules_version": load_rules().version,
                 "engine_built": (SETTINGS.engine_root / "build" / "cli.js").exists(),
-                "evidence_dir_set": SETTINGS.evidence_dir is not None, "reset_allowed": reset.allowed(),
+                "evidence_library_documents": conn.execute("SELECT count(*) FROM evidence_library").fetchone()[0],
+                "reset_allowed": reset.allowed(),
                 "openrouter": openrouter_status.status(),
                 "services": {"ingestion": {"prefix": "/api/ingestion", "schema": schema},
                              "quality": {**dq_checks.status(), "schema": schema}}}

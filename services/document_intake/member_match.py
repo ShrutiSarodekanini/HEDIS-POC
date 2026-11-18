@@ -100,8 +100,7 @@ def link_file(conn: psycopg.Connection, source_file_id: int, member_id: str, act
                (SELECT document_reference_id FROM document_conversion WHERE source_file_id = %s)""",
         (patient[0], source_file_id))
     audit(conn, "source_file", str(source_file_id), "file.member_linked",
-          {"member_id": member_id, "patient_id": patient[0], "previous_patient_id": row[0],
-           "previous_match_status": row[1], "manual": True}, actor=actor)
+          {"had_previous_patient": row[0] is not None, "previous_match_status": row[1], "manual": True}, actor=actor)
 
 
 def _candidate(member: _Member, reason: str) -> dict:

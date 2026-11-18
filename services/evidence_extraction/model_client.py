@@ -161,6 +161,15 @@ class OpenRouterClient:
         return response.text.replace(self._key, "[redacted]")[:BODY_EXCERPT_CHARS]
 
 
+def assert_hosted_model_allowed(settings: Settings = SETTINGS) -> None:
+    """Hosted-model extraction is fail-closed: only explicit synthetic data may be sent to OpenRouter."""
+    if settings.data_class != "synthetic":
+        raise ValueError(
+            "AI evidence is off: set EXTRACTION_DATA_CLASS=synthetic in .env to confirm only synthetic data is "
+            "sent to OpenRouter."
+        )
+
+
 def _retry_after_s(response: httpx.Response) -> float:
     """Seconds to wait after a 429, capped so one rate-limited gap cannot stall a whole run."""
     try:

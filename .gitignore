@@ -2,6 +2,8 @@
 .env
 .env.*
 !.env.example
+.env.deploy
+!.env.deploy.example
 
 # Python
 __pycache__/
@@ -70,21 +72,9 @@ generated_evidence/
 API_TESTING_GUIDE.md
 tests/
 !tests/
-tests/*
-!tests/test_rabbitmq_pipeline.py
-!tests/star_calculation/
-tests/star_calculation/*
-!tests/star_calculation/test_star_dashboard_parity.py
-!tests/integration/
-tests/integration/*
-!tests/integration/test_supplemental_measure_results.py
-!tests/data_ingestion/
-tests/data_ingestion/*
-!tests/data_ingestion/test_adapter_contract.py
-!tests/data_ingestion/test_claims_837_adapter.py
-!tests/data_ingestion/test_fhir_adapter.py
-!tests/data_ingestion/test_ncpdp_pharmacy_adapter.py
-!tests/data_ingestion/test_team_schema_loader.py
+!tests/**/*.py
+!tests/**/
+tests/**/__pycache__/
 env/
 ENV/
 .mypy_cache/
