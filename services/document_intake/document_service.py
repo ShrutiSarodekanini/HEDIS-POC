@@ -70,9 +70,10 @@ def save_conversion(conn: psycopg.Connection, document_id: str, result: Conversi
     conn.execute("DELETE FROM page_words WHERE page_id IN (SELECT id FROM document_pages WHERE document_reference_id = %s)",
                  (document_id,))
     conn.execute("DELETE FROM document_pages WHERE document_reference_id = %s", (document_id,))
+    conn.execute("DELETE FROM page_image WHERE document_reference_id = %s", (document_id,))
 
     for page in sorted(result.pages, key=lambda p: p.page_no):
-        image_path = save_page_image(document_id, page.page_no, page.image_png) if page.image_png else None
+        image_path = save_page_image(conn, document_id, page.page_no, page.image_png) if page.image_png else None
         page_id = conn.execute(
             """INSERT INTO document_pages (document_reference_id, page_no, text, method, confidence, image_path, handwritten,
                    low_confidence, ocr_engine)

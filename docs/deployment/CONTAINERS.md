@@ -222,7 +222,8 @@ error, and the overview dashboard and the Prometheus and Loki panels still work.
   requirements.txt has no upper bound, and fastapi 0.16x breaks the Prometheus middleware (500 on every route).
 - Dataset uploads are saved under `./.uploaded_datasets` by the code; in the image that path links into the shared
   volume (`/data/uploaded_datasets`) so the ingestion container can read what the api container received.
-- Document intake files go to `/data/intake_store` (`INTAKE_STORE_DIR`) in the same volume.
+- Document originals, page images and the evidence library are not files: they are stored in the database as plain
+  bytes.
 - Handwriting OCR uses a local Ollama model at `OLLAMA_URL` (default `http://localhost:11434`), which inside a
   container is the container itself. To use the host's Ollama, set `OLLAMA_URL=http://host.docker.internal:11434`
   in `.env.deploy`. Printed text is read by Tesseract, which is in the api and ai-evidence images.

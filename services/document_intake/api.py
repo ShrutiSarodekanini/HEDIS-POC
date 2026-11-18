@@ -5,16 +5,13 @@ Run: python -m uvicorn services.document_intake.api:app --port 8765
 
 import logging
 from datetime import date, datetime
-from pathlib import Path
 from typing import Iterator, Literal
 
 import psycopg
-from fastapi import Depends, FastAPI, HTTPException, Query
-from fastapi.responses import FileResponse
+from fastapi import Depends, FastAPI, HTTPException, Query, Response
 from pydantic import BaseModel
 
-from . import db, intake
-from .config import REPO_ROOT
+from . import db, intake, storage
 
 log = logging.getLogger(__name__)
 
@@ -132,11 +129,10 @@ def get_page_image(document_id: str, page_no: int, conn: psycopg.Connection = De
         raise HTTPException(status_code=404, detail=f"page {page_no} of document {document_id} not found")
     if not row[0]:
         raise HTTPException(status_code=404, detail="this page has no image")
-    path = Path(row[0])
-    path = path if path.is_absolute() else REPO_ROOT / path
-    if not path.is_file():
+    png = storage.read_page_image(conn, document_id, page_no)
+    if png is None:
         raise HTTPException(status_code=404, detail="the page image file is missing from storage")
-    return FileResponse(path, media_type="image/png")
+    return Response(content=png, media_type="image/png")
 
 
 try:

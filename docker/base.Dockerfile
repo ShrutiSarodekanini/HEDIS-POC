@@ -9,7 +9,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 # Dataset uploads are saved under ./.uploaded_datasets (fixed in the code); the link puts them in the shared volume.
 RUN useradd --create-home --uid 10001 app \
-    && mkdir -p /app/logs /data/work /data/generated_evidence /data/intake_store /data/uploaded_datasets \
+    && mkdir -p /app/logs /data/work /data/generated_evidence /data/uploaded_datasets \
     && ln -s /data/uploaded_datasets /app/.uploaded_datasets \
     && chown -R app:app /app /data
 

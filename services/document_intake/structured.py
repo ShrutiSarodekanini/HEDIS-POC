@@ -586,6 +586,7 @@ def _clear_previous_load(conn: psycopg.Connection, source_file_id: int) -> dict:
         conn.execute("DELETE FROM page_words WHERE page_id IN "
                      "(SELECT id FROM document_pages WHERE document_reference_id = ANY(%s))", (doc_ids,))
         conn.execute("DELETE FROM document_pages WHERE document_reference_id = ANY(%s)", (doc_ids,))
+        conn.execute("DELETE FROM page_image WHERE document_reference_id = ANY(%s)", (doc_ids,))
         conn.execute("DELETE FROM document_conversion WHERE document_reference_id = ANY(%s)", (doc_ids,))
         conn.execute("DELETE FROM document_reference WHERE document_reference_id = ANY(%s)", (doc_ids,))
     removed = conn.execute("DELETE FROM structured_records WHERE source_file_id = %s", (source_file_id,)).rowcount

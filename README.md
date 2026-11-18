@@ -174,6 +174,10 @@ TO` command a superuser runs.
 To start from scratch, drop the schema (`DROP SCHEMA <schema> CASCADE;`) and run the script with `-Setup`. The
 backend creates the bootstrap admin from `.env` at startup.
 
+Uploaded documents, their page images and the evidence library are stored in the database as plain bytes
+(`stored_file`, `page_image`, `evidence_library`); nothing is written to `data/intake_store`. Schemas that received
+uploads before this change point at files on disk and are not supported; start from a fresh schema.
+
 ## Monitoring
 
 The backend serves Prometheus metrics at http://localhost:8000/metrics. Prometheus scrapes them as job `hedis-api`.
