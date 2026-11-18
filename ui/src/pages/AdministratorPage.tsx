@@ -3,7 +3,6 @@ import { useCallback, useEffect, useMemo, useState } from "react"
 import type { AdminUserRecord, AuthRole } from "../models/auth"
 import { listAdminUsers, resetUserPassword, updateUserAccess, updateUserRole } from "../services/auth.service"
 import { toRequestErrorMessage } from "../services/http"
-import { AUTH_ROLES, ROLE_LABELS, roleLabel } from "../utils/access"
 import { formatDateTime } from "../utils/format"
 
 interface AdministratorPageProps {
@@ -22,6 +21,10 @@ const statusClass = (status: AdminUserRecord["access_status"]): string => {
 }
 
 const labelCase = (value: string): string => `${value.charAt(0).toUpperCase()}${value.slice(1)}`
+
+const roleDisplay = (role: string): string => role === "admin" ? "Administrator" : "User"
+
+const AVAILABLE_ROLES: AuthRole[] = ["admin", "user"]
 
 export function AdministratorPage({ actorEmail, actorRole }: AdministratorPageProps) {
   const [users, setUsers] = useState<AdminUserRecord[]>([])
@@ -185,7 +188,7 @@ export function AdministratorPage({ actorEmail, actorRole }: AdministratorPagePr
                   <tr key={user.user_id}>
                     <td>{user.email}</td>
                     <td><span className={statusClass(user.access_status)}>{labelCase(user.access_status)}</span></td>
-                    <td>{roleLabel(user.role)}</td>
+                    <td>{roleDisplay(user.role)}</td>
                     <td>{formatDateTime(user.created_at)}</td>
                     <td>
                       {isActor ? (
@@ -283,8 +286,8 @@ export function AdministratorPage({ actorEmail, actorRole }: AdministratorPagePr
                             })()
                           }}
                         >
-                          {AUTH_ROLES.map((role) => (
-                            <option key={role} value={role}>{ROLE_LABELS[role]}</option>
+                          {AVAILABLE_ROLES.map((role) => (
+                            <option key={role} value={role}>{roleDisplay(role)}</option>
                           ))}
                         </select>
                       )}

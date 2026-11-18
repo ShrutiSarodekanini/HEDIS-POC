@@ -2,14 +2,13 @@ from __future__ import annotations
 
 import asyncio
 import datetime as dt
-import functools
 import json
 import logging
 import os
 import threading
 import uuid
 from collections import defaultdict
-from collections.abc import Callable, Iterator
+from collections.abc import Iterator
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Literal
@@ -118,7 +117,7 @@ class UserAccessIn(BaseModel):
 
 
 class UserRoleIn(BaseModel):
-    role: Literal["admin", "analyst", "abstractor", "outreach", "auditor"]
+    role: Literal["admin", "user"]
 
 
 class UserPasswordIn(BaseModel):
@@ -147,40 +146,23 @@ def admin_auth_user(user: integration_auth.AuthUser = Depends(current_auth_user)
     return integration_auth.ensure_admin(user)
 
 
-@functools.cache
-def requires(permission: str) -> Callable[..., integration_auth.AuthUser]:
-    """A dependency: the signed-in user, or 403 unless their role has this permission (integration_auth.PERMISSIONS).
-    Cached, so each permission is one dependency FastAPI can reuse within a request."""
-    integration_auth.PERMISSIONS[permission]  # an unknown permission fails at startup, not on the first request
-
-    def dependency(user: integration_auth.AuthUser = Depends(current_auth_user)) -> integration_auth.AuthUser:
-        return integration_auth.ensure_permission(user, permission)
-
-    dependency.__name__ = f"requires_{permission}"
-    return dependency
-
-
 def _ingestion_routes() -> APIRouter:
-    """Expose ingestion endpoints under /api/ingestion for UI compatibility. Reads return patient records, so they need
-    view_records; every write (uploads, job start, persist) is an administrator action."""
+    """Expose ingestion endpoints under /api/ingestion for UI compatibility."""
     router = APIRouter()
     for route in ingestion_api.router.routes:
         if isinstance(route, APIRoute):
-            reads_only = route.methods <= {"GET", "HEAD"}
             router.add_api_route(
                 route.path.removeprefix(ingestion_api.router.prefix),
                 route.endpoint,
                 methods=sorted(route.methods),
                 name=f"ingestion_{route.name}",
-                dependencies=[Depends(requires("view_records" if reads_only else "admin"))],
             )
         elif isinstance(route, APIWebSocketRoute):
-            # Live batch progress (/ws/batch/{batch_id}) for the pipeline monitor page: counts only.
+            # Live batch progress (/ws/batch/{batch_id}) for the pipeline monitor page.
             router.add_api_websocket_route(
                 route.path.removeprefix(ingestion_api.router.prefix),
                 route.endpoint,
                 name=f"ingestion_{route.name}",
-                dependencies=[Depends(requires("view"))],
             )
     return router
 
@@ -1375,7 +1357,7 @@ def create_app(
         actor: integration_auth.AuthUser = Depends(admin_auth_user),
     ) -> dict:
         try:
-            updated = integration_auth.set_access_status(conn, user_id, body.access_status, actor)
+            updated = integration_auth.set_access_status(conn, user_id, body.access_status, actor.user_id)
         except LookupError as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
         except ValueError as exc:
@@ -1392,7 +1374,7 @@ def create_app(
         actor: integration_auth.AuthUser = Depends(admin_auth_user),
     ) -> dict:
         try:
-            updated = integration_auth.set_role(conn, user_id, body.role, actor)
+            updated = integration_auth.set_role(conn, user_id, body.role, actor.user_id)
         except LookupError as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
         except ValueError as exc:
@@ -1424,7 +1406,6 @@ def create_app(
     def star_rating_calculate(
         request: StarRatingRequest,
         session: Session = Depends(database.get_session),
-        _: integration_auth.AuthUser = Depends(requires("view")),
     ):
         rating = assign_star_from_sqlalchemy(
             session,
@@ -1473,7 +1454,6 @@ def create_app(
     def star_rating_compare(
         request: StarRatingComparisonRequest,
         session: Session = Depends(database.get_session),
-        _: integration_auth.AuthUser = Depends(requires("view")),
     ):
         before_result = assign_star_from_sqlalchemy(
             session,
@@ -1501,8 +1481,7 @@ def create_app(
 
     @app.get("/api/star-rating/catalog")
     @app_metrics.track_route("star catalog")
-    def star_rating_catalog(session: Session = Depends(database.get_session),
-                            _: integration_auth.AuthUser = Depends(requires("view"))):
+    def star_rating_catalog(session: Session = Depends(database.get_session)):
         rows = session.execute(
             text(
                 """SELECT d.measure_id,
@@ -1563,7 +1542,6 @@ def create_app(
     def generate_evidence(
         request: GenerateEvidenceRequest,
         session: Session = Depends(database.get_session),
-        _: integration_auth.AuthUser = Depends(requires("admin")),
     ):
         repo = Repository(session)
         try:
@@ -1619,11 +1597,9 @@ def create_app(
         except Exception as exc:
             if destination.exists():
                 destination.unlink()
-            # The exception text can carry member data or server paths, so the client gets the type only.
-            logging.getLogger(__name__).error("evidence %s generation failed: %s", evidence_id, type(exc).__name__)
             raise HTTPException(
                 status_code=500,
-                detail=f"Evidence generation failed ({type(exc).__name__}). See the server log.",
+                detail=f"Evidence generation failed: {exc}",
             ) from exc
 
         return {
@@ -1634,12 +1610,12 @@ def create_app(
             "document_id": evidence_data.document_id,
             "format": requested_format,
             "file_name": file_name,
+            "file_path": str(destination.resolve()),
         }
 
     @app.post("/api/automation/process-gaps")
     @app_metrics.track_process_gaps
-    def process_gaps(session: Session = Depends(database.get_session),
-                     _: integration_auth.AuthUser = Depends(admin_auth_user)):
+    def process_gaps(session: Session = Depends(database.get_session)):
         repo = Repository(session)
         return _process_gap_automation(repo, cfg)
 
@@ -1648,7 +1624,6 @@ def create_app(
     def star_dashboard_calculate(
         request: StarDashboardRequest,
         session: Session = Depends(database.get_session),
-        _: integration_auth.AuthUser = Depends(requires("view")),
     ):
         return _build_star_dashboard(
             session,
@@ -1658,8 +1633,7 @@ def create_app(
 
     @app.post("/api/star-dashboard/seed-sample-data")
     @app_metrics.track_seed
-    def star_dashboard_seed_sample_data(session: Session = Depends(database.get_session),
-                                        _: integration_auth.AuthUser = Depends(admin_auth_user)):
+    def star_dashboard_seed_sample_data(session: Session = Depends(database.get_session)):
         with _seed_lock:
             try:
                 inserted = _seed_dashboard_sample_data(session)
@@ -1698,7 +1672,7 @@ app = create_app()
 # Ingestion: reads need view_records, uploads and job actions need admin, the progress websocket needs view.
 app.include_router(_ingestion_routes(), prefix="/api/ingestion")
 # The integration endpoints (formerly the 8780 app): batches, work list, AI evidence, export, quality, stars, health.
-app.include_router(integration_routes.build_router(requires))
+app.include_router(integration_routes.build_router(current_auth_user, admin_auth_user))
 
 
 def _ensure_route_paths(routes: list[object]) -> None:
@@ -1718,14 +1692,14 @@ Instrumentator(should_group_untemplated=True).instrument(app).expose(app, endpoi
 
 @app.get("/api/flow")
 @app_metrics.track_route("ingestion flow")
-def ingestion_flow_snapshot(_: integration_auth.AuthUser = Depends(requires("view"))) -> dict[str, object]:
+def ingestion_flow_snapshot(_: integration_auth.AuthUser = Depends(current_auth_user)) -> dict[str, object]:
     """Return the persisted integration workflow state for the ingestion UI."""
     with intake_db.connect() as conn:
         return integration_pipeline.flow(conn)
 
 
 @app.get("/api/calculation")
-def get_calculation(_: integration_auth.AuthUser = Depends(requires("view"))) -> dict:
+def get_calculation(_: integration_auth.AuthUser = Depends(current_auth_user)) -> dict:
     """Return stored HEDIS engine populations and gaps for the calculation screen."""
     with intake_db.connect() as conn:
         return integration_calculation.overview(conn)
@@ -1733,20 +1707,20 @@ def get_calculation(_: integration_auth.AuthUser = Depends(requires("view"))) ->
 
 @app.get("/api/calculation/patients")
 def get_calculation_candidates(offset: int = 0, limit: int = 10,
-                               _: integration_auth.AuthUser = Depends(requires("view_records"))) -> dict:
+                               _: integration_auth.AuthUser = Depends(current_auth_user)) -> dict:
     with intake_db.connect() as conn:
         return integration_calculation.run_candidates(conn, offset, limit)
 
 
 @app.get("/api/calculation/{measure_id}/patients")
-def get_calculation_patients(measure_id: str, _: integration_auth.AuthUser = Depends(requires("view_records"))) -> dict:
+def get_calculation_patients(measure_id: str, _: integration_auth.AuthUser = Depends(current_auth_user)) -> dict:
     with intake_db.connect() as conn:
         return integration_calculation.patients(conn, measure_id)
 
 
 @app.post("/api/calculation/run", status_code=202)
 def run_calculation(body: CalculationRequest | None = None,
-                    user: integration_auth.AuthUser = Depends(requires("calculate"))) -> dict:
+                    user: integration_auth.AuthUser = Depends(current_auth_user)) -> dict:
     """Run selected measures for supplied patients, or every available persisted patient by default."""
     try:
         batch_id = integration_pipeline.start_recalculation(

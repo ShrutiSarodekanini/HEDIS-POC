@@ -1,5 +1,6 @@
 import type { AuthRole, AuthSession, AuthUser } from "../models/auth"
-import { AUTH_ROLES } from "../utils/access"
+
+const VALID_ROLES: readonly string[] = ["admin", "user"]
 
 const AUTH_SESSION_STORAGE_KEY = "hedis.ui.auth.session"
 
@@ -32,7 +33,7 @@ const toSession = (value: unknown): AuthSession | null => {
     return null
   }
   // A session saved before the roles changed (role "user") is dropped, so the user signs in again.
-  if (typeof role !== "string" || !(AUTH_ROLES as readonly string[]).includes(role)) {
+  if (typeof role !== "string" || !VALID_ROLES.includes(role)) {
     return null
   }
 
