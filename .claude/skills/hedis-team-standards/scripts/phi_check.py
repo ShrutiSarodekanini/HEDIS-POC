@@ -163,6 +163,7 @@ def staged_changes() -> dict[str, set[int]]:
 
 
 def scan_file(path: str, source: str, lines: set[int] | None) -> list[Finding]:
+    source = source.lstrip("\ufeff")
     findings = check_path(path)
     if path.endswith(".py"):
         findings += check_python(path, source, lines)
@@ -189,7 +190,7 @@ def main(argv: list[str] | None = None) -> int:
         for file in files:
             if "__pycache__" in file.parts:
                 continue
-            findings += scan_file(file.as_posix(), file.read_text(encoding="utf-8", errors="replace"), None)
+            findings += scan_file(file.as_posix(), file.read_text(encoding="utf-8-sig", errors="replace"), None)
 
     for finding in findings:
         print(finding)

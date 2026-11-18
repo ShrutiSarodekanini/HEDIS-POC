@@ -1,8 +1,7 @@
 """Virus scan of uploaded bytes with the Windows Defender command-line scanner.
 
 Result values: clean | infected | not_scanned | scan_failed.
-Scanning is OFF by default for the POC (result not_scanned). Set INTAKE_VIRUS_SCAN=1 to turn it on.
-INTAKE_SKIP_SCAN=1 always skips it (used by tests).
+Scanning is ON by default for secure intake. INTAKE_SKIP_SCAN=1 always skips it (used by tests).
 """
 
 import logging
@@ -28,9 +27,13 @@ def scan_bytes(data: bytes, filename: str) -> str:
     The bytes are written to a temporary file that is always deleted afterwards. The filename is not used for
     the temporary file name, so an odd name cannot influence the scanner.
     """
-    if (os.environ.get("INTAKE_VIRUS_SCAN") != "1" or os.environ.get("INTAKE_SKIP_SCAN") == "1"
-            or not SETTINGS.defender_cmd):
+    if os.environ.get("INTAKE_SKIP_SCAN") == "1":
         return NOT_SCANNED
+    if not SETTINGS.virus_scan_enabled:
+        return NOT_SCANNED
+    if not SETTINGS.defender_cmd:
+        log.warning("virus scan is enabled but Windows Defender scanner was not found")
+        return SCAN_FAILED
 
     path: Path | None = None
     try:

@@ -1673,6 +1673,19 @@ app = create_app()
 app.include_router(_ingestion_routes(), prefix="/api/ingestion")
 # The integration endpoints (formerly the 8780 app): batches, work list, AI evidence, export, quality, stars, health.
 app.include_router(integration_routes.build_router(current_auth_user, admin_auth_user))
+
+
+def _ensure_route_paths(routes: list[object]) -> None:
+    """prometheus-fastapi-instrumentator expects every route object to expose `.path`."""
+    for route in routes:
+        if not hasattr(route, "path"):
+            route.path = getattr(route, "path_format", "")  # type: ignore[attr-defined]
+        nested = getattr(route, "routes", None)
+        if isinstance(nested, list):
+            _ensure_route_paths(nested)
+
+
+_ensure_route_paths(app.routes)
 # handler is the route template; paths no route matches (the UI's 404s) are all grouped as handler "none".
 Instrumentator(should_group_untemplated=True).instrument(app).expose(app, endpoint="/metrics", include_in_schema=False)
 

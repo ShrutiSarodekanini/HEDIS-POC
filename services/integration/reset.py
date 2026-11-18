@@ -28,6 +28,16 @@ log = logging.getLogger(__name__)
 REFERENCE_TABLES = ("measure_definition", "measure_rule", "measure_star_weight", "star_cutpoint",
                     "organization_quality", "organization", "practitioner", "evidence_library",
                     "alembic_version")
+# Immutable decision/audit history must survive Start over. Their FK parents are kept too.
+IMMUTABLE_HISTORY_TABLES = (
+    "audit_events",
+    "review_decisions",
+    "supplemental_records",
+    "export_runs",
+    "export_run_items",
+    "evidence_proposal",
+    "evidence_proposal_detail",
+)
 LOCK_TIMEOUT = "30s"   # TRUNCATE waits for open readers; give up instead of hanging the request
 
 _TABLES = """
@@ -71,7 +81,8 @@ def reset(conn: psycopg.Connection, confirm: str) -> dict:
     try:
         emptied = _empty_data_tables(conn)
         audit(conn, "schema", schema, "data.reset", {"tables_emptied": len(emptied),
-                                                     "reference_tables_kept": len(REFERENCE_TABLES)},
+                                                     "reference_tables_kept": len(REFERENCE_TABLES),
+                                                     "history_tables_kept": len(IMMUTABLE_HISTORY_TABLES)},
               actor=SETTINGS.actor)
         conn.commit()
         shutil.rmtree(SETTINGS.work_dir / "uploads", ignore_errors=True)
@@ -90,13 +101,18 @@ def _empty_data_tables(conn: psycopg.Connection) -> list[str]:
     if missing:
         raise ResetRefused(f"This schema has no {', '.join(sorted(missing))}. Run run_demo.ps1 -Integration -Setup.")
     keys = conn.execute(_FOREIGN_KEYS).fetchall()
+    history = set(IMMUTABLE_HISTORY_TABLES) & tables
+    history_dependencies = _dependency_closure(keys, history)
     pinned = {dst for src, _, dst, _ in keys if src in REFERENCE_TABLES and dst not in REFERENCE_TABLES}
-    emptied = sorted(tables - set(REFERENCE_TABLES) - pinned)
-    _refuse_if_cascade_reaches(keys, set(emptied), set(REFERENCE_TABLES) | pinned)
+    kept = set(REFERENCE_TABLES) | pinned | history | history_dependencies
+    emptied = sorted(tables - kept)
+    _refuse_if_cascade_reaches(keys, set(emptied), kept)
     conn.execute(sql.SQL("SET LOCAL lock_timeout = {}").format(sql.Literal(LOCK_TIMEOUT)))
-    conn.execute(sql.SQL("TRUNCATE {} RESTART IDENTITY CASCADE").format(
-        sql.SQL(", ").join(sql.Identifier(t) for t in emptied)))
-    for table in sorted(pinned):
+    if emptied:
+        conn.execute(sql.SQL("TRUNCATE {} RESTART IDENTITY CASCADE").format(
+            sql.SQL(", ").join(sql.Identifier(t) for t in emptied)))
+    prunable_pinned = pinned - history - history_dependencies
+    for table in sorted(prunable_pinned):
         users = [(src, col, dst_col) for src, col, dst, dst_col in keys if dst == table and src in REFERENCE_TABLES]
         if any(col is None for _, col, _ in users):
             raise ResetRefused(f"{table} is referenced by a multi-column key; Start over cannot keep it consistent.")
@@ -104,7 +120,16 @@ def _empty_data_tables(conn: psycopg.Connection) -> list[str]:
             sql.SQL("t.{} IN (SELECT {} FROM {} WHERE {} IS NOT NULL)").format(
                 sql.Identifier(dst_col), sql.Identifier(col), sql.Identifier(src), sql.Identifier(col))
             for src, col, dst_col in users)))
-    return emptied + sorted(pinned)
+    return emptied + sorted(prunable_pinned)
+
+
+def _dependency_closure(keys: list[tuple], roots: set[str]) -> set[str]:
+    """Tables reachable as FK targets from roots (roots depend on them), recursively."""
+    reached, frontier = set(), set(roots)
+    while frontier:
+        frontier = {dst for src, _, dst, _ in keys if src in frontier and dst not in reached}
+        reached |= frontier
+    return reached
 
 
 def _refuse_if_cascade_reaches(keys: list[tuple], emptied: set[str], kept: set[str]) -> None:

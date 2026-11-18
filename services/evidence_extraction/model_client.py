@@ -42,6 +42,7 @@ class OpenRouterClient:
     def __init__(self, settings: Settings = SETTINGS, transport: httpx.BaseTransport | None = None,
                  sleep: Callable[[float], None] = time.sleep) -> None:
         """Fail at construction without a key, so a run stops before any gap is touched."""
+        assert_hosted_model_allowed(settings)
         if not settings.openrouter_api_key:
             raise ValueError("Set OPENROUTER_API_KEY in .env")
         self.model = settings.model
@@ -155,6 +156,15 @@ class OpenRouterClient:
     def _excerpt(self, response: httpx.Response) -> str:
         """Start of a response body for error messages, with the key removed in case a body ever echoes it."""
         return response.text.replace(self._key, "[redacted]")[:BODY_EXCERPT_CHARS]
+
+
+def assert_hosted_model_allowed(settings: Settings = SETTINGS) -> None:
+    """Hosted-model extraction is fail-closed: only explicit synthetic data may be sent to OpenRouter."""
+    if settings.data_class != "synthetic":
+        raise ValueError(
+            "AI evidence is off: set EXTRACTION_DATA_CLASS=synthetic in .env to confirm only synthetic data is "
+            "sent to OpenRouter."
+        )
 
 
 def _retry_after_s(response: httpx.Response) -> float:
